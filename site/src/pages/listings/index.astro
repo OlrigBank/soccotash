@@ -1,0 +1,18 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ListingCard from '../../components/ListingCard.astro';
+
+const listings = (await getCollection('listings')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+---
+
+<BaseLayout title="Listings" description="Olrig Bank accommodation and stay options.">
+  <section class="hero">
+    <h1>Listings</h1>
+    <p>Accommodation and stay options for Olrig Bank.</p>
+  </section>
+
+  <div class="grid">
+    {listings.map((entry) => <ListingCard entry={entry} />)}
+  </div>
+</BaseLayout>

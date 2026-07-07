@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: soccotash-sav-site
+    env: docker
+    rootDir: site
+    autoDeploy: true
+    plan: free

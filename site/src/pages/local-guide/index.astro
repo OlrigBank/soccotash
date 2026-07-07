@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import OfferingCard from '../../components/OfferingCard.astro';
+import { getLocalGuideEntries } from '../../lib/content';
+import { getLocalGuideCategories } from '../../lib/navigation';
+
+const entries = await getLocalGuideEntries();
+const categories = getLocalGuideCategories().filter((category) => category.id !== 'home');
+---
+
+<BaseLayout title="Local Guide" description="Local recommendations near Olrig Bank and Kendal.">
+  <section class="hero">
+    <h1>Local guide</h1>
+    <p>Recommendations migrated from the original Olrig Bank website.</p>
+  </section>
+
+  <section class="prose" style="margin-bottom: 1.5rem;">
+    <h2>Categories</h2>
+    <div class="grid">
+      {categories.map((category) => (
+        <article class="card">
+          <div class="card-content">
+            <h3><a href={`/local-guide/${category.id}/`}>{category.label}</a></h3>
+            <p>{category.offeringCount ?? 0} items</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <h2>All recommendations</h2>
+  <div class="grid">
+    {entries.map((entry) => <OfferingCard entry={entry} />)}
+  </div>
+</BaseLayout>

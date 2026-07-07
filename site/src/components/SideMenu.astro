@@ -1,0 +1,49 @@
+---
+import { getNavigation } from '../lib/navigation';
+
+const { activePath = Astro.url.pathname } = Astro.props;
+const navigation = getNavigation();
+
+function isCurrent(href: string) {
+  if (href === '/') return activePath === '/';
+  return activePath === href || activePath.startsWith(href);
+}
+---
+
+<nav class="sidebar" aria-label="Site navigation">
+  <h2>Explore</h2>
+  <ul>
+    <li><a href="/" aria-current={isCurrent('/') ? 'page' : undefined}>Home</a></li>
+    <li><a href="/listings/" aria-current={isCurrent('/listings/') ? 'page' : undefined}>Listings</a></li>
+    <li><a href="/guest-information/" aria-current={isCurrent('/guest-information/') ? 'page' : undefined}>Guest information</a></li>
+    <li><a href="/contact/" aria-current={isCurrent('/contact/') ? 'page' : undefined}>Contact</a></li>
+  </ul>
+
+  <h2 style="margin-top: 1.25rem;">Local guide</h2>
+  <ul>
+    <li><a href="/local-guide/" aria-current={isCurrent('/local-guide/') ? 'page' : undefined}>All local guide</a></li>
+    {navigation.items.map((item) => (
+      <li>
+        <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a>
+        {item.children?.length ? (
+          <ul>
+            {item.children.map((child) => (
+              <li>
+                <a href={child.href} aria-current={isCurrent(child.href) ? 'page' : undefined}>{child.label}</a>
+                {child.children?.length ? (
+                  <ul>
+                    {child.children.map((grandchild) => (
+                      <li>
+                        <a href={grandchild.href} aria-current={isCurrent(grandchild.href) ? 'page' : undefined}>{grandchild.label}</a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    ))}
+  </ul>
+</nav>

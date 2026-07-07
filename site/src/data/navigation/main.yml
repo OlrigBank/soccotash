@@ -1,0 +1,230 @@
+# Generated from the legacy OlrigBankWeb site_structure.toml.
+# Menu labels can be changed later; local-guide entries link to categories by stable id.
+items:
+  - id: "home"
+    label: "Home"
+    description: ""
+    href: "/"
+    legacyId: "0.1"
+    hasOfferings: true
+    children:
+      - id: "whats-on"
+        label: "Whats On"
+        description: ""
+        href: "/local-guide/whats-on/"
+        legacyId: "0.2"
+        hasOfferings: true
+      - id: "outdoor-pursuits"
+        label: "Outdoor Pursuits"
+        description: ""
+        href: "/local-guide/outdoor-pursuits/"
+        legacyId: "0.3"
+        hasOfferings: false
+        children:
+          - id: "close-to-home"
+            label: "Close to home"
+            description: ""
+            href: "/local-guide/close-to-home/"
+            legacyId: "0.4"
+            hasOfferings: true
+          - id: "further-afield"
+            label: "Further afield"
+            description: ""
+            href: "/local-guide/further-afield/"
+            legacyId: "0.5"
+            hasOfferings: true
+          - id: "cycling"
+            label: "Cycling"
+            description: ""
+            href: "/local-guide/cycling/"
+            legacyId: "0.6"
+            hasOfferings: true
+      - id: "local"
+        label: "Local"
+        description: ""
+        href: "/local-guide/local/"
+        legacyId: "0.7"
+        hasOfferings: false
+        children:
+          - id: "eating-out"
+            label: "Eating Out"
+            description: ""
+            href: "/local-guide/eating-out/"
+            legacyId: "0.8"
+            hasOfferings: true
+          - id: "bars"
+            label: "Bars"
+            description: ""
+            href: "/local-guide/bars/"
+            legacyId: "0.9"
+            hasOfferings: true
+          - id: "activities"
+            label: "Activities"
+            description: ""
+            href: "/local-guide/activities/"
+            legacyId: "0.10"
+            hasOfferings: true
+          - id: "exhibitions"
+            label: "Exhibitions"
+            description: ""
+            href: "/local-guide/exhibitions/"
+            legacyId: "0.11"
+            hasOfferings: true
+          - id: "shopping"
+            label: "Shopping"
+            description: ""
+            href: "/local-guide/shopping/"
+            legacyId: "0.12"
+            hasOfferings: true
+          - id: "music"
+            label: "Music"
+            description: ""
+            href: "/local-guide/music/"
+            legacyId: "0.13"
+            hasOfferings: true
+          - id: "pre-owned"
+            label: "Pre-owned"
+            description: ""
+            href: "/local-guide/pre-owned/"
+            legacyId: "0.14"
+            hasOfferings: false
+            children:
+              - id: "antiques"
+                label: "Antiques"
+                description: ""
+                href: "/local-guide/antiques/"
+                legacyId: "0.15"
+                hasOfferings: true
+              - id: "collectables"
+                label: "Collectables"
+                description: ""
+                href: "/local-guide/collectables/"
+                legacyId: "0.16"
+                hasOfferings: true
+      - id: "festivals"
+        label: "Festivals"
+        description: ""
+        href: "/local-guide/festivals/"
+        legacyId: "0.17"
+        hasOfferings: true
+
+localGuideCategories:
+  - id: "home"
+    label: "Home"
+    description: ""
+    parent: ""
+    href: "/"
+    hasOfferings: true
+    offeringCount: 1
+  - id: "whats-on"
+    label: "Whats On"
+    description: ""
+    parent: "home"
+    href: "/local-guide/whats-on/"
+    hasOfferings: true
+    offeringCount: 1
+  - id: "outdoor-pursuits"
+    label: "Outdoor Pursuits"
+    description: ""
+    parent: "home"
+    href: "/local-guide/outdoor-pursuits/"
+    hasOfferings: false
+    offeringCount: 0
+  - id: "close-to-home"
+    label: "Close to home"
+    description: ""
+    parent: "outdoor-pursuits"
+    href: "/local-guide/close-to-home/"
+    hasOfferings: true
+    offeringCount: 7
+  - id: "further-afield"
+    label: "Further afield"
+    description: ""
+    parent: "outdoor-pursuits"
+    href: "/local-guide/further-afield/"
+    hasOfferings: true
+    offeringCount: 5
+  - id: "cycling"
+    label: "Cycling"
+    description: ""
+    parent: "outdoor-pursuits"
+    href: "/local-guide/cycling/"
+    hasOfferings: true
+    offeringCount: 2
+  - id: "local"
+    label: "Local"
+    description: ""
+    parent: "home"
+    href: "/local-guide/local/"
+    hasOfferings: false
+    offeringCount: 0
+  - id: "eating-out"
+    label: "Eating Out"
+    description: ""
+    parent: "local"
+    href: "/local-guide/eating-out/"
+    hasOfferings: true
+    offeringCount: 3
+  - id: "bars"
+    label: "Bars"
+    description: ""
+    parent: "local"
+    href: "/local-guide/bars/"
+    hasOfferings: true
+    offeringCount: 2
+  - id: "activities"
+    label: "Activities"
+    description: ""
+    parent: "local"
+    href: "/local-guide/activities/"
+    hasOfferings: true
+    offeringCount: 2
+  - id: "exhibitions"
+    label: "Exhibitions"
+    description: ""
+    parent: "local"
+    href: "/local-guide/exhibitions/"
+    hasOfferings: true
+    offeringCount: 2
+  - id: "shopping"
+    label: "Shopping"
+    description: ""
+    parent: "local"
+    href: "/local-guide/shopping/"
+    hasOfferings: true
+    offeringCount: 3
+  - id: "music"
+    label: "Music"
+    description: ""
+    parent: "local"
+    href: "/local-guide/music/"
+    hasOfferings: true
+    offeringCount: 4
+  - id: "pre-owned"
+    label: "Pre-owned"
+    description: ""
+    parent: "local"
+    href: "/local-guide/pre-owned/"
+    hasOfferings: false
+    offeringCount: 0
+  - id: "antiques"
+    label: "Antiques"
+    description: ""
+    parent: "pre-owned"
+    href: "/local-guide/antiques/"
+    hasOfferings: true
+    offeringCount: 1
+  - id: "collectables"
+    label: "Collectables"
+    description: ""
+    parent: "pre-owned"
+    href: "/local-guide/collectables/"
+    hasOfferings: true
+    offeringCount: 1
+  - id: "festivals"
+    label: "Festivals"
+    description: ""
+    parent: "home"
+    href: "/local-guide/festivals/"
+    hasOfferings: true
+    offeringCount: 3

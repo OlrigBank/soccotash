@@ -1,0 +1,35 @@
+---
+import { getCollection, getEntry, render } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import OfferingCard from '../components/OfferingCard.astro';
+import ListingCard from '../components/ListingCard.astro';
+import { getFeaturedLocalGuideEntries } from '../lib/content';
+
+const page = await getEntry('pages', 'home');
+const { Content } = page ? await render(page) : { Content: undefined };
+const featuredGuide = await getFeaturedLocalGuideEntries(6);
+const listings = (await getCollection('listings')).sort((a, b) => Number(b.data.featured) - Number(a.data.featured));
+---
+
+<BaseLayout title={page?.data.title ?? 'Olrig Bank'} description={page?.data.description}>
+  <section class="hero">
+    <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
+    {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
+  </section>
+
+  {Content ? <section class="prose"><Content /></section> : null}
+
+  <section style="margin-top: 1.5rem;">
+    <h2>Places to stay</h2>
+    <div class="grid">
+      {listings.map((entry) => <ListingCard entry={entry} />)}
+    </div>
+  </section>
+
+  <section style="margin-top: 1.5rem;">
+    <h2>Featured local guide</h2>
+    <div class="grid">
+      {featuredGuide.map((entry) => <OfferingCard entry={entry} />)}
+    </div>
+  </section>
+</BaseLayout>

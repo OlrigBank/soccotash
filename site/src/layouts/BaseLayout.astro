@@ -1,0 +1,53 @@
+---
+import SideMenu from '../components/SideMenu.astro';
+import '../styles/global.css';
+
+const {
+  title = 'Olrig Bank',
+  description = 'Guest information and local guide for Olrig Bank.',
+  showSidebar = true,
+} = Astro.props;
+const pageTitle = title === 'Olrig Bank' ? title : `${title} | Olrig Bank`;
+---
+
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{pageTitle}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <div class="header-inner">
+          <a href="/" class="brand" aria-label="Olrig Bank home">
+            <span class="brand-mark">OB</span>
+            <span>Olrig Bank</span>
+          </a>
+          <nav class="top-nav" aria-label="Main navigation">
+            <a href="/listings/">Listings</a>
+            <a href="/local-guide/">Local guide</a>
+            <a href="/guest-information/">Guest information</a>
+            <a href="/contact/">Contact</a>
+          </nav>
+        </div>
+      </header>
+
+      <div class="page-grid">
+        {showSidebar ? <SideMenu activePath={Astro.url.pathname} /> : null}
+        <main>
+          <slot />
+        </main>
+      </div>
+
+      <footer class="site-footer">
+        <div class="footer-inner">
+          <p>© {new Date().getFullYear()} Olrig Bank. Content is managed from Markdown files in this repository.</p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

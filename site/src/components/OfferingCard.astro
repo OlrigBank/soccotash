@@ -1,0 +1,19 @@
+---
+import { entrySummary } from '../lib/content';
+
+const { entry } = Astro.props;
+const slug = entry.data.slug || entry.id;
+const href = `/local-guide/${slug}/`;
+const summary = entrySummary(entry);
+---
+
+<article class="card">
+  <a class="card-link" href={href}>
+    {entry.data.image ? <img src={entry.data.image} alt="" loading="lazy" /> : null}
+    <div class="card-content">
+      {entry.data.categoryLabel ? <span class="badge">{entry.data.categoryLabel}</span> : null}
+      <h3>{entry.data.title}</h3>
+      <p>{summary}</p>
+    </div>
+  </a>
+</article>

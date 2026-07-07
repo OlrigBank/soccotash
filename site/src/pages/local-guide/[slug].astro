@@ -1,0 +1,77 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import OfferingCard from '../../components/OfferingCard.astro';
+import { entrySummary, getEntriesForCategory } from '../../lib/content';
+import { getCategoryById, getLocalGuideCategories } from '../../lib/navigation';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('localGuide');
+  const entryPaths = entries.map((entry) => ({
+    params: { slug: entry.data.slug || entry.id },
+    props: { kind: 'entry', entry },
+  }));
+
+  const categoryPaths = getLocalGuideCategories()
+    .filter((category) => category.id !== 'home')
+    .map((category) => ({
+      params: { slug: category.id },
+      props: { kind: 'category', category },
+    }));
+
+  return [...entryPaths, ...categoryPaths];
+}
+
+const { kind } = Astro.props;
+
+let title = '';
+let description = '';
+let categoryEntries: any[] = [];
+let category: any = Astro.props.category;
+let entry: any = Astro.props.entry;
+let Content: any;
+let summary = '';
+let entryCategory: any;
+
+if (kind === 'category') {
+  title = category.label;
+  categoryEntries = await getEntriesForCategory(category.id);
+  description = `Local guide: ${category.label}`;
+} else {
+  title = entry.data.title;
+  summary = entrySummary(entry);
+  description = summary;
+  entryCategory = getCategoryById(entry.data.category || '');
+  const rendered = await render(entry);
+  Content = rendered.Content;
+}
+---
+
+<BaseLayout title={title} description={description}>
+  {kind === 'category' ? (
+    <div>
+      <section class="hero">
+        <h1>{category.label}</h1>
+        {category.description ? <p>{category.description}</p> : <p>{categoryEntries.length} recommendations in this category.</p>}
+      </section>
+      <div class="grid">
+        {categoryEntries.map((entry) => <OfferingCard entry={entry} />)}
+      </div>
+    </div>
+  ) : (
+    <div>
+      <section class="hero">
+        {entryCategory ? <span class="badge">{entryCategory.label}</span> : null}
+        <h1>{entry.data.title}</h1>
+        {summary ? <p>{summary}</p> : null}
+        {entry.data.externalLink ? <a class="button" href={entry.data.externalLink}>Visit website</a> : null}
+      </section>
+
+      {entry.data.image ? <img src={entry.data.image} alt="" style="border-radius: 1rem; margin-bottom: 1.5rem;" /> : null}
+
+      <section class="prose">
+        {Content ? <Content /> : null}
+      </section>
+    </div>
+  )}
+</BaseLayout>

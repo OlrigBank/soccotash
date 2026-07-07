@@ -1,0 +1,29 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export async function getStaticPaths() {
+  const listings = await getCollection('listings');
+  return listings.map((entry) => ({
+    params: { slug: entry.data.slug || entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={entry.data.title} description={entry.data.summary}>
+  <section class="hero">
+    <h1>{entry.data.title}</h1>
+    {entry.data.summary ? <p>{entry.data.summary}</p> : null}
+    <p>{[entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean).join(' · ')}</p>
+  </section>
+
+  {entry.data.image ? <img src={entry.data.image} alt="" style="border-radius: 1rem; margin-bottom: 1.5rem;" /> : null}
+
+  <section class="prose">
+    <Content />
+  </section>
+</BaseLayout>
