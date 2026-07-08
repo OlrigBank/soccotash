@@ -5,10 +5,16 @@ description: How guests can contact Olrig Bank.
 heroTitle: Contact Olrig Bank
 heroText: Use this page for the preferred contact details and rebooking message.
 ---
-Guests come to Olrig Bank for family gatherings, holidays in the Lake District, weekends away, special occasions, or simply a peaceful break in Kendal.
+Guests come to stay at Olrig Bank for family gatherings, holidays in the Lake District, weekends away, special occasions, or simply a peaceful break in Kendal.
 
-If you would like to arrange a stay, discuss possible dates, or just ask about availability, please contact **Jenna**, who will be happy to answer all of your questions.  
+If you would like to arrange a stay, discuss possible dates, or just ask about availability, please contact **Jenna**, who will be happy to answer all of your questions
 
+When contacting us, can you please let have what you know about:
+
+Your preferred dates  
+The number of guests  
+Whether you wish to use the Main House, Cottage or the whole of Olrig Bank  
+Any special requirements relating to the visit
 
 ## Contact Jenna
 
