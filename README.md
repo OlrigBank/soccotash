@@ -24,25 +24,33 @@ npm install --prefix site
 npm run dev
 ```
 
-Or from inside `site/`:
+For mobile testing on the same network:
 
 ```bash
-npm install
-npm run dev
+npm --prefix site run dev -- --host 0.0.0.0 --port 4322
 ```
 
-## Build
+## Build and check
 
 ```bash
-npm run build
+npm --prefix site ci
+npm --prefix site run check
+npm --prefix site run build
 ```
 
 The static site is built to `site/dist/`.
 
 ## Content editing
 
-The local-guide content is in Markdown with YAML frontmatter. Pages CMS can use `.pages.yml` at the repository root to edit the Markdown, YAML navigation and settings files.
+Pages CMS uses `.pages.yml` at the repository root. It is configured to edit:
+
+- Local guide Markdown entries
+- General Markdown pages
+- Listing Markdown pages
+- Site/contact YAML settings
+- Navigation YAML
+- Images in `site/public/media/images/`
 
 ## Deployment
 
-The included `render.yaml` deploys only the Astro site under `site/`. It does not deploy a self-hosted Pages CMS application; Pages CMS can be used as a Git-based editing layer via its GitHub integration.
+The included `render.yaml` deploys only the Astro site under `site/` as a Docker web service. It does not deploy a self-hosted Pages CMS application; Pages CMS can be used as a Git-based editing layer via its GitHub integration.

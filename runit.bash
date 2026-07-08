@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
 rm -rf site/dist site/.astro site/node_modules
 npm --prefix site ci
 npm --prefix site run build
