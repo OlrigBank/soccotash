@@ -1,0 +1,251 @@
+media:
+- name: images
+  label: Images
+  input: site/public/media/images
+  output: /media/images
+  extensions:
+  - png
+  - jpg
+  - jpeg
+  - webp
+  - svg
+  rename: safe
+content:
+- name: local-guide
+  label: Local guide
+  type: collection
+  path: site/src/content/local-guide
+  format: yaml-frontmatter
+  filename: '{slug}.md'
+  view:
+    fields:
+    - title
+    - category
+    - recommended
+    primary: title
+    sort:
+    - title
+    - category
+    search:
+    - title
+    - summary
+    - body
+    default:
+      sort: title
+      order: asc
+  fields:
+  - name: title
+    label: Title
+    type: string
+    required: true
+  - name: slug
+    label: URL slug
+    type: string
+    required: true
+    pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+  - name: legacyId
+    label: Legacy ID
+    type: string
+    readonly: true
+  - name: category
+    label: Category
+    type: select
+    required: true
+    options:
+      values:
+      - name: home
+        label: Home
+      - name: whats-on
+        label: Whats On
+      - name: outdoor-pursuits
+        label: Outdoor Pursuits
+      - name: close-to-home
+        label: Close to home
+      - name: further-afield
+        label: Further afield
+      - name: cycling
+        label: Cycling
+      - name: local
+        label: Local
+      - name: eating-out
+        label: Eating Out
+      - name: bars
+        label: Bars
+      - name: activities
+        label: Activities
+      - name: exhibitions
+        label: Exhibitions
+      - name: shopping
+        label: Shopping
+      - name: music
+        label: Music
+      - name: pre-owned
+        label: Pre-owned
+      - name: antiques
+        label: Antiques
+      - name: collectables
+        label: Collectables
+      - name: festivals
+        label: Festivals
+  - name: categoryLabel
+    label: Legacy category label
+    type: string
+    hidden: true
+  - name: image
+    label: Image
+    type: image
+  - name: externalLink
+    label: External website
+    type: string
+  - name: recommended
+    label: Recommended / featured
+    type: boolean
+  - name: summary
+    label: Card summary
+    type: text
+  - name: legacyText
+    label: Legacy text
+    type: text
+    hidden: true
+  - name: body
+    label: Page body
+    type: rich-text
+- name: pages
+  label: General pages
+  type: collection
+  path: site/src/content/pages
+  format: yaml-frontmatter
+  filename: '{slug}.md'
+  view:
+    fields:
+    - title
+    - slug
+    primary: title
+    sort:
+    - title
+    search:
+    - title
+    - description
+    - body
+  fields:
+  - name: slug
+    label: Internal slug
+    type: string
+    required: true
+    pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+  - name: title
+    label: Title
+    type: string
+    required: true
+  - name: description
+    label: Meta description
+    type: text
+  - name: heroTitle
+    label: Hero title
+    type: string
+  - name: heroText
+    label: Hero text
+    type: text
+  - name: body
+    label: Page body
+    type: rich-text
+- name: listings
+  label: Listings
+  type: collection
+  path: site/src/content/listings
+  format: yaml-frontmatter
+  filename: '{slug}.md'
+  view:
+    fields:
+    - title
+    - sleeps
+    - featured
+    primary: title
+    sort:
+    - title
+    search:
+    - title
+    - summary
+    - body
+  fields:
+  - name: title
+    label: Title
+    type: string
+    required: true
+  - name: slug
+    label: URL slug
+    type: string
+    required: true
+    pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+  - name: summary
+    label: Summary
+    type: text
+  - name: image
+    label: Image
+    type: image
+  - name: sleeps
+    label: Sleeps
+    type: string
+  - name: bedrooms
+    label: Bedrooms
+    type: string
+  - name: bathrooms
+    label: Bathrooms
+    type: string
+  - name: featured
+    label: Featured
+    type: boolean
+  - name: body
+    label: Listing body
+    type: rich-text
+- name: settings
+  label: Settings
+  type: group
+  items:
+  - name: site-settings
+    label: Site settings
+    type: file
+    path: site/src/data/settings/site.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Site title
+      type: string
+      required: true
+    - name: description
+      label: Site description
+      type: text
+    - name: url
+      label: Public URL
+      type: string
+    - name: logo
+      label: Logo / default image
+      type: image
+  - name: contact-settings
+    label: Contact details
+    type: file
+    path: site/src/data/settings/contact.yml
+    format: yaml
+    fields:
+    - name: name
+      label: Contact name
+      type: string
+      required: true
+    - name: email
+      label: Email
+      type: string
+    - name: phone
+      label: Phone
+      type: string
+    - name: whatsapp
+      label: WhatsApp
+      type: string
+    - name: address
+      label: Address
+      type: text
+  - name: navigation
+    label: Navigation structure
+    type: file
+    path: site/src/data/navigation/main.yml
+    format: code
+    fields: []
