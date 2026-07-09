@@ -2,7 +2,7 @@
 title: "Events and Longer Stays"
 slug: "event"
 summary: "Information for special stays, group bookings and direct rebooking enquiries."
-image: "/media/images/olrigbank.png"
+image: "/media/images/listings/olrigbank.png"
 sleeps: "Varies"
 bedrooms: "Varies"
 bathrooms: "Varies"

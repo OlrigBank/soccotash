@@ -4,7 +4,7 @@ slug: babaganoush
 legacyId: "1.2"
 category: eating-out
 categoryLabel: Eating Out
-image: /media/images/Babaganoush.png
+image: /media/images/local-guide/Babaganoush.png
 externalLink: https://babaganoushkendal.co.uk/
 recommended: true
 summary: "If you love vegetarian food then Baba Ganoush is the place for you. Be

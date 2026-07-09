@@ -4,7 +4,7 @@ slug: "kendalpeoplescafe"
 legacyId: "1.3"
 category: "eating-out"
 categoryLabel: "Eating Out"
-image: "/media/images/kendalpeoplescafe.png"
+image: "/media/images/local-guide/kendalpeoplescafe.png"
 externalLink: "https://wasteintowellbeing.org.uk/kendal-peoples-cafe/"
 recommended: true
 summary: ""

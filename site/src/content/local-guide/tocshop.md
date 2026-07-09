@@ -4,7 +4,7 @@ slug: "tocshop"
 legacyId: "1.17"
 category: "antiques"
 categoryLabel: "Antiques"
-image: "/media/images/tocshop.png"
+image: "/media/images/local-guide/tocshop.png"
 externalLink: "https://tocshop.co.uk/"
 recommended: true
 summary: ""

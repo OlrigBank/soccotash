@@ -4,7 +4,7 @@ slug: "comic-art-featival"
 legacyId: "1.9"
 category: "festivals"
 categoryLabel: "Festivals"
-image: "/media/images/comic-art-featival.png"
+image: "/media/images/local-guide/comic-art-featival.png"
 externalLink: "https://www.facebook.com/LakesInternationalComicArtFestival/"
 recommended: true
 summary: ""
