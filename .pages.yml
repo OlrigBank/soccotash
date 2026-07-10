@@ -183,6 +183,10 @@ content:
   - name: image
     label: Image
     type: image
+  - name: gallery
+    label: Gallery
+    type: image
+    list: true
   - name: sleeps
     label: Sleeps
     type: string
@@ -192,11 +196,126 @@ content:
   - name: bathrooms
     label: Bathrooms
     type: string
+  - name: spaces
+    label: Spaces used by this listing
+    type: reference
+    options:
+      collection: spaces
+      multiple: true
+      search: title,summary,spaceType,spaceGroup
+      value: '{fields.slug}'
+      label: '{primary}'
   - name: featured
     label: Featured
     type: boolean
   - name: body
     label: Listing body
+    type: rich-text
+- name: spaces
+  label: Spaces
+  type: collection
+  path: site/src/content/spaces
+  subfolders: true
+  format: yaml-frontmatter
+  filename: '{spaceGroup}/{slug}/{slug}.md'
+  view:
+    fields:
+    - title
+    - spaceGroup
+    - spaceType
+    - sortOrder
+    - featured
+    primary: title
+    sort:
+    - spaceGroup
+    - sortOrder
+    - title
+    search:
+    - title
+    - summary
+    - spaceType
+    - body
+  fields:
+  - name: title
+    label: Title
+    type: string
+    required: true
+  - name: slug
+    label: Slug
+    type: string
+    required: true
+    pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+  - name: spaceGroup
+    label: Folder group
+    type: select
+    required: true
+    options:
+      values:
+      - name: house
+        label: House
+      - name: cottage
+        label: Cottage
+      - name: garden
+        label: Garden
+  - name: spaceType
+    label: Space type
+    type: select
+    options:
+      values:
+      - name: bedroom
+        label: Bedroom
+      - name: bathroom
+        label: Bathroom / WC
+      - name: kitchen
+        label: Kitchen
+      - name: lounge
+        label: Lounge
+      - name: dining
+        label: Dining
+      - name: entrance
+        label: Entrance / hall
+      - name: landing
+        label: Landing
+      - name: mezzanine
+        label: Mezzanine
+      - name: garden
+        label: Garden
+      - name: other
+        label: Other
+  - name: summary
+    label: Summary
+    type: text
+  - name: image
+    label: Main image
+    type: image
+  - name: gallery
+    label: Gallery
+    type: image
+    list: true
+  - name: sleeps
+    label: Sleeps
+    type: string
+  - name: beds
+    label: Beds
+    type: string
+  - name: bathrooms
+    label: Bathrooms
+    type: string
+  - name: ensuite
+    label: Ensuite
+    type: boolean
+  - name: features
+    label: Features
+    type: string
+    list: true
+  - name: sortOrder
+    label: Sort order
+    type: number
+  - name: featured
+    label: Featured
+    type: boolean
+  - name: body
+    label: Space body
     type: rich-text
 - name: settings
   label: Settings
