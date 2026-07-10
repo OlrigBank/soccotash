@@ -6,6 +6,10 @@ image: "/media/images/listings/olrigbank.png"
 sleeps: "Varies"
 bedrooms: "Varies"
 bathrooms: "Varies"
+spaces:
+  - house-lounge
+  - house-dining
+  - garden
 featured: false
 ---
 

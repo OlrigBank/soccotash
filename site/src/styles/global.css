@@ -200,3 +200,77 @@ main {
   .page-grid { grid-template-columns: 1fr; }
   .sidebar { position: static; }
 }
+
+.listing-hero-image {
+  border-radius: 1rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-height: 34rem;
+  object-fit: cover;
+  background: #eadfce;
+}
+
+.spaces-section {
+  margin-top: 1.5rem;
+}
+
+.section-heading {
+  margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+  margin-bottom: 0.25rem;
+}
+
+.section-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.space-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.space-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.space-card img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: #eadfce;
+}
+
+.space-card-content {
+  padding: 1rem;
+}
+
+.space-card-content h3 {
+  margin-top: 0;
+  line-height: 1.2;
+}
+
+.space-card-content p {
+  color: var(--muted);
+}
+
+.space-facts {
+  font-size: 0.92rem;
+}
+
+.space-features {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.space-body:empty {
+  display: none;
+}

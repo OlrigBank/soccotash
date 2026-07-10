@@ -1,11 +1,11 @@
 ---
-title: "House Bedroom 1"
-slug: "house-bedroom-1"
+title: "House Bedroom 3"
+slug: "house-bedroom-3"
 spaceGroup: "house"
 spaceType: "bedroom"
 summary: "Bedroom in the main house."
 features:
   - "Sleeping space"
-sortOrder: 50
+sortOrder: 70
 featured: false
 ---

@@ -1,0 +1,35 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+
+interface Props {
+  space: CollectionEntry<'spaces'>;
+}
+
+const { space } = Astro.props;
+const { Content } = await render(space);
+const primaryImage = space.data.image || space.data.gallery?.[0];
+const facts = [
+  space.data.spaceType,
+  space.data.sleeps,
+  space.data.beds,
+  space.data.bathrooms,
+  space.data.ensuite ? 'Ensuite' : null,
+].filter(Boolean);
+---
+
+<article class="space-card">
+  {primaryImage ? <img src={primaryImage} alt={space.data.title} loading="lazy" /> : null}
+  <div class="space-card-content">
+    <h3>{space.data.title}</h3>
+    {space.data.summary ? <p>{space.data.summary}</p> : null}
+    {facts.length ? <p class="space-facts">{facts.join(' · ')}</p> : null}
+    {space.data.features.length ? (
+      <ul class="space-features">
+        {space.data.features.map((feature) => <li>{feature}</li>)}
+      </ul>
+    ) : null}
+    <div class="space-body">
+      <Content />
+    </div>
+  </div>
+</article>
