@@ -2,10 +2,10 @@
 title: "Olrig Bank Cottage"
 slug: "cottage"
 summary: "A separate cottage-style part of Olrig Bank with its own entrance."
-image: "/media/images/listings/olrigbank.png"
-sleeps: "To confirm"
-bedrooms: "To confirm"
-bathrooms: "To confirm"
+image: "/media/images/listings/cottage.jpeg"
+sleeps: "4"
+bedrooms: "2"
+bathrooms: "1"
 spaces:
   - cottage-hall-1
   - cottage-lounge-1
