@@ -23,13 +23,18 @@ for (const slug of entry.data.spaces) {
 }
 
 const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(slug));
+const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean);
 ---
 
 <BaseLayout title={entry.data.title} description={entry.data.summary}>
   <section class="hero">
     <h1>{entry.data.title}</h1>
     {entry.data.summary ? <p>{entry.data.summary}</p> : null}
-    <p>{[entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean).join(' · ')}</p>
+    {listingFacts.length ? <p class="listing-facts">{listingFacts.join(' · ')}</p> : null}
+    <div class="button-group">
+      <a class="button" href="/contact/">Ask Jenna about availability</a>
+      <a class="button button-secondary" href="https://wa.me/447907650960">Message on WhatsApp</a>
+    </div>
   </section>
 
   {entry.data.image ? <img src={entry.data.image} alt={entry.data.title} class="listing-hero-image" /> : null}
@@ -42,7 +47,7 @@ const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(s
     <section class="spaces-section">
       <div class="section-heading">
         <h2>Inside this stay</h2>
-        <p>Rooms and spaces included in this listing.</p>
+        <p>Rooms and spaces included in this accommodation option.</p>
       </div>
       <div class="space-grid">
         {selectedSpaces.map((space) => <Space space={space} />)}
@@ -50,10 +55,19 @@ const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(s
     </section>
   ) : null}
 
-  {missingSpaceSlugs.length ? (
-    <section class="prose">
+  <section class="prose enquiry-panel">
+    <h2>Ask about a stay</h2>
+    <p>Tell Jenna your preferred dates, group size and whether you are interested in the Main House, Cottage or the whole property.</p>
+    <div class="button-group">
+      <a class="button" href="/contact/">Contact Jenna</a>
+      <a class="button button-secondary" href="mailto:olrig.bank@gmail.com">Email Olrig Bank</a>
+    </div>
+  </section>
+
+  {import.meta.env.DEV && missingSpaceSlugs.length ? (
+    <section class="prose developer-note">
       <h2>Missing space references</h2>
-      <p>The following space slugs are listed but do not have matching space content yet: {missingSpaceSlugs.join(', ')}</p>
+      <p>The following space slugs do not have matching content: {missingSpaceSlugs.join(', ')}</p>
     </section>
   ) : null}
 </BaseLayout>

@@ -56,9 +56,9 @@ content:
       - name: home
         label: Home
       - name: whats-on
-        label: Whats On
+        label: What’s on
       - name: outdoor-pursuits
-        label: Outdoor Pursuits
+        label: Outdoor pursuits
       - name: close-to-home
         label: Close to home
       - name: further-afield
@@ -66,21 +66,21 @@ content:
       - name: cycling
         label: Cycling
       - name: local
-        label: Local
+        label: In Kendal
       - name: eating-out
-        label: Eating Out
+        label: Eating out
       - name: bars
         label: Bars
       - name: activities
         label: Activities
       - name: exhibitions
-        label: Exhibitions
+        label: Arts and exhibitions
       - name: shopping
         label: Shopping
       - name: music
         label: Music
       - name: pre-owned
-        label: Pre-owned
+        label: Antiques and pre-owned
       - name: antiques
         label: Antiques
       - name: collectables

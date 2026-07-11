@@ -1,17 +1,16 @@
 ---
 const { entry } = Astro.props;
 const slug = entry.data.slug || entry.id;
+const facts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean);
 ---
 
 <article class="card">
   <a class="card-link" href={`/listings/${slug}/`}>
-    {entry.data.image ? <img src={entry.data.image} alt="" loading="lazy" /> : null}
+    {entry.data.image ? <img src={entry.data.image} alt={entry.data.title} loading="lazy" /> : null}
     <div class="card-content">
       <h3>{entry.data.title}</h3>
       {entry.data.summary ? <p>{entry.data.summary}</p> : null}
-      <p>
-        {[entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean).join(' · ')}
-      </p>
+      {facts.length ? <p class="listing-facts">{facts.join(' · ')}</p> : null}
     </div>
   </a>
 </article>

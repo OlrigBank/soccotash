@@ -2,34 +2,54 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import OfferingCard from '../../components/OfferingCard.astro';
 import { getLocalGuideEntries } from '../../lib/content';
-import { getLocalGuideCategories } from '../../lib/navigation';
+import { getDescendantCategoryIds, getLocalGuideCategories } from '../../lib/navigation';
 
 const entries = await getLocalGuideEntries();
-const categories = getLocalGuideCategories().filter((category) => category.id !== 'home');
+const categories = getLocalGuideCategories().filter((category) => category.parent === 'home');
+
+function countForCategory(categoryId: string) {
+  const ids = new Set([categoryId, ...getDescendantCategoryIds(categoryId)]);
+  return entries.filter((entry) => ids.has(entry.data.category || '')).length;
+}
+
+function recommendationLabel(count: number) {
+  return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`;
+}
 ---
 
 <BaseLayout title="Local Guide" description="Local recommendations near Olrig Bank and Kendal.">
   <section class="hero">
     <h1>Local guide</h1>
-    <p>Recommendations migrated from the original Olrig Bank website.</p>
+    <p>Ideas for eating out, walks, activities, events and days out from Olrig Bank.</p>
   </section>
 
-  <section class="prose" style="margin-bottom: 1.5rem;">
-    <h2>Categories</h2>
+  <section class="prose category-section">
+    <h2>Browse by category</h2>
     <div class="grid">
-      {categories.map((category) => (
-        <article class="card">
-          <div class="card-content">
-            <h3><a href={`/local-guide/${category.id}/`}>{category.label}</a></h3>
-            <p>{category.offeringCount ?? 0} items</p>
-          </div>
-        </article>
-      ))}
+      {categories.map((category) => {
+        const count = countForCategory(category.id);
+        return (
+          <article class="card category-card">
+            <a class="card-link" href={`/local-guide/${category.id}/`}>
+              <div class="card-content">
+                <h3>{category.label}</h3>
+                {category.description ? <p>{category.description}</p> : null}
+                <p class="category-count">{recommendationLabel(count)}</p>
+              </div>
+            </a>
+          </article>
+        );
+      })}
     </div>
   </section>
 
-  <h2>All recommendations</h2>
-  <div class="grid">
-    {entries.map((entry) => <OfferingCard entry={entry} />)}
-  </div>
+  <section class="section-block">
+    <div class="section-heading">
+      <h2>All recommendations</h2>
+      <p>{recommendationLabel(entries.length)} in the guide.</p>
+    </div>
+    <div class="grid">
+      {entries.map((entry) => <OfferingCard entry={entry} />)}
+    </div>
+  </section>
 </BaseLayout>

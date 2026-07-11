@@ -8,11 +8,24 @@ interface Props {
 const { space } = Astro.props;
 const { Content } = await render(space);
 const primaryImage = space.data.image || space.data.gallery?.[0];
+
+function pluralFact(value: string | undefined, singular: string, plural: string) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return `${value} ${parsed === 1 ? singular : plural}`;
+}
+
+function spaceTypeLabel(value: string | undefined) {
+  if (!value) return null;
+  if (value.toLowerCase() === 'wc') return 'WC';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 const facts = [
-  space.data.spaceType,
-  space.data.sleeps,
-  space.data.beds,
-  space.data.bathrooms,
+  spaceTypeLabel(space.data.spaceType),
+  space.data.sleeps ? `Sleeps ${space.data.sleeps}` : null,
+  pluralFact(space.data.beds, 'bed', 'beds'),
+  pluralFact(space.data.bathrooms, 'bathroom', 'bathrooms'),
   space.data.ensuite ? 'Ensuite' : null,
 ].filter(Boolean);
 ---

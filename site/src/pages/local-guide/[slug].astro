@@ -3,7 +3,7 @@ import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import OfferingCard from '../../components/OfferingCard.astro';
 import { entrySummary, getEntriesForCategory } from '../../lib/content';
-import { getCategoryById, getLocalGuideCategories } from '../../lib/navigation';
+import { getCategoryById, getChildCategories, getLocalGuideCategories } from '../../lib/navigation';
 
 export async function getStaticPaths() {
   const entries = await getCollection('localGuide');
@@ -27,16 +27,23 @@ const { kind } = Astro.props;
 let title = '';
 let description = '';
 let categoryEntries: any[] = [];
+let childCategories: any[] = [];
+let childCounts = new Map<string, number>();
 let category: any = Astro.props.category;
 let entry: any = Astro.props.entry;
 let Content: any;
 let summary = '';
 let entryCategory: any;
+let hasMeaningfulBody = false;
 
 if (kind === 'category') {
   title = category.label;
   categoryEntries = await getEntriesForCategory(category.id);
-  description = `Local guide: ${category.label}`;
+  childCategories = getChildCategories(category.id);
+  for (const child of childCategories) {
+    childCounts.set(child.id, (await getEntriesForCategory(child.id)).length);
+  }
+  description = category.description || `Local guide recommendations for ${category.label}.`;
 } else {
   title = entry.data.title;
   summary = entrySummary(entry);
@@ -44,6 +51,16 @@ if (kind === 'category') {
   entryCategory = getCategoryById(entry.data.category || '');
   const rendered = await render(entry);
   Content = rendered.Content;
+  const bodyText = (entry.body || '').trim();
+  hasMeaningfulBody = Boolean(
+    bodyText &&
+    bodyText.toLocaleLowerCase() !== entry.data.title.trim().toLocaleLowerCase() &&
+    bodyText.toLocaleLowerCase() !== summary.trim().toLocaleLowerCase()
+  );
+}
+
+function recommendationLabel(count: number) {
+  return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`;
 }
 ---
 
@@ -52,11 +69,41 @@ if (kind === 'category') {
     <div>
       <section class="hero">
         <h1>{category.label}</h1>
-        {category.description ? <p>{category.description}</p> : <p>{categoryEntries.length} recommendations in this category.</p>}
+        <p>{category.description || recommendationLabel(categoryEntries.length)}</p>
       </section>
-      <div class="grid">
-        {categoryEntries.map((entry) => <OfferingCard entry={entry} />)}
-      </div>
+
+      {childCategories.length ? (
+        <section class="prose category-section">
+          <h2>Explore this category</h2>
+          <div class="grid">
+            {childCategories.map((child) => (
+              <article class="card category-card">
+                <a class="card-link" href={`/local-guide/${child.id}/`}>
+                  <div class="card-content">
+                    <h3>{child.label}</h3>
+                    {child.description ? <p>{child.description}</p> : null}
+                    <p class="category-count">{recommendationLabel(childCounts.get(child.id) ?? 0)}</p>
+                  </div>
+                </a>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section class="section-block">
+        <div class="section-heading">
+          <h2>Recommendations</h2>
+          <p>{recommendationLabel(categoryEntries.length)} in this section.</p>
+        </div>
+        {categoryEntries.length ? (
+          <div class="grid">
+            {categoryEntries.map((entry) => <OfferingCard entry={entry} />)}
+          </div>
+        ) : (
+          <div class="prose"><p>No recommendations have been added to this category yet.</p></div>
+        )}
+      </section>
     </div>
   ) : (
     <div>
@@ -67,11 +114,13 @@ if (kind === 'category') {
         {entry.data.externalLink ? <a class="button" href={entry.data.externalLink}>Visit website</a> : null}
       </section>
 
-      {entry.data.image ? <img src={entry.data.image} alt="" style="border-radius: 1rem; margin-bottom: 1.5rem;" /> : null}
+      {entry.data.image ? <img src={entry.data.image} alt={entry.data.title} class="listing-hero-image" /> : null}
 
-      <section class="prose">
-        {Content ? <Content /> : null}
-      </section>
+      {hasMeaningfulBody && Content ? (
+        <section class="prose">
+          <Content />
+        </section>
+      ) : null}
     </div>
   )}
 </BaseLayout>
