@@ -3,13 +3,16 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ListingCard from '../../components/ListingCard.astro';
 
-const listings = (await getCollection('listings')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+const listings = (await getCollection('listings')).sort((a, b) => {
+  const featuredDifference = Number(b.data.featured) - Number(a.data.featured);
+  return featuredDifference || a.data.title.localeCompare(b.data.title);
+});
 ---
 
-<BaseLayout title="Listings" description="Olrig Bank accommodation and stay options.">
+<BaseLayout title="Places to stay" description="Olrig Bank accommodation options in Kendal.">
   <section class="hero">
-    <h1>Listings</h1>
-    <p>Accommodation and stay options for Olrig Bank.</p>
+    <h1>Places to stay</h1>
+    <p>Choose the Main House, the Cottage or enquire about using the whole property for a larger group.</p>
   </section>
 
   <div class="grid">

@@ -274,3 +274,45 @@ main {
 .space-body:empty {
   display: none;
 }
+
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+}
+
+.listing-facts,
+.category-count {
+  font-weight: 700;
+  color: var(--accent-dark) !important;
+}
+
+.category-section {
+  margin-bottom: 1.5rem;
+}
+
+.category-card .card-link {
+  display: block;
+  height: 100%;
+}
+
+.section-block {
+  margin-top: 1.5rem;
+}
+
+.enquiry-panel {
+  margin-top: 1.5rem;
+}
+
+.developer-note {
+  margin-top: 1.5rem;
+  border-style: dashed;
+}

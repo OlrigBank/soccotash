@@ -20,14 +20,8 @@ export type NavigationData = {
 };
 
 function getNavigationPath() {
-  // During `astro build`, Astro bundles server-side code into `dist/chunks` before
-  // prerendering pages. Paths based on `import.meta.url` can therefore point at
-  // `site/dist/data/...`, which does not exist. The project root is the stable
-  // location for both `astro dev` and `astro build`.
   const projectRootPath = join(process.cwd(), 'src', 'data', 'navigation', 'main.yml');
   if (existsSync(projectRootPath)) return projectRootPath;
-
-  // Fallback for unusual execution contexts, for example direct tests from this file.
   return fileURLToPath(new URL('../data/navigation/main.yml', import.meta.url));
 }
 
@@ -42,6 +36,25 @@ export function getLocalGuideCategories(): NavItem[] {
 
 export function getCategoryById(id: string): NavItem | undefined {
   return getLocalGuideCategories().find((category) => category.id === id);
+}
+
+export function getChildCategories(parentId: string): NavItem[] {
+  return getLocalGuideCategories().filter((category) => category.parent === parentId);
+}
+
+export function getDescendantCategoryIds(categoryId: string): string[] {
+  const categories = getLocalGuideCategories();
+  const result: string[] = [];
+
+  function visit(parentId: string) {
+    for (const category of categories.filter((item) => item.parent === parentId)) {
+      result.push(category.id);
+      visit(category.id);
+    }
+  }
+
+  visit(categoryId);
+  return result;
 }
 
 export function flattenNavItems(items: NavItem[]): NavItem[] {

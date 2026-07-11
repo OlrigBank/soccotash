@@ -1,230 +1,244 @@
-# Generated from the legacy OlrigBankWeb site_structure.toml.
-# Menu labels can be changed later; local-guide entries link to categories by stable id.
 items:
-  - id: "home"
-    label: "Home"
-    description: ""
-    href: "/"
-    legacyId: "0.1"
+- id: home
+  label: Home
+  description: ''
+  href: /
+  legacyId: '0.1'
+  hasOfferings: true
+  children:
+  - id: whats-on
+    label: What’s on
+    description: Current event listings and ideas for planning your visit.
+    href: /local-guide/whats-on/
+    legacyId: '0.2'
+    hasOfferings: true
+    offeringCount: 1
+  - id: outdoor-pursuits
+    label: Outdoor pursuits
+    description: Walks, cycling and outdoor places around Kendal and the wider Lake District.
+    href: /local-guide/outdoor-pursuits/
+    legacyId: '0.3'
     hasOfferings: true
     children:
-      - id: "whats-on"
-        label: "Whats On"
-        description: ""
-        href: "/local-guide/whats-on/"
-        legacyId: "0.2"
+    - id: close-to-home
+      label: Close to home
+      description: Walks and outdoor places close to Kendal.
+      href: /local-guide/close-to-home/
+      legacyId: '0.4'
+      hasOfferings: true
+      offeringCount: 7
+    - id: further-afield
+      label: Further afield
+      description: Day trips and outdoor destinations across the wider area.
+      href: /local-guide/further-afield/
+      legacyId: '0.5'
+      hasOfferings: true
+      offeringCount: 5
+    - id: cycling
+      label: Cycling
+      description: Cycle routes and riding ideas from Kendal.
+      href: /local-guide/cycling/
+      legacyId: '0.6'
+      hasOfferings: true
+      offeringCount: 2
+    offeringCount: 14
+  - id: local
+    label: In Kendal
+    description: Food, drink, culture, activities and independent shops in Kendal.
+    href: /local-guide/local/
+    legacyId: '0.7'
+    hasOfferings: true
+    children:
+    - id: eating-out
+      label: Eating out
+      description: Cafés, restaurants and places to eat.
+      href: /local-guide/eating-out/
+      legacyId: '0.8'
+      hasOfferings: true
+      offeringCount: 3
+    - id: bars
+      label: Bars
+      description: Pubs and bars for an evening in Kendal.
+      href: /local-guide/bars/
+      legacyId: '0.9'
+      hasOfferings: true
+      offeringCount: 2
+    - id: activities
+      label: Activities
+      description: Indoor and local activities for your stay.
+      href: /local-guide/activities/
+      legacyId: '0.10'
+      hasOfferings: true
+      offeringCount: 2
+    - id: exhibitions
+      label: Arts and exhibitions
+      description: Museums, galleries and exhibitions.
+      href: /local-guide/exhibitions/
+      legacyId: '0.11'
+      hasOfferings: true
+      offeringCount: 2
+    - id: shopping
+      label: Shopping
+      description: Independent food shops and local businesses.
+      href: /local-guide/shopping/
+      legacyId: '0.12'
+      hasOfferings: true
+      offeringCount: 3
+    - id: music
+      label: Music
+      description: Live music and music events.
+      href: /local-guide/music/
+      legacyId: '0.13'
+      hasOfferings: true
+      offeringCount: 4
+    - id: pre-owned
+      label: Antiques and pre-owned
+      description: Antiques, collectables and pre-owned finds.
+      href: /local-guide/pre-owned/
+      legacyId: '0.14'
+      hasOfferings: true
+      children:
+      - id: antiques
+        label: Antiques
+        description: Antiques and distinctive older pieces.
+        href: /local-guide/antiques/
+        legacyId: '0.15'
         hasOfferings: true
-      - id: "outdoor-pursuits"
-        label: "Outdoor Pursuits"
-        description: ""
-        href: "/local-guide/outdoor-pursuits/"
-        legacyId: "0.3"
-        hasOfferings: false
-        children:
-          - id: "close-to-home"
-            label: "Close to home"
-            description: ""
-            href: "/local-guide/close-to-home/"
-            legacyId: "0.4"
-            hasOfferings: true
-          - id: "further-afield"
-            label: "Further afield"
-            description: ""
-            href: "/local-guide/further-afield/"
-            legacyId: "0.5"
-            hasOfferings: true
-          - id: "cycling"
-            label: "Cycling"
-            description: ""
-            href: "/local-guide/cycling/"
-            legacyId: "0.6"
-            hasOfferings: true
-      - id: "local"
-        label: "Local"
-        description: ""
-        href: "/local-guide/local/"
-        legacyId: "0.7"
-        hasOfferings: false
-        children:
-          - id: "eating-out"
-            label: "Eating Out"
-            description: ""
-            href: "/local-guide/eating-out/"
-            legacyId: "0.8"
-            hasOfferings: true
-          - id: "bars"
-            label: "Bars"
-            description: ""
-            href: "/local-guide/bars/"
-            legacyId: "0.9"
-            hasOfferings: true
-          - id: "activities"
-            label: "Activities"
-            description: ""
-            href: "/local-guide/activities/"
-            legacyId: "0.10"
-            hasOfferings: true
-          - id: "exhibitions"
-            label: "Exhibitions"
-            description: ""
-            href: "/local-guide/exhibitions/"
-            legacyId: "0.11"
-            hasOfferings: true
-          - id: "shopping"
-            label: "Shopping"
-            description: ""
-            href: "/local-guide/shopping/"
-            legacyId: "0.12"
-            hasOfferings: true
-          - id: "music"
-            label: "Music"
-            description: ""
-            href: "/local-guide/music/"
-            legacyId: "0.13"
-            hasOfferings: true
-          - id: "pre-owned"
-            label: "Pre-owned"
-            description: ""
-            href: "/local-guide/pre-owned/"
-            legacyId: "0.14"
-            hasOfferings: false
-            children:
-              - id: "antiques"
-                label: "Antiques"
-                description: ""
-                href: "/local-guide/antiques/"
-                legacyId: "0.15"
-                hasOfferings: true
-              - id: "collectables"
-                label: "Collectables"
-                description: ""
-                href: "/local-guide/collectables/"
-                legacyId: "0.16"
-                hasOfferings: true
-      - id: "festivals"
-        label: "Festivals"
-        description: ""
-        href: "/local-guide/festivals/"
-        legacyId: "0.17"
+        offeringCount: 1
+      - id: collectables
+        label: Collectables
+        description: Collectables and unusual finds.
+        href: /local-guide/collectables/
+        legacyId: '0.16'
         hasOfferings: true
-
+        offeringCount: 1
+      offeringCount: 2
+    offeringCount: 18
+  - id: festivals
+    label: Festivals
+    description: Recurring festivals and major events in Kendal.
+    href: /local-guide/festivals/
+    legacyId: '0.17'
+    hasOfferings: true
+    offeringCount: 3
+  offeringCount: 37
 localGuideCategories:
-  - id: "home"
-    label: "Home"
-    description: ""
-    parent: ""
-    href: "/"
-    hasOfferings: true
-    offeringCount: 1
-  - id: "whats-on"
-    label: "Whats On"
-    description: ""
-    parent: "home"
-    href: "/local-guide/whats-on/"
-    hasOfferings: true
-    offeringCount: 1
-  - id: "outdoor-pursuits"
-    label: "Outdoor Pursuits"
-    description: ""
-    parent: "home"
-    href: "/local-guide/outdoor-pursuits/"
-    hasOfferings: false
-    offeringCount: 0
-  - id: "close-to-home"
-    label: "Close to home"
-    description: ""
-    parent: "outdoor-pursuits"
-    href: "/local-guide/close-to-home/"
-    hasOfferings: true
-    offeringCount: 7
-  - id: "further-afield"
-    label: "Further afield"
-    description: ""
-    parent: "outdoor-pursuits"
-    href: "/local-guide/further-afield/"
-    hasOfferings: true
-    offeringCount: 5
-  - id: "cycling"
-    label: "Cycling"
-    description: ""
-    parent: "outdoor-pursuits"
-    href: "/local-guide/cycling/"
-    hasOfferings: true
-    offeringCount: 2
-  - id: "local"
-    label: "Local"
-    description: ""
-    parent: "home"
-    href: "/local-guide/local/"
-    hasOfferings: false
-    offeringCount: 0
-  - id: "eating-out"
-    label: "Eating Out"
-    description: ""
-    parent: "local"
-    href: "/local-guide/eating-out/"
-    hasOfferings: true
-    offeringCount: 3
-  - id: "bars"
-    label: "Bars"
-    description: ""
-    parent: "local"
-    href: "/local-guide/bars/"
-    hasOfferings: true
-    offeringCount: 2
-  - id: "activities"
-    label: "Activities"
-    description: ""
-    parent: "local"
-    href: "/local-guide/activities/"
-    hasOfferings: true
-    offeringCount: 2
-  - id: "exhibitions"
-    label: "Exhibitions"
-    description: ""
-    parent: "local"
-    href: "/local-guide/exhibitions/"
-    hasOfferings: true
-    offeringCount: 2
-  - id: "shopping"
-    label: "Shopping"
-    description: ""
-    parent: "local"
-    href: "/local-guide/shopping/"
-    hasOfferings: true
-    offeringCount: 3
-  - id: "music"
-    label: "Music"
-    description: ""
-    parent: "local"
-    href: "/local-guide/music/"
-    hasOfferings: true
-    offeringCount: 4
-  - id: "pre-owned"
-    label: "Pre-owned"
-    description: ""
-    parent: "local"
-    href: "/local-guide/pre-owned/"
-    hasOfferings: false
-    offeringCount: 0
-  - id: "antiques"
-    label: "Antiques"
-    description: ""
-    parent: "pre-owned"
-    href: "/local-guide/antiques/"
-    hasOfferings: true
-    offeringCount: 1
-  - id: "collectables"
-    label: "Collectables"
-    description: ""
-    parent: "pre-owned"
-    href: "/local-guide/collectables/"
-    hasOfferings: true
-    offeringCount: 1
-  - id: "festivals"
-    label: "Festivals"
-    description: ""
-    parent: "home"
-    href: "/local-guide/festivals/"
-    hasOfferings: true
-    offeringCount: 3
+- id: home
+  label: Home
+  description: ''
+  parent: ''
+  href: /
+  hasOfferings: true
+  offeringCount: 37
+- id: whats-on
+  label: What’s on
+  description: Current event listings and ideas for planning your visit.
+  parent: home
+  href: /local-guide/whats-on/
+  hasOfferings: true
+  offeringCount: 1
+- id: outdoor-pursuits
+  label: Outdoor pursuits
+  description: Walks, cycling and outdoor places around Kendal and the wider Lake District.
+  parent: home
+  href: /local-guide/outdoor-pursuits/
+  hasOfferings: true
+  offeringCount: 14
+- id: close-to-home
+  label: Close to home
+  description: Walks and outdoor places close to Kendal.
+  parent: outdoor-pursuits
+  href: /local-guide/close-to-home/
+  hasOfferings: true
+  offeringCount: 7
+- id: further-afield
+  label: Further afield
+  description: Day trips and outdoor destinations across the wider area.
+  parent: outdoor-pursuits
+  href: /local-guide/further-afield/
+  hasOfferings: true
+  offeringCount: 5
+- id: cycling
+  label: Cycling
+  description: Cycle routes and riding ideas from Kendal.
+  parent: outdoor-pursuits
+  href: /local-guide/cycling/
+  hasOfferings: true
+  offeringCount: 2
+- id: local
+  label: In Kendal
+  description: Food, drink, culture, activities and independent shops in Kendal.
+  parent: home
+  href: /local-guide/local/
+  hasOfferings: true
+  offeringCount: 18
+- id: eating-out
+  label: Eating out
+  description: Cafés, restaurants and places to eat.
+  parent: local
+  href: /local-guide/eating-out/
+  hasOfferings: true
+  offeringCount: 3
+- id: bars
+  label: Bars
+  description: Pubs and bars for an evening in Kendal.
+  parent: local
+  href: /local-guide/bars/
+  hasOfferings: true
+  offeringCount: 2
+- id: activities
+  label: Activities
+  description: Indoor and local activities for your stay.
+  parent: local
+  href: /local-guide/activities/
+  hasOfferings: true
+  offeringCount: 2
+- id: exhibitions
+  label: Arts and exhibitions
+  description: Museums, galleries and exhibitions.
+  parent: local
+  href: /local-guide/exhibitions/
+  hasOfferings: true
+  offeringCount: 2
+- id: shopping
+  label: Shopping
+  description: Independent food shops and local businesses.
+  parent: local
+  href: /local-guide/shopping/
+  hasOfferings: true
+  offeringCount: 3
+- id: music
+  label: Music
+  description: Live music and music events.
+  parent: local
+  href: /local-guide/music/
+  hasOfferings: true
+  offeringCount: 4
+- id: pre-owned
+  label: Antiques and pre-owned
+  description: Antiques, collectables and pre-owned finds.
+  parent: local
+  href: /local-guide/pre-owned/
+  hasOfferings: true
+  offeringCount: 2
+- id: antiques
+  label: Antiques
+  description: Antiques and distinctive older pieces.
+  parent: pre-owned
+  href: /local-guide/antiques/
+  hasOfferings: true
+  offeringCount: 1
+- id: collectables
+  label: Collectables
+  description: Collectables and unusual finds.
+  parent: pre-owned
+  href: /local-guide/collectables/
+  hasOfferings: true
+  offeringCount: 1
+- id: festivals
+  label: Festivals
+  description: Recurring festivals and major events in Kendal.
+  parent: home
+  href: /local-guide/festivals/
+  hasOfferings: true
+  offeringCount: 3

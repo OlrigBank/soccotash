@@ -1,11 +1,11 @@
 ---
-title: "Events and large group stays"
+title: "Whole-property and large-group stays"
 slug: "event"
-summary: "Information for special stays, group bookings and direct rebooking enquiries."
+summary: "Combine the Main House and Cottage for larger family groups, longer stays and direct rebooking enquiries."
 image: "/media/images/listings/olrigbank.png"
-sleeps: "12 adults"
-bedrooms: "6"
-bathrooms: "3"
+sleeps: "Sleeps up to 12"
+bedrooms: "6 bedrooms"
+bathrooms: "3 bathrooms plus additional WCs"
 spaces:
   - house-hall
   - house-lounge
@@ -30,4 +30,6 @@ spaces:
 featured: false
 ---
 
-Add policy and enquiry information for events, longer stays or returning guests here.
+The Main House and Cottage can be booked together to provide more space and greater flexibility for a larger family or group. Guests have use of both accommodation areas and the garden.
+
+Whole-property stays are arranged by enquiry so that dates, guest numbers, room arrangements and any particular requirements can be confirmed in advance. Contact Jenna with the details of the stay you are considering.
