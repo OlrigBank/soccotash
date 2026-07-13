@@ -1,0 +1,15 @@
+properties:
+  - id: main-house
+    name: Olrig Bank
+    listingSlug: main-house
+    airbnbCalendarEnv: AIRBNB_MAIN_HOUSE_ICAL_URL
+    minimumNights: 2
+    maximumGuests: 10
+    enabled: true
+  - id: cottage
+    name: Olrig Bank Cottage
+    listingSlug: cottage
+    airbnbCalendarEnv: AIRBNB_COTTAGE_ICAL_URL
+    minimumNights: 2
+    maximumGuests: 4
+    enabled: true

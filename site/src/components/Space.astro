@@ -9,9 +9,10 @@ const { space } = Astro.props;
 const { Content } = await render(space);
 const primaryImage = space.data.image || space.data.gallery?.[0];
 
-function pluralFact(value: number | undefined, singular: string, plural: string) {
-  if (value === undefined || value <= 0) return null;
-  return `${value} ${value === 1 ? singular : plural}`;
+function pluralFact(value: string | undefined, singular: string, plural: string) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return `${value} ${parsed === 1 ? singular : plural}`;
 }
 
 function spaceTypeLabel(value: string | undefined) {
@@ -20,26 +21,12 @@ function spaceTypeLabel(value: string | undefined) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-const floorLabels: Record<string, string> = {
-  ground: 'Ground floor',
-  first: 'First floor',
-  'split-level': 'Split level',
-  outdoor: 'Outdoor',
-};
-
-const bedFact = space.data.bedTypes.length
-  ? space.data.bedTypes.join(', ')
-  : pluralFact(space.data.beds, 'bed', 'beds');
-
 const facts = [
   spaceTypeLabel(space.data.spaceType),
-  space.data.floor ? floorLabels[space.data.floor] ?? space.data.floor : null,
-  space.data.sleeps !== undefined ? `Sleeps ${space.data.sleeps}` : null,
-  bedFact,
+  space.data.sleeps ? `Sleeps ${space.data.sleeps}` : null,
+  pluralFact(space.data.beds, 'bed', 'beds'),
   pluralFact(space.data.bathrooms, 'bathroom', 'bathrooms'),
-  pluralFact(space.data.toilets, 'toilet', 'toilets'),
   space.data.ensuite ? 'Ensuite' : null,
-  space.data.shared ? 'May be shared' : null,
 ].filter(Boolean);
 ---
 
@@ -49,30 +36,11 @@ const facts = [
     <h3>{space.data.title}</h3>
     {space.data.summary ? <p>{space.data.summary}</p> : null}
     {facts.length ? <p class="space-facts">{facts.join(' · ')}</p> : null}
-
-    {space.data.views.length ? (
-      <div class="space-detail">
-        <h4>Views</h4>
-        <p>{space.data.views.join(' · ')}</p>
-      </div>
-    ) : null}
-
     {space.data.features.length ? (
-      <div class="space-detail">
-        <h4>Features</h4>
-        <ul class="space-features">
-          {space.data.features.map((feature) => <li>{feature}</li>)}
-        </ul>
-      </div>
+      <ul class="space-features">
+        {space.data.features.map((feature) => <li>{feature}</li>)}
+      </ul>
     ) : null}
-
-    {space.data.accessInformation ? (
-      <div class="space-detail">
-        <h4>Access</h4>
-        <p>{space.data.accessInformation}</p>
-      </div>
-    ) : null}
-
     <div class="space-body">
       <Content />
     </div>

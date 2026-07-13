@@ -1,0 +1,9 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BookingCalendar from '../components/BookingCalendar.astro';
+export const prerender = false;
+---
+<BaseLayout title="Request a stay" description="Check current availability and request a provisional stay at Olrig Bank.">
+  <section class="hero"><span class="badge">Direct enquiry</span><h1>Request a stay</h1><p>Check the current Airbnb calendar and send Jenna a provisional booking request.</p></section>
+  <BookingCalendar />
+</BaseLayout>

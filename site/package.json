@@ -7,15 +7,22 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "start": "node ./dist/server/entry.mjs",
+    "db:migrate": "node ./scripts/migrate.mjs",
+    "sync:calendars": "node ./scripts/sync-calendars.mjs"
   },
   "dependencies": {
     "astro": "^7.0.6",
-    "yaml": "^2.8.0"
+    "yaml": "^2.8.0",
+    "@astrojs/node": "^11.0.2",
+    "node-ical": "^0.25.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/node": "^26.1.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "@types/pg": "^8.15.5"
   }
 }

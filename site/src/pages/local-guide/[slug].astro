@@ -5,6 +5,8 @@ import OfferingCard from '../../components/OfferingCard.astro';
 import { entrySummary, getEntriesForCategory } from '../../lib/content';
 import { getCategoryById, getChildCategories, getLocalGuideCategories } from '../../lib/navigation';
 
+export const prerender = true;
+
 export async function getStaticPaths() {
   const entries = await getCollection('localGuide');
   const entryPaths = entries.map((entry) => ({

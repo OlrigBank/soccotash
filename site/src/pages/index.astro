@@ -8,10 +8,7 @@ import { getFeaturedLocalGuideEntries } from '../lib/content';
 const page = await getEntry('pages', 'home');
 const { Content } = page ? await render(page) : { Content: undefined };
 const featuredGuide = await getFeaturedLocalGuideEntries(6);
-const listings = (await getCollection('listings')).sort((a, b) => {
-  const featuredDifference = Number(b.data.featured) - Number(a.data.featured);
-  return featuredDifference || a.data.sortOrder - b.data.sortOrder || a.data.title.localeCompare(b.data.title);
-});
+const listings = (await getCollection('listings')).sort((a, b) => Number(b.data.featured) - Number(a.data.featured));
 ---
 
 <BaseLayout title={page?.data.title ?? 'Olrig Bank'} description={page?.data.description}>

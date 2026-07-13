@@ -1,3 +1,9 @@
+databases:
+  - name: soccotash-bookings
+    databaseName: soccotash
+    user: soccotash
+    plan: free
+
 services:
   - type: web
     name: soccotash-site
@@ -8,4 +14,17 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: soccotash-bookings
+          property: connectionString
+      - key: AIRBNB_MAIN_HOUSE_ICAL_URL
+        sync: false
+      - key: AIRBNB_COTTAGE_ICAL_URL
+        sync: false
+      - key: CALENDAR_SYNC_TOKEN
+        generateValue: true
+      - key: BOOKING_SERVICE_URL
+        value: https://soccotash.onrender.com
     healthCheckPath: /
+    preDeployCommand: npm run db:migrate

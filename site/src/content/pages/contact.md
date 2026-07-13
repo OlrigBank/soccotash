@@ -8,7 +8,7 @@ heroText: Ask Jenna about availability, booking details or arranging another sta
 
 Guests come to Olrig Bank for family gatherings, Lake District holidays, weekends away, special occasions and relaxed stays in Kendal.
 
-To ask about availability or discuss a possible stay, please contact **Jenna**. Jenna can also help with practical questions about the property and local ideas for making the most of a stay in Kendal. It helps to include:
+To ask about availability or discuss a possible stay, please contact **Jenna**. It helps to include:
 
 - Your preferred dates
 - The number of guests

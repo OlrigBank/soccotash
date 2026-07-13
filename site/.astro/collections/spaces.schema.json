@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "spaceGroup": {
+      "type": "string"
+    },
+    "spaceType": {
+      "default": "other",
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "gallery": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sleeps": {
+      "type": "string"
+    },
+    "beds": {
+      "type": "string"
+    },
+    "bathrooms": {
+      "type": "string"
+    },
+    "ensuite": {
+      "default": false,
+      "type": "boolean"
+    },
+    "features": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sortOrder": {
+      "default": 100,
+      "type": "number"
+    },
+    "featured": {
+      "default": false,
+      "type": "boolean"
+    },
+    "$schema": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "slug"
+  ]
+}

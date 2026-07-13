@@ -159,21 +159,14 @@ content:
     fields:
     - title
     - sleeps
-    - sortOrder
     - featured
     primary: title
     sort:
-    - sortOrder
     - title
     search:
     - title
-    - tagline
     - summary
-    - locationSummary
     - body
-    default:
-      sort: sortOrder
-      order: asc
   fields:
   - name: title
     label: Title
@@ -184,80 +177,25 @@ content:
     type: string
     required: true
     pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
-  - name: tagline
-    label: Tagline
-    type: string
   - name: summary
     label: Summary
     type: text
   - name: image
-    label: Main image
+    label: Image
     type: image
   - name: gallery
     label: Gallery
     type: image
     list: true
   - name: sleeps
-    label: Sleeps display text
+    label: Sleeps
     type: string
   - name: bedrooms
-    label: Bedrooms display text
+    label: Bedrooms
     type: string
   - name: bathrooms
-    label: Bathrooms display text
+    label: Bathrooms
     type: string
-  - name: standardGuests
-    label: Standard number of guests
-    type: number
-  - name: maximumGuests
-    label: Maximum number of guests
-    type: number
-  - name: bedroomCount
-    label: Bedroom count
-    type: number
-  - name: bedCount
-    label: Bed count
-    type: number
-  - name: bathroomCount
-    label: Bathroom count
-    type: number
-  - name: wcCount
-    label: WC / toilet count
-    type: number
-  - name: highlights
-    label: Highlights
-    type: string
-    list: true
-  - name: guestAccess
-    label: Guest access
-    type: text
-  - name: sharedSpaces
-    label: Shared spaces
-    type: text
-  - name: locationSummary
-    label: Location summary
-    type: text
-  - name: parking
-    label: Parking
-    type: text
-  - name: accessInformation
-    label: Access information
-    type: text
-  - name: importantNotes
-    label: Important notes
-    type: text
-  - name: amenities
-    label: Amenities
-    type: string
-    list: true
-  - name: houseRules
-    label: House rules
-    type: string
-    list: true
-  - name: airbnbUrl
-    label: Airbnb listing URL
-    type: string
-    pattern: ^https?://.+$
   - name: spaces
     label: Spaces used by this listing
     type: reference
@@ -267,14 +205,11 @@ content:
       search: title,summary,spaceType,spaceGroup
       value: '{fields.slug}'
       label: '{primary}'
-  - name: sortOrder
-    label: Sort order
-    type: number
   - name: featured
     label: Featured
     type: boolean
   - name: body
-    label: Listing introduction
+    label: Listing body
     type: rich-text
 - name: spaces
   label: Spaces
@@ -288,7 +223,6 @@ content:
     - title
     - spaceGroup
     - spaceType
-    - floor
     - sortOrder
     - featured
     primary: title
@@ -300,12 +234,7 @@ content:
     - title
     - summary
     - spaceType
-    - floor
-    - features
     - body
-    default:
-      sort: sortOrder
-      order: asc
   fields:
   - name: title
     label: Title
@@ -363,52 +292,22 @@ content:
     label: Gallery
     type: image
     list: true
-  - name: floor
-    label: Floor / level
-    type: select
-    options:
-      values:
-      - name: ground
-        label: Ground floor
-      - name: first
-        label: First floor
-      - name: split-level
-        label: Split level
-      - name: outdoor
-        label: Outdoor
   - name: sleeps
     label: Sleeps
-    type: number
-  - name: beds
-    label: Number of beds
-    type: number
-  - name: bedTypes
-    label: Bed configuration
     type: string
-    list: true
+  - name: beds
+    label: Beds
+    type: string
   - name: bathrooms
-    label: Number of bathrooms
-    type: number
-  - name: toilets
-    label: Number of toilets / WCs
-    type: number
+    label: Bathrooms
+    type: string
   - name: ensuite
     label: Ensuite
     type: boolean
-  - name: shared
-    label: May be shared between separate bookings
-    type: boolean
-  - name: views
-    label: Views
-    type: string
-    list: true
   - name: features
     label: Features
     type: string
     list: true
-  - name: accessInformation
-    label: Access information
-    type: text
   - name: sortOrder
     label: Sort order
     type: number
@@ -416,7 +315,7 @@ content:
     label: Featured
     type: boolean
   - name: body
-    label: Space description
+    label: Space body
     type: rich-text
 - name: settings
   label: Settings

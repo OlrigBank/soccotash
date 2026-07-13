@@ -2,16 +2,6 @@ import { defineCollection } from 'astro:content';
 import { z } from 'astro/zod';
 import { glob } from 'astro/loaders';
 
-const optionalNonNegativeInteger = z.preprocess(
-  (value) => (value === '' || value === null ? undefined : value),
-  z.coerce.number().int().nonnegative().optional(),
-);
-
-const optionalUrl = z.preprocess(
-  (value) => (value === '' || value === null ? undefined : value),
-  z.url().optional(),
-);
-
 const localGuide = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/local-guide' }),
   schema: z.object({
@@ -49,17 +39,11 @@ const spaces = defineCollection({
     summary: z.string().optional(),
     image: z.string().optional(),
     gallery: z.array(z.string()).optional().default([]),
-    floor: z.string().optional(),
-    sleeps: optionalNonNegativeInteger,
-    beds: optionalNonNegativeInteger,
-    bedTypes: z.array(z.string()).optional().default([]),
-    bathrooms: optionalNonNegativeInteger,
-    toilets: optionalNonNegativeInteger,
+    sleeps: z.string().optional(),
+    beds: z.string().optional(),
+    bathrooms: z.string().optional(),
     ensuite: z.boolean().optional().default(false),
-    shared: z.boolean().optional().default(false),
-    views: z.array(z.string()).optional().default([]),
     features: z.array(z.string()).optional().default([]),
-    accessInformation: z.string().optional(),
     sortOrder: z.number().optional().default(100),
     featured: z.boolean().optional().default(false),
   }),
@@ -70,31 +54,13 @@ const listings = defineCollection({
   schema: z.object({
     title: z.string(),
     slug: z.string().optional(),
-    tagline: z.string().optional(),
     summary: z.string().optional(),
     image: z.string().optional(),
     gallery: z.array(z.string()).optional().default([]),
     sleeps: z.string().optional(),
     bedrooms: z.string().optional(),
     bathrooms: z.string().optional(),
-    standardGuests: optionalNonNegativeInteger,
-    maximumGuests: optionalNonNegativeInteger,
-    bedroomCount: optionalNonNegativeInteger,
-    bedCount: optionalNonNegativeInteger,
-    bathroomCount: optionalNonNegativeInteger,
-    wcCount: optionalNonNegativeInteger,
-    highlights: z.array(z.string()).optional().default([]),
-    guestAccess: z.string().optional(),
-    sharedSpaces: z.string().optional(),
-    locationSummary: z.string().optional(),
-    parking: z.string().optional(),
-    accessInformation: z.string().optional(),
-    importantNotes: z.string().optional(),
-    amenities: z.array(z.string()).optional().default([]),
-    houseRules: z.array(z.string()).optional().default([]),
-    airbnbUrl: optionalUrl,
     spaces: z.array(z.string()).optional().default([]),
-    sortOrder: z.number().optional().default(100),
     featured: z.boolean().optional().default(false),
   }),
 });

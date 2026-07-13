@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "legacyId": {
+      "type": "string"
+    },
+    "category": {
+      "default": "local",
+      "type": "string"
+    },
+    "categoryLabel": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "externalLink": {
+      "type": "string"
+    },
+    "recommended": {
+      "default": false,
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "legacyText": {
+      "type": "string"
+    },
+    "$schema": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

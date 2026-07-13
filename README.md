@@ -54,3 +54,8 @@ Pages CMS uses `.pages.yml` at the repository root. It is configured to edit:
 ## Deployment
 
 The included `render.yaml` deploys only the Astro site under `site/` as a Docker web service. It does not deploy a self-hosted Pages CMS application; Pages CMS can be used as a Git-based editing layer via its GitHub integration.
+
+
+## Booking calendar service
+
+The Astro server now includes Airbnb iCal import, PostgreSQL availability storage and a provisional booking request page at `/book/`. See `docs/booking-calendar-service.md`.

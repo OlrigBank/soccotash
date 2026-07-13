@@ -1,0 +1,57 @@
+---
+import { getProperties } from '../lib/booking/config';
+const properties = getProperties();
+---
+<section class="booking-panel" data-booking-calendar>
+  <form class="booking-form" data-booking-form>
+    <div class="booking-field"><label for="property">Property</label><select id="property" name="propertyId" required>{properties.map((p) => <option value={p.id} data-minimum-nights={p.minimumNights} data-maximum-guests={p.maximumGuests}>{p.name}</option>)}</select></div>
+    <div class="booking-field"><label for="arrival">Arrival</label><input id="arrival" name="arrival" type="date" required /></div>
+    <div class="booking-field"><label for="departure">Departure</label><input id="departure" name="departure" type="date" required /></div>
+    <div class="booking-field"><label for="guests">Guests</label><input id="guests" name="guests" type="number" min="1" value="2" required /></div>
+    <button class="button" type="button" data-check-availability>Check availability</button>
+    <p class="booking-status" role="status" data-booking-status>Choose dates to check availability.</p>
+    <div class="booking-contact" data-booking-contact hidden>
+      <div class="booking-field"><label for="guest-name">Name</label><input id="guest-name" name="name" autocomplete="name" required /></div>
+      <div class="booking-field"><label for="guest-email">Email</label><input id="guest-email" name="email" type="email" autocomplete="email" required /></div>
+      <div class="booking-field"><label for="guest-telephone">Telephone (optional)</label><input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" /></div>
+      <div class="booking-field booking-field-wide"><label for="guest-message">Message (optional)</label><textarea id="guest-message" name="message" rows="4"></textarea></div>
+      <button class="button" type="submit">Request provisional booking</button>
+    </div>
+  </form>
+  <p class="booking-note">A request is provisional. The dates are not confirmed until Jenna accepts the request and contacts you.</p>
+</section>
+<script>
+  const root = document.querySelector<HTMLElement>('[data-booking-calendar]');
+  const form = root?.querySelector<HTMLFormElement>('[data-booking-form]');
+  const status = root?.querySelector<HTMLElement>('[data-booking-status]');
+  const contact = root?.querySelector<HTMLElement>('[data-booking-contact]');
+  const checkButton = root?.querySelector<HTMLButtonElement>('[data-check-availability]');
+  const isoToday = new Date().toISOString().slice(0, 10);
+  const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
+  const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
+  if (arrival) arrival.min = isoToday;
+  if (departure) departure.min = isoToday;
+  async function checkAvailability() {
+    if (!form || !status || !contact) return false;
+    const data = new FormData(form);
+    const start = String(data.get('arrival') || ''); const end = String(data.get('departure') || '');
+    if (!start || !end || end <= start) { status.textContent = 'Choose a departure date after the arrival date.'; contact.hidden = true; return false; }
+    status.textContent = 'Checking the latest calendar…'; contact.hidden = true;
+    const params = new URLSearchParams({ property: String(data.get('propertyId')), from: start, to: end });
+    const response = await fetch(`/api/availability?${params}`); const body = await response.json();
+    if (!response.ok) { status.textContent = body.error || 'Availability could not be checked.'; return false; }
+    if (body.blocks.length) { status.textContent = 'Those dates are unavailable. Please choose different dates.'; return false; }
+    status.textContent = 'The dates currently appear available. Complete your details to send a provisional request.'; contact.hidden = false; return true;
+  }
+  checkButton?.addEventListener('click', checkAvailability);
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault(); if (!(await checkAvailability()) || !form || !status || !contact) return;
+    const raw = Object.fromEntries(new FormData(form).entries());
+    const payload = { ...raw, guests: Number(raw.guests) };
+    status.textContent = 'Saving your request…';
+    const response = await fetch('/api/provisional-bookings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const body = await response.json();
+    if (!response.ok) { status.textContent = body.error || 'The request could not be saved.'; return; }
+    status.textContent = `Your provisional request has been received. Reference: ${body.reference}`; contact.hidden = true; form.reset();
+  });
+</script>
