@@ -5,7 +5,7 @@ import ListingCard from '../../components/ListingCard.astro';
 
 const listings = (await getCollection('listings')).sort((a, b) => {
   const featuredDifference = Number(b.data.featured) - Number(a.data.featured);
-  return featuredDifference || a.data.title.localeCompare(b.data.title);
+  return featuredDifference || a.data.sortOrder - b.data.sortOrder || a.data.title.localeCompare(b.data.title);
 });
 ---
 

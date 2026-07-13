@@ -24,24 +24,88 @@ for (const slug of entry.data.spaces) {
 
 const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(slug));
 const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean);
+const practicalDetails = [
+  { title: 'Guest access', text: entry.data.guestAccess },
+  { title: 'Shared spaces', text: entry.data.sharedSpaces },
+  { title: 'Parking', text: entry.data.parking },
+  { title: 'Access information', text: entry.data.accessInformation },
+  { title: 'Important notes', text: entry.data.importantNotes },
+].filter((item) => item.text);
 ---
 
 <BaseLayout title={entry.data.title} description={entry.data.summary}>
   <section class="hero">
+    {entry.data.tagline ? <p class="eyebrow">{entry.data.tagline}</p> : null}
     <h1>{entry.data.title}</h1>
     {entry.data.summary ? <p>{entry.data.summary}</p> : null}
     {listingFacts.length ? <p class="listing-facts">{listingFacts.join(' · ')}</p> : null}
     <div class="button-group">
       <a class="button" href="/contact/">Ask Jenna about availability</a>
-      <a class="button button-secondary" href="https://wa.me/447907650960">Message on WhatsApp</a>
+      {entry.data.airbnbUrl ? (
+        <a class="button button-secondary" href={entry.data.airbnbUrl} target="_blank" rel="noreferrer">View on Airbnb</a>
+      ) : (
+        <a class="button button-secondary" href="https://wa.me/447907650960">Message on WhatsApp</a>
+      )}
     </div>
   </section>
 
   {entry.data.image ? <img src={entry.data.image} alt={entry.data.title} class="listing-hero-image" /> : null}
 
+  {entry.data.highlights.length ? (
+    <section class="listing-section">
+      <div class="section-heading">
+        <h2>Highlights</h2>
+      </div>
+      <ul class="highlight-grid">
+        {entry.data.highlights.map((highlight) => <li>{highlight}</li>)}
+      </ul>
+    </section>
+  ) : null}
+
   <section class="prose">
     <Content />
   </section>
+
+  {entry.data.locationSummary ? (
+    <section class="prose listing-section">
+      <h2>Location</h2>
+      <p>{entry.data.locationSummary}</p>
+    </section>
+  ) : null}
+
+  {practicalDetails.length ? (
+    <section class="listing-section">
+      <div class="section-heading">
+        <h2>Practical information</h2>
+      </div>
+      <div class="detail-grid">
+        {practicalDetails.map((item) => (
+          <article class="detail-card">
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  ) : null}
+
+  {entry.data.amenities.length ? (
+    <section class="prose listing-section">
+      <h2>Amenities</h2>
+      <ul class="column-list">
+        {entry.data.amenities.map((amenity) => <li>{amenity}</li>)}
+      </ul>
+    </section>
+  ) : null}
+
+  {entry.data.houseRules.length ? (
+    <section class="prose listing-section">
+      <h2>House rules</h2>
+      <ul>
+        {entry.data.houseRules.map((rule) => <li>{rule}</li>)}
+      </ul>
+    </section>
+  ) : null}
 
   {selectedSpaces.length ? (
     <section class="spaces-section">
