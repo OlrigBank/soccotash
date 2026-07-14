@@ -7,7 +7,16 @@ export type BookingBlock = {
   source: string;
 };
 
-export async function replaceImportedBlocks(propertyId: string, blocks: ImportedBlock[]): Promise<void> {
+export async function recordSyncAttempt(propertyId: string): Promise<void> {
+  await getPool().query(
+    `INSERT INTO calendar_sync_status (property_id, last_attempt_at)
+     VALUES ($1, NOW())
+     ON CONFLICT (property_id) DO UPDATE SET last_attempt_at = NOW()`,
+    [propertyId],
+  );
+}
+
+export async function replaceImportedBlocks(propertyId: string, blocks: ImportedBlock[], feedCount: number): Promise<void> {
   const pool = getPool();
   const client = await pool.connect();
   try {
@@ -23,10 +32,16 @@ export async function replaceImportedBlocks(propertyId: string, blocks: Imported
       );
     }
     await client.query(
-      `INSERT INTO calendar_sync_status (property_id, last_success_at, last_error)
-       VALUES ($1, NOW(), NULL)
-       ON CONFLICT (property_id) DO UPDATE SET last_success_at = NOW(), last_error = NULL`,
-      [propertyId],
+      `INSERT INTO calendar_sync_status
+       (property_id, last_attempt_at, last_success_at, last_error, imported_blocks, feed_count)
+       VALUES ($1, NOW(), NOW(), NULL, $2, $3)
+       ON CONFLICT (property_id) DO UPDATE SET
+         last_attempt_at = NOW(),
+         last_success_at = NOW(),
+         last_error = NULL,
+         imported_blocks = EXCLUDED.imported_blocks,
+         feed_count = EXCLUDED.feed_count`,
+      [propertyId, blocks.length, feedCount],
     );
     await client.query('COMMIT');
   } catch (error) {
@@ -72,12 +87,19 @@ export async function isCalendarStale(propertyId: string, minutes = 30): Promise
 }
 
 export async function createProvisionalBooking(input: {
-  propertyId: string; arrival: string; departure: string; guests: number;
-  name: string; email: string; telephone?: string; message?: string;
+  propertyId: string;
+  arrival: string;
+  departure: string;
+  guests: number;
+  name: string;
+  email: string;
+  telephone?: string;
+  message?: string;
 }): Promise<string> {
   const client = await getPool().connect();
   try {
-    await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.propertyId]);
     const conflict = await client.query(
       `SELECT 1 FROM booking_blocks WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
@@ -97,5 +119,47 @@ export async function createProvisionalBooking(input: {
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
+}
+
+export async function getBookingReport(): Promise<{
+  calendars: unknown[];
+  provisionalRequests: unknown[];
+}> {
+  const pool = getPool();
+  const calendars = await pool.query(
+    `SELECT
+       p.property_id AS "propertyId",
+       p.last_attempt_at AS "lastAttemptAt",
+       p.last_success_at AS "lastSuccessAt",
+       p.last_error AS "lastError",
+       COALESCE(p.imported_blocks, 0) AS "importedBlocks",
+       COALESCE(p.feed_count, 0) AS "feedCount",
+       MIN(b.starts_on)::text AS "firstBlockedDate",
+       MAX(b.ends_on)::text AS "lastBlockedDate"
+     FROM calendar_sync_status p
+     LEFT JOIN booking_blocks b ON b.property_id = p.property_id AND b.source = 'airbnb'
+     GROUP BY p.property_id, p.last_attempt_at, p.last_success_at, p.last_error, p.imported_blocks, p.feed_count
+     ORDER BY p.property_id`,
+  );
+  const provisionalRequests = await pool.query(
+    `SELECT
+       public_id AS reference,
+       property_id AS "propertyId",
+       arrival::text,
+       departure::text,
+       guests,
+       guest_name AS name,
+       guest_email AS email,
+       guest_telephone AS telephone,
+       guest_message AS message,
+       status,
+       created_at AS "createdAt"
+     FROM provisional_bookings
+     ORDER BY created_at DESC
+     LIMIT 100`,
+  );
+  return { calendars: calendars.rows, provisionalRequests: provisionalRequests.rows };
 }

@@ -18,13 +18,14 @@ services:
         fromDatabase:
           name: soccotash-bookings
           property: connectionString
-      - key: AIRBNB_MAIN_HOUSE_ICAL_URL
+      - key: DATABASE_SSL
+        value: "true"
+      - key: AIRBNB_MAIN_HOUSE_ICAL_URLS
         sync: false
-      - key: AIRBNB_COTTAGE_ICAL_URL
+      - key: AIRBNB_COTTAGE_ICAL_URLS
         sync: false
       - key: CALENDAR_SYNC_TOKEN
-        generateValue: true
+        sync: false
       - key: BOOKING_SERVICE_URL
         value: https://soccotash.onrender.com
-    healthCheckPath: /
-    preDeployCommand: npm run db:migrate
+    healthCheckPath: /api/health/

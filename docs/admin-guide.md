@@ -1,6 +1,6 @@
-# Admin guide
+# Administration guide
 
-## Editing content
+## Content editing
 
 Use Pages CMS or edit the Markdown/YAML files directly.
 
@@ -9,13 +9,35 @@ Main areas:
 - Local recommendations: `site/src/content/local-guide/`
 - General pages: `site/src/content/pages/`
 - Listings: `site/src/content/listings/`
+- Spaces: `site/src/content/spaces/`
 - Menu/category structure: `site/src/data/navigation/main.yml`
 - Site/contact settings: `site/src/data/settings/`
+- Booking property rules: `site/src/data/booking/properties.yml`
 
-## After editing
+## Booking operations
 
-Commit changes to GitHub. The static site should rebuild from the repository.
+Force an Airbnb refresh locally:
 
-## Notes
+```bash
+npm run docker:sync
+```
 
-The current local-guide entries are first-pass migrated entries. Most bodies are placeholders and should be expanded manually.
+Review imported calendars and provisional requests locally:
+
+```bash
+npm run docker:report
+```
+
+The report contains private guest information. Do not publish it, paste it into public issues, or expose the admin token.
+
+On Render, use the token-protected endpoints described in `docs/booking-calendar-service.md`.
+
+## After source or content changes
+
+Run the local production stack:
+
+```bash
+docker compose up --build -d
+```
+
+Confirm the site and booking page, then commit and push to GitHub. Render will build the same Dockerfile.

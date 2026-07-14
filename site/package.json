@@ -10,7 +10,8 @@
     "check": "astro check",
     "start": "node ./dist/server/entry.mjs",
     "db:migrate": "node ./scripts/migrate.mjs",
-    "sync:calendars": "node ./scripts/sync-calendars.mjs"
+    "sync:calendars": "node ./scripts/sync-calendars.mjs",
+    "booking:report": "node ./scripts/booking-report.mjs"
   },
   "dependencies": {
     "astro": "^7.0.6",

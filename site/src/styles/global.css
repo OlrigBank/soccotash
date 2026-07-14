@@ -329,9 +329,10 @@ main {
 .booking-field { display: grid; gap: .35rem; }
 .booking-field label { font-weight: 750; }
 .booking-field input, .booking-field select, .booking-field textarea { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: .65rem; padding: .65rem .75rem; background: white; color: var(--ink); font: inherit; }
-.booking-field-wide, .booking-status, .booking-contact, .booking-note { grid-column: 1 / -1; }
+.booking-field-wide, .booking-rule, .booking-status, .booking-contact, .booking-note { grid-column: 1 / -1; }
 .booking-contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .booking-contact[hidden] { display: none; }
+.booking-rule { margin: 0; color: var(--muted); }
 .booking-status { margin: 0; font-weight: 700; }
 .booking-note { color: var(--muted); margin-bottom: 0; }
 @media (max-width: 620px) { .booking-form, .booking-contact { grid-template-columns: 1fr; } }

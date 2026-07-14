@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 OUTPUT="../soccotash-render-deploy-no-images.zip"
 
@@ -8,6 +8,12 @@ rm -f "$OUTPUT"
 zip -r "$OUTPUT" . \
   -x ".git/*" \
   -x ".idea/*" \
+  -x ".env" \
+  -x "*/.env" \
+  -x "*.env.local" \
+  -x "*/.env.local" \
+  -x "backups/*" \
+  -x "*.dump" \
   -x "node_modules/*" \
   -x "site/node_modules/*" \
   -x "site/dist/*" \

@@ -7,6 +7,12 @@
     "dev": "npm --prefix site run dev",
     "build": "npm --prefix site run build",
     "preview": "npm --prefix site run preview",
-    "check": "npm --prefix site run check"
+    "check": "npm --prefix site run check",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f site",
+    "docker:sync": "docker compose --profile tools run --rm calendar-sync",
+    "docker:report": "docker compose --profile tools run --rm booking-report",
+    "docker:backup": "./backup-db.bash"
   }
 }

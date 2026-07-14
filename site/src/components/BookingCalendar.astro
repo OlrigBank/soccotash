@@ -4,54 +4,197 @@ const properties = getProperties();
 ---
 <section class="booking-panel" data-booking-calendar>
   <form class="booking-form" data-booking-form>
-    <div class="booking-field"><label for="property">Property</label><select id="property" name="propertyId" required>{properties.map((p) => <option value={p.id} data-minimum-nights={p.minimumNights} data-maximum-guests={p.maximumGuests}>{p.name}</option>)}</select></div>
-    <div class="booking-field"><label for="arrival">Arrival</label><input id="arrival" name="arrival" type="date" required /></div>
-    <div class="booking-field"><label for="departure">Departure</label><input id="departure" name="departure" type="date" required /></div>
-    <div class="booking-field"><label for="guests">Guests</label><input id="guests" name="guests" type="number" min="1" value="2" required /></div>
+    <div class="booking-field">
+      <label for="property">Property</label>
+      <select id="property" name="propertyId" required>
+        {properties.map((property) => (
+          <option
+            value={property.id}
+            data-minimum-nights={property.minimumNights}
+            data-maximum-guests={property.maximumGuests}
+          >
+            {property.name}
+          </option>
+        ))}
+      </select>
+    </div>
+    <div class="booking-field">
+      <label for="arrival">Arrival</label>
+      <input id="arrival" name="arrival" type="date" required />
+    </div>
+    <div class="booking-field">
+      <label for="departure">Departure</label>
+      <input id="departure" name="departure" type="date" required />
+    </div>
+    <div class="booking-field">
+      <label for="guests">Guests</label>
+      <input id="guests" name="guests" type="number" min="1" value="2" required />
+    </div>
+    <p class="booking-rule" data-booking-rule></p>
     <button class="button" type="button" data-check-availability>Check availability</button>
-    <p class="booking-status" role="status" data-booking-status>Choose dates to check availability.</p>
+    <p class="booking-status" role="status" aria-live="polite" data-booking-status>
+      Choose dates to check availability.
+    </p>
     <div class="booking-contact" data-booking-contact hidden>
-      <div class="booking-field"><label for="guest-name">Name</label><input id="guest-name" name="name" autocomplete="name" required /></div>
-      <div class="booking-field"><label for="guest-email">Email</label><input id="guest-email" name="email" type="email" autocomplete="email" required /></div>
-      <div class="booking-field"><label for="guest-telephone">Telephone (optional)</label><input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" /></div>
-      <div class="booking-field booking-field-wide"><label for="guest-message">Message (optional)</label><textarea id="guest-message" name="message" rows="4"></textarea></div>
-      <button class="button" type="submit">Request provisional booking</button>
+      <div class="booking-field">
+        <label for="guest-name">Name</label>
+        <input id="guest-name" name="name" autocomplete="name" maxlength="120" required />
+      </div>
+      <div class="booking-field">
+        <label for="guest-email">Email</label>
+        <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+      </div>
+      <div class="booking-field">
+        <label for="guest-telephone">Telephone (optional)</label>
+        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" maxlength="80" />
+      </div>
+      <div class="booking-field booking-field-wide">
+        <label for="guest-message">Message (optional)</label>
+        <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
+      </div>
+      <button class="button" type="submit" data-submit-booking>Request provisional booking</button>
     </div>
   </form>
-  <p class="booking-note">A request is provisional. The dates are not confirmed until Jenna accepts the request and contacts you.</p>
+  <p class="booking-note">
+    A request is provisional. The dates are not confirmed until Jenna accepts the request and contacts you.
+  </p>
 </section>
 <script>
   const root = document.querySelector<HTMLElement>('[data-booking-calendar]');
   const form = root?.querySelector<HTMLFormElement>('[data-booking-form]');
   const status = root?.querySelector<HTMLElement>('[data-booking-status]');
+  const rule = root?.querySelector<HTMLElement>('[data-booking-rule]');
   const contact = root?.querySelector<HTMLElement>('[data-booking-contact]');
   const checkButton = root?.querySelector<HTMLButtonElement>('[data-check-availability]');
-  const isoToday = new Date().toISOString().slice(0, 10);
+  const submitButton = root?.querySelector<HTMLButtonElement>('[data-submit-booking]');
+  const propertySelect = form?.querySelector<HTMLSelectElement>('[name="propertyId"]');
   const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
   const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
+  const guests = form?.querySelector<HTMLInputElement>('[name="guests"]');
+
+  const isoToday = new Date().toISOString().slice(0, 10);
   if (arrival) arrival.min = isoToday;
   if (departure) departure.min = isoToday;
+
+  function selectedRules() {
+    const option = propertySelect?.selectedOptions[0];
+    return {
+      minimumNights: Number(option?.dataset.minimumNights || 1),
+      maximumGuests: Number(option?.dataset.maximumGuests || 1),
+    };
+  }
+
+  function addDays(value: string, days: number): string {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function applyPropertyRules() {
+    const { minimumNights, maximumGuests } = selectedRules();
+    if (guests) {
+      guests.max = String(maximumGuests);
+      if (Number(guests.value) > maximumGuests) guests.value = String(maximumGuests);
+    }
+    if (arrival?.value && departure) departure.min = addDays(arrival.value, minimumNights);
+    if (rule) rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.`;
+    if (contact) contact.hidden = true;
+  }
+
+  propertySelect?.addEventListener('change', applyPropertyRules);
+  arrival?.addEventListener('change', () => {
+    applyPropertyRules();
+    if (departure?.value && departure.value < departure.min) departure.value = departure.min;
+  });
+  applyPropertyRules();
+
+  async function readJson(response: Response): Promise<Record<string, any>> {
+    try {
+      return await response.json();
+    } catch {
+      return {};
+    }
+  }
+
   async function checkAvailability() {
     if (!form || !status || !contact) return false;
     const data = new FormData(form);
-    const start = String(data.get('arrival') || ''); const end = String(data.get('departure') || '');
-    if (!start || !end || end <= start) { status.textContent = 'Choose a departure date after the arrival date.'; contact.hidden = true; return false; }
-    status.textContent = 'Checking the latest calendar…'; contact.hidden = true;
-    const params = new URLSearchParams({ property: String(data.get('propertyId')), from: start, to: end });
-    const response = await fetch(`/api/availability?${params}`); const body = await response.json();
-    if (!response.ok) { status.textContent = body.error || 'Availability could not be checked.'; return false; }
-    if (body.blocks.length) { status.textContent = 'Those dates are unavailable. Please choose different dates.'; return false; }
-    status.textContent = 'The dates currently appear available. Complete your details to send a provisional request.'; contact.hidden = false; return true;
+    const start = String(data.get('arrival') || '');
+    const end = String(data.get('departure') || '');
+    const { minimumNights } = selectedRules();
+    const earliestDeparture = start ? addDays(start, minimumNights) : '';
+
+    if (!start || !end || end < earliestDeparture) {
+      status.textContent = `Choose a departure date at least ${minimumNights} nights after arrival.`;
+      contact.hidden = true;
+      return false;
+    }
+
+    status.textContent = 'Checking the latest calendar…';
+    contact.hidden = true;
+    if (checkButton) checkButton.disabled = true;
+
+    try {
+      const params = new URLSearchParams({
+        property: String(data.get('propertyId')),
+        from: start,
+        to: end,
+      });
+      const response = await fetch(`/api/availability/?${params}`);
+      const body = await readJson(response);
+      if (!response.ok) {
+        status.textContent = body.error || 'Availability could not be checked.';
+        return false;
+      }
+      if (Array.isArray(body.blocks) && body.blocks.length) {
+        status.textContent = 'Those dates are unavailable. Please choose different dates.';
+        return false;
+      }
+      status.textContent = body.refreshWarning
+        ? `The dates appear available. ${body.refreshWarning} Complete your details to send a provisional request.`
+        : 'The dates currently appear available. Complete your details to send a provisional request.';
+      contact.hidden = false;
+      return true;
+    } catch {
+      status.textContent = 'Availability could not be checked. Please try again.';
+      return false;
+    } finally {
+      if (checkButton) checkButton.disabled = false;
+    }
   }
+
   checkButton?.addEventListener('click', checkAvailability);
   form?.addEventListener('submit', async (event) => {
-    event.preventDefault(); if (!(await checkAvailability()) || !form || !status || !contact) return;
+    event.preventDefault();
+    if (!(await checkAvailability()) || !form || !status || !contact) return;
+    if (!form.reportValidity()) return;
+
     const raw = Object.fromEntries(new FormData(form).entries());
     const payload = { ...raw, guests: Number(raw.guests) };
     status.textContent = 'Saving your request…';
-    const response = await fetch('/api/provisional-bookings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-    const body = await response.json();
-    if (!response.ok) { status.textContent = body.error || 'The request could not be saved.'; return; }
-    status.textContent = `Your provisional request has been received. Reference: ${body.reference}`; contact.hidden = true; form.reset();
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+      const response = await fetch('/api/provisional-bookings/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await readJson(response);
+      if (!response.ok) {
+        status.textContent = body.error || 'The request could not be saved.';
+        return;
+      }
+      status.textContent = `Your provisional request has been received. Reference: ${body.reference}`;
+      contact.hidden = true;
+      form.reset();
+      if (arrival) arrival.min = isoToday;
+      if (departure) departure.min = isoToday;
+      applyPropertyRules();
+    } catch {
+      status.textContent = 'The request could not be saved. Please try again.';
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
   });
 </script>

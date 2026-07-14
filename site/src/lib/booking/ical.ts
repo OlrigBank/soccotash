@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import ical, { type VEvent } from 'node-ical';
 import { formatDate } from './dates';
 
@@ -12,19 +13,46 @@ function isEvent(value: unknown): value is VEvent {
   return Boolean(value && typeof value === 'object' && 'type' in value && value.type === 'VEVENT' && 'start' in value && 'end' in value);
 }
 
+function feedKey(url: string): string {
+  return crypto.createHash('sha256').update(url).digest('hex').slice(0, 16);
+}
+
+export function parseCalendarUrls(value: string | undefined): string[] {
+  if (!value) return [];
+  const urls = value
+    .split(/[\n,]+/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  return [...new Set(urls)].map((url) => {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Calendar URLs must use HTTP or HTTPS.');
+    return parsed.toString();
+  });
+}
+
 export async function fetchAirbnbCalendar(url: string): Promise<ImportedBlock[]> {
-  const response = await fetch(url, { headers: { 'User-Agent': 'OlrigBank-Calendar-Sync/1.0' } });
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'OlrigBank-Calendar-Sync/1.0' },
+    signal: AbortSignal.timeout(20_000),
+  });
   if (!response.ok) throw new Error(`Airbnb calendar returned HTTP ${response.status}.`);
   const parsed = await ical.async.parseICS(await response.text());
+  const prefix = feedKey(url);
   const blocks: ImportedBlock[] = [];
   for (const event of Object.values(parsed)) {
     if (!isEvent(event) || !event.start || !event.end) continue;
     blocks.push({
-      externalUid: event.uid || `${event.start.toISOString()}-${event.end.toISOString()}`,
+      externalUid: `${prefix}:${event.uid || `${event.start.toISOString()}-${event.end.toISOString()}`}`,
       startsOn: formatDate(event.start),
       endsOn: formatDate(event.end),
       source: 'airbnb',
     });
   }
   return blocks;
+}
+
+export async function fetchAirbnbCalendars(urls: string[]): Promise<ImportedBlock[]> {
+  const calendars = await Promise.all(urls.map((url) => fetchAirbnbCalendar(url)));
+  return calendars.flat();
 }

@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+site/.env
+site/.env.*
+!site/.env.example
+
+# Local PostgreSQL backups
+backups/
+*.dump

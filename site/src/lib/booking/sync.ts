@@ -1,24 +1,49 @@
 import { getProperties, getProperty } from './config';
-import { fetchAirbnbCalendar } from './ical';
-import { recordSyncError, replaceImportedBlocks } from './repository';
+import { fetchAirbnbCalendars, parseCalendarUrls } from './ical';
+import { recordSyncAttempt, recordSyncError, replaceImportedBlocks } from './repository';
 
-export async function syncProperty(propertyId: string): Promise<{ propertyId: string; imported: number }> {
+function propertyCalendarUrls(environmentName: string): string[] {
+  const configured = process.env[environmentName];
+  const legacyName = environmentName.endsWith('_URLS') ? environmentName.slice(0, -1) : undefined;
+  return parseCalendarUrls(configured || (legacyName ? process.env[legacyName] : undefined));
+}
+
+export async function syncProperty(propertyId: string): Promise<{ propertyId: string; feeds: number; imported: number }> {
   const property = getProperty(propertyId);
   if (!property) throw new Error(`Unknown property: ${propertyId}`);
-  const url = process.env[property.airbnbCalendarEnv];
-  if (!url) throw new Error(`${property.airbnbCalendarEnv} is not configured.`);
+  const urls = propertyCalendarUrls(property.airbnbCalendarEnv);
+  if (!urls.length) throw new Error(`${property.airbnbCalendarEnv} is not configured.`);
+
+  await recordSyncAttempt(propertyId);
   try {
-    const blocks = await fetchAirbnbCalendar(url);
-    await replaceImportedBlocks(property.id, blocks);
-    return { propertyId, imported: blocks.length };
+    const blocks = await fetchAirbnbCalendars(urls);
+    await replaceImportedBlocks(property.id, blocks, urls.length);
+    return { propertyId, feeds: urls.length, imported: blocks.length };
   } catch (error) {
     await recordSyncError(propertyId, error);
     throw error;
   }
 }
 
-export async function syncAllProperties() {
+export async function syncAllProperties(): Promise<Array<{
+  propertyId: string;
+  ok: boolean;
+  feeds?: number;
+  imported?: number;
+  error?: string;
+}>> {
   const results = [];
-  for (const property of getProperties()) results.push(await syncProperty(property.id));
+  for (const property of getProperties()) {
+    try {
+      const result = await syncProperty(property.id);
+      results.push({ ...result, ok: true });
+    } catch (error) {
+      results.push({
+        propertyId: property.id,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown calendar sync error.',
+      });
+    }
+  }
   return results;
 }

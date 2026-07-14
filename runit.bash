@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-rm -rf site/dist site/.astro site/node_modules
-npm --prefix site ci
-npm --prefix site run build
-npm --prefix site run preview -- --host 0.0.0.0 --port 4322
+
+if [[ ! -f .env ]]; then
+  echo "Missing .env. Copy .env.example to .env and add the local secrets first." >&2
+  exit 1
+fi
+
+docker compose up --build
