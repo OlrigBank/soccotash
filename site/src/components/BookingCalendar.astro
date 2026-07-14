@@ -4,7 +4,7 @@ const properties = getProperties();
 ---
 <section class="booking-panel" data-booking-calendar>
   <form class="booking-form" data-booking-form>
-    <div class="booking-field">
+    <div class="booking-field booking-property-field">
       <label for="property">Property</label>
       <select id="property" name="propertyId" required>
         {properties.map((property) => (
@@ -18,6 +18,25 @@ const properties = getProperties();
         ))}
       </select>
     </div>
+
+    <div class="booking-calendar-picker" data-calendar-picker>
+      <div class="booking-calendar-toolbar">
+        <button class="calendar-navigation" type="button" data-calendar-previous aria-label="Show previous months">←</button>
+        <strong>Availability calendar</strong>
+        <button class="calendar-navigation" type="button" data-calendar-next aria-label="Show next months">→</button>
+      </div>
+      <p class="booking-calendar-instruction">Choose an available arrival date, then choose the departure date.</p>
+      <p class="booking-calendar-message" role="status" aria-live="polite" data-calendar-message>
+        Loading current availability…
+      </p>
+      <div class="booking-calendar-months" data-calendar-months aria-label="Property availability"></div>
+      <div class="booking-calendar-legend" aria-label="Calendar legend">
+        <span><i class="calendar-key calendar-key-available"></i>Available</span>
+        <span><i class="calendar-key calendar-key-unavailable"></i>Unavailable</span>
+        <span><i class="calendar-key calendar-key-selected"></i>Selected stay</span>
+      </div>
+    </div>
+
     <div class="booking-field">
       <label for="arrival">Arrival</label>
       <input id="arrival" name="arrival" type="date" required />
@@ -56,10 +75,16 @@ const properties = getProperties();
     </div>
   </form>
   <p class="booking-note">
-    A request is provisional. The dates are not confirmed until Jenna accepts the request and contacts you.
+    Airbnb reservations and other blocked dates are shown as unavailable. A request is provisional until Jenna accepts it and contacts you.
   </p>
 </section>
 <script>
+  type AvailabilityBlock = {
+    startsOn: string;
+    endsOn: string;
+    source: string;
+  };
+
   const root = document.querySelector<HTMLElement>('[data-booking-calendar]');
   const form = root?.querySelector<HTMLFormElement>('[data-booking-form]');
   const status = root?.querySelector<HTMLElement>('[data-booking-status]');
@@ -71,8 +96,59 @@ const properties = getProperties();
   const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
   const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
   const guests = form?.querySelector<HTMLInputElement>('[name="guests"]');
+  const calendarMonths = root?.querySelector<HTMLElement>('[data-calendar-months]');
+  const calendarMessage = root?.querySelector<HTMLElement>('[data-calendar-message]');
+  const previousButton = root?.querySelector<HTMLButtonElement>('[data-calendar-previous]');
+  const nextButton = root?.querySelector<HTMLButtonElement>('[data-calendar-next]');
 
-  const isoToday = new Date().toISOString().slice(0, 10);
+  const MONTHS_SHOWN = 2;
+  const MAX_MONTH_OFFSET = 22;
+  const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const dayFormatter = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+
+  function dateToIso(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function parseIso(value: string): Date {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  function addDays(value: string, days: number): string {
+    const date = parseIso(value);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function addMonths(date: Date, months: number): Date {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+  }
+
+  function startOfMonth(value: string): Date {
+    const date = parseIso(value);
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  }
+
+  const isoToday = dateToIso(new Date());
+  const firstAllowedMonth = startOfMonth(isoToday);
+  let monthCursor = firstAllowedMonth;
+  let visibleBlocks: AvailabilityBlock[] = [];
+  let selectionStart = '';
+  let selectionEnd = '';
+  let calendarLoading = true;
+  let calendarFailed = false;
+  let calendarRequest = 0;
+
   if (arrival) arrival.min = isoToday;
   if (departure) departure.min = isoToday;
 
@@ -84,29 +160,256 @@ const properties = getProperties();
     };
   }
 
-  function addDays(value: string, days: number): string {
-    const date = new Date(`${value}T00:00:00.000Z`);
-    date.setUTCDate(date.getUTCDate() + days);
-    return date.toISOString().slice(0, 10);
-  }
-
   function applyPropertyRules() {
     const { minimumNights, maximumGuests } = selectedRules();
     if (guests) {
       guests.max = String(maximumGuests);
       if (Number(guests.value) > maximumGuests) guests.value = String(maximumGuests);
     }
-    if (arrival?.value && departure) departure.min = addDays(arrival.value, minimumNights);
+    if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
     if (rule) rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.`;
     if (contact) contact.hidden = true;
   }
 
-  propertySelect?.addEventListener('change', applyPropertyRules);
-  arrival?.addEventListener('change', () => {
+  function rangesOverlap(start: string, end: string, block: AvailabilityBlock): boolean {
+    return block.startsOn < end && block.endsOn > start;
+  }
+
+  function isUnavailable(value: string): boolean {
+    return visibleBlocks.some((block) => block.startsOn <= value && value < block.endsOn);
+  }
+
+  function rangeIsUnavailable(start: string, end: string): boolean {
+    return visibleBlocks.some((block) => rangesOverlap(start, end, block));
+  }
+
+  function canUseAsDeparture(value: string): boolean {
+    if (!selectionStart || value <= selectionStart) return false;
+    const { minimumNights } = selectedRules();
+    if (value < addDays(selectionStart, minimumNights)) return false;
+    return !rangeIsUnavailable(selectionStart, value);
+  }
+
+  function setCalendarMessage(message: string) {
+    if (calendarMessage) calendarMessage.textContent = message;
+  }
+
+  function resetSelection() {
+    selectionStart = '';
+    selectionEnd = '';
+    if (arrival) arrival.value = '';
+    if (departure) {
+      departure.value = '';
+      departure.min = isoToday;
+    }
+    if (contact) contact.hidden = true;
+    if (status) status.textContent = 'Choose dates to check availability.';
+  }
+
+  function createCalendarDay(value: string, dayNumber: number): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'calendar-day';
+    button.textContent = String(dayNumber);
+    button.dataset.date = value;
+
+    const date = parseIso(value);
+    const past = value < isoToday;
+    const unavailable = isUnavailable(value);
+    const departureOnly = unavailable && canUseAsDeparture(value);
+    const selectedStart = value === selectionStart;
+    const selectedEnd = value === selectionEnd;
+    const selectedRange = Boolean(selectionStart && selectionEnd && selectionStart <= value && value < selectionEnd);
+
+    if (past) button.classList.add('calendar-day-past');
+    if (unavailable) button.classList.add('calendar-day-unavailable');
+    if (departureOnly) button.classList.add('calendar-day-departure-only');
+    if (selectedRange) button.classList.add('calendar-day-in-range');
+    if (selectedStart) button.classList.add('calendar-day-start');
+    if (selectedEnd) button.classList.add('calendar-day-end');
+    if (value === isoToday) button.classList.add('calendar-day-today');
+
+    const availabilityLabel = past
+      ? 'past date'
+      : unavailable
+        ? departureOnly
+          ? 'unavailable for arrival, available as departure'
+          : 'unavailable'
+        : 'available';
+    button.setAttribute('aria-label', `${dayFormatter.format(date)}, ${availabilityLabel}`);
+    button.title = `${dayFormatter.format(date)} — ${availabilityLabel}`;
+    button.disabled = calendarLoading || calendarFailed || past || (unavailable && !departureOnly);
+
+    button.addEventListener('click', () => selectCalendarDate(value));
+    return button;
+  }
+
+  function renderMonth(month: Date): HTMLElement {
+    const panel = document.createElement('section');
+    panel.className = 'booking-calendar-month';
+
+    const heading = document.createElement('h3');
+    heading.textContent = monthFormatter.format(month);
+    panel.append(heading);
+
+    const weekdays = document.createElement('div');
+    weekdays.className = 'calendar-weekdays';
+    for (const label of WEEKDAY_LABELS) {
+      const item = document.createElement('span');
+      item.textContent = label;
+      weekdays.append(item);
+    }
+    panel.append(weekdays);
+
+    const days = document.createElement('div');
+    days.className = 'calendar-days';
+    const firstDayOffset = (month.getUTCDay() + 6) % 7;
+    for (let index = 0; index < firstDayOffset; index += 1) {
+      const spacer = document.createElement('span');
+      spacer.className = 'calendar-day-spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      days.append(spacer);
+    }
+
+    const daysInMonth = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const value = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day)).toISOString().slice(0, 10);
+      days.append(createCalendarDay(value, day));
+    }
+    panel.append(days);
+    return panel;
+  }
+
+  function renderCalendar() {
+    if (!calendarMonths) return;
+    calendarMonths.replaceChildren();
+    for (let index = 0; index < MONTHS_SHOWN; index += 1) {
+      calendarMonths.append(renderMonth(addMonths(monthCursor, index)));
+    }
+    const currentOffset = (monthCursor.getUTCFullYear() - firstAllowedMonth.getUTCFullYear()) * 12
+      + monthCursor.getUTCMonth() - firstAllowedMonth.getUTCMonth();
+    if (previousButton) previousButton.disabled = calendarLoading || currentOffset <= 0;
+    if (nextButton) nextButton.disabled = calendarLoading || currentOffset >= MAX_MONTH_OFFSET;
+  }
+
+  async function loadVisibleCalendar() {
+    if (!propertySelect) return;
+    const requestId = ++calendarRequest;
+    calendarLoading = true;
+    calendarFailed = false;
+    setCalendarMessage('Loading current availability…');
+    renderCalendar();
+
+    const visibleFrom = monthCursor.toISOString().slice(0, 10);
+    const from = selectionStart && selectionStart < visibleFrom ? selectionStart : visibleFrom;
+    const to = addMonths(monthCursor, MONTHS_SHOWN).toISOString().slice(0, 10);
+    const params = new URLSearchParams({ property: propertySelect.value, from, to });
+
+    try {
+      const response = await fetch(`/api/availability/?${params}`);
+      const body = await readJson(response);
+      if (requestId !== calendarRequest) return;
+      if (!response.ok) throw new Error(body.error || 'Availability could not be loaded.');
+      visibleBlocks = Array.isArray(body.blocks) ? body.blocks : [];
+      calendarLoading = false;
+      setCalendarMessage(body.refreshWarning || 'Unavailable dates include current Airbnb reservations and blocks.');
+    } catch (error) {
+      if (requestId !== calendarRequest) return;
+      visibleBlocks = [];
+      calendarLoading = false;
+      calendarFailed = true;
+      setCalendarMessage(error instanceof Error
+        ? `${error.message} You can still enter dates below and use Check availability.`
+        : 'Availability could not be loaded. You can still enter dates below and use Check availability.');
+    }
+    renderCalendar();
+  }
+
+  function selectCalendarDate(value: string) {
+    if (calendarLoading || calendarFailed || value < isoToday) return;
+    const blocked = isUnavailable(value);
+
+    if (!selectionStart || selectionEnd || value <= selectionStart) {
+      if (blocked) return;
+      selectionStart = value;
+      selectionEnd = '';
+      if (arrival) arrival.value = value;
+      if (departure) {
+        departure.value = '';
+        departure.min = addDays(value, selectedRules().minimumNights);
+      }
+      if (contact) contact.hidden = true;
+      if (status) status.textContent = 'Choose a departure date.';
+      setCalendarMessage(`Arrival selected: ${dayFormatter.format(parseIso(value))}. Now choose the departure date.`);
+      renderCalendar();
+      return;
+    }
+
+    const earliestDeparture = addDays(selectionStart, selectedRules().minimumNights);
+    if (value < earliestDeparture) {
+      setCalendarMessage(`The minimum stay is ${selectedRules().minimumNights} nights. Choose ${dayFormatter.format(parseIso(earliestDeparture))} or later.`);
+      return;
+    }
+    if (rangeIsUnavailable(selectionStart, value)) {
+      setCalendarMessage('That stay crosses an unavailable date. Choose a different departure date or start again.');
+      return;
+    }
+
+    selectionEnd = value;
+    if (departure) departure.value = value;
+    if (contact) contact.hidden = true;
+    if (status) status.textContent = 'Dates selected. Use Check availability to confirm them.';
+    setCalendarMessage(`${dayFormatter.format(parseIso(selectionStart))} to ${dayFormatter.format(parseIso(value))} selected.`);
+    renderCalendar();
+  }
+
+  function monthIsVisible(value: string): boolean {
+    const date = parseIso(value);
+    const end = addMonths(monthCursor, MONTHS_SHOWN);
+    return date >= monthCursor && date < end;
+  }
+
+  async function syncSelectionFromInputs(changed: 'arrival' | 'departure') {
+    const start = arrival?.value || '';
+    const end = departure?.value || '';
+    selectionStart = start;
+    selectionEnd = start && end > start ? end : '';
     applyPropertyRules();
-    if (departure?.value && departure.value < departure.min) departure.value = departure.min;
+
+    const focusDate = changed === 'departure' && end ? end : start;
+    if (focusDate && !monthIsVisible(focusDate)) {
+      monthCursor = startOfMonth(focusDate);
+      if (monthCursor < firstAllowedMonth) monthCursor = firstAllowedMonth;
+      await loadVisibleCalendar();
+    } else {
+      renderCalendar();
+    }
+    if (contact) contact.hidden = true;
+    if (status) status.textContent = start && end
+      ? 'Dates entered. Use Check availability to confirm them.'
+      : 'Choose dates to check availability.';
+  }
+
+  propertySelect?.addEventListener('change', () => {
+    resetSelection();
+    applyPropertyRules();
+    monthCursor = firstAllowedMonth;
+    void loadVisibleCalendar();
   });
+  arrival?.addEventListener('change', () => void syncSelectionFromInputs('arrival'));
+  departure?.addEventListener('change', () => void syncSelectionFromInputs('departure'));
+  previousButton?.addEventListener('click', () => {
+    const previous = addMonths(monthCursor, -MONTHS_SHOWN);
+    monthCursor = previous < firstAllowedMonth ? firstAllowedMonth : previous;
+    void loadVisibleCalendar();
+  });
+  nextButton?.addEventListener('click', () => {
+    monthCursor = addMonths(monthCursor, MONTHS_SHOWN);
+    void loadVisibleCalendar();
+  });
+
   applyPropertyRules();
+  void loadVisibleCalendar();
 
   async function readJson(response: Response): Promise<Record<string, any>> {
     try {
@@ -185,12 +488,13 @@ const properties = getProperties();
         status.textContent = body.error || 'The request could not be saved.';
         return;
       }
-      status.textContent = `Your provisional request has been received. Reference: ${body.reference}`;
+      const successMessage = `Your provisional request has been received. Reference: ${body.reference}`;
       contact.hidden = true;
       form.reset();
-      if (arrival) arrival.min = isoToday;
-      if (departure) departure.min = isoToday;
+      resetSelection();
       applyPropertyRules();
+      status.textContent = successMessage;
+      void loadVisibleCalendar();
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {

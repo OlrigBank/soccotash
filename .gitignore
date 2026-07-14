@@ -33,3 +33,6 @@ site/.env.*
 # Local PostgreSQL backups
 backups/
 *.dump
+
+# Local Airbnb calendar snapshots may contain reservation metadata.
+airbnb-*.ics

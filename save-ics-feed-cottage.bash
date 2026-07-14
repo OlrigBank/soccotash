@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 docker compose exec -T site node --input-type=module -e '
 const url = (process.env.AIRBNB_COTTAGE_ICAL_URLS ?? "")
   .split(/[,\n]+/)[0]

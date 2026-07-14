@@ -14,6 +14,7 @@ zip -r "$OUTPUT" . \
   -x "*/.env.local" \
   -x "backups/*" \
   -x "*.dump" \
+  -x "airbnb-*.ics" \
   -x "node_modules/*" \
   -x "site/node_modules/*" \
   -x "site/dist/*" \

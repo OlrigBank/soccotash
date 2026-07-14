@@ -6,6 +6,7 @@ This phase provides a small booking engine inside Soccotash. It supports:
 
 - importing blocked dates from one or more Airbnb iCal feeds per property;
 - storing imported blocks in PostgreSQL;
+- displaying unavailable dates in a two-month public availability calendar;
 - checking availability from the public booking page;
 - saving guest provisional booking requests;
 - token-protected calendar synchronisation and booking reports.
@@ -18,9 +19,10 @@ It does not yet provide pricing, payment, automatic acceptance, email notificati
 2. Soccotash fetches and parses each `.ics` feed server-side.
 3. Imported Airbnb date ranges replace the previous imported set for that property in one database transaction.
 4. `/book/` refreshes a property calendar when the stored import is more than 30 minutes old.
-5. The guest checks a date range.
-6. Before insertion, PostgreSQL locks booking changes for that property and checks both Airbnb blocks and existing pending/approved provisional requests.
-7. A conflict-free request is stored with `pending` status and returned with a UUID reference.
+5. The public calendar requests the visible two-month range and marks every imported or provisional block as unavailable.
+6. The guest selects or enters an arrival and departure date.
+7. Before insertion, PostgreSQL locks booking changes for that property and checks both Airbnb blocks and existing pending/approved provisional requests.
+8. A conflict-free request is stored with `pending` status and returned with a UUID reference.
 
 The request is not a confirmed reservation.
 
@@ -36,6 +38,18 @@ AIRBNB_COTTAGE_ICAL_URLS
 Each value can contain one URL or several URLs separated by commas or new lines. The older singular names ending in `_URL` remain accepted temporarily for compatibility.
 
 Never commit Airbnb iCal export URLs. Anyone holding an export URL can retrieve the associated calendar feed. Regenerate any URL that has previously been committed or shared.
+
+
+## Local `.ics` snapshots
+
+The helper scripts can save a temporary copy of the first configured Airbnb feed for diagnosis:
+
+```bash
+./save-ics-feed-house.bash
+./save-ics-feed-cottage.bash
+```
+
+These files are diagnostic snapshots only. The running application imports the configured Airbnb feed URLs; it does not read the saved files. The snapshots can include reservation metadata, so `airbnb-*.ics` is ignored by Git and excluded by `zipit.bash`.
 
 ## Run the complete stack locally
 

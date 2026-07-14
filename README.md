@@ -1,6 +1,6 @@
 # Soccotash / Olrig Bank website
 
-Soccotash is an Astro/Node website with PostgreSQL-backed availability and provisional booking requests. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
+Soccotash is an Astro/Node website with PostgreSQL-backed availability, a visible two-month booking calendar, and provisional booking requests. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
 
 ## Runtime architecture
 
