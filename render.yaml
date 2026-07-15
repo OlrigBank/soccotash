@@ -2,6 +2,7 @@ databases:
   - name: soccotash-bookings
     databaseName: soccotash
     user: soccotash
+    region: frankfurt
     plan: free
 
 services:
@@ -10,6 +11,7 @@ services:
     runtime: docker
     rootDir: site
     autoDeployTrigger: off
+    region: frankfurt
     plan: free
     envVars:
       - key: PORT
@@ -27,5 +29,5 @@ services:
       - key: CALENDAR_SYNC_TOKEN
         sync: false
       - key: BOOKING_SERVICE_URL
-        value: https://soccotash-site.onrender.com
+        value: https://soccotash.onrender.com
     healthCheckPath: /api/health/
