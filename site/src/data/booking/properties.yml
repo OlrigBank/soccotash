@@ -13,3 +13,11 @@ properties:
     minimumNights: 2
     maximumGuests: 4
     enabled: true
+  - id: whole-property
+    name: Whole-property and large-group stays
+    listingSlug: event
+    availabilityPropertyId: main-house
+    availabilityNote: Availability is based on the Main House calendar. Jenna will confirm that the Cottage and whole-property arrangements are also available.
+    minimumNights: 2
+    maximumGuests: 12
+    enabled: true

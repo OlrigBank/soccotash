@@ -1,3 +1,4 @@
+import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty } from './config';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 
@@ -62,6 +63,11 @@ export async function recordSyncError(propertyId: string, error: unknown): Promi
 }
 
 export async function getBlocks(propertyId: string, from: string, to: string): Promise<BookingBlock[]> {
+  const property = getProperty(propertyId);
+  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
+  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+
   const result = await getPool().query(
     `SELECT starts_on::text AS "startsOn", ends_on::text AS "endsOn", source
      FROM booking_blocks
@@ -69,10 +75,10 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
      UNION ALL
      SELECT arrival::text AS "startsOn", departure::text AS "endsOn", 'provisional' AS source
      FROM provisional_bookings
-     WHERE property_id = $1 AND status IN ('pending', 'approved')
+     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'approved')
        AND arrival < $3::date AND departure > $2::date
      ORDER BY "startsOn"`,
-    [propertyId, from, to],
+    [availabilityProperty.id, from, to, linkedPropertyIds],
   );
   return result.rows;
 }
@@ -96,16 +102,23 @@ export async function createProvisionalBooking(input: {
   telephone?: string;
   message?: string;
 }): Promise<string> {
+  const property = getProperty(input.propertyId);
+  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
+  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.propertyId]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
     const conflict = await client.query(
-      `SELECT 1 FROM booking_blocks WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
+      `SELECT 1 FROM booking_blocks
+       WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
-       SELECT 1 FROM provisional_bookings WHERE property_id=$1 AND status IN ('pending','approved')
+       SELECT 1 FROM provisional_bookings
+       WHERE property_id = ANY($4::text[]) AND status IN ('pending','approved')
          AND arrival < $3::date AND departure > $2::date LIMIT 1`,
-      [input.propertyId, input.arrival, input.departure],
+      [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
     );
     if (conflict.rowCount) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(

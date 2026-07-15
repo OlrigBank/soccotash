@@ -12,6 +12,7 @@ const properties = getProperties();
             value={property.id}
             data-minimum-nights={property.minimumNights}
             data-maximum-guests={property.maximumGuests}
+            data-availability-note={property.availabilityNote || ''}
           >
             {property.name}
           </option>
@@ -167,7 +168,10 @@ const properties = getProperties();
       if (Number(guests.value) > maximumGuests) guests.value = String(maximumGuests);
     }
     if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
-    if (rule) rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.`;
+    const availabilityNote = propertySelect?.selectedOptions[0]?.dataset.availabilityNote || '';
+    if (rule) {
+      rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
+    }
     if (contact) contact.hidden = true;
   }
 
@@ -408,6 +412,11 @@ const properties = getProperties();
     void loadVisibleCalendar();
   });
 
+  const requestedProperty = new URLSearchParams(window.location.search).get('property');
+  if (propertySelect && requestedProperty && Array.from(propertySelect.options).some((option) => option.value === requestedProperty)) {
+    propertySelect.value = requestedProperty;
+  }
+
   applyPropertyRules();
   void loadVisibleCalendar();
 
@@ -489,8 +498,12 @@ const properties = getProperties();
         return;
       }
       const successMessage = `Your provisional request has been received. Reference: ${body.reference}`;
+      const submittedPropertyId = String(raw.propertyId || '');
       contact.hidden = true;
       form.reset();
+      if (propertySelect && Array.from(propertySelect.options).some((option) => option.value === submittedPropertyId)) {
+        propertySelect.value = submittedPropertyId;
+      }
       resetSelection();
       applyPropertyRules();
       status.textContent = successMessage;

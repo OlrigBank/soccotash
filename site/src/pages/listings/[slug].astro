@@ -2,6 +2,7 @@
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Space from '../../components/Space.astro';
+import { getProperties } from '../../lib/booking/config';
 
 export const prerender = true;
 
@@ -26,6 +27,8 @@ for (const slug of entry.data.spaces) {
 
 const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(slug));
 const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean);
+const bookingProperty = getProperties().find((property) => property.listingSlug === entry.data.slug);
+const bookingHref = bookingProperty ? `/book/?property=${encodeURIComponent(bookingProperty.id)}` : '/book/';
 ---
 
 <BaseLayout title={entry.data.title} description={entry.data.summary}>
@@ -34,7 +37,7 @@ const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathroo
     {entry.data.summary ? <p>{entry.data.summary}</p> : null}
     {listingFacts.length ? <p class="listing-facts">{listingFacts.join(' · ')}</p> : null}
     <div class="button-group">
-      <a class="button" href="/book/">Check availability</a>
+      <a class="button" href={bookingHref}>Check availability</a>
       <a class="button button-secondary" href="https://wa.me/447907650960">Message on WhatsApp</a>
     </div>
   </section>

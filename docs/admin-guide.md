@@ -14,6 +14,8 @@ Main areas:
 - Site/contact settings: `site/src/data/settings/`
 - Booking property rules: `site/src/data/booking/properties.yml`
 
+The `whole-property` option is a derived calendar. It uses `availabilityPropertyId: main-house`, so it follows the Main House Airbnb import and does not require another Airbnb environment variable.
+
 ## Booking operations
 
 Force an Airbnb refresh locally:

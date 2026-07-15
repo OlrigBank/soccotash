@@ -32,4 +32,6 @@ featured: false
 
 The Main House and Cottage can be booked together to provide more space and greater flexibility for a larger family or group. Guests have use of both accommodation areas and the garden.
 
+The availability calendar for this option follows the Main House calendar because the whole-property stay is not separately listed on Airbnb. Jenna will confirm that the Cottage and the complete property arrangements are available before accepting a request.
+
 Whole-property stays are arranged by enquiry so that dates, guest numbers, room arrangements and any particular requirements can be confirmed in advance. Contact Jenna with the details of the stay you are considering.

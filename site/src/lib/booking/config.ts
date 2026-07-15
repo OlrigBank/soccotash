@@ -6,7 +6,9 @@ export type PropertyConfig = {
   id: string;
   name: string;
   listingSlug: string;
-  airbnbCalendarEnv: string;
+  airbnbCalendarEnv?: string;
+  availabilityPropertyId?: string;
+  availabilityNote?: string;
   minimumNights: number;
   maximumGuests: number;
   enabled: boolean;
@@ -29,4 +31,16 @@ export function getProperties(): PropertyConfig[] {
 
 export function getProperty(id: string): PropertyConfig | undefined {
   return getProperties().find((property) => property.id === id);
+}
+
+export function getAvailabilityProperty(propertyOrId: PropertyConfig | string): PropertyConfig | undefined {
+  const property = typeof propertyOrId === 'string' ? getProperty(propertyOrId) : propertyOrId;
+  if (!property) return undefined;
+  return getProperty(property.availabilityPropertyId || property.id);
+}
+
+export function getPropertiesSharingAvailability(propertyOrId: PropertyConfig | string): PropertyConfig[] {
+  const availabilityProperty = getAvailabilityProperty(propertyOrId);
+  if (!availabilityProperty) return [];
+  return getProperties().filter((property) => getAvailabilityProperty(property)?.id === availabilityProperty.id);
 }
