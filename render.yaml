@@ -27,5 +27,5 @@ services:
       - key: CALENDAR_SYNC_TOKEN
         sync: false
       - key: BOOKING_SERVICE_URL
-        value: https://soccotash.onrender.com
+        value: https://soccotash-site.onrender.com
     healthCheckPath: /api/health/

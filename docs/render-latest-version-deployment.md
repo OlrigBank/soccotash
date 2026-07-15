@@ -3,7 +3,39 @@
 **Archive reviewed:** `soccotash-render-deploy-no-images(7).zip`  
 **Review date:** 14 July 2026
 
-This guide describes how to deploy this specific version of the Soccotash / Olrig Bank website to Render while preserving the existing images, Render service, and PostgreSQL data.
+
+## Confirmed current Render state
+
+The existing Render setup has now been confirmed as:
+
+```text
+Project:      soccotash
+Environment:  Production
+Resource:     soccotash
+Status:       Deployed
+Runtime:      Static
+Region:       global
+```
+
+This changes the deployment procedure significantly.
+
+The existing `soccotash` resource is a **Render Static Site**. It cannot run the latest application's Node server, API endpoints, database migrations, PostgreSQL booking storage, health check, or Airbnb calendar-sync endpoints. The latest archive uses Astro `output: 'server'` with the Node standalone adapter and therefore needs a **Render Web Service**.
+
+Do **not** attempt to treat the current Static Site as the target of the Docker deployment. The safe migration is:
+
+```text
+existing Static Site remains live
+→ disable its automatic deployments
+→ create a new Docker Web Service
+→ create and connect PostgreSQL
+→ test the new service
+→ move the public/custom domain to the new service
+→ retire the old Static Site
+```
+
+A Render project is an organisational container and can contain a Static Site, Web Service, and PostgreSQL database together. The new resources can therefore be placed in the existing `soccotash` project and its `Production` environment.
+
+This guide describes how to deploy this specific version of the Soccotash / Olrig Bank website to Render while preserving the existing images and keeping the current public site available during the migration.
 
 ## 1. What this version deploys
 
@@ -33,7 +65,21 @@ The Render configuration is in the repository-root `render.yaml` file.
 
 ## 2. Important checks before changing the repository
 
-### 2.1 Preserve the image files
+
+### 2.1 Disable auto-deploy on the existing Static Site
+
+Before pushing this version to the branch used by Render:
+
+1. Open **Project → soccotash → Production → soccotash**.
+2. Open the resource's **Settings** page.
+3. Find **Auto-Deploy** under **Build & Deploy**.
+4. Change it from **On Commit** to **Off**.
+
+This prevents the current Static Site from trying to build the new server-rendered version when the repository is pushed. Leave the currently successful static deployment running while the replacement service is prepared.
+
+The Static Site can still be deployed manually later if a rollback is required.
+
+### 2.2 Preserve the image files
 
 This is deliberately a **no-images archive**. It contains the image directory structure but not the `.png`, `.jpg`, `.jpeg`, or other property and local-guide image files.
 
@@ -45,11 +91,13 @@ site/public/media/images/
 
 The image files already present in the GitHub repository must remain there. Extract or synchronise this archive over the existing repository while protecting that directory.
 
-### 2.2 Preserve the existing Render database
+### 2.3 PostgreSQL is not yet present in the confirmed project
 
-If a Render PostgreSQL database is already being used, do not replace it. The migrations in this version are additive and are designed to run against the existing database.
+The supplied Render resource list shows only the existing Static Site, so there is no PostgreSQL resource currently visible in the `Production` environment. The Blueprint is therefore expected to create the new `soccotash-bookings` database.
 
-The two migrations are:
+If a database exists elsewhere in the workspace but was not shown in the project view, check it before deploying. A Render workspace can have only one active Free PostgreSQL database, so an existing Free database can prevent the Blueprint from creating another one.
+
+The application applies these migrations to the database:
 
 ```text
 site/db/001_booking.sql
@@ -58,30 +106,32 @@ site/db/002_sync_metadata.sql
 
 After a migration has been applied, do not edit that migration file. Add a new numbered migration for later schema changes.
 
-### 2.3 Check the existing Render resource names
+### 2.4 Understand the supplied resource names
 
-Before creating or syncing a Blueprint, open the Render Dashboard and note the exact names of:
-
-- the existing web service;
-- the existing PostgreSQL database;
-- any existing Blueprint that manages them.
-
-The supplied `render.yaml` defines:
+The supplied `render.yaml` defines two new resources:
 
 ```text
-Web service: soccotash-site
-Database:    soccotash-bookings
+Docker Web Service:  soccotash-site
+PostgreSQL database: soccotash-bookings
 ```
 
-However, the configured public URL is:
+These names do not match the existing Static Site named `soccotash`, so a new Blueprint should propose creating the Web Service and database alongside the old Static Site. That is the desired result for this migration.
 
-```text
-https://soccotash.onrender.com
+Do not cancel merely because the preview says that `soccotash-site` and `soccotash-bookings` are new resources. Cancel only if Render proposes unexpected suffixes, duplicate databases, or resources in the wrong workspace/project.
+
+The supplied Blueprint currently contains:
+
+```yaml
+BOOKING_SERVICE_URL: https://soccotash.onrender.com
 ```
 
-If the existing service is actually named `soccotash`, do not blindly create a new Blueprint from the supplied file. Render may create a second service, possibly with a suffixed name. Either make the Blueprint resource name match the existing service exactly or continue updating the existing service manually.
+That address belongs to the existing Static Site and is incorrect for the replacement Web Service. Before deploying, change it to the expected new Web Service URL:
 
-Cancel the Blueprint deployment if its preview proposes duplicate or suffixed resources instead of updating the existing ones.
+```yaml
+BOOKING_SERVICE_URL: https://soccotash-site.onrender.com
+```
+
+After Render creates the Web Service, verify the actual URL shown at the top of its Dashboard page. If Render assigns a different URL, update `BOOKING_SERVICE_URL` to that exact URL and redeploy.
 
 ## 3. Safely install the archive into the local Git repository
 
@@ -216,71 +266,160 @@ git push origin main
 
 Replace `main` if Render is connected to a different branch.
 
-## 6. Recommended procedure for the existing Render deployment
----------
-Use this procedure when `https://soccotash.onrender.com` already exists.
+## 6. Deployment procedure for the confirmed Render setup
 
-### 6.1 If the service and database are already managed by a Blueprint
+The existing `soccotash` resource is a Static Site, so this version must be deployed as additional resources before the old resource is retired.
 
-1. Open the existing Blueprint in the Render Dashboard.
-2. Confirm that its linked repository and branch are correct.
-3. Confirm that the Blueprint preview identifies the existing web service and database rather than proposing new ones.
-4. Check the Blueprint resource names against the actual Render resource names.
-5. Push the commit or select **Manual Sync** if automatic sync is disabled.
-6. Review the proposed changes and start the sync.
+### 6.1 Keep the current Static Site running
 
-Render normally retains values for existing environment variables declared with `sync: false`, but verify the secret values after the sync.
+Confirm that:
 
-### 6.2 If the existing web service was created manually
+- `soccotash` still shows **Deployed**;
+- its public page still opens;
+- Auto-Deploy has been turned **Off**;
+- any custom domains currently attached to it have been recorded.
 
-First check its current runtime.
+Do not delete the Static Site at this stage.
 
-- If it is already a **Docker** web service, update that service rather than creating a second web service.
-- If it is still a native **Node** service, Render does not provide a normal Dashboard control for changing the runtime. Change it through a Blueprint or the Render API, or create a replacement Docker service and migrate the domain only after the replacement has passed all tests.
+### 6.2 Prepare the Blueprint URL
 
-For an existing Docker service, set or verify these settings:
+In the repository-root `render.yaml`, change:
 
-```text
-Repository:          the soccotash GitHub repository
-Branch:              main, or the branch used for deployment
-Root directory:      site
-Dockerfile:          Dockerfile
-Health check path:   /api/health/
-Auto deploy:         enabled if desired
+```yaml
+      - key: BOOKING_SERVICE_URL
+        value: https://soccotash.onrender.com
 ```
 
-Because the root directory is `site`, the Dockerfile value is `Dockerfile`, not `site/Dockerfile`.
+to:
 
-Set or verify these environment variables:
+```yaml
+      - key: BOOKING_SERVICE_URL
+        value: https://soccotash-site.onrender.com
+```
+
+Commit this change with the rest of the latest archive.
+
+### 6.3 Create the Blueprint
+
+After the updated repository has been pushed:
+
+1. In the Render Dashboard, select **New → Blueprint**.
+2. Connect the `soccotash` GitHub repository.
+3. Select the production branch, normally `main`.
+4. Use the repository-root `render.yaml` file.
+5. Give the Blueprint a clear name such as `soccotash-production`.
+6. Review the proposed resources.
+
+The preview should create:
 
 ```text
-PORT=8080
-DATABASE_URL=<internal Render PostgreSQL connection string>
+soccotash-site       Web Service / Docker
+soccotash-bookings   PostgreSQL
+```
+
+The existing Static Site named `soccotash` should remain untouched.
+
+Where Render offers project/environment assignment, select:
+
+```text
+Project:      soccotash
+Environment:  Production
+```
+
+If the Blueprint resources appear outside the project after creation, assign or move them into the existing `soccotash` project and `Production` environment from the Dashboard.
+
+### 6.4 Enter the required secret values
+
+During Blueprint creation, Render asks for the values marked `sync: false`:
+
+```text
+AIRBNB_MAIN_HOUSE_ICAL_URLS
+AIRBNB_COTTAGE_ICAL_URLS
+CALENDAR_SYNC_TOKEN
+```
+
+Use the exported Airbnb iCal URLs for the two listings. Generate a strong token locally if one has not already been created:
+
+```bash
+openssl rand -hex 32
+```
+
+Do not commit the token or Airbnb URLs to Git.
+
+The Blueprint automatically connects `DATABASE_URL` to the newly created `soccotash-bookings` database and sets:
+
+```text
 DATABASE_SSL=true
-AIRBNB_MAIN_HOUSE_ICAL_URLS=<secret value>
-AIRBNB_COTTAGE_ICAL_URLS=<secret value>
-CALENDAR_SYNC_TOKEN=<secret value>
-BOOKING_SERVICE_URL=https://soccotash.onrender.com
+PORT=8080
 ```
 
-Use the database's **internal** connection URL when the web service and database are in the same Render workspace and region.
+### 6.5 Deploy and verify the replacement service
 
-If no database exists yet, create a Render PostgreSQL database first, preferably with:
+Deploy the Blueprint and follow the logs for `soccotash-site`.
+
+The Docker build should run:
 
 ```text
-Name:          soccotash-bookings
-Database name: soccotash
-User:          soccotash
-Region:        the same region as the web service
+npm ci
+npm run check
+npm run build
 ```
 
-Then place its internal connection string in `DATABASE_URL`.
+At startup, the container should report that PostgreSQL is ready and that the booking migrations have completed.
 
-Select **Manual Deploy → Deploy latest commit** after saving the settings.
+Open the actual Web Service URL shown by Render. It is expected to be:
 
-## 7. Procedure for a new Render deployment from scratch
+```text
+https://soccotash-site.onrender.com
+```
 
-Use this only when there is no existing service or database to preserve.
+Then test:
+
+```bash
+curl -i https://soccotash-site.onrender.com/api/health/
+```
+
+Expected response:
+
+```json
+{"status":"ok","database":"ok"}
+```
+
+Also test the home page, listing pages, `/book/`, calendar availability, and the protected calendar-sync/report endpoints before changing any public domain.
+
+### 6.6 Cut over the public address
+
+#### When `olrigbank.co.uk` or another custom domain is attached to the Static Site
+
+1. Confirm the new Web Service is fully healthy.
+2. Record the current DNS and custom-domain settings.
+3. Remove the custom domain from the old Static Site.
+4. Add the same domain to `soccotash-site` under **Settings → Custom Domains**.
+5. Follow Render's verification instructions and confirm HTTPS works.
+6. Re-test the full site through the custom domain.
+
+The DNS records might already point to Render and therefore might not need changing, but follow the exact instructions Render displays for the new service.
+
+#### When visitors currently use only `https://soccotash.onrender.com`
+
+The replacement Web Service has a different Render subdomain. Use the new Web Service URL as the production address, or attach a custom domain before retiring the old Static Site.
+
+Do not assume that deleting the Static Site will automatically transfer or immediately release `soccotash.onrender.com` to the new Web Service.
+
+### 6.7 Retire the old Static Site
+
+Only after the new service and public domain have passed the acceptance tests:
+
+1. Keep a note of the old Static Site's settings for rollback.
+2. Confirm that all traffic reaches the Docker Web Service.
+3. Delete or suspend the old Static Site named `soccotash`.
+4. Confirm that the `soccotash` project now contains the production Web Service and PostgreSQL database.
+
+Do not re-enable Auto-Deploy on the old Static Site.
+
+## 7. Alternative procedure for a completely new workspace
+
+This section is not the procedure for the confirmed `soccotash` project. Use it only when deploying into a different Render workspace with no existing resources.
 
 1. Push the repository to GitHub.
 2. In Render, choose **New → Blueprint**.
@@ -332,7 +471,7 @@ A healthy response is:
 Check it from Mint:
 
 ```bash
-curl -i https://soccotash.onrender.com/api/health/
+curl -i https://soccotash-site.onrender.com/api/health/
 ```
 
 If the deploy fails, inspect the Render logs for one of these likely causes:
@@ -363,7 +502,7 @@ curl -fsS \
   -X POST \
   -H "Authorization: Bearer $CALENDAR_SYNC_TOKEN" \
   -H "Content-Type: application/json" \
-  https://soccotash.onrender.com/api/admin/sync-calendars/ \
+  https://soccotash-site.onrender.com/api/admin/sync-calendars/ \
   -d '{}'
 ```
 
@@ -374,7 +513,7 @@ Retrieve the protected booking report:
 ```bash
 curl -fsS \
   -H "Authorization: Bearer $CALENDAR_SYNC_TOKEN" \
-  https://soccotash.onrender.com/api/admin/booking-report/
+  https://soccotash-site.onrender.com/api/admin/booking-report/
 ```
 
 Never put `CALENDAR_SYNC_TOKEN` into Git, a Markdown file, screenshots, or a public URL.
