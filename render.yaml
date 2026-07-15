@@ -10,7 +10,6 @@ services:
     runtime: docker
     rootDir: site
     autoDeployTrigger: off
-    autoDeploy: true
     plan: free
     envVars:
       - key: PORT
