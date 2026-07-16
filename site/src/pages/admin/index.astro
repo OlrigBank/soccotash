@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getPool } from '../../lib/booking/db';
+export const prerender = false;
+const [listingCount, bookingCount, syncRows] = await Promise.all([
+  Promise.resolve(3),
+  getPool().query("SELECT count(*)::int AS count FROM provisional_bookings WHERE status = 'pending'"),
+  getPool().query('SELECT property_id, last_success_at, last_error FROM calendar_sync_status ORDER BY property_id'),
+]);
+---
+<AdminLayout title="Dashboard"><header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Dashboard</h1><p>Operational overview for Olrig Bank.</p></div></header><section class="admin-card-grid"><a class="admin-summary-card" href="/admin/listings/"><span>Listings</span><strong>{listingCount}</strong><small>configured listings</small></a><a class="admin-summary-card" href="/admin/calendars/"><span>Calendar synchronisation</span><strong>{syncRows.rowCount || 0}</strong><small>calendar records</small></a><a class="admin-summary-card" href="/admin/bookings/"><span>Booking requests</span><strong>{bookingCount.rows[0].count}</strong><small>awaiting review</small></a><a class="admin-summary-card" href="/admin/pricing/"><span>Pricing</span><strong>Next phase</strong><small>foundation ready</small></a></section><section class="admin-panel"><h2>Calendar status</h2>{syncRows.rowCount ? <div class="admin-table-wrap"><table><thead><tr><th>Property</th><th>Last successful sync</th><th>Status</th></tr></thead><tbody>{syncRows.rows.map(row => <tr><td>{row.property_id}</td><td>{row.last_success_at ? new Date(row.last_success_at).toLocaleString('en-GB') : 'Not yet synced'}</td><td>{row.last_error ? 'Error' : 'Ready'}</td></tr>)}</tbody></table></div> : <p>No calendar synchronisation has run yet.</p>}</section></AdminLayout>

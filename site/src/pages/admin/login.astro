@@ -1,0 +1,29 @@
+---
+import { authenticate, createSession, setSessionCookie, audit, isSameOrigin } from '../../lib/admin/auth';
+import '../../styles/global.css';
+export const prerender = false;
+let error = '';
+const rawReturnTo = Astro.url.searchParams.get('returnTo') || '/admin/';
+const returnTo = rawReturnTo.startsWith('/admin/') || rawReturnTo === '/admin' ? rawReturnTo : '/admin/';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    return new Response('Forbidden', { status: 403 });
+  }
+  const form = await Astro.request.formData();
+  const email = String(form.get('email') || '').trim();
+  const password = String(form.get('password') || '');
+  const requested = String(form.get('returnTo') || '/admin/');
+  const safeReturn = requested.startsWith('/admin/') || requested === '/admin' ? requested : '/admin/';
+  const user = await authenticate(email, password);
+  if (user) {
+    const session = await createSession(user.id);
+    setSessionCookie(Astro.cookies, session.token, session.expires);
+    await audit(user.id, 'admin.login', { email: user.email });
+    return Astro.redirect(safeReturn, 303);
+  }
+  await audit(null, 'admin.login_failed', { email });
+  error = 'The email address or password was not recognised.';
+}
+---
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>Admin login | Olrig Bank</title></head>
+<body class="admin-login-body"><main class="login-panel"><a href="/" class="admin-brand"><span class="brand-mark">OB</span><span>Olrig Bank</span></a><h1>Administration login</h1><p>Sign in to manage Olrig Bank operational information.</p>{error && <div class="admin-alert" role="alert">{error}</div>}<form method="post" class="admin-form"><input type="hidden" name="returnTo" value={returnTo}/><label>Email address<input name="email" type="email" autocomplete="username" required autofocus/></label><label>Password<input name="password" type="password" autocomplete="current-password" required/></label><button class="admin-button" type="submit">Sign in</button></form><p class="admin-help"><a href="/">Return to public website</a></p></main></body></html>

@@ -95,3 +95,7 @@ npm --prefix site ci
 npm --prefix site run check
 npm --prefix site run build
 ```
+
+## Administration
+
+The protected administration foundation is available at `/admin/`. After the database migration has run, create the first administrator using the instructions in [`docs/admin-foundation.md`](docs/admin-foundation.md).
