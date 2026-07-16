@@ -65,3 +65,21 @@ npm run admin:create -- admin@example.com 'Administrator'
 ## Phase 1 scope
 
 The dashboard is operational and reports pending provisional bookings and calendar-sync status. Listings, Calendars, Pricing, Bookings and Settings are protected placeholder pages ready for their later implementation phases.
+
+## Reverse-proxy origin handling
+
+The Render web service terminates HTTPS before forwarding requests to the Astro
+Node server. `site/astro.config.mjs` therefore lists the public Olrig Bank
+hostnames and dynamically adds Render's `RENDER_EXTERNAL_HOSTNAME` to Astro's
+`security.allowedDomains` setting.
+
+This allows Astro to trust the matching `X-Forwarded-Host` header and reconstruct
+the public request URL correctly while retaining `security.checkOrigin: true`.
+Without this setting, login form submissions on Render can be rejected with:
+
+```text
+Cross-site POST form submissions are forbidden
+```
+
+After changing the service hostname or adding another custom domain, add the new
+hostname to `security.allowedDomains` and redeploy the service.
