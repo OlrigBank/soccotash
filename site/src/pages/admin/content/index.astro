@@ -1,0 +1,58 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { PAGES_CMS_REPOSITORY_URL, PAGES_CMS_SECTIONS } from '../../../lib/admin/pages-cms';
+
+export const prerender = false;
+---
+<AdminLayout title="Website content">
+  <header class="admin-page-header admin-page-header-with-action">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Website content</h1>
+      <p>
+        Edit the text, images and structure of the public Olrig Bank website. Each section opens the
+        hosted Pages CMS application in a new browser tab.
+      </p>
+    </div>
+    <a
+      class="admin-secondary-button"
+      href={PAGES_CMS_REPOSITORY_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Open Pages CMS home
+      <span aria-hidden="true">↗</span>
+    </a>
+  </header>
+
+  <section class="admin-notice" aria-labelledby="pages-cms-access-heading">
+    <h2 id="pages-cms-access-heading">Pages CMS access</h2>
+    <p>
+      On the first visit, Pages CMS may ask you to sign in and authorise access to the Soccotash
+      GitHub repository. During later visits, an active Pages CMS session should take you directly to
+      the selected section. You may be asked to sign in again after the session expires or browser
+      cookies are cleared.
+    </p>
+  </section>
+
+  <section class="admin-content-grid" aria-label="Website content sections">
+    {PAGES_CMS_SECTIONS.map((section) => (
+      <article class="admin-content-card">
+        <div>
+          <h2>{section.title}</h2>
+          <p>{section.description}</p>
+        </div>
+        <a
+          class="admin-button-link"
+          href={section.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${section.buttonLabel} in Pages CMS (opens in a new tab)`}
+        >
+          {section.buttonLabel}
+          <span aria-hidden="true">↗</span>
+        </a>
+      </article>
+    ))}
+  </section>
+</AdminLayout>

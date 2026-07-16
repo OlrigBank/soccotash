@@ -12,7 +12,7 @@ services:
     rootDir: site
     autoDeployTrigger: off
     region: frankfurt
-    plan: free
+    plan: starter
     renderSubdomainPolicy: enabled
 
     envVars:

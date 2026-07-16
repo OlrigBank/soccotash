@@ -2,7 +2,15 @@
 
 ## Content editing
 
-Use Pages CMS or edit the Markdown/YAML files directly.
+Open `/admin/content/` and choose the required website-content section. Each button opens the corresponding section of the hosted Pages CMS application in a new browser tab. The first visit may require Pages CMS/GitHub sign-in; subsequent visits use the active Pages CMS session.
+
+The configured repository is:
+
+```text
+https://app.pagescms.org/olrigbank/soccotash
+```
+
+Content can also be edited directly in the Markdown/YAML files.
 
 Main areas:
 
