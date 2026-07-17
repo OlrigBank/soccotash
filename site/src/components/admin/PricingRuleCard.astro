@@ -34,7 +34,7 @@ function summary(): string {
     <span class:list={['rule-state', rule.enabled ? 'is-on' : 'is-off']}>{rule.enabled ? 'On' : 'Off'}</span>
   </div>
   <div class="pricing-rule-meta">
-    <span>{rule.type.replaceAll('_', ' ')}</span><span>Priority {rule.priority}</span>
+    <span>{rule.type.replaceAll('_', ' ')}</span>{rule.ruleDefinitionId && <span>Custom card</span>}<span>Priority {rule.priority}</span>
     {rule.stackingGroup && <span>{rule.stackable ? 'Stackable' : 'Exclusive'}: {rule.stackingGroup}</span>}
   </div>
   {editable && (

@@ -25,7 +25,7 @@ const links = [
   </header>
   <div class="admin-shell">
     <aside class="admin-sidebar" aria-label="Administration navigation">
-      <nav>{links.map(([href,label]) => <a href={href} aria-current={activePath === href ? 'page' : undefined}>{label}</a>)}</nav>
+      <nav>{links.map(([href,label]) => { const active = href === '/admin/' ? activePath === href : activePath.startsWith(href); return <a href={href} aria-current={active ? 'page' : undefined}>{label}</a>; })}</nav>
     </aside>
     <main id="admin-content" class="admin-main"><slot /></main>
   </div>

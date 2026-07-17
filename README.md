@@ -99,3 +99,8 @@ npm --prefix site run build
 ## Administration
 
 The protected administration foundation is available at `/admin/`. After the database migration has run, create the first administrator using the instructions in [`docs/admin-foundation.md`](docs/admin-foundation.md). The pricing implementation is described in [`docs/pricing-foundation.md`](docs/pricing-foundation.md).
+
+
+## Reusable pricing rule cards
+
+Pricing administrators can define and manage reusable custom rule cards at `/admin/pricing/rule-cards/`. Active cards are available in the main `/admin/pricing/` rule library.

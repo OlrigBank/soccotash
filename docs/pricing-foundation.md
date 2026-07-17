@@ -87,3 +87,41 @@ Select the Cottage or Whole-property listing and choose **Create first draft**. 
 3. Add price floors and explicit conflict warnings.
 4. Connect published pricing to the public quote/provisional-booking flow.
 5. Add month/season modelling and exportable reports.
+
+## Reusable custom rule cards
+
+Administrators can now open **Pricing → Manage rule cards** at:
+
+```text
+/admin/pricing/rule-cards/
+```
+
+A custom rule card is a reusable preset built on one of the deterministic calculation behaviours already supported by the pricing engine. Examples include:
+
+- Christmas nightly override;
+- August uplift;
+- direct-booking discount;
+- three-night New Year package;
+- Booking.com commission;
+- dog charge per pet.
+
+For each card, an administrator can define:
+
+- the card name and description shown in the library;
+- its library category;
+- the underlying calculation behaviour;
+- the default rule name;
+- priority, enabled state and stacking behaviour;
+- applicable dates, nights, booking window or channel;
+- amount, percentage, guest, pet and day-of-week defaults as relevant.
+
+Active custom cards appear at the top of the rule library on the main pricing screen. They can be added using the button or by dragging them into a draft plan.
+
+Custom definitions can be edited, archived and restored. Editing or archiving a definition does not retroactively alter rule instances already copied into a pricing plan. This keeps draft and published plans deterministic and auditable.
+
+Migration `site/db/005_pricing_rule_definitions.sql` adds:
+
+- `pricing_rule_definitions`;
+- `pricing_rules.rule_definition_id`.
+
+The link from a plan rule to its source definition is retained for traceability, while the rule itself stores a complete copy of the values used at the time it was added.

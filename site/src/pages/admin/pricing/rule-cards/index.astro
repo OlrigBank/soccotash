@@ -1,0 +1,361 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { RULE_CATALOG, defaultRuleValues } from '../../../../lib/pricing/catalog';
+import { getPricingRuleDefinitions } from '../../../../lib/pricing/repository';
+import type { PricingRuleCategory } from '../../../../lib/pricing/types';
+
+export const prerender = false;
+
+const definitions = await getPricingRuleDefinitions(true);
+const categories: PricingRuleCategory[] = [
+  'Base pricing',
+  'Seasons and dates',
+  'Stay rules',
+  'Booking window',
+  'Fees',
+  'Channels',
+];
+const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type, {
+  ...defaultRuleValues(entry.type),
+  label: entry.label,
+  description: entry.description,
+  category: entry.category,
+}]));
+---
+<AdminLayout title="Rule cards">
+  <header class="admin-page-header pricing-page-header">
+    <div>
+      <p class="eyebrow">Pricing</p>
+      <h1>Reusable rule cards</h1>
+      <p>Define reusable pricing presets that administrators can add to any draft plan. Each card uses a tested calculation behaviour and supplies editable starter values.</p>
+    </div>
+    <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary admin-button-link" href="/admin/pricing/">Back to pricing</a>
+      <button class="admin-button" id="new-definition" type="button">New rule card</button>
+    </div>
+  </header>
+
+  <div class="admin-alert admin-alert--info pricing-phase-note">
+    A custom card is a reusable preset, not executable code. Changing or archiving its definition does not alter rule instances already added to pricing plans.
+  </div>
+
+  <div id="definition-message" class="pricing-message" role="status" aria-live="polite"></div>
+
+  <section class="rule-definition-workspace">
+    <section class="admin-panel rule-definition-editor" aria-labelledby="definition-editor-heading">
+      <div class="pricing-column-heading">
+        <div><p class="eyebrow">Definition</p><h2 id="definition-editor-heading">Create a rule card</h2></div>
+        <button class="small-action" id="cancel-definition-edit" type="button" hidden>Cancel edit</button>
+      </div>
+      <form id="rule-definition-form" class="rule-definition-form">
+        <input type="hidden" name="definitionId" value="" />
+        <div class="pricing-form-grid">
+          <label class="pricing-field pricing-field--wide">Card name
+            <input name="label" maxlength="120" placeholder="For example: Christmas nightly price" required />
+          </label>
+          <label class="pricing-field pricing-field--wide">Library description
+            <textarea name="description" maxlength="500" rows="3" placeholder="Explain when this reusable card should be used."></textarea>
+          </label>
+          <label class="pricing-field">Calculation behaviour
+            <select name="baseType" required>
+              {RULE_CATALOG.map((entry) => <option value={entry.type}>{entry.label}</option>)}
+            </select>
+          </label>
+          <label class="pricing-field">Library category
+            <select name="category" required>
+              {categories.map((category) => <option value={category}>{category}</option>)}
+            </select>
+          </label>
+          <label class="pricing-field pricing-field--wide">Default rule name
+            <input name="defaultName" maxlength="160" required />
+          </label>
+          <label class="pricing-field">Default priority
+            <input name="defaultPriority" type="number" min="0" max="999" value="50" required />
+          </label>
+          <label class="pricing-field pricing-field--wide">Default stacking group
+            <input name="defaultStackingGroup" maxlength="80" placeholder="Leave empty when not needed" />
+          </label>
+          <label class="pricing-check"><input name="defaultEnabled" type="checkbox" checked /> Enabled when added</label>
+          <label class="pricing-check"><input name="defaultStackable" type="checkbox" checked /> Can stack in group</label>
+
+          <label class="pricing-field definition-type-field" data-types="default_nightly_price,date_override,fixed_package,extra_guest_charge,cleaning_fee,pet_fee">Default amount (£)
+            <input name="amountPounds" type="number" min="0" step="0.01" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="weekend_adjustment,seasonal_adjustment,length_discount,early_booking_discount,last_minute_discount,channel_commission,non_refundable_discount">Default percentage
+            <input name="percentage" type="number" min="-100" max="1000" step="0.1" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,fixed_package">From date
+            <input name="arrivalDateFrom" type="date" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,fixed_package">To date
+            <input name="arrivalDateTo" type="date" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,length_discount">Minimum nights condition
+            <input name="minimumNights" type="number" min="1" max="365" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="minimum_stay,fixed_package">Rule nights
+            <input name="nights" type="number" min="1" max="365" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="early_booking_discount">Minimum lead days
+            <input name="minimumLeadDays" type="number" min="0" max="1000" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="last_minute_discount">Maximum lead days
+            <input name="maximumLeadDays" type="number" min="0" max="1000" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="extra_guest_charge">Included guests
+            <input name="includedGuests" type="number" min="0" max="50" />
+          </label>
+          <label class="pricing-check definition-type-field" data-types="extra_guest_charge"><input name="perNight" type="checkbox" /> Charge per night</label>
+          <label class="pricing-check definition-type-field" data-types="pet_fee"><input name="perPet" type="checkbox" /> Charge per pet</label>
+          <label class="pricing-field definition-type-field" data-types="channel_commission">Sales channel
+            <select name="channel"><option value="direct">Direct</option><option value="airbnb">Airbnb</option><option value="booking_com">Booking.com</option></select>
+          </label>
+          <fieldset class="pricing-days definition-type-field" data-types="weekend_adjustment">
+            <legend>Adjusted nights</legend>
+            <label><input type="checkbox" name="daysOfWeek" value="5" /> Friday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="6" /> Saturday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="0" /> Sunday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="1" /> Monday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="2" /> Tuesday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="3" /> Wednesday</label>
+            <label><input type="checkbox" name="daysOfWeek" value="4" /> Thursday</label>
+          </fieldset>
+        </div>
+        <div class="pricing-rule-actions">
+          <button class="admin-button" type="submit">Save rule card</button>
+          <button class="admin-button admin-button--secondary" id="reset-definition" type="button">Reset</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="admin-panel rule-definition-list" aria-labelledby="saved-definitions-heading">
+      <div class="pricing-column-heading">
+        <div><p class="eyebrow">Custom library</p><h2 id="saved-definitions-heading">Defined cards</h2></div>
+        <span class="definition-count">{definitions.length}</span>
+      </div>
+      <div class="defined-card-list">
+        {definitions.map((definition) => (
+          <article class:list={['defined-card', !definition.active && 'is-inactive']} data-definition-id={definition.id}>
+            <div class="defined-card-heading">
+              <div><strong>{definition.label}</strong><p>{definition.description || 'No description supplied.'}</p></div>
+              <span class:list={['status-badge', definition.active ? 'status-published' : 'status-archived']}>{definition.active ? 'active' : 'archived'}</span>
+            </div>
+            <div class="pricing-rule-meta">
+              <span>{definition.category}</span><span>{definition.baseType.replaceAll('_', ' ')}</span><span>Priority {definition.defaultPriority}</span>
+            </div>
+            <div class="defined-card-actions">
+              <button class="small-action edit-definition" type="button" data-definition-id={definition.id}>Edit</button>
+              <button class:list={['small-action', definition.active && 'small-action--danger', 'toggle-definition']} type="button" data-definition-id={definition.id} data-active={definition.active ? 'false' : 'true'}>{definition.active ? 'Archive' : 'Restore'}</button>
+            </div>
+          </article>
+        ))}
+        {!definitions.length && <div class="pricing-empty-state">No custom rule cards have been defined yet.</div>}
+      </div>
+    </section>
+  </section>
+</AdminLayout>
+
+<script is:inline define:vars={{ definitions, starterValues }}>
+  const endpoint = '/api/admin/pricing/action/';
+  const form = document.querySelector('#rule-definition-form');
+  const message = document.querySelector('#definition-message');
+  const heading = document.querySelector('#definition-editor-heading');
+  const cancelButton = document.querySelector('#cancel-definition-edit');
+
+  function showMessage(text, error = false) {
+    if (!(message instanceof HTMLElement)) return;
+    message.textContent = text;
+    message.className = `pricing-message ${error ? 'is-error' : 'is-success'}`;
+  }
+
+  async function pricingAction(payload) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Pricing request failed.');
+    return data;
+  }
+
+  function input(name) {
+    if (!(form instanceof HTMLFormElement)) return null;
+    return form.elements.namedItem(name);
+  }
+
+  function setValue(name, value) {
+    const field = input(name);
+    if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) field.value = value ?? '';
+  }
+
+  function setChecked(name, checked) {
+    const field = input(name);
+    if (field instanceof HTMLInputElement) field.checked = Boolean(checked);
+  }
+
+  function visibleTypeFields(type) {
+    document.querySelectorAll('.definition-type-field').forEach((field) => {
+      const types = (field.dataset.types || '').split(',');
+      field.hidden = !types.includes(type);
+      field.querySelectorAll('input,select').forEach((control) => control.disabled = field.hidden);
+    });
+  }
+
+  function applyStarter(type, preserveIdentity = false) {
+    const starter = starterValues[type];
+    if (!starter) return;
+    visibleTypeFields(type);
+    if (!preserveIdentity) {
+      setValue('label', starter.label);
+      setValue('description', starter.description);
+      setValue('category', starter.category);
+      setValue('defaultName', starter.name);
+    }
+    setValue('defaultPriority', starter.priority);
+    setValue('defaultStackingGroup', starter.stackingGroup || '');
+    setChecked('defaultEnabled', true);
+    setChecked('defaultStackable', starter.stackable);
+    setValue('amountPounds', starter.action.amountPence === undefined ? '' : (starter.action.amountPence / 100).toFixed(2));
+    setValue('percentage', starter.action.percentage ?? '');
+    setValue('arrivalDateFrom', starter.conditions.arrivalDateFrom ?? '');
+    setValue('arrivalDateTo', starter.conditions.arrivalDateTo ?? '');
+    setValue('minimumNights', starter.conditions.minimumNights ?? '');
+    setValue('nights', starter.action.nights ?? '');
+    setValue('minimumLeadDays', starter.conditions.minimumLeadDays ?? '');
+    setValue('maximumLeadDays', starter.conditions.maximumLeadDays ?? '');
+    setValue('includedGuests', starter.action.includedGuests ?? '');
+    setChecked('perNight', starter.action.perNight);
+    setChecked('perPet', starter.action.perPet);
+    setValue('channel', starter.conditions.channel ?? 'direct');
+    document.querySelectorAll('input[name="daysOfWeek"]').forEach((checkbox) => {
+      if (checkbox instanceof HTMLInputElement) checkbox.checked = (starter.action.daysOfWeek || []).includes(Number(checkbox.value));
+    });
+  }
+
+  function resetForm() {
+    if (!(form instanceof HTMLFormElement)) return;
+    form.reset();
+    setValue('definitionId', '');
+    const type = input('baseType');
+    const selectedType = type instanceof HTMLSelectElement ? type.value : 'default_nightly_price';
+    applyStarter(selectedType);
+    if (heading instanceof HTMLElement) heading.textContent = 'Create a rule card';
+    if (cancelButton instanceof HTMLButtonElement) cancelButton.hidden = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function editDefinition(definition) {
+    if (!(form instanceof HTMLFormElement)) return;
+    setValue('definitionId', definition.id);
+    setValue('baseType', definition.baseType);
+    visibleTypeFields(definition.baseType);
+    setValue('label', definition.label);
+    setValue('description', definition.description);
+    setValue('category', definition.category);
+    setValue('defaultName', definition.defaultName);
+    setValue('defaultPriority', definition.defaultPriority);
+    setValue('defaultStackingGroup', definition.defaultStackingGroup || '');
+    setChecked('defaultEnabled', definition.defaultEnabled);
+    setChecked('defaultStackable', definition.defaultStackable);
+    setValue('amountPounds', definition.defaultAction.amountPence === undefined ? '' : (definition.defaultAction.amountPence / 100).toFixed(2));
+    setValue('percentage', definition.defaultAction.percentage ?? '');
+    setValue('arrivalDateFrom', definition.defaultConditions.arrivalDateFrom ?? '');
+    setValue('arrivalDateTo', definition.defaultConditions.arrivalDateTo ?? '');
+    setValue('minimumNights', definition.defaultConditions.minimumNights ?? '');
+    setValue('nights', definition.defaultAction.nights ?? '');
+    setValue('minimumLeadDays', definition.defaultConditions.minimumLeadDays ?? '');
+    setValue('maximumLeadDays', definition.defaultConditions.maximumLeadDays ?? '');
+    setValue('includedGuests', definition.defaultAction.includedGuests ?? '');
+    setChecked('perNight', definition.defaultAction.perNight);
+    setChecked('perPet', definition.defaultAction.perPet);
+    setValue('channel', definition.defaultConditions.channel ?? 'direct');
+    document.querySelectorAll('input[name="daysOfWeek"]').forEach((checkbox) => {
+      if (checkbox instanceof HTMLInputElement) checkbox.checked = (definition.defaultAction.daysOfWeek || []).includes(Number(checkbox.value));
+    });
+    if (heading instanceof HTMLElement) heading.textContent = `Edit ${definition.label}`;
+    if (cancelButton instanceof HTMLButtonElement) cancelButton.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function definitionPayload() {
+    if (!(form instanceof HTMLFormElement)) return null;
+    const data = new FormData(form);
+    const type = String(data.get('baseType') || '');
+    const conditions = {};
+    const ruleAction = {};
+    const setNumber = (target, key, name, multiplier = 1) => {
+      const value = data.get(name);
+      if (value !== null && value !== '') target[key] = Number(value) * multiplier;
+    };
+    if (['seasonal_adjustment','date_override','minimum_stay','fixed_package'].includes(type)) {
+      if (data.get('arrivalDateFrom')) conditions.arrivalDateFrom = data.get('arrivalDateFrom');
+      if (data.get('arrivalDateTo')) conditions.arrivalDateTo = data.get('arrivalDateTo');
+    }
+    if (['seasonal_adjustment','length_discount'].includes(type)) setNumber(conditions, 'minimumNights', 'minimumNights');
+    if (type === 'early_booking_discount') setNumber(conditions, 'minimumLeadDays', 'minimumLeadDays');
+    if (type === 'last_minute_discount') setNumber(conditions, 'maximumLeadDays', 'maximumLeadDays');
+    if (type === 'channel_commission') conditions.channel = data.get('channel');
+    if (type === 'non_refundable_discount') conditions.cancellationPlan = 'non_refundable';
+    if (['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee'].includes(type)) setNumber(ruleAction, 'amountPence', 'amountPounds', 100);
+    if (['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount'].includes(type)) setNumber(ruleAction, 'percentage', 'percentage');
+    if (['minimum_stay','fixed_package'].includes(type)) setNumber(ruleAction, 'nights', 'nights');
+    if (type === 'extra_guest_charge') {
+      setNumber(ruleAction, 'includedGuests', 'includedGuests');
+      ruleAction.perNight = input('perNight') instanceof HTMLInputElement ? input('perNight').checked : false;
+    }
+    if (type === 'pet_fee') ruleAction.perPet = input('perPet') instanceof HTMLInputElement ? input('perPet').checked : false;
+    if (type === 'weekend_adjustment') ruleAction.daysOfWeek = data.getAll('daysOfWeek').map(Number);
+    return {
+      baseType: type,
+      label: data.get('label'),
+      description: data.get('description'),
+      category: data.get('category'),
+      defaultName: data.get('defaultName'),
+      defaultPriority: Number(data.get('defaultPriority') || 50),
+      defaultEnabled: input('defaultEnabled') instanceof HTMLInputElement ? input('defaultEnabled').checked : false,
+      defaultStackable: input('defaultStackable') instanceof HTMLInputElement ? input('defaultStackable').checked : false,
+      defaultStackingGroup: data.get('defaultStackingGroup'),
+      defaultConditions: conditions,
+      defaultAction: ruleAction,
+    };
+  }
+
+  input('baseType')?.addEventListener('change', (event) => {
+    if (event.currentTarget instanceof HTMLSelectElement) applyStarter(event.currentTarget.value, true);
+  });
+  document.querySelector('#new-definition')?.addEventListener('click', resetForm);
+  document.querySelector('#reset-definition')?.addEventListener('click', resetForm);
+  cancelButton?.addEventListener('click', resetForm);
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const definitionIdField = input('definitionId');
+    const definitionId = definitionIdField instanceof HTMLInputElement ? definitionIdField.value : '';
+    try {
+      await pricingAction({
+        action: definitionId ? 'updateRuleDefinition' : 'createRuleDefinition',
+        definitionId,
+        definition: definitionPayload(),
+      });
+      showMessage(definitionId ? 'Rule card updated.' : 'Rule card created.');
+      window.setTimeout(() => window.location.reload(), 250);
+    } catch (error) { showMessage(error.message, true); }
+  });
+
+  document.querySelectorAll('.edit-definition').forEach((button) => button.addEventListener('click', () => {
+    const definition = definitions.find((item) => item.id === button.dataset.definitionId);
+    if (definition) editDefinition(definition);
+  }));
+
+  document.querySelectorAll('.toggle-definition').forEach((button) => button.addEventListener('click', async () => {
+    const active = button.dataset.active === 'true';
+    if (!active && !window.confirm('Archive this reusable card? Existing rules in plans will remain unchanged.')) return;
+    try {
+      await pricingAction({ action: 'setRuleDefinitionActive', definitionId: button.dataset.definitionId, active });
+      window.location.reload();
+    } catch (error) { showMessage(error.message, true); }
+  }));
+
+  resetForm();
+</script>

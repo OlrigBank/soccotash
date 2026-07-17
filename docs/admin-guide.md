@@ -49,3 +49,16 @@ docker compose up --build -d
 ```
 
 Confirm the site and booking page, then commit and push to GitHub. Render will build the same Dockerfile.
+
+## Defining reusable pricing rule cards
+
+Open **Pricing**, then select **Manage rule cards**.
+
+1. Choose the calculation behaviour, such as seasonal adjustment or fixed package.
+2. Enter the card name and library description.
+3. Configure its default dates, amount, percentage, nights, channel, priority and stacking behaviour as applicable.
+4. Save the card.
+5. Return to **Pricing**. The active custom card appears in the **Custom cards** section of the rule library.
+6. Drag it into a draft plan or select **Add**, then edit that individual plan rule if required.
+
+Archiving a card removes it from the active library. It does not remove or alter rules previously added to plans. Archived cards can be restored from the rule-card management screen.

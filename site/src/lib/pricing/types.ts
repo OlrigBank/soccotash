@@ -1,5 +1,13 @@
 export type PricingPlanStatus = 'draft' | 'published' | 'archived';
 
+export type PricingRuleCategory =
+  | 'Base pricing'
+  | 'Seasons and dates'
+  | 'Stay rules'
+  | 'Booking window'
+  | 'Fees'
+  | 'Channels';
+
 export type PricingRuleType =
   | 'default_nightly_price'
   | 'weekend_adjustment'
@@ -41,6 +49,7 @@ export type PricingAction = {
 export type PricingRule = {
   id: string;
   planId: string;
+  ruleDefinitionId: string | null;
   type: PricingRuleType;
   name: string;
   position: number;
@@ -114,5 +123,23 @@ export type RuleCatalogEntry = {
   type: PricingRuleType;
   label: string;
   description: string;
-  category: 'Base pricing' | 'Seasons and dates' | 'Stay rules' | 'Booking window' | 'Fees' | 'Channels';
+  category: PricingRuleCategory;
+};
+
+export type PricingRuleDefinition = {
+  id: string;
+  baseType: PricingRuleType;
+  label: string;
+  description: string;
+  category: PricingRuleCategory;
+  defaultName: string;
+  defaultPriority: number;
+  defaultEnabled: boolean;
+  defaultStackable: boolean;
+  defaultStackingGroup: string | null;
+  defaultConditions: PricingConditions;
+  defaultAction: PricingAction;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 };

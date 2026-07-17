@@ -3,7 +3,7 @@ import PricingRuleCard from '../../../components/admin/PricingRuleCard.astro';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getProperties } from '../../../lib/booking/config';
 import { RULE_CATALOG } from '../../../lib/pricing/catalog';
-import { getPricingPlan, getPricingPlans, getPublishedPricingPlan } from '../../../lib/pricing/repository';
+import { getPricingPlan, getPricingPlans, getPricingRuleDefinitions, getPublishedPricingPlan } from '../../../lib/pricing/repository';
 
 export const prerender = false;
 
@@ -15,6 +15,7 @@ const requestedPlanId = Astro.url.searchParams.get('plan') ?? '';
 const selectedSummary = plans.find((candidate) => candidate.id === requestedPlanId) ?? plans[0] ?? null;
 const selectedPlan = selectedSummary ? await getPricingPlan(selectedSummary.id) : null;
 const publishedPlan = property ? await getPublishedPricingPlan(property.id) : null;
+const customDefinitions = await getPricingRuleDefinitions();
 const editable = selectedPlan?.status === 'draft';
 const groups = Array.from(new Set(RULE_CATALOG.map((entry) => entry.category)));
 const nextJuly = `${new Date().getUTCFullYear() + 1}-07-09`;
@@ -28,6 +29,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
       <p>Build ordered pricing rules, model a booking, compare a draft with the published plan, and inspect why each rule did or did not apply.</p>
     </div>
     <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary admin-button-link" href="/admin/pricing/rule-cards/">Manage rule cards</a>
       {selectedPlan && <button class="admin-button admin-button--secondary" id="duplicate-plan" type="button">Duplicate as draft</button>}
       {editable && <button class="admin-button" id="publish-plan" type="button">Publish plan</button>}
     </div>
@@ -58,7 +60,8 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
     <section class="pricing-workspace">
       <aside class="pricing-column admin-panel pricing-library" aria-labelledby="rule-library-heading">
         <div class="pricing-column-heading"><div><p class="eyebrow">Reusable cards</p><h2 id="rule-library-heading">Rule library</h2></div></div>
-        <p class="pricing-column-help">Drag a rule into the plan or use Add. New cards contain practical starter values that can be edited.</p>
+        <p class="pricing-column-help">Drag a rule into the plan or use Add. System cards and your own reusable cards contain editable starter values.</p>
+        {customDefinitions.length > 0 && <section class="pricing-library-group pricing-library-group--custom"><h3>Custom cards</h3>{customDefinitions.map((definition) => <article class:list={['pricing-library-card', 'is-custom', !editable && 'is-disabled']} draggable={editable ? 'true' : 'false'} data-rule-definition-id={definition.id}><div><strong>{definition.label}</strong><p>{definition.description || `Reusable ${definition.baseType.replaceAll('_', ' ')} preset.`}</p></div><button type="button" class="small-action add-rule-definition" data-rule-definition-id={definition.id} disabled={!editable}>Add</button></article>)}</section>}
         {groups.map((group) => <section class="pricing-library-group"><h3>{group}</h3>{RULE_CATALOG.filter((entry) => entry.category === group).map((entry) => <article class:list={['pricing-library-card', !editable && 'is-disabled']} draggable={editable ? 'true' : 'false'} data-rule-type={entry.type}><div><strong>{entry.label}</strong><p>{entry.description}</p></div><button type="button" class="small-action add-rule" data-rule-type={entry.type} disabled={!editable}>Add</button></article>)}</section>)}
       </aside>
 
@@ -167,13 +170,14 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
     } catch (error) { showMessage(error.message, true); }
   });
 
-  async function addRule(ruleType) {
+  async function addRule(ruleType = '', definitionId = '') {
     try {
-      await pricingAction({ action: 'addRule', planId: selectedPlanId, ruleType });
+      await pricingAction({ action: 'addRule', planId: selectedPlanId, ruleType, definitionId });
       window.location.reload();
     } catch (error) { showMessage(error.message, true); }
   }
   document.querySelectorAll('.add-rule').forEach((button) => button.addEventListener('click', () => addRule(button.dataset.ruleType)));
+  document.querySelectorAll('.add-rule-definition').forEach((button) => button.addEventListener('click', () => addRule('', button.dataset.ruleDefinitionId)));
 
   function formPayload(form) {
     const data = new FormData(form);
@@ -238,14 +242,23 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
   const ruleList = document.querySelector('#pricing-rule-list');
   let draggedRuleId = '';
   let draggedRuleType = '';
+  let draggedDefinitionId = '';
   document.querySelectorAll('[data-rule-type][draggable="true"]').forEach((card) => card.addEventListener('dragstart', (event) => {
     draggedRuleType = card.dataset.ruleType || '';
+    draggedDefinitionId = '';
     draggedRuleId = '';
     event.dataTransfer?.setData('text/pricing-rule-type', draggedRuleType);
+  }));
+  document.querySelectorAll('[data-rule-definition-id][draggable="true"]').forEach((card) => card.addEventListener('dragstart', (event) => {
+    draggedDefinitionId = card.dataset.ruleDefinitionId || '';
+    draggedRuleType = '';
+    draggedRuleId = '';
+    event.dataTransfer?.setData('text/pricing-rule-definition-id', draggedDefinitionId);
   }));
   document.querySelectorAll('[data-rule-id][draggable="true"]').forEach((card) => card.addEventListener('dragstart', (event) => {
     draggedRuleId = card.dataset.ruleId || '';
     draggedRuleType = '';
+    draggedDefinitionId = '';
     event.dataTransfer?.setData('text/pricing-rule-id', draggedRuleId);
     card.classList.add('is-dragging');
   }));
@@ -253,6 +266,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
   ruleList?.addEventListener('dragover', (event) => { if (selectedPlanStatus === 'draft') event.preventDefault(); });
   ruleList?.addEventListener('drop', async (event) => {
     event.preventDefault();
+    if (draggedDefinitionId) return addRule('', draggedDefinitionId);
     if (draggedRuleType) return addRule(draggedRuleType);
     if (!draggedRuleId || !(ruleList instanceof HTMLElement)) return;
     const dragged = ruleList.querySelector(`[data-rule-id="${CSS.escape(draggedRuleId)}"]`);
