@@ -2,15 +2,7 @@
 
 ## Content editing
 
-Open `/admin/content/` and choose the required website-content section. Each button opens the corresponding section of the hosted Pages CMS application in a new browser tab. The first visit may require Pages CMS/GitHub sign-in; subsequent visits use the active Pages CMS session.
-
-The configured repository is:
-
-```text
-https://app.pagescms.org/olrigbank/soccotash
-```
-
-Content can also be edited directly in the Markdown/YAML files.
+Use Pages CMS or edit the Markdown/YAML files directly.
 
 Main areas:
 
@@ -41,6 +33,12 @@ npm run docker:report
 The report contains private guest information. Do not publish it, paste it into public issues, or expose the admin token.
 
 On Render, use the token-protected endpoints described in `docs/booking-calendar-service.md`.
+
+## Pricing operations
+
+Open `/admin/pricing/` to create and test versioned pricing plans. Draft plans can be edited, reordered, duplicated, simulated, and published. Published and archived plans are read-only; duplicate one to create a new editable version.
+
+The current implementation is intentionally disconnected from the public booking quote. See `docs/pricing-foundation.md` for supported rules and calculation behaviour.
 
 ## After source or content changes
 

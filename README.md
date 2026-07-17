@@ -1,6 +1,6 @@
 # Soccotash / Olrig Bank website
 
-Soccotash is an Astro/Node website with PostgreSQL-backed availability, a visible two-month booking calendar, and provisional booking requests. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
+Soccotash is an Astro/Node website with PostgreSQL-backed availability, a visible two-month booking calendar, provisional booking requests, and a versioned administration pricing-rule builder. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
 
 ## Runtime architecture
 
@@ -98,4 +98,4 @@ npm --prefix site run build
 
 ## Administration
 
-The protected administration foundation is available at `/admin/`. After the database migration has run, create the first administrator using the instructions in [`docs/admin-foundation.md`](docs/admin-foundation.md).
+The protected administration foundation is available at `/admin/`. After the database migration has run, create the first administrator using the instructions in [`docs/admin-foundation.md`](docs/admin-foundation.md). The pricing implementation is described in [`docs/pricing-foundation.md`](docs/pricing-foundation.md).

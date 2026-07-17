@@ -1,0 +1,81 @@
+---
+import type { PricingRule } from '../../lib/pricing/types';
+const { rule, editable = false } = Astro.props as { rule: PricingRule; editable?: boolean };
+const pounds = (pence?: number) => ((pence ?? 0) / 100).toFixed(2);
+const from = rule.conditions.arrivalDateFrom ?? '';
+const to = rule.conditions.arrivalDateTo ?? '';
+
+function summary(): string {
+  switch (rule.type) {
+    case 'default_nightly_price': return `£${pounds(rule.action.amountPence)} per night`;
+    case 'weekend_adjustment': return `${rule.action.percentage ?? 0}% on Friday/Saturday`;
+    case 'seasonal_adjustment': return `${rule.action.percentage ?? 0}% · ${from || 'start'} to ${to || 'end'}`;
+    case 'date_override': return `£${pounds(rule.action.amountPence)} · ${from || 'start'} to ${to || 'end'}`;
+    case 'minimum_stay': return `${rule.action.nights ?? 1} nights minimum`;
+    case 'fixed_package': return `${rule.action.nights ?? 1} nights for £${pounds(rule.action.amountPence)}`;
+    case 'length_discount': return `${rule.action.percentage ?? 0}% from ${rule.conditions.minimumNights ?? 1} nights`;
+    case 'early_booking_discount': return `${rule.action.percentage ?? 0}% at ${rule.conditions.minimumLeadDays ?? 0}+ days`;
+    case 'last_minute_discount': return `${rule.action.percentage ?? 0}% within ${rule.conditions.maximumLeadDays ?? 0} days`;
+    case 'extra_guest_charge': return `£${pounds(rule.action.amountPence)} above ${rule.action.includedGuests ?? 0} guests${rule.action.perNight ? ' per night' : ''}`;
+    case 'cleaning_fee': return `£${pounds(rule.action.amountPence)} per booking`;
+    case 'pet_fee': return `£${pounds(rule.action.amountPence)}${rule.action.perPet ? ' per pet' : ' per stay'}`;
+    case 'channel_commission': return `${rule.action.percentage ?? 0}% · ${rule.conditions.channel ?? 'selected channel'}`;
+    case 'non_refundable_discount': return `${rule.action.percentage ?? 0}% non-refundable discount`;
+  }
+}
+---
+<article class:list={['pricing-rule-card', !rule.enabled && 'is-disabled']} data-rule-id={rule.id} draggable={editable ? 'true' : 'false'}>
+  <div class="pricing-rule-card__header">
+    {editable && <button class="drag-handle" type="button" aria-label={`Drag ${rule.name}`} title="Drag to reorder">⋮⋮</button>}
+    <div>
+      <strong>{rule.name}</strong>
+      <p>{summary()}</p>
+    </div>
+    <span class:list={['rule-state', rule.enabled ? 'is-on' : 'is-off']}>{rule.enabled ? 'On' : 'Off'}</span>
+  </div>
+  <div class="pricing-rule-meta">
+    <span>{rule.type.replaceAll('_', ' ')}</span><span>Priority {rule.priority}</span>
+    {rule.stackingGroup && <span>{rule.stackable ? 'Stackable' : 'Exclusive'}: {rule.stackingGroup}</span>}
+  </div>
+  {editable && (
+    <details class="pricing-rule-editor">
+      <summary>Edit rule</summary>
+      <form class="pricing-rule-form" data-rule-id={rule.id}>
+        <div class="pricing-form-grid">
+          <label class="pricing-field pricing-field--wide">Rule name<input name="name" value={rule.name} maxlength="160" required /></label>
+          <label class="pricing-field">Priority<input name="priority" type="number" min="0" max="999" value={rule.priority} /></label>
+          <label class="pricing-check"><input name="enabled" type="checkbox" checked={rule.enabled} /> Enabled</label>
+          <label class="pricing-check"><input name="stackable" type="checkbox" checked={rule.stackable} /> Can stack in group</label>
+          <label class="pricing-field pricing-field--wide">Stacking group<input name="stackingGroup" value={rule.stackingGroup ?? ''} placeholder="Leave empty when not needed" /></label>
+
+          {(rule.type === 'default_nightly_price' || rule.type === 'date_override' || rule.type === 'cleaning_fee' || rule.type === 'pet_fee') &&
+            <label class="pricing-field">Amount (£)<input name="action.amountPounds" type="number" min="0" step="0.01" value={pounds(rule.action.amountPence)} /></label>}
+          {(rule.type === 'fixed_package' || rule.type === 'extra_guest_charge') &&
+            <label class="pricing-field">Amount (£)<input name="action.amountPounds" type="number" min="0" step="0.01" value={pounds(rule.action.amountPence)} /></label>}
+          {(rule.type === 'weekend_adjustment' || rule.type === 'seasonal_adjustment' || rule.type === 'length_discount' || rule.type === 'early_booking_discount' || rule.type === 'last_minute_discount' || rule.type === 'channel_commission' || rule.type === 'non_refundable_discount') &&
+            <label class="pricing-field">Percentage<input name="action.percentage" type="number" min={(rule.type === 'weekend_adjustment' || rule.type === 'seasonal_adjustment') ? -100 : 0} max="100" step="0.1" value={rule.action.percentage ?? 0} /></label>}
+
+          {(rule.type === 'seasonal_adjustment' || rule.type === 'date_override' || rule.type === 'minimum_stay') && <>
+            <label class="pricing-field">From date<input name="conditions.arrivalDateFrom" type="date" value={from} /></label>
+            <label class="pricing-field">To date<input name="conditions.arrivalDateTo" type="date" value={to} /></label>
+            {rule.type === 'seasonal_adjustment' && <label class="pricing-field">Minimum nights<input name="conditions.minimumNights" type="number" min="1" max="365" value={rule.conditions.minimumNights ?? 1} /></label>}
+          </>}
+          {rule.type === 'minimum_stay' && <label class="pricing-field">Minimum nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 2} /></label>}
+          {rule.type === 'fixed_package' && <label class="pricing-field">Exact nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 3} /></label>}
+          {rule.type === 'length_discount' && <label class="pricing-field">Minimum nights<input name="conditions.minimumNights" type="number" min="1" max="365" value={rule.conditions.minimumNights ?? 7} /></label>}
+          {rule.type === 'early_booking_discount' && <label class="pricing-field">Minimum lead days<input name="conditions.minimumLeadDays" type="number" min="0" max="1000" value={rule.conditions.minimumLeadDays ?? 180} /></label>}
+          {rule.type === 'last_minute_discount' && <label class="pricing-field">Maximum lead days<input name="conditions.maximumLeadDays" type="number" min="0" max="1000" value={rule.conditions.maximumLeadDays ?? 14} /></label>}
+          {rule.type === 'extra_guest_charge' && <>
+            <label class="pricing-field">Included guests<input name="action.includedGuests" type="number" min="0" max="50" value={rule.action.includedGuests ?? 8} /></label>
+            <label class="pricing-check"><input name="action.perNight" type="checkbox" checked={rule.action.perNight} /> Charge per night</label>
+          </>}
+          {rule.type === 'pet_fee' && <label class="pricing-check"><input name="action.perPet" type="checkbox" checked={rule.action.perPet} /> Charge per pet</label>}
+          {rule.type === 'channel_commission' && <label class="pricing-field">Channel<select name="conditions.channel"><option value="direct" selected={rule.conditions.channel === 'direct'}>Direct</option><option value="airbnb" selected={rule.conditions.channel === 'airbnb'}>Airbnb</option><option value="booking_com" selected={rule.conditions.channel === 'booking_com'}>Booking.com</option></select></label>}
+          {rule.type === 'non_refundable_discount' && <input type="hidden" name="conditions.cancellationPlan" value="non_refundable" />}
+          {rule.type === 'weekend_adjustment' && <fieldset class="pricing-days"><legend>Adjusted nights</legend>{[['5','Friday'],['6','Saturday'],['0','Sunday']].map(([value,label]) => <label><input type="checkbox" name="action.daysOfWeek" value={value} checked={(rule.action.daysOfWeek ?? [5,6]).includes(Number(value))} /> {label}</label>)}</fieldset>}
+        </div>
+        <div class="pricing-rule-actions"><button class="admin-button" type="submit">Save rule</button><button class="admin-button admin-button--danger delete-rule" type="button">Delete</button></div>
+      </form>
+    </details>
+  )}
+</article>

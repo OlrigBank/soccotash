@@ -1,5 +1,307 @@
 ---
+import PricingRuleCard from '../../../components/admin/PricingRuleCard.astro';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../lib/booking/config';
+import { RULE_CATALOG } from '../../../lib/pricing/catalog';
+import { getPricingPlan, getPricingPlans, getPublishedPricingPlan } from '../../../lib/pricing/repository';
+
 export const prerender = false;
+
+const properties = getProperties();
+const requestedPropertyId = Astro.url.searchParams.get('property') ?? '';
+const property = properties.find((candidate) => candidate.id === requestedPropertyId) ?? properties[0];
+const plans = property ? await getPricingPlans(property.id) : [];
+const requestedPlanId = Astro.url.searchParams.get('plan') ?? '';
+const selectedSummary = plans.find((candidate) => candidate.id === requestedPlanId) ?? plans[0] ?? null;
+const selectedPlan = selectedSummary ? await getPricingPlan(selectedSummary.id) : null;
+const publishedPlan = property ? await getPublishedPricingPlan(property.id) : null;
+const editable = selectedPlan?.status === 'draft';
+const groups = Array.from(new Set(RULE_CATALOG.map((entry) => entry.category)));
+const nextJuly = `${new Date().getUTCFullYear() + 1}-07-09`;
+const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
 ---
-<AdminLayout title="Pricing"><header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Pricing</h1><p>Pricing profiles, seasonal rules, date overrides and quote previews will be implemented here.</p></div></header><section class="admin-panel"><span class="status-badge">Foundation established</span><h2>This section is ready for implementation</h2><p>The protected route, administration navigation and database-backed session are active. Functional controls will be added in the relevant development phase.</p></section></AdminLayout>
+<AdminLayout title="Pricing">
+  <header class="admin-page-header pricing-page-header">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Pricing</h1>
+      <p>Build ordered pricing rules, model a booking, compare a draft with the published plan, and inspect why each rule did or did not apply.</p>
+    </div>
+    <div class="pricing-header-actions">
+      {selectedPlan && <button class="admin-button admin-button--secondary" id="duplicate-plan" type="button">Duplicate as draft</button>}
+      {editable && <button class="admin-button" id="publish-plan" type="button">Publish plan</button>}
+    </div>
+  </header>
+
+  <div class="admin-alert admin-alert--info pricing-phase-note">
+    <strong>Implementation phase 1:</strong> pricing plans and simulations are operational in the admin area. They do not yet set the price shown in the public booking flow.
+  </div>
+
+  <section class="pricing-toolbar admin-panel" aria-label="Pricing plan selection">
+    <label>Listing
+      <select id="property-select">
+        {properties.map((candidate) => <option value={candidate.id} selected={candidate.id === property?.id}>{candidate.name}</option>)}
+      </select>
+    </label>
+    <label>Pricing plan
+      <select id="plan-select" disabled={!plans.length}>
+        {plans.map((plan) => <option value={plan.id} selected={plan.id === selectedPlan?.id}>{plan.name} · {plan.status} · v{plan.version}</option>)}
+      </select>
+    </label>
+    {selectedPlan && <div class="pricing-plan-status"><span class:list={['status-badge', `status-${selectedPlan.status}`]}>{selectedPlan.status}</span><small>{selectedPlan.rules.length} rules · updated {new Date(selectedPlan.updatedAt).toLocaleString('en-GB')}</small></div>}
+    {!selectedPlan && <button class="admin-button" id="create-plan" type="button">Create first draft</button>}
+  </section>
+
+  <div id="pricing-message" class="pricing-message" role="status" aria-live="polite"></div>
+
+  {selectedPlan ? (
+    <section class="pricing-workspace">
+      <aside class="pricing-column admin-panel pricing-library" aria-labelledby="rule-library-heading">
+        <div class="pricing-column-heading"><div><p class="eyebrow">Reusable cards</p><h2 id="rule-library-heading">Rule library</h2></div></div>
+        <p class="pricing-column-help">Drag a rule into the plan or use Add. New cards contain practical starter values that can be edited.</p>
+        {groups.map((group) => <section class="pricing-library-group"><h3>{group}</h3>{RULE_CATALOG.filter((entry) => entry.category === group).map((entry) => <article class:list={['pricing-library-card', !editable && 'is-disabled']} draggable={editable ? 'true' : 'false'} data-rule-type={entry.type}><div><strong>{entry.label}</strong><p>{entry.description}</p></div><button type="button" class="small-action add-rule" data-rule-type={entry.type} disabled={!editable}>Add</button></article>)}</section>)}
+      </aside>
+
+      <section class="pricing-column admin-panel pricing-plan" aria-labelledby="pricing-plan-heading">
+        <div class="pricing-column-heading">
+          <div><p class="eyebrow">Calculation order</p><h2 id="pricing-plan-heading">{selectedPlan.name}</h2></div>
+          <span class:list={['status-badge', `status-${selectedPlan.status}`]}>{selectedPlan.status}</span>
+        </div>
+        {editable ? <form id="rename-plan-form" class="pricing-inline-form"><label>Plan name<input name="name" value={selectedPlan.name} maxlength="160" /></label><button class="small-action" type="submit">Rename</button></form> : <p class="pricing-readonly-note">Published and archived plans are read-only. Duplicate this plan to make changes.</p>}
+        <div class="pricing-rule-list" id="pricing-rule-list" data-plan-id={selectedPlan.id} data-editable={editable ? 'true' : 'false'}>
+          {selectedPlan.rules.map((rule) => <PricingRuleCard rule={rule} editable={editable} />)}
+          {!selectedPlan.rules.length && <div class="pricing-empty-state">Drag a rule here to start this pricing plan.</div>}
+        </div>
+      </section>
+
+      <aside class="pricing-column admin-panel pricing-simulator" aria-labelledby="pricing-simulator-heading">
+        <div class="pricing-column-heading"><div><p class="eyebrow">Consequence modelling</p><h2 id="pricing-simulator-heading">Test pricing</h2></div></div>
+        <form id="pricing-simulator-form" class="pricing-simulator-form">
+          <input type="hidden" name="propertyId" value={property.id} />
+          <label>Arrival<input name="arrival" type="date" value={nextJuly} required /></label>
+          <label>Departure<input name="departure" type="date" value={nextJulyDeparture} required /></label>
+          <label>Booking date<input name="bookingDate" type="date" value={new Date().toISOString().slice(0,10)} required /></label>
+          <div class="pricing-form-row"><label>Guests<input name="guests" type="number" min="1" max={property.maximumGuests} value={Math.min(8, property.maximumGuests)} required /></label><label>Pets<input name="pets" type="number" min="0" max="10" value="0" required /></label></div>
+          <label>Sales channel<select name="channel"><option value="direct">Direct</option><option value="airbnb" selected>Airbnb</option><option value="booking_com">Booking.com</option></select></label>
+          <label>Cancellation plan<select name="cancellationPlan"><option value="flexible">Flexible</option><option value="non_refundable">Non-refundable</option></select></label>
+          <button class="admin-button" type="submit">Calculate and compare</button>
+        </form>
+        <div id="pricing-results" class="pricing-results" hidden></div>
+      </aside>
+    </section>
+  ) : (
+    <section class="admin-panel pricing-empty-page"><h2>No pricing plan for {property?.name}</h2><p>Create a draft, then add a default nightly price and further rules from the library.</p><button class="admin-button" id="create-plan-secondary" type="button">Create pricing draft</button></section>
+  )}
+
+  {publishedPlan && <p class="pricing-footnote">Published comparison plan for this listing: <strong>{publishedPlan.name}</strong>. Publishing a draft archives the previous published version.</p>}
+</AdminLayout>
+
+<script is:inline define:vars={{ selectedPlanId: selectedPlan?.id ?? '', selectedPropertyId: property?.id ?? '', selectedPlanStatus: selectedPlan?.status ?? '' }}>
+  const endpoint = '/api/admin/pricing/action/';
+  const message = document.querySelector('#pricing-message');
+
+  function showMessage(text, error = false) {
+    if (!(message instanceof HTMLElement)) return;
+    message.textContent = text;
+    message.className = `pricing-message ${error ? 'is-error' : 'is-success'}`;
+  }
+
+  async function pricingAction(payload) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Pricing request failed.');
+    return data;
+  }
+
+  function pricingUrl(propertyId, planId = '') {
+    const url = new URL('/admin/pricing/', window.location.origin);
+    url.searchParams.set('property', propertyId);
+    if (planId) url.searchParams.set('plan', planId);
+    return url.pathname + url.search;
+  }
+
+  document.querySelector('#property-select')?.addEventListener('change', (event) => {
+    const target = event.currentTarget;
+    if (target instanceof HTMLSelectElement) window.location.href = pricingUrl(target.value);
+  });
+  document.querySelector('#plan-select')?.addEventListener('change', (event) => {
+    const target = event.currentTarget;
+    if (target instanceof HTMLSelectElement) window.location.href = pricingUrl(selectedPropertyId, target.value);
+  });
+
+  async function createPlan() {
+    try {
+      const data = await pricingAction({ action: 'createPlan', propertyId: selectedPropertyId });
+      window.location.href = pricingUrl(selectedPropertyId, data.plan.id);
+    } catch (error) { showMessage(error.message, true); }
+  }
+  document.querySelector('#create-plan')?.addEventListener('click', createPlan);
+  document.querySelector('#create-plan-secondary')?.addEventListener('click', createPlan);
+
+  document.querySelector('#duplicate-plan')?.addEventListener('click', async () => {
+    try {
+      const data = await pricingAction({ action: 'duplicatePlan', planId: selectedPlanId });
+      window.location.href = pricingUrl(selectedPropertyId, data.plan.id);
+    } catch (error) { showMessage(error.message, true); }
+  });
+
+  document.querySelector('#publish-plan')?.addEventListener('click', async () => {
+    if (!window.confirm('Publish this pricing plan and archive the currently published plan?')) return;
+    try {
+      await pricingAction({ action: 'publishPlan', planId: selectedPlanId });
+      window.location.reload();
+    } catch (error) { showMessage(error.message, true); }
+  });
+
+  document.querySelector('#rename-plan-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!(form instanceof HTMLFormElement)) return;
+    try {
+      await pricingAction({ action: 'renamePlan', planId: selectedPlanId, name: new FormData(form).get('name') });
+      window.location.reload();
+    } catch (error) { showMessage(error.message, true); }
+  });
+
+  async function addRule(ruleType) {
+    try {
+      await pricingAction({ action: 'addRule', planId: selectedPlanId, ruleType });
+      window.location.reload();
+    } catch (error) { showMessage(error.message, true); }
+  }
+  document.querySelectorAll('.add-rule').forEach((button) => button.addEventListener('click', () => addRule(button.dataset.ruleType)));
+
+  function formPayload(form) {
+    const data = new FormData(form);
+    const conditions = {};
+    const ruleAction = {};
+    const numericFields = new Set([
+      'priority', 'conditions.minimumNights', 'conditions.maximumNights', 'conditions.minimumLeadDays', 'conditions.maximumLeadDays',
+      'action.percentage', 'action.nights', 'action.includedGuests',
+    ]);
+    for (const [key, value] of data.entries()) {
+      if (key === 'name' || key === 'priority' || key === 'enabled' || key === 'stackable' || key === 'stackingGroup') continue;
+      if (key === 'action.amountPounds') {
+        ruleAction.amountPence = Math.round(Number(value || 0) * 100);
+        continue;
+      }
+      if (key === 'action.daysOfWeek') continue;
+      const target = key.startsWith('conditions.') ? conditions : key.startsWith('action.') ? ruleAction : null;
+      if (!target) continue;
+      const field = key.split('.')[1];
+      target[field] = numericFields.has(key) ? Number(value) : value;
+    }
+    const dayValues = data.getAll('action.daysOfWeek');
+    if (dayValues.length) ruleAction.daysOfWeek = dayValues.map(Number);
+    const enabled = form.elements.namedItem('enabled');
+    const stackable = form.elements.namedItem('stackable');
+    const perNight = form.elements.namedItem('action.perNight');
+    const perPet = form.elements.namedItem('action.perPet');
+    if (perNight instanceof HTMLInputElement) ruleAction.perNight = perNight.checked;
+    if (perPet instanceof HTMLInputElement) ruleAction.perPet = perPet.checked;
+    return {
+      action: 'updateRule',
+      ruleId: form.dataset.ruleId,
+      name: data.get('name'),
+      priority: Number(data.get('priority') || 50),
+      enabled: enabled instanceof HTMLInputElement ? enabled.checked : false,
+      stackable: stackable instanceof HTMLInputElement ? stackable.checked : false,
+      stackingGroup: data.get('stackingGroup'),
+      conditions,
+      ruleAction,
+    };
+  }
+
+  document.querySelectorAll('.pricing-rule-form').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(form instanceof HTMLFormElement)) return;
+      try {
+        await pricingAction(formPayload(form));
+        showMessage('Rule saved.');
+        window.setTimeout(() => window.location.reload(), 250);
+      } catch (error) { showMessage(error.message, true); }
+    });
+    form.querySelector('.delete-rule')?.addEventListener('click', async () => {
+      if (!window.confirm('Delete this rule from the draft?')) return;
+      try {
+        await pricingAction({ action: 'deleteRule', ruleId: form.dataset.ruleId });
+        window.location.reload();
+      } catch (error) { showMessage(error.message, true); }
+    });
+  });
+
+  const ruleList = document.querySelector('#pricing-rule-list');
+  let draggedRuleId = '';
+  let draggedRuleType = '';
+  document.querySelectorAll('[data-rule-type][draggable="true"]').forEach((card) => card.addEventListener('dragstart', (event) => {
+    draggedRuleType = card.dataset.ruleType || '';
+    draggedRuleId = '';
+    event.dataTransfer?.setData('text/pricing-rule-type', draggedRuleType);
+  }));
+  document.querySelectorAll('[data-rule-id][draggable="true"]').forEach((card) => card.addEventListener('dragstart', (event) => {
+    draggedRuleId = card.dataset.ruleId || '';
+    draggedRuleType = '';
+    event.dataTransfer?.setData('text/pricing-rule-id', draggedRuleId);
+    card.classList.add('is-dragging');
+  }));
+  document.addEventListener('dragend', () => document.querySelectorAll('.is-dragging').forEach((element) => element.classList.remove('is-dragging')));
+  ruleList?.addEventListener('dragover', (event) => { if (selectedPlanStatus === 'draft') event.preventDefault(); });
+  ruleList?.addEventListener('drop', async (event) => {
+    event.preventDefault();
+    if (draggedRuleType) return addRule(draggedRuleType);
+    if (!draggedRuleId || !(ruleList instanceof HTMLElement)) return;
+    const dragged = ruleList.querySelector(`[data-rule-id="${CSS.escape(draggedRuleId)}"]`);
+    if (!(dragged instanceof HTMLElement)) return;
+    const target = event.target instanceof Element ? event.target.closest('[data-rule-id]') : null;
+    if (target instanceof HTMLElement && target !== dragged) {
+      const rect = target.getBoundingClientRect();
+      ruleList.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+    } else {
+      ruleList.appendChild(dragged);
+    }
+    const ruleIds = Array.from(ruleList.querySelectorAll('[data-rule-id]')).map((item) => item.dataset.ruleId);
+    try {
+      await pricingAction({ action: 'reorderRules', planId: selectedPlanId, ruleIds });
+      showMessage('Rule order saved.');
+    } catch (error) { showMessage(error.message, true); window.location.reload(); }
+  });
+
+  const money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+  const formatMoney = (pence) => money.format((Number(pence) || 0) / 100);
+  const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character]);
+
+  document.querySelector('#pricing-simulator-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const results = document.querySelector('#pricing-results');
+    if (!(form instanceof HTMLFormElement) || !(results instanceof HTMLElement)) return;
+    const data = new FormData(form);
+    const simulationInput = Object.fromEntries(data.entries());
+    simulationInput.guests = Number(simulationInput.guests);
+    simulationInput.pets = Number(simulationInput.pets);
+    results.hidden = false;
+    results.innerHTML = '<p>Calculating…</p>';
+    try {
+      const response = await pricingAction({ action: 'simulate', planId: selectedPlanId, simulationInput });
+      const result = response.result;
+      const lines = result.lines.map((item) => `<tr><td>${escapeHtml(item.label)}<small>${escapeHtml(item.detail)}</small></td><td class="money-cell">${formatMoney(item.amountPence)}</td></tr>`).join('');
+      const explanations = result.explanations.map((item) => `<li class="${item.applied ? 'applied' : 'not-applied'}"><span>${item.applied ? '✓' : '✕'}</span><div><strong>${escapeHtml(item.ruleName)}</strong><small>${escapeHtml(item.reason)}</small></div></li>`).join('');
+      const warnings = result.warnings.length ? `<div class="pricing-warnings">${result.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join('')}</div>` : '';
+      const comparison = response.comparison ? `<section class="pricing-comparison"><h3>Current versus proposed</h3><table><thead><tr><th>Result</th><th>Published</th><th>Selected</th><th>Difference</th></tr></thead><tbody>
+        <tr><td>Guest total</td><td>${formatMoney(response.comparison.result.guestTotalPence)}</td><td>${formatMoney(result.guestTotalPence)}</td><td>${formatMoney(response.comparison.difference.guestTotalPence)}</td></tr>
+        <tr><td>Owner revenue</td><td>${formatMoney(response.comparison.result.ownerRevenuePence)}</td><td>${formatMoney(result.ownerRevenuePence)}</td><td>${formatMoney(response.comparison.difference.ownerRevenuePence)}</td></tr>
+        <tr><td>Average nightly</td><td>${formatMoney(response.comparison.result.averageNightlyPence)}</td><td>${formatMoney(result.averageNightlyPence)}</td><td>${formatMoney(response.comparison.difference.averageNightlyPence)}</td></tr>
+      </tbody></table><p>Compared with ${escapeHtml(response.comparison.plan.name)}.</p></section>` : '';
+      results.innerHTML = `${warnings}<div class="pricing-result-summary"><div><span>Guest total</span><strong>${formatMoney(result.guestTotalPence)}</strong></div><div><span>Owner revenue</span><strong>${formatMoney(result.ownerRevenuePence)}</strong></div><div><span>Average nightly</span><strong>${formatMoney(result.averageNightlyPence)}</strong></div><div><span>Booking status</span><strong>${result.eligible ? 'Eligible' : 'Restricted'}</strong></div></div>
+        <div class="admin-table-wrap pricing-calculation"><table><tbody>${lines}<tr class="total-row"><th>Guest total</th><th class="money-cell">${formatMoney(result.guestTotalPence)}</th></tr><tr><th>Channel commission</th><th class="money-cell">−${formatMoney(result.commissionPence)}</th></tr><tr class="total-row"><th>Estimated owner revenue</th><th class="money-cell">${formatMoney(result.ownerRevenuePence)}</th></tr></tbody></table></div>
+        ${comparison}<section class="pricing-explanations"><h3>Rule explanation</h3><ul>${explanations}</ul></section>`;
+    } catch (error) {
+      results.innerHTML = `<div class="admin-alert">${escapeHtml(error.message)}</div>`;
+    }
+  });
+</script>

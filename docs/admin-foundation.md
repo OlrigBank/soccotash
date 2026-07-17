@@ -6,7 +6,6 @@ The administration area is part of the existing Astro server application and use
 
 - `/admin/login/` — administrator sign-in
 - `/admin/` — dashboard
-- `/admin/content/` — links to the configured sections of hosted Pages CMS
 - `/admin/listings/`
 - `/admin/calendars/`
 - `/admin/pricing/`
@@ -63,9 +62,9 @@ npm run admin:create -- admin@example.com 'Administrator'
 - Sessions expire after seven days.
 - Passwords use Node's scrypt password derivation with a random salt.
 
-## Phase 1 scope
+## Current scope
 
-The dashboard is operational and reports pending provisional bookings and calendar-sync status. The Website content page links to the hosted Pages CMS repository and its General pages, Listings, Spaces, Local guide, Site settings, Contact details, Navigation and Images sections. Listings, Calendars, Pricing, Bookings and Settings remain protected operational pages ready for their later implementation phases.
+The dashboard reports pending provisional bookings, calendar-sync status, and pricing-plan count. The Pricing section now contains the first functional pricing-rule builder and deterministic simulator. Listings, Calendars, Bookings and Settings remain protected placeholders for later implementation phases. See `docs/pricing-foundation.md`.
 
 ## Reverse-proxy origin handling
 
