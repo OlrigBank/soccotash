@@ -733,6 +733,87 @@ main {
   max-width: 70ch;
   color: var(--muted);
 }
+.admin-page-header-with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+.admin-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent-dark);
+  border-radius: 0.65rem;
+  background: #fff;
+  color: var(--accent-dark);
+  text-decoration: none;
+  font-weight: 800;
+}
+.admin-secondary-button:hover,
+.admin-secondary-button:focus-visible {
+  background: #f5eee3;
+}
+.admin-notice {
+  margin-bottom: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.4rem);
+  border: 1px solid #c9d8ce;
+  border-left: 0.35rem solid #507660;
+  border-radius: 0.85rem;
+  background: #f3f8f4;
+}
+.admin-notice h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+.admin-notice p {
+  max-width: 85ch;
+  margin: 0;
+  color: #3e5147;
+}
+.admin-content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+.admin-content-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-height: 215px;
+  padding: clamp(1rem, 3vw, 1.4rem);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.admin-content-card h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1.25rem;
+}
+.admin-content-card p {
+  margin: 0;
+  color: var(--muted);
+}
+.admin-content-card .admin-button-link {
+  align-self: flex-start;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.7rem 0.95rem;
+  border-radius: 0.6rem;
+  background: var(--accent-dark);
+  color: #fff;
+  font-weight: 800;
+}
+.admin-content-card .admin-button-link:hover,
+.admin-content-card .admin-button-link:focus-visible {
+  background: #382a21;
+}
 .eyebrow {
   margin: 0;
   text-transform: uppercase;
@@ -878,6 +959,12 @@ main {
   }
   .admin-main {
     padding: 1rem;
+  }
+  .admin-page-header-with-action {
+    flex-direction: column;
+  }
+  .admin-secondary-button {
+    width: 100%;
   }
 }
 

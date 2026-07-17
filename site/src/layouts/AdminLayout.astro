@@ -1,33 +1,57 @@
 ---
 import '../styles/global.css';
+
 const { title = 'Administration' } = Astro.props;
 const user = Astro.locals.adminUser;
 const activePath = Astro.url.pathname;
 const links = [
-  ['/admin/', 'Dashboard'], ['/admin/listings/', 'Listings'], ['/admin/calendars/', 'Calendars'],
-  ['/admin/pricing/', 'Pricing'], ['/admin/bookings/', 'Bookings'], ['/admin/settings/', 'Settings'],
+  ['/admin/', 'Dashboard'],
+  ['/admin/content/', 'Website content'],
+  ['/admin/listings/', 'Listings'],
+  ['/admin/calendars/', 'Calendars'],
+  ['/admin/pricing/', 'Pricing'],
+  ['/admin/bookings/', 'Bookings'],
+  ['/admin/settings/', 'Settings'],
 ];
 ---
 <!doctype html>
 <html lang="en-GB">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <title>{title} | Olrig Bank Administration</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-</head>
-<body class="admin-body">
-  <a class="skip-link" href="#admin-content">Skip to main content</a>
-  <header class="admin-header">
-    <a class="admin-brand" href="/admin/"><span class="brand-mark">OB</span><span>Olrig Bank Administration</span></a>
-    <div class="admin-account"><span>{user?.displayName}</span><a href="/">View website</a><form method="post" action="/admin/logout/"><button type="submit" class="link-button">Log out</button></form></div>
-  </header>
-  <div class="admin-shell">
-    <aside class="admin-sidebar" aria-label="Administration navigation">
-      <nav>{links.map(([href,label]) => { const active = href === '/admin/' ? activePath === href : activePath.startsWith(href); return <a href={href} aria-current={active ? 'page' : undefined}>{label}</a>; })}</nav>
-    </aside>
-    <main id="admin-content" class="admin-main"><slot /></main>
-  </div>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>{title} | Olrig Bank Administration</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="admin-body">
+    <a class="skip-link" href="#admin-content">Skip to main content</a>
+    <header class="admin-header">
+      <a class="admin-brand" href="/admin/">
+        <span class="brand-mark">OB</span>
+        <span>Olrig Bank Administration</span>
+      </a>
+      <div class="admin-account">
+        <span>{user?.displayName}</span>
+        <a href="/">View website</a>
+        <form method="post" action="/admin/logout/">
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+      </div>
+    </header>
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="Administration navigation">
+        <nav>
+          {links.map(([href, label]) => {
+            const active = href === '/admin/' ? activePath === href : activePath.startsWith(href);
+            return (
+              <a href={href} aria-current={active ? 'page' : undefined}>
+                {label}
+              </a>
+            );
+          })}
+        </nav>
+      </aside>
+      <main id="admin-content" class="admin-main"><slot /></main>
+    </div>
+  </body>
 </html>
