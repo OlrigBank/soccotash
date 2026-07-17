@@ -8,7 +8,6 @@ recommended: true
 summary: As trusted experts in family cycling, Cycle Sprog has been at the
   forefront of promoting and supporting cycling with children since 2012. Based
   in Kendal, their team is deeply embedded in the local cycling community and
-  passionate about helping families discover the joy of riding together.Cycle
-  Sprog are based The best family-friendly bike rides in the Lake District. This
+  passionate about helping families discover the joy of riding together. Their
   Komoot collection is a testament to their expertise
 ---
