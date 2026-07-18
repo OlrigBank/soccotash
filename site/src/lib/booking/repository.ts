@@ -1,6 +1,7 @@
 import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty } from './config';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
+import type { PublishedPricingQuote } from '../pricing/types';
 
 export type BookingBlock = {
   startsOn: string;
@@ -97,10 +98,12 @@ export async function createProvisionalBooking(input: {
   arrival: string;
   departure: string;
   guests: number;
+  pets: number;
   name: string;
   email: string;
   telephone?: string;
   message?: string;
+  pricingQuote?: PublishedPricingQuote | null;
 }): Promise<string> {
   const property = getProperty(input.propertyId);
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
@@ -123,9 +126,26 @@ export async function createProvisionalBooking(input: {
     if (conflict.rowCount) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, guest_name, guest_email, guest_telephone, guest_message)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING public_id`,
-      [input.propertyId, input.arrival, input.departure, input.guests, input.name, input.email, input.telephone || null, input.message || null],
+       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_message,
+        pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
+        guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20)
+       RETURNING public_id`,
+      [
+        input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
+        input.telephone || null, input.message || null,
+        input.pricingQuote?.plan.id ?? null,
+        input.pricingQuote?.plan.version ?? null,
+        input.pricingQuote?.result.currency ?? null,
+        input.pricingQuote?.result.accommodationPence ?? null,
+        input.pricingQuote?.result.feesPence ?? null,
+        input.pricingQuote?.result.guestTotalPence ?? null,
+        input.pricingQuote?.result.commissionPence ?? null,
+        input.pricingQuote?.result.ownerRevenuePence ?? null,
+        input.pricingQuote ? JSON.stringify(input.pricingQuote.input) : null,
+        input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
+        input.pricingQuote ? new Date() : null,
+      ],
     );
     await client.query('COMMIT');
     return result.rows[0].public_id;
@@ -135,6 +155,44 @@ export async function createProvisionalBooking(input: {
   } finally {
     client.release();
   }
+}
+
+export type ProvisionalBookingRequest = {
+  reference: string;
+  propertyId: string;
+  arrival: string;
+  departure: string;
+  guests: number;
+  pets: number;
+  name: string;
+  email: string;
+  telephone: string | null;
+  message: string | null;
+  status: string;
+  pricingCurrency: string | null;
+  guestTotalPence: number | null;
+  pricingPlanVersion: number | null;
+  quotedAt: string | null;
+  createdAt: string;
+};
+
+export async function getProvisionalBookingRequests(limit = 100): Promise<ProvisionalBookingRequest[]> {
+  const result = await getPool().query(
+    `SELECT public_id::text AS reference, property_id AS "propertyId", arrival::text, departure::text,
+            guests, pets, guest_name AS name, guest_email AS email, guest_telephone AS telephone,
+            guest_message AS message, status, pricing_currency AS "pricingCurrency",
+            guest_total_pence AS "guestTotalPence", pricing_plan_version AS "pricingPlanVersion",
+            quoted_at AS "quotedAt", created_at AS "createdAt"
+       FROM provisional_bookings
+      ORDER BY created_at DESC
+      LIMIT $1`,
+    [Math.max(1, Math.min(500, Math.round(limit)))],
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
+    createdAt: new Date(row.createdAt).toISOString(),
+  }));
 }
 
 export async function getBookingReport(): Promise<{
@@ -164,11 +222,16 @@ export async function getBookingReport(): Promise<{
        arrival::text,
        departure::text,
        guests,
+       pets,
        guest_name AS name,
        guest_email AS email,
        guest_telephone AS telephone,
        guest_message AS message,
        status,
+       pricing_currency AS "pricingCurrency",
+       guest_total_pence AS "guestTotalPence",
+       pricing_plan_version AS "pricingPlanVersion",
+       quoted_at AS "quotedAt",
        created_at AS "createdAt"
      FROM provisional_bookings
      ORDER BY created_at DESC

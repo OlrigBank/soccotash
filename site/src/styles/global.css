@@ -1617,3 +1617,102 @@ main {
   border-left-color: #477a98;
   background: #f0f7fb;
 }
+
+/* Public booking quotes */
+.booking-quote {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  border: 1px solid #bfd2c2;
+  border-radius: 0.85rem;
+  background: #f3f8f3;
+}
+.booking-quote[hidden] { display: none; }
+.booking-quote-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+.booking-quote-heading h2,
+.booking-quote-heading p { margin: 0; }
+.booking-quote-heading > strong { font-size: clamp(1.35rem, 3vw, 1.8rem); }
+.booking-quote table { width: 100%; border-collapse: collapse; }
+.booking-quote td,
+.booking-quote th { padding: 0.5rem 0; border-bottom: 1px solid #d6e2d7; text-align: left; }
+.booking-quote td:last-child,
+.booking-quote th:last-child { text-align: right; white-space: nowrap; }
+.booking-quote td small { display: block; color: var(--muted); }
+.booking-quote-total th { border-top: 2px solid var(--ink); border-bottom: 0; }
+.booking-quote > p { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.86rem; }
+
+/* Period pricing models */
+.scenario-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(480px, 1.25fr);
+  gap: 1rem;
+  align-items: start;
+}
+.scenario-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.scenario-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+.scenario-form input,
+.scenario-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+.scenario-wide { grid-column: 1 / -1; }
+.scenario-channel-mix {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 0.7rem;
+}
+.scenario-channel-mix legend { padding: 0 0.25rem; font-weight: 800; }
+.scenario-results > p { color: var(--muted); }
+.scenario-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.scenario-summary div {
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: #f0f3ef;
+}
+.scenario-summary span { display: block; color: var(--muted); font-size: 0.72rem; }
+.scenario-summary strong { display: block; margin-top: 0.15rem; font-size: 1.05rem; }
+.scenario-results h3 { margin: 1.15rem 0 0.5rem; }
+.scenario-results table,
+.scenario-history table { font-size: 0.8rem; }
+.scenario-export { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.scenario-history { margin-top: 1rem; }
+@media (max-width: 1000px) {
+  .scenario-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .booking-quote-heading { flex-direction: column; }
+  .scenario-form,
+  .scenario-channel-mix,
+  .scenario-summary { grid-template-columns: 1fr; }
+  .scenario-wide { grid-column: auto; }
+}
+.admin-table-wrap td small { display: block; margin-top: 0.2rem; color: var(--muted); font-size: 0.74rem; }
+.muted { color: var(--muted); }

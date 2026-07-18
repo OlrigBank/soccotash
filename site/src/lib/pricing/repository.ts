@@ -12,6 +12,9 @@ import type {
   PricingRuleType,
   PricingSimulationInput,
   PricingSimulationResult,
+  PricingScenarioInput,
+  PricingScenarioResult,
+  PricingScenarioRun,
 } from './types';
 
 type PlanRow = {
@@ -42,6 +45,18 @@ type RuleRow = {
   action: PricingAction;
   created_at: Date | string;
   updated_at: Date | string;
+};
+
+
+type ScenarioRow = {
+  id: string | number;
+  public_id: string;
+  plan_id: string | number;
+  property_id: string;
+  name: string;
+  input: PricingScenarioInput;
+  result: PricingScenarioResult;
+  created_at: Date | string;
 };
 
 type DefinitionRow = {
@@ -106,6 +121,20 @@ function ruleFromRow(row: RuleRow): PricingRule {
     action: row.action || {},
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
+  };
+}
+
+
+function scenarioFromRow(row: ScenarioRow): PricingScenarioRun {
+  return {
+    id: String(row.id),
+    publicId: row.public_id,
+    planId: String(row.plan_id),
+    propertyId: row.property_id,
+    name: row.name,
+    input: row.input,
+    result: row.result,
+    createdAt: iso(row.created_at),
   };
 }
 
@@ -615,6 +644,58 @@ export async function logPricingSimulation(
      VALUES ($1, $2, $3::jsonb, $4::jsonb)`,
     [planId, adminUserId, JSON.stringify(input), JSON.stringify(result)],
   );
+}
+
+export async function savePricingScenarioRun(
+  planId: string,
+  propertyId: string,
+  name: string,
+  adminUserId: string,
+  input: PricingScenarioInput,
+  result: PricingScenarioResult,
+): Promise<PricingScenarioRun> {
+  const saved = await getPool().query<ScenarioRow>(
+    `INSERT INTO pricing_scenario_runs
+       (plan_id, property_id, name, admin_user_id, input, result)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+     RETURNING id, public_id, plan_id, property_id, name, input, result, created_at`,
+    [
+      planId,
+      propertyId,
+      name.trim().slice(0, 160),
+      adminUserId,
+      JSON.stringify(input),
+      JSON.stringify(result),
+    ],
+  );
+  return scenarioFromRow(saved.rows[0]);
+}
+
+export async function getPricingScenarioRuns(
+  propertyId: string,
+  limit = 20,
+): Promise<PricingScenarioRun[]> {
+  const result = await getPool().query<ScenarioRow>(
+    `SELECT id, public_id, plan_id, property_id, name, input, result, created_at
+       FROM pricing_scenario_runs
+      WHERE property_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2`,
+    [propertyId, Math.max(1, Math.min(100, Math.round(limit)))],
+  );
+  return result.rows.map(scenarioFromRow);
+}
+
+export async function getPricingScenarioRun(
+  publicId: string,
+): Promise<PricingScenarioRun | null> {
+  const result = await getPool().query<ScenarioRow>(
+    `SELECT id, public_id, plan_id, property_id, name, input, result, created_at
+       FROM pricing_scenario_runs
+      WHERE public_id = $1`,
+    [publicId],
+  );
+  return result.rowCount ? scenarioFromRow(result.rows[0]) : null;
 }
 
 export async function countPricingPlans(): Promise<number> {

@@ -84,12 +84,15 @@ When a non-stackable rule in a group has already applied, a later conflicting ru
 
 Select the Cottage or Whole-property listing and choose **Create first draft**. Add a default nightly price before publishing. A plan cannot be published unless it has an enabled default nightly price.
 
-## Recommended next implementation
+## Implementation status
 
-The former recommendations 1–3 are implemented in migration `006`. The next work is now:
+The original five pricing-foundation recommendations are now implemented:
 
-1. Connect published pricing to the public quote/provisional-booking flow.
-2. Add month/season modelling and exportable reports.
+1. arrival/departure restrictions and maximum stays — migration `006`;
+2. package inclusions — migration `006`;
+3. price floors and conflict warnings — migration `006`;
+4. published pricing in the public quote and provisional-booking flow — migration `007`;
+5. month/season modelling and exportable reports — migration `007`.
 
 ## Reusable custom rule cards
 
@@ -177,3 +180,74 @@ The pricing screen now checks the complete plan and displays error, warning and 
 - a fixed package below an applicable price floor.
 
 Plans with error-level conflicts cannot be published. Warning and information messages remain visible for review but do not prevent publication.
+
+
+## Published public quotes and provisional booking snapshots
+
+The public booking form now asks for dates, guests and pets before calculating a direct-booking quote. The calculation uses only the listing's current **published** pricing plan. Draft and archived plans cannot affect a public quote.
+
+The public flow operates in this order:
+
+1. validate the listing, dates and party size;
+2. check current calendar blocks and pending/approved provisional requests;
+3. run the published pricing plan with the `direct` channel and flexible rate plan;
+4. display the itemised guest-facing price;
+5. recalculate on the server when the request is submitted;
+6. save the plan version, pricing input and complete result as a booking snapshot.
+
+The browser total is therefore informative rather than authoritative. A changed or manipulated browser value is never written as the booking price.
+
+Listings without a published pricing plan continue to accept provisional enquiries. The public form states that Jenna will confirm the price manually, and the booking is stored without a pricing snapshot.
+
+The untouched migration-004 plan named **Olrig Bank — example baseline** is archived automatically by migration `007`. This prevents demonstration prices from becoming public merely because the quote connection was deployed. A real plan must be reviewed and explicitly published. Any genuinely published administrator-created plan is left unchanged.
+
+Administrators can review recent provisional requests and their recorded totals at:
+
+```text
+/admin/bookings/
+```
+
+Migration `site/db/007_public_pricing_and_scenarios.sql` adds quote fields to `provisional_bookings`, including the pricing-plan version, accommodation, fees, guest total, commission, owner revenue, complete input/result JSON and quote timestamp.
+
+## Month and season modelling
+
+Open:
+
+```text
+/admin/pricing/models/
+```
+
+A model can use any saved pricing plan, including a draft for comparison work. It combines that plan with actual stored calendar blocks and explicit assumptions for:
+
+- model start and end dates;
+- occupancy;
+- average stay length, including decimal averages such as 4.2 nights;
+- cancellation rate;
+- average booking lead time;
+- typical guests and pets;
+- cancellation plan;
+- direct, Airbnb and Booking.com channel mix.
+
+The channel percentages must total 100%. Prices are evaluated for each channel and weighted by that mix. Channel commission changes owner revenue but not guest revenue.
+
+Outputs include:
+
+- period, blocked and available nights;
+- target and modelled booked nights;
+- expected occupied nights after cancellations;
+- modelled booking count;
+- gross and expected guest revenue;
+- expected channel commission and owner revenue;
+- average daily rate;
+- revenue per available night;
+- one- and two-night availability gaps;
+- channel breakdown;
+- monthly breakdown.
+
+Scenario runs are saved in `pricing_scenario_runs`. Each run can be downloaded as CSV for spreadsheet analysis or JSON for machine-readable archival and integration.
+
+Forecast figures are explicitly assumption-based. Published rule calculations and calendar blocks are deterministic inputs; occupancy, cancellations, lead time and channel mix are not predictions derived from historical booking behaviour.
+
+## Sensible later enhancements
+
+Further pricing work can build on this foundation by adding scenario-to-scenario comparison, cleaning-cost rather than cleaning-income assumptions, payment schedules, booking approval/status controls, and historical demand forecasting once enough direct-booking data exists.

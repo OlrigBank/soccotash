@@ -31,6 +31,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
       <p>Build ordered pricing rules, model a booking, compare a draft with the published plan, and inspect why each rule did or did not apply.</p>
     </div>
     <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary admin-button-link" href={`/admin/pricing/models/?property=${property?.id ?? ''}&plan=${selectedPlan?.id ?? ''}`}>Month/season models</a>
       <a class="admin-button admin-button--secondary admin-button-link" href="/admin/pricing/rule-cards/">Manage rule cards</a>
       {selectedPlan && <button class="admin-button admin-button--secondary" id="duplicate-plan" type="button">Duplicate as draft</button>}
       {editable && <button class="admin-button" id="publish-plan" type="button">Publish plan</button>}
@@ -38,7 +39,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
   </header>
 
   <div class="admin-alert admin-alert--info pricing-phase-note">
-    <strong>Implementation phase 1:</strong> pricing plans and simulations are operational in the admin area. They do not yet set the price shown in the public booking flow.
+    <strong>Published pricing is live:</strong> public direct-booking quotes and saved provisional requests now use the current published plan. Draft and archived plans remain available only for administration and modelling.
   </div>
 
   <section class="pricing-toolbar admin-panel" aria-label="Pricing plan selection">

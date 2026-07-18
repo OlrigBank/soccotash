@@ -1,5 +1,28 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../lib/booking/config';
+import { getProvisionalBookingRequests } from '../../../lib/booking/repository';
 export const prerender = false;
+const requests = await getProvisionalBookingRequests();
+const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
 ---
-<AdminLayout title="Bookings"><header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Provisional booking requests and their approval workflow will be administered here.</p></div></header><section class="admin-panel"><span class="status-badge">Foundation established</span><h2>This section is ready for implementation</h2><p>The protected route, administration navigation and database-backed session are active. Functional controls will be added in the relevant development phase.</p></section></AdminLayout>
+<AdminLayout title="Bookings">
+  <header class="admin-page-header">
+    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Recent provisional requests, including the published pricing snapshot recorded when each request was submitted.</p></div>
+  </header>
+  <section class="admin-panel">
+    {requests.length ? (
+      <div class="admin-table-wrap"><table><thead><tr><th>Reference</th><th>Stay</th><th>Guest</th><th>Party</th><th>Recorded price</th><th>Status</th><th>Received</th></tr></thead><tbody>
+        {requests.map((request) => <tr>
+          <td><code>{request.reference}</code></td>
+          <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>
+          <td><strong>{request.name}</strong><small><a href={`mailto:${request.email}`}>{request.email}</a>{request.telephone ? ` · ${request.telephone}` : ''}</small></td>
+          <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
+          <td>{request.guestTotalPence === null ? <span class="muted">Manual confirmation</span> : <><strong>{new Intl.NumberFormat('en-GB', { style: 'currency', currency: request.pricingCurrency ?? 'GBP' }).format(request.guestTotalPence / 100)}</strong><small>Published plan v{request.pricingPlanVersion}</small></>}</td>
+          <td><span class={`status-badge status-${request.status}`}>{request.status}</span></td>
+          <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>
+        </tr>)}
+      </tbody></table></div>
+    ) : <div class="pricing-empty-page"><h2>No provisional requests yet</h2><p>Requests submitted through the public booking page will appear here.</p></div>}
+  </section>
+</AdminLayout>

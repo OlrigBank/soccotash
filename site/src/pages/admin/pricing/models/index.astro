@@ -1,0 +1,160 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../../lib/booking/config';
+import { getPricingPlans, getPricingScenarioRuns } from '../../../../lib/pricing/repository';
+
+export const prerender = false;
+
+const properties = getProperties();
+const requestedPropertyId = Astro.url.searchParams.get('property') ?? '';
+const property = properties.find((candidate) => candidate.id === requestedPropertyId) ?? properties[0];
+const plans = property ? await getPricingPlans(property.id) : [];
+const requestedPlanId = Astro.url.searchParams.get('plan') ?? '';
+const selectedPlan = plans.find((candidate) => candidate.id === requestedPlanId)
+  ?? plans.find((candidate) => candidate.status === 'published')
+  ?? plans[0]
+  ?? null;
+const recentRuns = property ? await getPricingScenarioRuns(property.id, 12) : [];
+const year = new Date().getUTCFullYear() + 1;
+---
+<AdminLayout title="Pricing models">
+  <header class="admin-page-header pricing-page-header">
+    <div>
+      <p class="eyebrow">Pricing</p>
+      <h1>Month and season modelling</h1>
+      <p>Apply a selected pricing plan across a period using occupancy, stay-length, cancellation and channel assumptions.</p>
+    </div>
+    <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary admin-button-link" href={`/admin/pricing/?property=${property?.id ?? ''}`}>Back to rule builder</a>
+    </div>
+  </header>
+
+  <div class="admin-alert admin-alert--info pricing-phase-note">
+    Modelled revenue is an assumption-based forecast. Published rule calculations and calendar blocks are factual inputs; occupancy, cancellations and channel mix are estimates.
+  </div>
+
+  <section class="pricing-toolbar admin-panel" aria-label="Scenario selection">
+    <label>Listing
+      <select id="scenario-property">
+        {properties.map((candidate) => <option value={candidate.id} selected={candidate.id === property?.id}>{candidate.name}</option>)}
+      </select>
+    </label>
+    <label>Pricing plan
+      <select id="scenario-plan" disabled={!plans.length}>
+        {plans.map((plan) => <option value={plan.id} selected={plan.id === selectedPlan?.id}>{plan.name} · {plan.status} · v{plan.version}</option>)}
+      </select>
+    </label>
+    {selectedPlan && <div class="pricing-plan-status"><span class:list={['status-badge', `status-${selectedPlan.status}`]}>{selectedPlan.status}</span><small>{selectedPlan.ruleCount} rules</small></div>}
+  </section>
+
+  {selectedPlan ? (
+    <section class="scenario-layout">
+      <section class="admin-panel scenario-form-panel">
+        <p class="eyebrow">Assumptions</p>
+        <h2>Run a model</h2>
+        <form id="pricing-scenario-form" class="scenario-form">
+          <input type="hidden" name="propertyId" value={property.id} />
+          <input type="hidden" name="planId" value={selectedPlan.id} />
+          <label class="scenario-wide">Scenario name<input name="name" value={`${property.name} — Summer ${year}`} maxlength="160" required /></label>
+          <label>Start date<input name="startDate" type="date" value={`${year}-06-01`} required /></label>
+          <label>End date<input name="endDate" type="date" value={`${year}-09-01`} required /></label>
+          <label>Assumed occupancy (%)<input name="occupancyPercent" type="number" min="0" max="100" step="0.1" value="65" required /></label>
+          <label>Average stay (nights)<input name="averageStayNights" type="number" min="1" max="60" step="0.1" value="4.2" required /></label>
+          <label>Cancellation rate (%)<input name="cancellationRatePercent" type="number" min="0" max="100" step="0.1" value="6" required /></label>
+          <label>Average booking lead (days)<input name="averageLeadDays" type="number" min="0" max="730" step="1" value="90" required /></label>
+          <label>Typical guests<input name="guests" type="number" min="1" max={property.maximumGuests} value={Math.min(8, property.maximumGuests)} required /></label>
+          <label>Typical pets<input name="pets" type="number" min="0" max="10" value="0" required /></label>
+          <label>Cancellation plan<select name="cancellationPlan"><option value="flexible">Flexible</option><option value="non_refundable">Non-refundable</option></select></label>
+          <fieldset class="scenario-wide scenario-channel-mix">
+            <legend>Channel mix</legend>
+            <label>Direct (%)<input name="directPercent" type="number" min="0" max="100" step="0.1" value="30" required /></label>
+            <label>Airbnb (%)<input name="airbnbPercent" type="number" min="0" max="100" step="0.1" value="60" required /></label>
+            <label>Booking.com (%)<input name="bookingComPercent" type="number" min="0" max="100" step="0.1" value="10" required /></label>
+          </fieldset>
+          <button class="admin-button scenario-wide" type="submit">Run and save model</button>
+        </form>
+        <p id="scenario-message" class="pricing-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="admin-panel scenario-result-panel">
+        <p class="eyebrow">Forecast output</p>
+        <h2>Results</h2>
+        <div id="scenario-results" class="scenario-results"><p>Run a model to see period, channel and monthly results.</p></div>
+      </section>
+    </section>
+  ) : (
+    <section class="admin-panel pricing-empty-page"><h2>No pricing plan exists for this listing</h2><p>Create a pricing plan before running a month or season model.</p><a class="admin-button admin-button-link" href={`/admin/pricing/?property=${property?.id ?? ''}`}>Open pricing</a></section>
+  )}
+
+  {recentRuns.length > 0 && (
+    <section class="admin-panel scenario-history">
+      <p class="eyebrow">Saved reports</p>
+      <h2>Recent models</h2>
+      <div class="admin-table-wrap"><table><thead><tr><th>Scenario</th><th>Period</th><th>Expected revenue</th><th>Created</th><th>Export</th></tr></thead><tbody>
+        {recentRuns.map((run) => <tr><td>{run.name}</td><td>{run.input.startDate} – {run.input.endDate}</td><td>£{(run.result.expectedGuestRevenuePence / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td>{new Date(run.createdAt).toLocaleString('en-GB')}</td><td><a href={`/api/admin/pricing/scenarios/report/?run=${run.publicId}&format=csv`}>CSV</a> · <a href={`/api/admin/pricing/scenarios/report/?run=${run.publicId}&format=json`}>JSON</a></td></tr>)}
+      </tbody></table></div>
+    </section>
+  )}
+</AdminLayout>
+
+<script is:inline>
+  const propertySelect = document.querySelector('#scenario-property');
+  const planSelect = document.querySelector('#scenario-plan');
+  propertySelect?.addEventListener('change', () => {
+    window.location.href = `/admin/pricing/models/?property=${encodeURIComponent(propertySelect.value)}`;
+  });
+  planSelect?.addEventListener('change', () => {
+    const property = propertySelect?.value || '';
+    window.location.href = `/admin/pricing/models/?property=${encodeURIComponent(property)}&plan=${encodeURIComponent(planSelect.value)}`;
+  });
+
+  const money = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+  const formatMoney = (value) => money.format((Number(value) || 0) / 100);
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
+
+  function renderScenario(run) {
+    const result = run.result;
+    const container = document.querySelector('#scenario-results');
+    if (!(container instanceof HTMLElement)) return;
+    const channels = result.channelResults.map((item) => `<tr><td>${escapeHtml(item.channel.replace('_', '.'))}</td><td>${Number(item.sharePercent).toFixed(1)}%</td><td>${Number(item.bookings).toFixed(2)}</td><td>${Number(item.bookedNights).toFixed(2)}</td><td>${formatMoney(item.guestRevenuePence)}</td><td>${formatMoney(item.commissionPence)}</td><td>${formatMoney(item.ownerRevenuePence)}</td></tr>`).join('');
+    const months = result.monthlyResults.map((item) => `<tr><td>${escapeHtml(item.month)}</td><td>${item.availableNights}</td><td>${item.expectedOccupiedNights}</td><td>${item.bookings}</td><td>${formatMoney(item.guestRevenuePence)}</td><td>${formatMoney(item.ownerRevenuePence)}</td></tr>`).join('');
+    const warnings = result.warnings.length ? `<div class="pricing-warnings">${result.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join('')}</div>` : '';
+    container.innerHTML = `${warnings}<div class="scenario-summary">
+      <div><span>Available nights</span><strong>${result.availableNights}</strong></div>
+      <div><span>Expected occupied nights</span><strong>${result.expectedOccupiedNights}</strong></div>
+      <div><span>Expected guest revenue</span><strong>${formatMoney(result.expectedGuestRevenuePence)}</strong></div>
+      <div><span>Expected owner revenue</span><strong>${formatMoney(result.expectedOwnerRevenuePence)}</strong></div>
+      <div><span>Average daily rate</span><strong>${formatMoney(result.averageDailyRatePence)}</strong></div>
+      <div><span>Revenue / available night</span><strong>${formatMoney(result.revenuePerAvailableNightPence)}</strong></div>
+    </div>
+    <div class="scenario-export"><a class="admin-button admin-button--secondary admin-button-link" href="/api/admin/pricing/scenarios/report/?run=${encodeURIComponent(run.publicId)}&format=csv">Download CSV</a><a class="admin-button admin-button--secondary admin-button-link" href="/api/admin/pricing/scenarios/report/?run=${encodeURIComponent(run.publicId)}&format=json">Download JSON</a></div>
+    <h3>Channel results</h3><div class="admin-table-wrap"><table><thead><tr><th>Channel</th><th>Share</th><th>Bookings</th><th>Nights</th><th>Guest revenue</th><th>Commission</th><th>Owner revenue</th></tr></thead><tbody>${channels}</tbody></table></div>
+    <h3>Monthly results</h3><div class="admin-table-wrap"><table><thead><tr><th>Month</th><th>Available</th><th>Expected occupied</th><th>Bookings</th><th>Guest revenue</th><th>Owner revenue</th></tr></thead><tbody>${months}</tbody></table></div>`;
+  }
+
+  document.querySelector('#pricing-scenario-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const message = document.querySelector('#scenario-message');
+    if (!(form instanceof HTMLFormElement) || !(message instanceof HTMLElement)) return;
+    const button = form.querySelector('button[type="submit"]');
+    const payload = Object.fromEntries(new FormData(form).entries());
+    for (const key of ['occupancyPercent','averageStayNights','cancellationRatePercent','averageLeadDays','guests','pets','directPercent','airbnbPercent','bookingComPercent']) payload[key] = Number(payload[key]);
+    message.className = 'pricing-message';
+    message.textContent = 'Calculating model…';
+    if (button instanceof HTMLButtonElement) button.disabled = true;
+    try {
+      const response = await fetch('/api/admin/pricing/scenarios/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'The model could not be calculated.');
+      renderScenario(body.run);
+      message.className = 'pricing-message is-success';
+      message.textContent = 'Scenario calculated and saved.';
+    } catch (error) {
+      message.className = 'pricing-message is-error';
+      message.textContent = error instanceof Error ? error.message : 'The model could not be calculated.';
+    } finally {
+      if (button instanceof HTMLButtonElement) button.disabled = false;
+    }
+  });
+</script>

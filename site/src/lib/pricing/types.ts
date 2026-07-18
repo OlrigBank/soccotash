@@ -158,3 +158,85 @@ export type PricingRuleDefinition = {
   createdAt: string;
   updatedAt: string;
 };
+
+
+export type PricingChannelMix = {
+  direct: number;
+  airbnb: number;
+  booking_com: number;
+};
+
+export type PricingScenarioInput = {
+  propertyId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  occupancyPercent: number;
+  averageStayNights: number;
+  cancellationRatePercent: number;
+  averageLeadDays: number;
+  guests: number;
+  pets: number;
+  cancellationPlan: string;
+  channelMix: PricingChannelMix;
+};
+
+export type PricingScenarioChannelResult = {
+  channel: keyof PricingChannelMix;
+  sharePercent: number;
+  bookings: number;
+  bookedNights: number;
+  guestRevenuePence: number;
+  commissionPence: number;
+  ownerRevenuePence: number;
+};
+
+export type PricingScenarioMonthResult = {
+  month: string;
+  availableNights: number;
+  modelledBookedNights: number;
+  expectedOccupiedNights: number;
+  bookings: number;
+  guestRevenuePence: number;
+  commissionPence: number;
+  ownerRevenuePence: number;
+};
+
+export type PricingScenarioResult = {
+  currency: string;
+  periodNights: number;
+  blockedNights: number;
+  availableNights: number;
+  targetBookedNights: number;
+  modelledBookedNights: number;
+  cancelledNights: number;
+  expectedOccupiedNights: number;
+  bookingCount: number;
+  grossGuestRevenuePence: number;
+  expectedGuestRevenuePence: number;
+  expectedCommissionPence: number;
+  expectedOwnerRevenuePence: number;
+  averageDailyRatePence: number;
+  revenuePerAvailableNightPence: number;
+  shortGapNights: number;
+  channelResults: PricingScenarioChannelResult[];
+  monthlyResults: PricingScenarioMonthResult[];
+  warnings: string[];
+};
+
+export type PricingScenarioRun = {
+  id: string;
+  publicId: string;
+  planId: string;
+  propertyId: string;
+  name: string;
+  input: PricingScenarioInput;
+  result: PricingScenarioResult;
+  createdAt: string;
+};
+
+export type PublishedPricingQuote = {
+  plan: { id: string; name: string; version: number; publishedAt: string | null };
+  input: PricingSimulationInput;
+  result: PricingSimulationResult;
+};
