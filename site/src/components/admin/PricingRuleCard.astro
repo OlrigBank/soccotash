@@ -4,15 +4,25 @@ const { rule, editable = false } = Astro.props as { rule: PricingRule; editable?
 const pounds = (pence?: number) => ((pence ?? 0) / 100).toFixed(2);
 const from = rule.conditions.arrivalDateFrom ?? '';
 const to = rule.conditions.arrivalDateTo ?? '';
+const dayOptions: Array<[string, string]> = [['1','Monday'],['2','Tuesday'],['3','Wednesday'],['4','Thursday'],['5','Friday'],['6','Saturday'],['0','Sunday']];
+const selectedDays = rule.action.daysOfWeek ?? [];
+const selectedDayNames = dayOptions.filter(([value]) => selectedDays.includes(Number(value))).map(([, label]) => label);
 
 function summary(): string {
   switch (rule.type) {
     case 'default_nightly_price': return `£${pounds(rule.action.amountPence)} per night`;
-    case 'weekend_adjustment': return `${rule.action.percentage ?? 0}% on Friday/Saturday`;
+    case 'weekend_adjustment': return `${rule.action.percentage ?? 0}% on ${selectedDayNames.join(', ') || 'selected weekdays'}`;
+    case 'price_floor': return `£${pounds(rule.action.amountPence)} ${rule.action.floorBasis === 'stay_total' ? 'per stay' : 'per night'} minimum`;
     case 'seasonal_adjustment': return `${rule.action.percentage ?? 0}% · ${from || 'start'} to ${to || 'end'}`;
     case 'date_override': return `£${pounds(rule.action.amountPence)} · ${from || 'start'} to ${to || 'end'}`;
     case 'minimum_stay': return `${rule.action.nights ?? 1} nights minimum`;
-    case 'fixed_package': return `${rule.action.nights ?? 1} nights for £${pounds(rule.action.amountPence)}`;
+    case 'maximum_stay': return `${rule.action.nights ?? 1} nights maximum`;
+    case 'arrival_day_restriction': return `Arrivals: ${selectedDayNames.join(', ') || 'none selected'}`;
+    case 'departure_day_restriction': return `Departures: ${selectedDayNames.join(', ') || 'none selected'}`;
+    case 'fixed_package': {
+      const inclusions = [rule.action.includesCleaning ? 'cleaning' : '', rule.action.includesPetFee ? 'pet fee' : ''].filter(Boolean);
+      return `${rule.action.nights ?? 1} nights for £${pounds(rule.action.amountPence)}${inclusions.length ? ` incl. ${inclusions.join(' + ')}` : ''}`;
+    }
     case 'length_discount': return `${rule.action.percentage ?? 0}% from ${rule.conditions.minimumNights ?? 1} nights`;
     case 'early_booking_discount': return `${rule.action.percentage ?? 0}% at ${rule.conditions.minimumLeadDays ?? 0}+ days`;
     case 'last_minute_discount': return `${rule.action.percentage ?? 0}% within ${rule.conditions.maximumLeadDays ?? 0} days`;
@@ -48,20 +58,24 @@ function summary(): string {
           <label class="pricing-check"><input name="stackable" type="checkbox" checked={rule.stackable} /> Can stack in group</label>
           <label class="pricing-field pricing-field--wide">Stacking group<input name="stackingGroup" value={rule.stackingGroup ?? ''} placeholder="Leave empty when not needed" /></label>
 
-          {(rule.type === 'default_nightly_price' || rule.type === 'date_override' || rule.type === 'cleaning_fee' || rule.type === 'pet_fee') &&
+          {(['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee','price_floor'].includes(rule.type)) &&
             <label class="pricing-field">Amount (£)<input name="action.amountPounds" type="number" min="0" step="0.01" value={pounds(rule.action.amountPence)} /></label>}
-          {(rule.type === 'fixed_package' || rule.type === 'extra_guest_charge') &&
-            <label class="pricing-field">Amount (£)<input name="action.amountPounds" type="number" min="0" step="0.01" value={pounds(rule.action.amountPence)} /></label>}
-          {(rule.type === 'weekend_adjustment' || rule.type === 'seasonal_adjustment' || rule.type === 'length_discount' || rule.type === 'early_booking_discount' || rule.type === 'last_minute_discount' || rule.type === 'channel_commission' || rule.type === 'non_refundable_discount') &&
+          {(['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount'].includes(rule.type)) &&
             <label class="pricing-field">Percentage<input name="action.percentage" type="number" min={(rule.type === 'weekend_adjustment' || rule.type === 'seasonal_adjustment') ? -100 : 0} max="100" step="0.1" value={rule.action.percentage ?? 0} /></label>}
 
-          {(rule.type === 'seasonal_adjustment' || rule.type === 'date_override' || rule.type === 'minimum_stay') && <>
+          {(['seasonal_adjustment','date_override','minimum_stay','maximum_stay','arrival_day_restriction','departure_day_restriction','fixed_package','price_floor'].includes(rule.type)) && <>
             <label class="pricing-field">From date<input name="conditions.arrivalDateFrom" type="date" value={from} /></label>
             <label class="pricing-field">To date<input name="conditions.arrivalDateTo" type="date" value={to} /></label>
             {rule.type === 'seasonal_adjustment' && <label class="pricing-field">Minimum nights<input name="conditions.minimumNights" type="number" min="1" max="365" value={rule.conditions.minimumNights ?? 1} /></label>}
           </>}
           {rule.type === 'minimum_stay' && <label class="pricing-field">Minimum nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 2} /></label>}
-          {rule.type === 'fixed_package' && <label class="pricing-field">Exact nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 3} /></label>}
+          {rule.type === 'maximum_stay' && <label class="pricing-field">Maximum nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 28} /></label>}
+          {rule.type === 'fixed_package' && <>
+            <label class="pricing-field">Exact nights<input name="action.nights" type="number" min="1" max="365" value={rule.action.nights ?? 3} /></label>
+            <label class="pricing-check"><input name="action.includesCleaning" type="checkbox" checked={rule.action.includesCleaning} /> Cleaning included</label>
+            <label class="pricing-check"><input name="action.includesPetFee" type="checkbox" checked={rule.action.includesPetFee} /> Pet charge included</label>
+          </>}
+          {rule.type === 'price_floor' && <label class="pricing-field">Floor basis<select name="action.floorBasis"><option value="nightly" selected={rule.action.floorBasis !== 'stay_total'}>Per night</option><option value="stay_total" selected={rule.action.floorBasis === 'stay_total'}>Whole stay</option></select></label>}
           {rule.type === 'length_discount' && <label class="pricing-field">Minimum nights<input name="conditions.minimumNights" type="number" min="1" max="365" value={rule.conditions.minimumNights ?? 7} /></label>}
           {rule.type === 'early_booking_discount' && <label class="pricing-field">Minimum lead days<input name="conditions.minimumLeadDays" type="number" min="0" max="1000" value={rule.conditions.minimumLeadDays ?? 180} /></label>}
           {rule.type === 'last_minute_discount' && <label class="pricing-field">Maximum lead days<input name="conditions.maximumLeadDays" type="number" min="0" max="1000" value={rule.conditions.maximumLeadDays ?? 14} /></label>}
@@ -72,7 +86,7 @@ function summary(): string {
           {rule.type === 'pet_fee' && <label class="pricing-check"><input name="action.perPet" type="checkbox" checked={rule.action.perPet} /> Charge per pet</label>}
           {rule.type === 'channel_commission' && <label class="pricing-field">Channel<select name="conditions.channel"><option value="direct" selected={rule.conditions.channel === 'direct'}>Direct</option><option value="airbnb" selected={rule.conditions.channel === 'airbnb'}>Airbnb</option><option value="booking_com" selected={rule.conditions.channel === 'booking_com'}>Booking.com</option></select></label>}
           {rule.type === 'non_refundable_discount' && <input type="hidden" name="conditions.cancellationPlan" value="non_refundable" />}
-          {rule.type === 'weekend_adjustment' && <fieldset class="pricing-days"><legend>Adjusted nights</legend>{[['5','Friday'],['6','Saturday'],['0','Sunday']].map(([value,label]) => <label><input type="checkbox" name="action.daysOfWeek" value={value} checked={(rule.action.daysOfWeek ?? [5,6]).includes(Number(value))} /> {label}</label>)}</fieldset>}
+          {(['weekend_adjustment','arrival_day_restriction','departure_day_restriction'].includes(rule.type)) && <fieldset class="pricing-days"><legend>{rule.type === 'weekend_adjustment' ? 'Adjusted nights' : 'Allowed weekdays'}</legend>{dayOptions.map(([value,label]) => <label><input type="checkbox" name="action.daysOfWeek" value={value} checked={selectedDays.includes(Number(value))} /> {label}</label>)}</fieldset>}
         </div>
         <div class="pricing-rule-actions"><button class="admin-button" type="submit">Save rule</button><button class="admin-button admin-button--danger delete-rule" type="button">Delete</button></div>
       </form>

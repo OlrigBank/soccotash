@@ -3,7 +3,7 @@ import { getProperty } from '../../../../lib/booking/config';
 import { isIsoDate } from '../../../../lib/booking/dates';
 import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { RULE_CATALOG } from '../../../../lib/pricing/catalog';
-import { simulatePricing } from '../../../../lib/pricing/engine';
+import { findPricingConflicts, simulatePricing } from '../../../../lib/pricing/engine';
 import {
   addPricingRule,
   addPricingRuleFromDefinition,
@@ -113,6 +113,9 @@ function ruleAction(value: unknown): PricingAction {
     );
   if (input.perNight !== undefined) output.perNight = boolean(input.perNight);
   if (input.perPet !== undefined) output.perPet = boolean(input.perPet);
+  if (input.includesCleaning !== undefined) output.includesCleaning = boolean(input.includesCleaning);
+  if (input.includesPetFee !== undefined) output.includesPetFee = boolean(input.includesPetFee);
+  if (input.floorBasis === 'nightly' || input.floorBasis === 'stay_total') output.floorBasis = input.floorBasis;
   return output;
 }
 
@@ -151,6 +154,7 @@ function pricingRuleDefinitionInput(input: JsonObject) {
     'extra_guest_charge',
     'cleaning_fee',
     'pet_fee',
+    'price_floor',
   ];
   const percentageTypes: PricingRuleType[] = [
     'weekend_adjustment',
@@ -171,7 +175,7 @@ function pricingRuleDefinitionInput(input: JsonObject) {
     defaultAction.percentage === undefined
   )
     throw new Error('RULE_DEFINITION_PERCENTAGE_REQUIRED');
-  if (input.baseType === 'minimum_stay' && defaultAction.nights === undefined)
+  if ((input.baseType === 'minimum_stay' || input.baseType === 'maximum_stay') && defaultAction.nights === undefined)
     throw new Error('RULE_DEFINITION_NIGHTS_REQUIRED');
   if (input.baseType === 'fixed_package' && defaultAction.nights === undefined)
     throw new Error('RULE_DEFINITION_NIGHTS_REQUIRED');
@@ -190,6 +194,9 @@ function pricingRuleDefinitionInput(input: JsonObject) {
     defaultConditions.maximumLeadDays === undefined
   )
     throw new Error('RULE_DEFINITION_LEAD_DAYS_REQUIRED');
+  if ((input.baseType === 'arrival_day_restriction' || input.baseType === 'departure_day_restriction') && !defaultAction.daysOfWeek?.length)
+    throw new Error('RULE_DEFINITION_DAYS_REQUIRED');
+  if (input.baseType === 'price_floor' && !defaultAction.floorBasis) defaultAction.floorBasis = 'nightly';
   if (input.baseType === 'channel_commission' && !defaultConditions.channel)
     throw new Error('RULE_DEFINITION_CHANNEL_REQUIRED');
   if (input.baseType === 'non_refundable_discount')
@@ -245,6 +252,7 @@ function errorResponse(error: unknown): Response {
     RULE_DEFINITION_LEAD_DAYS_REQUIRED:
       'This rule card requires a booking lead-time value.',
     RULE_DEFINITION_CHANNEL_REQUIRED: 'Choose the sales channel for this card.',
+    RULE_DEFINITION_DAYS_REQUIRED: 'Choose at least one allowed weekday.',
   };
   if (clientErrors[code])
     return Response.json({ error: clientErrors[code] }, { status: 400 });
@@ -411,6 +419,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (action === 'publishPlan') {
       const planId = text(input.planId, 30);
+      const plan = await getPricingPlan(planId);
+      if (!plan) return Response.json({ error: 'Pricing plan not found.' }, { status: 404 });
+      const blockingConflicts = findPricingConflicts(plan).filter((item) => item.severity === 'error');
+      if (blockingConflicts.length) {
+        return Response.json({
+          error: `Resolve ${blockingConflicts.length} pricing conflict${blockingConflicts.length === 1 ? '' : 's'} before publishing: ${blockingConflicts.map((item) => item.message).join(' ')}`,
+          conflicts: blockingConflicts,
+        }, { status: 400 });
+      }
       await publishPricingPlan(planId, userId);
       await audit(userId, 'pricing.plan.published', { planId });
       return Response.json({ ok: true });

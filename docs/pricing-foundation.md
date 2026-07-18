@@ -40,7 +40,11 @@ These example plans are modelling data only. They do not change the price on the
 - Seasonal adjustment
 - Date override
 - Minimum stay
-- Fixed stay package
+- Maximum stay
+- Allowed arrival days
+- Allowed departure days
+- Fixed stay package with fee inclusions
+- Price floor
 - Length-of-stay discount
 - Early-booking discount
 - Last-minute discount
@@ -82,11 +86,10 @@ Select the Cottage or Whole-property listing and choose **Create first draft**. 
 
 ## Recommended next implementation
 
-1. Add arrival/departure-day restrictions and maximum-stay rules.
-2. Add package inclusion options, especially whether cleaning is included.
-3. Add price floors and explicit conflict warnings.
-4. Connect published pricing to the public quote/provisional-booking flow.
-5. Add month/season modelling and exportable reports.
+The former recommendations 1–3 are implemented in migration `006`. The next work is now:
+
+1. Connect published pricing to the public quote/provisional-booking flow.
+2. Add month/season modelling and exportable reports.
 
 ## Reusable custom rule cards
 
@@ -125,3 +128,52 @@ Migration `site/db/005_pricing_rule_definitions.sql` adds:
 - `pricing_rules.rule_definition_id`.
 
 The link from a plan rule to its source definition is retained for traceability, while the rule itself stores a complete copy of the values used at the time it was added.
+
+## Stay restrictions, package inclusions and price safeguards
+
+Migration `site/db/006_pricing_restrictions_packages_floors.sql` extends the pricing foundation with the first three previously recommended safeguards.
+
+### Arrival, departure and maximum-stay rules
+
+The rule library and reusable-card editor now include:
+
+- **Allowed arrival days** — restrict check-in to selected weekdays, optionally within a date range.
+- **Allowed departure days** — restrict check-out to selected weekdays, optionally within a date range.
+- **Maximum stay** — reject a booking above a configured number of nights, optionally within a date range.
+
+These are evaluated with minimum-stay rules before a price is offered. The simulator marks a booking as **Restricted** and explains the failed rule.
+
+### Fixed-package inclusions
+
+A fixed package can now specify that its total includes:
+
+- cleaning;
+- the pet charge.
+
+Fee rules are evaluated after package selection. When an inclusion is enabled, the corresponding separate fee is skipped and the rule explanation states that it is already included. This prevents the same charge being collected twice even when the fee card appears earlier in the visible rule order.
+
+### Price floors
+
+A **Price floor** card can enforce either:
+
+- a minimum amount per night; or
+- a minimum amount for the whole stay.
+
+The highest matching floor is applied after packages and discounts but before fees and channel commission. When a floor raises a price, the simulator adds an itemised adjustment and a warning.
+
+### Explicit conflict checks
+
+The pricing screen now checks the complete plan and displays error, warning and information messages for combinations including:
+
+- multiple enabled default prices;
+- overlapping date overrides;
+- overlapping packages for the same stay length;
+- a minimum stay above a maximum stay;
+- arrival or departure rules with no common allowed weekday;
+- a package that violates minimum- or maximum-stay rules;
+- duplicate cleaning fees;
+- package-included fees that would otherwise be added separately;
+- overlapping price floors;
+- a fixed package below an applicable price floor.
+
+Plans with error-level conflicts cannot be published. Warning and information messages remain visible for review but do not prevent publication.

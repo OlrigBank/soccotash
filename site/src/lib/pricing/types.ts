@@ -14,7 +14,11 @@ export type PricingRuleType =
   | 'seasonal_adjustment'
   | 'date_override'
   | 'minimum_stay'
+  | 'maximum_stay'
+  | 'arrival_day_restriction'
+  | 'departure_day_restriction'
   | 'fixed_package'
+  | 'price_floor'
   | 'length_discount'
   | 'early_booking_discount'
   | 'last_minute_discount'
@@ -44,6 +48,9 @@ export type PricingAction = {
   includedGuests?: number;
   perNight?: boolean;
   perPet?: boolean;
+  includesCleaning?: boolean;
+  includesPetFee?: boolean;
+  floorBasis?: 'nightly' | 'stay_total';
 };
 
 export type PricingRule = {
@@ -103,6 +110,13 @@ export type PricingRuleExplanation = {
   reason: string;
 };
 
+export type PricingConflict = {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  ruleIds: string[];
+};
+
 export type PricingSimulationResult = {
   eligible: boolean;
   currency: string;
@@ -117,6 +131,7 @@ export type PricingSimulationResult = {
   lines: PricingLine[];
   explanations: PricingRuleExplanation[];
   warnings: string[];
+  conflicts: PricingConflict[];
 };
 
 export type RuleCatalogEntry = {

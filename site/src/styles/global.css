@@ -1563,3 +1563,57 @@ main {
     position: static;
   }
 }
+
+.pricing-plan-conflicts,
+.pricing-result-conflicts {
+  margin: 0.8rem 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #fbfaf7;
+}
+.pricing-plan-conflicts h3,
+.pricing-result-conflicts h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+.pricing-plan-conflicts ul,
+.pricing-result-conflicts ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pricing-plan-conflicts li,
+.pricing-result-conflicts li {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-left: 4px solid var(--line);
+  border-radius: 0.35rem;
+  background: white;
+  font-size: 0.78rem;
+}
+.pricing-plan-conflicts li strong,
+.pricing-result-conflicts li strong {
+  text-transform: uppercase;
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+}
+.pricing-plan-conflicts .conflict-error,
+.pricing-result-conflicts .conflict-error {
+  border-left-color: #a53b33;
+  background: #fff3f1;
+}
+.pricing-plan-conflicts .conflict-warning,
+.pricing-result-conflicts .conflict-warning {
+  border-left-color: #b17b16;
+  background: #fff8e8;
+}
+.pricing-plan-conflicts .conflict-info,
+.pricing-result-conflicts .conflict-info {
+  border-left-color: #477a98;
+  background: #f0f7fb;
+}

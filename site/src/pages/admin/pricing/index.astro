@@ -3,6 +3,7 @@ import PricingRuleCard from '../../../components/admin/PricingRuleCard.astro';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getProperties } from '../../../lib/booking/config';
 import { RULE_CATALOG } from '../../../lib/pricing/catalog';
+import { findPricingConflicts } from '../../../lib/pricing/engine';
 import { getPricingPlan, getPricingPlans, getPricingRuleDefinitions, getPublishedPricingPlan } from '../../../lib/pricing/repository';
 
 export const prerender = false;
@@ -17,6 +18,7 @@ const selectedPlan = selectedSummary ? await getPricingPlan(selectedSummary.id) 
 const publishedPlan = property ? await getPublishedPricingPlan(property.id) : null;
 const customDefinitions = await getPricingRuleDefinitions();
 const editable = selectedPlan?.status === 'draft';
+const planConflicts = selectedPlan ? findPricingConflicts(selectedPlan) : [];
 const groups = Array.from(new Set(RULE_CATALOG.map((entry) => entry.category)));
 const nextJuly = `${new Date().getUTCFullYear() + 1}-07-09`;
 const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
@@ -71,6 +73,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
           <span class:list={['status-badge', `status-${selectedPlan.status}`]}>{selectedPlan.status}</span>
         </div>
         {editable ? <form id="rename-plan-form" class="pricing-inline-form"><label>Plan name<input name="name" value={selectedPlan.name} maxlength="160" /></label><button class="small-action" type="submit">Rename</button></form> : <p class="pricing-readonly-note">Published and archived plans are read-only. Duplicate this plan to make changes.</p>}
+        {planConflicts.length > 0 && <section class="pricing-plan-conflicts" aria-labelledby="pricing-conflicts-heading"><h3 id="pricing-conflicts-heading">Plan checks</h3><ul>{planConflicts.map((item) => <li class={`conflict-${item.severity}`}><strong>{item.severity}</strong><span>{item.message}</span></li>)}</ul></section>}
         <div class="pricing-rule-list" id="pricing-rule-list" data-plan-id={selectedPlan.id} data-editable={editable ? 'true' : 'false'}>
           {selectedPlan.rules.map((rule) => <PricingRuleCard rule={rule} editable={editable} />)}
           {!selectedPlan.rules.length && <div class="pricing-empty-state">Drag a rule here to start this pricing plan.</div>}
@@ -205,8 +208,12 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
     const stackable = form.elements.namedItem('stackable');
     const perNight = form.elements.namedItem('action.perNight');
     const perPet = form.elements.namedItem('action.perPet');
+    const includesCleaning = form.elements.namedItem('action.includesCleaning');
+    const includesPetFee = form.elements.namedItem('action.includesPetFee');
     if (perNight instanceof HTMLInputElement) ruleAction.perNight = perNight.checked;
     if (perPet instanceof HTMLInputElement) ruleAction.perPet = perPet.checked;
+    if (includesCleaning instanceof HTMLInputElement) ruleAction.includesCleaning = includesCleaning.checked;
+    if (includesPetFee instanceof HTMLInputElement) ruleAction.includesPetFee = includesPetFee.checked;
     return {
       action: 'updateRule',
       ruleId: form.dataset.ruleId,
@@ -305,13 +312,14 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
       const result = response.result;
       const lines = result.lines.map((item) => `<tr><td>${escapeHtml(item.label)}<small>${escapeHtml(item.detail)}</small></td><td class="money-cell">${formatMoney(item.amountPence)}</td></tr>`).join('');
       const explanations = result.explanations.map((item) => `<li class="${item.applied ? 'applied' : 'not-applied'}"><span>${item.applied ? '✓' : '✕'}</span><div><strong>${escapeHtml(item.ruleName)}</strong><small>${escapeHtml(item.reason)}</small></div></li>`).join('');
+      const conflicts = result.conflicts?.length ? `<section class="pricing-result-conflicts"><h3>Conflict checks</h3><ul>${result.conflicts.map((item) => `<li class="conflict-${escapeHtml(item.severity)}"><strong>${escapeHtml(item.severity)}</strong><span>${escapeHtml(item.message)}</span></li>`).join('')}</ul></section>` : '';
       const warnings = result.warnings.length ? `<div class="pricing-warnings">${result.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join('')}</div>` : '';
       const comparison = response.comparison ? `<section class="pricing-comparison"><h3>Current versus proposed</h3><table><thead><tr><th>Result</th><th>Published</th><th>Selected</th><th>Difference</th></tr></thead><tbody>
         <tr><td>Guest total</td><td>${formatMoney(response.comparison.result.guestTotalPence)}</td><td>${formatMoney(result.guestTotalPence)}</td><td>${formatMoney(response.comparison.difference.guestTotalPence)}</td></tr>
         <tr><td>Owner revenue</td><td>${formatMoney(response.comparison.result.ownerRevenuePence)}</td><td>${formatMoney(result.ownerRevenuePence)}</td><td>${formatMoney(response.comparison.difference.ownerRevenuePence)}</td></tr>
         <tr><td>Average nightly</td><td>${formatMoney(response.comparison.result.averageNightlyPence)}</td><td>${formatMoney(result.averageNightlyPence)}</td><td>${formatMoney(response.comparison.difference.averageNightlyPence)}</td></tr>
       </tbody></table><p>Compared with ${escapeHtml(response.comparison.plan.name)}.</p></section>` : '';
-      results.innerHTML = `${warnings}<div class="pricing-result-summary"><div><span>Guest total</span><strong>${formatMoney(result.guestTotalPence)}</strong></div><div><span>Owner revenue</span><strong>${formatMoney(result.ownerRevenuePence)}</strong></div><div><span>Average nightly</span><strong>${formatMoney(result.averageNightlyPence)}</strong></div><div><span>Booking status</span><strong>${result.eligible ? 'Eligible' : 'Restricted'}</strong></div></div>
+      results.innerHTML = `${conflicts}${warnings}<div class="pricing-result-summary"><div><span>Guest total</span><strong>${formatMoney(result.guestTotalPence)}</strong></div><div><span>Owner revenue</span><strong>${formatMoney(result.ownerRevenuePence)}</strong></div><div><span>Average nightly</span><strong>${formatMoney(result.averageNightlyPence)}</strong></div><div><span>Booking status</span><strong>${result.eligible ? 'Eligible' : 'Restricted'}</strong></div></div>
         <div class="admin-table-wrap pricing-calculation"><table><tbody>${lines}<tr class="total-row"><th>Guest total</th><th class="money-cell">${formatMoney(result.guestTotalPence)}</th></tr><tr><th>Channel commission</th><th class="money-cell">−${formatMoney(result.commissionPence)}</th></tr><tr class="total-row"><th>Estimated owner revenue</th><th class="money-cell">${formatMoney(result.ownerRevenuePence)}</th></tr></tbody></table></div>
         ${comparison}<section class="pricing-explanations"><h3>Rule explanation</h3><ul>${explanations}</ul></section>`;
     } catch (error) {

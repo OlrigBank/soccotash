@@ -78,22 +78,22 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
           <label class="pricing-check"><input name="defaultEnabled" type="checkbox" checked /> Enabled when added</label>
           <label class="pricing-check"><input name="defaultStackable" type="checkbox" checked /> Can stack in group</label>
 
-          <label class="pricing-field definition-type-field" data-types="default_nightly_price,date_override,fixed_package,extra_guest_charge,cleaning_fee,pet_fee">Default amount (£)
+          <label class="pricing-field definition-type-field" data-types="default_nightly_price,date_override,fixed_package,extra_guest_charge,cleaning_fee,pet_fee,price_floor">Default amount (£)
             <input name="amountPounds" type="number" min="0" step="0.01" />
           </label>
           <label class="pricing-field definition-type-field" data-types="weekend_adjustment,seasonal_adjustment,length_discount,early_booking_discount,last_minute_discount,channel_commission,non_refundable_discount">Default percentage
             <input name="percentage" type="number" min="-100" max="1000" step="0.1" />
           </label>
-          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,fixed_package">From date
+          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,maximum_stay,arrival_day_restriction,departure_day_restriction,fixed_package,price_floor">From date
             <input name="arrivalDateFrom" type="date" />
           </label>
-          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,fixed_package">To date
+          <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,maximum_stay,arrival_day_restriction,departure_day_restriction,fixed_package,price_floor">To date
             <input name="arrivalDateTo" type="date" />
           </label>
           <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,length_discount">Minimum nights condition
             <input name="minimumNights" type="number" min="1" max="365" />
           </label>
-          <label class="pricing-field definition-type-field" data-types="minimum_stay,fixed_package">Rule nights
+          <label class="pricing-field definition-type-field" data-types="minimum_stay,maximum_stay,fixed_package">Rule nights
             <input name="nights" type="number" min="1" max="365" />
           </label>
           <label class="pricing-field definition-type-field" data-types="early_booking_discount">Minimum lead days
@@ -107,11 +107,16 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
           </label>
           <label class="pricing-check definition-type-field" data-types="extra_guest_charge"><input name="perNight" type="checkbox" /> Charge per night</label>
           <label class="pricing-check definition-type-field" data-types="pet_fee"><input name="perPet" type="checkbox" /> Charge per pet</label>
+          <label class="pricing-check definition-type-field" data-types="fixed_package"><input name="includesCleaning" type="checkbox" /> Cleaning included in package</label>
+          <label class="pricing-check definition-type-field" data-types="fixed_package"><input name="includesPetFee" type="checkbox" /> Pet charge included in package</label>
+          <label class="pricing-field definition-type-field" data-types="price_floor">Floor basis
+            <select name="floorBasis"><option value="nightly">Per night</option><option value="stay_total">Whole stay</option></select>
+          </label>
           <label class="pricing-field definition-type-field" data-types="channel_commission">Sales channel
             <select name="channel"><option value="direct">Direct</option><option value="airbnb">Airbnb</option><option value="booking_com">Booking.com</option></select>
           </label>
-          <fieldset class="pricing-days definition-type-field" data-types="weekend_adjustment">
-            <legend>Adjusted nights</legend>
+          <fieldset class="pricing-days definition-type-field" data-types="weekend_adjustment,arrival_day_restriction,departure_day_restriction">
+            <legend>Adjusted or allowed weekdays</legend>
             <label><input type="checkbox" name="daysOfWeek" value="5" /> Friday</label>
             <label><input type="checkbox" name="daysOfWeek" value="6" /> Saturday</label>
             <label><input type="checkbox" name="daysOfWeek" value="0" /> Sunday</label>
@@ -227,6 +232,9 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     setValue('includedGuests', starter.action.includedGuests ?? '');
     setChecked('perNight', starter.action.perNight);
     setChecked('perPet', starter.action.perPet);
+    setChecked('includesCleaning', starter.action.includesCleaning);
+    setChecked('includesPetFee', starter.action.includesPetFee);
+    setValue('floorBasis', starter.action.floorBasis ?? 'nightly');
     setValue('channel', starter.conditions.channel ?? 'direct');
     document.querySelectorAll('input[name="daysOfWeek"]').forEach((checkbox) => {
       if (checkbox instanceof HTMLInputElement) checkbox.checked = (starter.action.daysOfWeek || []).includes(Number(checkbox.value));
@@ -269,6 +277,9 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     setValue('includedGuests', definition.defaultAction.includedGuests ?? '');
     setChecked('perNight', definition.defaultAction.perNight);
     setChecked('perPet', definition.defaultAction.perPet);
+    setChecked('includesCleaning', definition.defaultAction.includesCleaning);
+    setChecked('includesPetFee', definition.defaultAction.includesPetFee);
+    setValue('floorBasis', definition.defaultAction.floorBasis ?? 'nightly');
     setValue('channel', definition.defaultConditions.channel ?? 'direct');
     document.querySelectorAll('input[name="daysOfWeek"]').forEach((checkbox) => {
       if (checkbox instanceof HTMLInputElement) checkbox.checked = (definition.defaultAction.daysOfWeek || []).includes(Number(checkbox.value));
@@ -288,7 +299,7 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
       const value = data.get(name);
       if (value !== null && value !== '') target[key] = Number(value) * multiplier;
     };
-    if (['seasonal_adjustment','date_override','minimum_stay','fixed_package'].includes(type)) {
+    if (['seasonal_adjustment','date_override','minimum_stay','maximum_stay','arrival_day_restriction','departure_day_restriction','fixed_package','price_floor'].includes(type)) {
       if (data.get('arrivalDateFrom')) conditions.arrivalDateFrom = data.get('arrivalDateFrom');
       if (data.get('arrivalDateTo')) conditions.arrivalDateTo = data.get('arrivalDateTo');
     }
@@ -297,15 +308,20 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     if (type === 'last_minute_discount') setNumber(conditions, 'maximumLeadDays', 'maximumLeadDays');
     if (type === 'channel_commission') conditions.channel = data.get('channel');
     if (type === 'non_refundable_discount') conditions.cancellationPlan = 'non_refundable';
-    if (['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee'].includes(type)) setNumber(ruleAction, 'amountPence', 'amountPounds', 100);
+    if (['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee','price_floor'].includes(type)) setNumber(ruleAction, 'amountPence', 'amountPounds', 100);
     if (['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount'].includes(type)) setNumber(ruleAction, 'percentage', 'percentage');
-    if (['minimum_stay','fixed_package'].includes(type)) setNumber(ruleAction, 'nights', 'nights');
+    if (['minimum_stay','maximum_stay','fixed_package'].includes(type)) setNumber(ruleAction, 'nights', 'nights');
     if (type === 'extra_guest_charge') {
       setNumber(ruleAction, 'includedGuests', 'includedGuests');
       ruleAction.perNight = input('perNight') instanceof HTMLInputElement ? input('perNight').checked : false;
     }
     if (type === 'pet_fee') ruleAction.perPet = input('perPet') instanceof HTMLInputElement ? input('perPet').checked : false;
-    if (type === 'weekend_adjustment') ruleAction.daysOfWeek = data.getAll('daysOfWeek').map(Number);
+    if (type === 'fixed_package') {
+      ruleAction.includesCleaning = input('includesCleaning') instanceof HTMLInputElement ? input('includesCleaning').checked : false;
+      ruleAction.includesPetFee = input('includesPetFee') instanceof HTMLInputElement ? input('includesPetFee').checked : false;
+    }
+    if (type === 'price_floor') ruleAction.floorBasis = data.get('floorBasis') || 'nightly';
+    if (['weekend_adjustment','arrival_day_restriction','departure_day_restriction'].includes(type)) ruleAction.daysOfWeek = data.getAll('daysOfWeek').map(Number);
     return {
       baseType: type,
       label: data.get('label'),
