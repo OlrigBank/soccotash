@@ -77,9 +77,11 @@ const properties = getProperties();
         <label for="guest-message">Message (optional)</label>
         <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
       </div>
+      <div class="booking-submit-review" data-booking-submit-review hidden></div>
       <button class="button" type="submit" data-submit-booking>Request provisional booking</button>
     </div>
   </form>
+  <section class="booking-confirmation" data-booking-confirmation hidden aria-live="polite"></section>
   <p class="booking-note">
     Airbnb reservations and other blocked dates are shown as unavailable. A request is provisional until Jenna accepts it and contacts you.
   </p>
@@ -98,6 +100,8 @@ const properties = getProperties();
   const contact = root?.querySelector<HTMLElement>('[data-booking-contact]');
   const checkButton = root?.querySelector<HTMLButtonElement>('[data-check-availability]');
   const submitButton = root?.querySelector<HTMLButtonElement>('[data-submit-booking]');
+  const submitReview = root?.querySelector<HTMLElement>('[data-booking-submit-review]');
+  const confirmation = root?.querySelector<HTMLElement>('[data-booking-confirmation]');
   const propertySelect = form?.querySelector<HTMLSelectElement>('[name="propertyId"]');
   const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
   const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
@@ -155,6 +159,8 @@ const properties = getProperties();
   let calendarLoading = true;
   let calendarFailed = false;
   let calendarRequest = 0;
+  let reviewedQuoteKey = '';
+  let reviewedQuote: Record<string, any> | null = null;
 
   if (arrival) arrival.min = isoToday;
   if (departure) departure.min = isoToday;
@@ -179,7 +185,7 @@ const properties = getProperties();
       rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
     }
     if (contact) contact.hidden = true;
-    if (quotePanel) quotePanel.hidden = true;
+    clearReviewedQuote();
   }
 
   function rangesOverlap(start: string, end: string, block: AvailabilityBlock): boolean {
@@ -214,7 +220,7 @@ const properties = getProperties();
       departure.min = isoToday;
     }
     if (contact) contact.hidden = true;
-    if (quotePanel) quotePanel.hidden = true;
+    clearReviewedQuote();
     if (status) status.textContent = 'Choose dates to check availability.';
   }
 
@@ -351,7 +357,7 @@ const properties = getProperties();
         departure.min = addDays(value, selectedRules().minimumNights);
       }
       if (contact) contact.hidden = true;
-      if (quotePanel) quotePanel.hidden = true;
+      clearReviewedQuote();
       if (status) status.textContent = 'Choose a departure date.';
       setCalendarMessage(`Arrival selected: ${dayFormatter.format(parseIso(value))}. Now choose the departure date.`);
       renderCalendar();
@@ -371,7 +377,7 @@ const properties = getProperties();
     selectionEnd = value;
     if (departure) departure.value = value;
     if (contact) contact.hidden = true;
-    if (quotePanel) quotePanel.hidden = true;
+    clearReviewedQuote();
     if (status) status.textContent = 'Dates selected. Use Check availability to confirm them.';
     setCalendarMessage(`${dayFormatter.format(parseIso(selectionStart))} to ${dayFormatter.format(parseIso(value))} selected.`);
     renderCalendar();
@@ -399,7 +405,7 @@ const properties = getProperties();
       renderCalendar();
     }
     if (contact) contact.hidden = true;
-    if (quotePanel) quotePanel.hidden = true;
+    clearReviewedQuote();
     if (status) status.textContent = start && end
       ? 'Dates entered. Use Check availability to confirm them.'
       : 'Choose dates to check availability.';
@@ -416,7 +422,7 @@ const properties = getProperties();
   for (const input of form?.querySelectorAll<HTMLInputElement>('[name="guests"], [name="pets"]') ?? []) {
     input.addEventListener('input', () => {
       if (contact) contact.hidden = true;
-      if (quotePanel) quotePanel.hidden = true;
+      clearReviewedQuote();
       if (status) status.textContent = 'Guest details changed. Check availability and price again.';
     });
   }
@@ -454,23 +460,98 @@ const properties = getProperties();
     })[character] || character);
   }
 
-  function renderQuote(body: Record<string, any>): void {
-    if (!quotePanel) return;
-    quotePanel.hidden = false;
-    if (!body.pricingAvailable) {
-      quotePanel.innerHTML = `<h2>Price confirmation</h2><p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
-      return;
+  function money(pence: unknown): string {
+    return quoteMoney.format((Number(pence) || 0) / 100);
+  }
+
+  function pricingKey(data: FormData): string {
+    return [
+      String(data.get('propertyId') || ''),
+      String(data.get('arrival') || ''),
+      String(data.get('departure') || ''),
+      String(data.get('guests') || ''),
+      String(data.get('pets') || '0'),
+    ].join('|');
+  }
+
+  function clearReviewedQuote(): void {
+    reviewedQuoteKey = '';
+    reviewedQuote = null;
+    if (quotePanel) {
+      quotePanel.hidden = true;
+      quotePanel.innerHTML = '';
     }
-    const money = (pence: unknown) => quoteMoney.format((Number(pence) || 0) / 100);
-    const lines = Array.isArray(body.lines)
+    if (submitReview) {
+      submitReview.hidden = true;
+      submitReview.innerHTML = '';
+    }
+  }
+
+  function quoteRows(body: Record<string, any>): string {
+    return Array.isArray(body.lines)
       ? body.lines.filter((item) => item.category !== 'restriction').map((item) =>
           `<tr><td><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></td><td>${money(item.amountPence)}</td></tr>`,
         ).join('')
       : '';
+  }
+
+  function renderSubmitReview(body: Record<string, any>): void {
+    if (!submitReview) return;
+    submitReview.hidden = false;
+    submitReview.innerHTML = body.pricingAvailable
+      ? `<span>Provisional cost to be recorded</span><strong>${money(body.guestTotalPence)}</strong><small>Review the itemised calculation above before submitting.</small>`
+      : `<span>Price to be confirmed</span><strong>Enquiry only</strong><small>Jenna will confirm the cost before accepting the booking.</small>`;
+  }
+
+  function renderQuote(body: Record<string, any>): void {
+    if (!quotePanel) return;
+    quotePanel.hidden = false;
+    if (!body.pricingAvailable) {
+      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">Provisional cost</p><h2>Price confirmation required</h2></div></div><p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
+      renderSubmitReview(body);
+      return;
+    }
     quotePanel.innerHTML = `
-      <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Your price estimate</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
-      <table><tbody>${lines}<tr class="booking-quote-total"><th>Total for ${Number(body.nights) || 0} nights</th><th>${money(body.guestTotalPence)}</th></tr></tbody></table>
-      <p>This quote uses the current published pricing plan and will be recalculated when the provisional request is saved.</p>`;
+      <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Provisional cost</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
+      <table><tbody>${quoteRows(body)}<tr class="booking-quote-total"><th>Total for ${Number(body.nights) || 0} nights</th><th>${money(body.guestTotalPence)}</th></tr></tbody></table>
+      <p>This is the provisional amount that will be recorded with your request. The server recalculates it when you submit; the booking is not confirmed until Jenna accepts it.</p>`;
+    renderSubmitReview(body);
+  }
+
+  function renderConfirmation(body: Record<string, any>, submitted: Record<string, FormDataEntryValue>): void {
+    if (!confirmation || !form) return;
+    const quote = body.quote && typeof body.quote === 'object' ? body.quote as Record<string, any> : null;
+    const propertyName = propertySelect?.selectedOptions[0]?.textContent?.trim() || String(submitted.propertyId || 'Selected property');
+    const stay = `${dayFormatter.format(parseIso(String(submitted.arrival)))} to ${dayFormatter.format(parseIso(String(submitted.departure)))}`;
+    const price = quote?.pricingAvailable
+      ? `<div class="booking-confirmation-price"><div class="booking-quote-heading"><div><p class="eyebrow">Recorded provisional cost</p><h3>Cost attached to this request</h3></div><strong>${money(quote.guestTotalPence)}</strong></div><table><tbody>${quoteRows(quote)}<tr class="booking-quote-total"><th>Total for ${Number(quote.nights) || 0} nights</th><th>${money(quote.guestTotalPence)}</th></tr></tbody></table></div>`
+      : `<div class="booking-confirmation-price"><h3>Price to be confirmed</h3><p>Jenna will confirm the cost before accepting the booking.</p></div>`;
+    confirmation.innerHTML = `
+      <p class="eyebrow">Request received</p>
+      <h2>Your provisional booking request has been recorded</h2>
+      <p><strong>Reference:</strong> ${escapeHtml(body.reference)}</p>
+      <dl class="booking-confirmation-details">
+        <div><dt>Property</dt><dd>${escapeHtml(propertyName)}</dd></div>
+        <div><dt>Stay</dt><dd>${escapeHtml(stay)}</dd></div>
+        <div><dt>Guests</dt><dd>${escapeHtml(submitted.guests)}</dd></div>
+        <div><dt>Pets</dt><dd>${escapeHtml(submitted.pets || 0)}</dd></div>
+      </dl>
+      ${price}
+      <p>This remains a provisional request until Jenna accepts it and contacts you.</p>
+      <button class="button button-secondary" type="button" data-new-booking-request>Make another request</button>`;
+    confirmation.hidden = false;
+    form.hidden = true;
+    confirmation.querySelector<HTMLButtonElement>('[data-new-booking-request]')?.addEventListener('click', () => {
+      confirmation.hidden = true;
+      confirmation.innerHTML = '';
+      form.hidden = false;
+      form.reset();
+      resetSelection();
+      applyPropertyRules();
+      void loadVisibleCalendar();
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    confirmation.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function checkAvailability() {
@@ -484,13 +565,13 @@ const properties = getProperties();
     if (!start || !end || end < earliestDeparture) {
       status.textContent = `Choose a departure date at least ${minimumNights} nights after arrival.`;
       contact.hidden = true;
-      if (quotePanel) quotePanel.hidden = true;
+      clearReviewedQuote();
       return false;
     }
 
     status.textContent = 'Checking the latest calendar…';
     contact.hidden = true;
-    if (quotePanel) quotePanel.hidden = true;
+    clearReviewedQuote();
     if (checkButton) checkButton.disabled = true;
 
     try {
@@ -507,7 +588,7 @@ const properties = getProperties();
       }
       if (Array.isArray(body.blocks) && body.blocks.length) {
         status.textContent = 'Those dates are unavailable. Please choose different dates.';
-        if (quotePanel) quotePanel.hidden = true;
+        clearReviewedQuote();
         return false;
       }
       const quoteResponse = await fetch('/api/quote/', {
@@ -524,9 +605,11 @@ const properties = getProperties();
       const quoteBody = await readJson(quoteResponse);
       if (!quoteResponse.ok) {
         status.textContent = quoteBody.error || 'A price could not be calculated for this stay.';
-        if (quotePanel) quotePanel.hidden = true;
+        clearReviewedQuote();
         return false;
       }
+      reviewedQuoteKey = pricingKey(data);
+      reviewedQuote = quoteBody;
       renderQuote(quoteBody);
       status.textContent = body.refreshWarning
         ? `The dates appear available. ${body.refreshWarning} Review the price and complete your details.`
@@ -541,16 +624,43 @@ const properties = getProperties();
     }
   }
 
-  checkButton?.addEventListener('click', checkAvailability);
+  checkButton?.addEventListener('click', async () => {
+    const available = await checkAvailability();
+    if (available) quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!(await checkAvailability()) || !form || !status || !contact) return;
+    if (!form || !status || !contact) return;
+
+    const currentData = new FormData(form);
+    const currentKey = pricingKey(currentData);
+    if (!reviewedQuote || reviewedQuoteKey !== currentKey) {
+      const available = await checkAvailability();
+      if (available) {
+        status.textContent = 'Please review the provisional cost, complete your contact details, then press Request provisional booking again.';
+        quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
     if (!form.reportValidity()) return;
 
-    const raw = Object.fromEntries(new FormData(form).entries());
-    const payload = { ...raw, guests: Number(raw.guests), pets: Number(raw.pets || 0) };
-    status.textContent = 'Saving your request…';
+    const raw = Object.fromEntries(currentData.entries());
+    const payload = {
+      ...raw,
+      guests: Number(raw.guests),
+      pets: Number(raw.pets || 0),
+      reviewedPricing: reviewedQuote?.pricingAvailable
+        ? {
+            pricingAvailable: true,
+            planId: reviewedQuote.plan?.id,
+            planVersion: reviewedQuote.plan?.version,
+            guestTotalPence: reviewedQuote.guestTotalPence,
+          }
+        : { pricingAvailable: false },
+    };
+    status.textContent = 'Rechecking the price and saving your request…';
     if (submitButton) submitButton.disabled = true;
+    if (checkButton) checkButton.disabled = true;
 
     try {
       const response = await fetch('/api/provisional-bookings/', {
@@ -560,25 +670,25 @@ const properties = getProperties();
       });
       const body = await readJson(response);
       if (!response.ok) {
-        status.textContent = body.error || 'The request could not be saved.';
+        if (response.status === 409 && body.quote && typeof body.quote === 'object') {
+          reviewedQuote = body.quote;
+          reviewedQuoteKey = currentKey;
+          renderQuote(body.quote);
+          contact.hidden = false;
+          status.textContent = body.error || 'The provisional cost changed. Review the updated calculation and submit again.';
+          quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          status.textContent = body.error || 'The request could not be saved.';
+          if (response.status === 409 || response.status === 422) clearReviewedQuote();
+        }
         return;
       }
-      const quotedTotal = body.pricingAvailable ? ` The recorded total is ${quoteMoney.format((Number(body.guestTotalPence) || 0) / 100)}.` : '';
-      const successMessage = `Your provisional request has been received. Reference: ${body.reference}.${quotedTotal}`;
-      const submittedPropertyId = String(raw.propertyId || '');
-      contact.hidden = true;
-      form.reset();
-      if (propertySelect && Array.from(propertySelect.options).some((option) => option.value === submittedPropertyId)) {
-        propertySelect.value = submittedPropertyId;
-      }
-      resetSelection();
-      applyPropertyRules();
-      status.textContent = successMessage;
-      void loadVisibleCalendar();
+      renderConfirmation(body, raw);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {
       if (submitButton) submitButton.disabled = false;
+      if (checkButton) checkButton.disabled = false;
     }
   });
 </script>

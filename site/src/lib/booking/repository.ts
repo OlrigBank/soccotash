@@ -76,7 +76,7 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
      UNION ALL
      SELECT arrival::text AS "startsOn", departure::text AS "endsOn", 'provisional' AS source
      FROM provisional_bookings
-     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'approved')
+     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'approved')
        AND arrival < $3::date AND departure > $2::date
      ORDER BY "startsOn"`,
     [availabilityProperty.id, from, to, linkedPropertyIds],
@@ -119,7 +119,7 @@ export async function createProvisionalBooking(input: {
        WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
        SELECT 1 FROM provisional_bookings
-       WHERE property_id = ANY($4::text[]) AND status IN ('pending','approved')
+       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','approved')
          AND arrival < $3::date AND departure > $2::date LIMIT 1`,
       [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
     );
@@ -157,7 +157,33 @@ export async function createProvisionalBooking(input: {
   }
 }
 
+export type BookingOfferLine = {
+  label: string;
+  detail: string;
+  amountPence: number;
+};
+
+export type BookingOffer = {
+  id: string;
+  publicId: string;
+  currency: string;
+  lineItems: BookingOfferLine[];
+  totalPence: number;
+  offerMessage: string | null;
+  terms: string | null;
+  validUntil: string | null;
+  recipientEmail: string;
+  subject: string;
+  deliveryStatus: 'pending' | 'sent' | 'failed';
+  deliveryMessageId: string | null;
+  deliveryError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+  adminDisplayName: string | null;
+};
+
 export type ProvisionalBookingRequest = {
+  internalId?: string;
   reference: string;
   propertyId: string;
   arrival: string;
@@ -169,30 +195,190 @@ export type ProvisionalBookingRequest = {
   telephone: string | null;
   message: string | null;
   status: string;
+  pricingPlanId?: string | null;
+  pricingPlanName?: string | null;
   pricingCurrency: string | null;
+  accommodationPence?: number | null;
+  feesPence?: number | null;
   guestTotalPence: number | null;
   pricingPlanVersion: number | null;
+  pricingInput?: Record<string, unknown> | null;
+  pricingResult?: Record<string, unknown> | null;
   quotedAt: string | null;
   createdAt: string;
+  latestOfferTotalPence: number | null;
+  latestOfferCurrency: string | null;
+  latestOfferSentAt: string | null;
 };
 
-export async function getProvisionalBookingRequests(limit = 100): Promise<ProvisionalBookingRequest[]> {
-  const result = await getPool().query(
-    `SELECT public_id::text AS reference, property_id AS "propertyId", arrival::text, departure::text,
-            guests, pets, guest_name AS name, guest_email AS email, guest_telephone AS telephone,
-            guest_message AS message, status, pricing_currency AS "pricingCurrency",
-            guest_total_pence AS "guestTotalPence", pricing_plan_version AS "pricingPlanVersion",
-            quoted_at AS "quotedAt", created_at AS "createdAt"
-       FROM provisional_bookings
-      ORDER BY created_at DESC
-      LIMIT $1`,
-    [Math.max(1, Math.min(500, Math.round(limit)))],
-  );
-  return result.rows.map((row) => ({
+function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
+  return {
     ...row,
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
-  }));
+    latestOfferSentAt: row.latestOfferSentAt ? new Date(row.latestOfferSentAt).toISOString() : null,
+  } as ProvisionalBookingRequest;
+}
+
+export async function getProvisionalBookingRequests(limit = 100): Promise<ProvisionalBookingRequest[]> {
+  const result = await getPool().query(
+    `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+            pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email, pb.guest_telephone AS telephone,
+            pb.guest_message AS message, pb.status, pb.pricing_currency AS "pricingCurrency",
+            pb.guest_total_pence AS "guestTotalPence", pb.pricing_plan_version AS "pricingPlanVersion",
+            pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
+            latest_offer.total_pence AS "latestOfferTotalPence",
+            latest_offer.currency AS "latestOfferCurrency",
+            latest_offer.sent_at AS "latestOfferSentAt"
+       FROM provisional_bookings pb
+       LEFT JOIN LATERAL (
+         SELECT total_pence, currency, sent_at
+           FROM booking_offers
+          WHERE provisional_booking_id = pb.id AND delivery_status = 'sent'
+          ORDER BY sent_at DESC, id DESC
+          LIMIT 1
+       ) latest_offer ON TRUE
+      ORDER BY pb.created_at DESC
+      LIMIT $1`,
+    [Math.max(1, Math.min(500, Math.round(limit)))],
+  );
+  return result.rows.map(normaliseBookingRow);
+}
+
+export async function getProvisionalBookingRequest(reference: string): Promise<ProvisionalBookingRequest | null> {
+  const result = await getPool().query(
+    `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
+            pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+            pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
+            pb.guest_telephone AS telephone, pb.guest_message AS message, pb.status,
+            pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
+            pb.pricing_currency AS "pricingCurrency", pb.accommodation_pence AS "accommodationPence",
+            pb.fees_pence AS "feesPence", pb.guest_total_pence AS "guestTotalPence",
+            pb.pricing_plan_version AS "pricingPlanVersion", pb.pricing_input AS "pricingInput",
+            pb.pricing_result AS "pricingResult", pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
+            latest_offer.total_pence AS "latestOfferTotalPence",
+            latest_offer.currency AS "latestOfferCurrency",
+            latest_offer.sent_at AS "latestOfferSentAt"
+       FROM provisional_bookings pb
+       LEFT JOIN pricing_plans pp ON pp.id = pb.pricing_plan_id
+       LEFT JOIN LATERAL (
+         SELECT total_pence, currency, sent_at
+           FROM booking_offers
+          WHERE provisional_booking_id = pb.id AND delivery_status = 'sent'
+          ORDER BY sent_at DESC, id DESC
+          LIMIT 1
+       ) latest_offer ON TRUE
+      WHERE pb.public_id = $1::uuid`,
+    [reference],
+  );
+  return result.rowCount ? normaliseBookingRow(result.rows[0]) : null;
+}
+
+function normaliseOfferRow(row: Record<string, any>): BookingOffer {
+  return {
+    id: String(row.id),
+    publicId: String(row.publicId),
+    currency: row.currency,
+    lineItems: Array.isArray(row.lineItems) ? row.lineItems : [],
+    totalPence: Number(row.totalPence),
+    offerMessage: row.offerMessage,
+    terms: row.terms,
+    validUntil: row.validUntil,
+    recipientEmail: row.recipientEmail,
+    subject: row.subject,
+    deliveryStatus: row.deliveryStatus,
+    deliveryMessageId: row.deliveryMessageId,
+    deliveryError: row.deliveryError,
+    createdAt: new Date(row.createdAt).toISOString(),
+    sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
+    adminDisplayName: row.adminDisplayName,
+  };
+}
+
+export async function getBookingOffers(reference: string): Promise<BookingOffer[]> {
+  const result = await getPool().query(
+    `SELECT bo.id, bo.public_id::text AS "publicId", bo.currency,
+            bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
+            bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
+            bo.recipient_email AS "recipientEmail", bo.subject,
+            bo.delivery_status AS "deliveryStatus", bo.delivery_message_id AS "deliveryMessageId",
+            bo.delivery_error AS "deliveryError", bo.created_at AS "createdAt", bo.sent_at AS "sentAt",
+            au.display_name AS "adminDisplayName"
+       FROM booking_offers bo
+       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+       LEFT JOIN admin_users au ON au.id = bo.admin_user_id
+      WHERE pb.public_id = $1::uuid
+      ORDER BY bo.created_at DESC, bo.id DESC`,
+    [reference],
+  );
+  return result.rows.map(normaliseOfferRow);
+}
+
+export async function createBookingOfferAttempt(input: {
+  reference: string;
+  adminUserId: string;
+  currency: string;
+  lineItems: BookingOfferLine[];
+  totalPence: number;
+  offerMessage?: string;
+  terms?: string;
+  validUntil?: string;
+  recipientEmail: string;
+  subject: string;
+}): Promise<{ id: string; publicId: string }> {
+  const result = await getPool().query(
+    `INSERT INTO booking_offers
+       (provisional_booking_id, admin_user_id, currency, line_items, total_pence,
+        offer_message, terms, valid_until, recipient_email, subject)
+     SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10
+       FROM provisional_bookings pb
+      WHERE pb.public_id = $1::uuid
+      RETURNING id::text, public_id::text AS "publicId"`,
+    [
+      input.reference,
+      input.adminUserId,
+      input.currency,
+      JSON.stringify(input.lineItems),
+      input.totalPence,
+      input.offerMessage || null,
+      input.terms || null,
+      input.validUntil || null,
+      input.recipientEmail,
+      input.subject,
+    ],
+  );
+  if (!result.rowCount) throw new Error('BOOKING_NOT_FOUND');
+  return result.rows[0];
+}
+
+export async function markBookingOfferSent(input: {
+  offerId: string;
+  reference: string;
+  deliveryMessageId?: string | null;
+}): Promise<void> {
+  // Record provider acceptance first. If the subsequent booking-status update fails,
+  // the audit trail must still show that an email was actually sent.
+  await getPool().query(
+    `UPDATE booking_offers
+        SET delivery_status = 'sent', delivery_message_id = $2,
+            delivery_error = NULL, sent_at = NOW()
+      WHERE id = $1`,
+    [input.offerId, input.deliveryMessageId || null],
+  );
+  await getPool().query(
+    `UPDATE provisional_bookings SET status = 'offered'
+      WHERE public_id = $1::uuid`,
+    [input.reference],
+  );
+}
+
+export async function markBookingOfferFailed(offerId: string, error: unknown): Promise<void> {
+  await getPool().query(
+    `UPDATE booking_offers
+        SET delivery_status = 'failed', delivery_error = $2
+      WHERE id = $1`,
+    [offerId, error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000)],
+  );
 }
 
 export async function getBookingReport(): Promise<{

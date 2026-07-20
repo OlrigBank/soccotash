@@ -42,4 +42,28 @@ services:
           name: soccotash
           envVarKey: RENDER_EXTERNAL_URL
 
+      # Customer booking-offer email. SMTP and Resend are both supported.
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: BOOKING_EMAIL_FROM
+        sync: false
+      - key: BOOKING_EMAIL_REPLY_TO
+        sync: false
+      - key: BOOKING_EMAIL_BCC
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_TLS_REJECT_UNAUTHORIZED
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+
     healthCheckPath: /api/health/
