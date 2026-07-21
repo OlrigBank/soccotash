@@ -88,8 +88,88 @@ export async function audit(userId: string | null, action: string, details: Reco
   );
 }
 
+function firstHeaderValue(value: string | null): string {
+  return String(value || '').split(',')[0].trim();
+}
+
+function normaliseOrigin(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function originFromHost(protocol: string, host: string, port = ''): string | null {
+  const cleanProtocol = protocol.replace(/:$/, '').toLowerCase();
+  const cleanHost = host.trim();
+  if (!['http', 'https'].includes(cleanProtocol)) return null;
+  if (!cleanHost || /[\s/\\]/.test(cleanHost)) return null;
+
+  const hostHasPort = cleanHost.startsWith('[')
+    ? cleanHost.includes(']:')
+    : cleanHost.includes(':');
+  const authority = port && !hostHasPort ? `${cleanHost}:${port}` : cleanHost;
+  return normaliseOrigin(`${cleanProtocol}://${authority}`);
+}
+
+/**
+ * Verify browser form/API mutations against the origin visible to the user.
+ *
+ * Direct local Docker requests normally match request.url. Reverse proxies such
+ * as Render can expose a different public protocol/host through forwarded
+ * headers, so those values are also considered. A cross-site browser request
+ * still fails because its Origin will not match the request Host or forwarded
+ * public Host. Requests without Origin are retained for authenticated
+ * server-to-server tools such as the calendar synchronisation endpoint.
+ */
 export function isSameOrigin(request: Request): boolean {
-  const origin = request.headers.get('origin');
-  if (!origin) return true;
-  return origin === new URL(request.url).origin;
+  const suppliedOrigin = request.headers.get('origin');
+  if (!suppliedOrigin) return true;
+
+  const origin = normaliseOrigin(suppliedOrigin);
+  if (!origin) return false;
+
+  const requestUrl = new URL(request.url);
+  const acceptedOrigins = new Set<string>([requestUrl.origin]);
+
+  const forwardedProtocol = firstHeaderValue(request.headers.get('x-forwarded-proto'));
+  const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'));
+  const forwardedPort = firstHeaderValue(request.headers.get('x-forwarded-port'));
+  const host = firstHeaderValue(request.headers.get('host'));
+
+  if (host) {
+    const directOrigin = originFromHost(requestUrl.protocol, host);
+    if (directOrigin) acceptedOrigins.add(directOrigin);
+
+    if (forwardedProtocol) {
+      const proxyProtocolOrigin = originFromHost(forwardedProtocol, host, forwardedPort);
+      if (proxyProtocolOrigin) acceptedOrigins.add(proxyProtocolOrigin);
+    }
+  }
+
+  if (forwardedHost) {
+    const proxyOrigin = originFromHost(
+      forwardedProtocol || requestUrl.protocol,
+      forwardedHost,
+      forwardedPort,
+    );
+    if (proxyOrigin) acceptedOrigins.add(proxyOrigin);
+  }
+
+  for (const configuredUrl of [
+    process.env.BOOKING_PUBLIC_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.RENDER_EXTERNAL_HOSTNAME
+      ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+      : '',
+  ]) {
+    const configuredOrigin = normaliseOrigin(String(configuredUrl || ''));
+    if (configuredOrigin) acceptedOrigins.add(configuredOrigin);
+  }
+
+  return acceptedOrigins.has(origin);
 }

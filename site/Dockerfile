@@ -1,4 +1,12 @@
 FROM node:22-alpine AS build
+
+# Render exposes service environment variables to Docker builds as build
+# arguments. Declare and export the public hostname so Astro can include the
+# exact Render proxy host in security.allowedDomains during compilation. This
+# lets Astro reconstruct public URLs behind Render's HTTPS proxy.
+ARG RENDER_EXTERNAL_HOSTNAME
+ENV RENDER_EXTERNAL_HOSTNAME=${RENDER_EXTERNAL_HOSTNAME}
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

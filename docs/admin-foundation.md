@@ -66,20 +66,28 @@ npm run admin:create -- admin@example.com 'Administrator'
 
 The dashboard reports pending provisional bookings, calendar-sync status, and pricing-plan count. The Pricing section now contains the first functional pricing-rule builder and deterministic simulator. Listings, Calendars, Bookings and Settings remain protected placeholders for later implementation phases. See `docs/pricing-foundation.md`.
 
-## Reverse-proxy origin handling
+## Reverse-proxy and local Docker origin handling
 
 The Render web service terminates HTTPS before forwarding requests to the Astro
-Node server. `site/astro.config.mjs` therefore lists the public Olrig Bank
-hostnames and dynamically adds Render's `RENDER_EXTERNAL_HOSTNAME` to Astro's
-`security.allowedDomains` setting.
+Node server. Local Docker can also be reached through `localhost`, a LAN address,
+or another local reverse proxy. These arrangements can make Astro's internal
+request URL differ from the origin visible in the customer's browser.
 
-This allows Astro to trust the matching `X-Forwarded-Host` header and reconstruct
-the public request URL correctly while retaining `security.checkOrigin: true`.
-Without this setting, login form submissions on Render can be rejected with:
+`site/astro.config.mjs` retains `security.allowedDomains` so Astro can reconstruct
+public URLs from Render's trusted `X-Forwarded-Host` header. Astro's built-in
+`security.checkOrigin` is disabled because it can reject valid POST requests
+before application code runs when the external and internal origins differ.
 
-```text
-Cross-site POST form submissions are forbidden
-```
+Every browser-facing route that changes data instead calls the application's
+`isSameOrigin()` guard. The guard compares the browser's `Origin` header with:
 
-After changing the service hostname or adding another custom domain, add the new
-hostname to `security.allowedDomains` and redeploy the service.
+- the direct request URL and `Host` header used by local Docker;
+- the public `X-Forwarded-Host`, protocol and port supplied by a reverse proxy;
+- the configured Render and booking public URLs.
+
+Cross-site browser requests are still rejected. The calendar synchronisation
+endpoint remains protected separately by its bearer token.
+
+After changing the Render service hostname or adding another custom domain, add
+the new hostname to `security.allowedDomains` and redeploy the service so Astro
+continues to construct public URLs correctly.

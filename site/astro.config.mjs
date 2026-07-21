@@ -8,7 +8,8 @@ const allowedDomains = [
 
 // Render terminates HTTPS at its proxy and forwards the public hostname in
 // X-Forwarded-Host. Trust only this service's Render hostname so Astro can
-// reconstruct the public request URL for its same-origin CSRF check.
+// reconstruct public URLs correctly. Browser mutation routes apply their own
+// proxy-aware same-origin check in src/lib/admin/auth.ts.
 if (process.env.RENDER_EXTERNAL_HOSTNAME) {
   allowedDomains.push({
     hostname: process.env.RENDER_EXTERNAL_HOSTNAME,
@@ -22,7 +23,10 @@ export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   security: {
-    checkOrigin: true,
+    // Browser-facing mutation routes perform an application-level origin check.
+    // Astro's built-in check cannot reliably reconstruct the external origin
+    // in every Docker/reverse-proxy arrangement, so leave it disabled here.
+    checkOrigin: false,
     allowedDomains,
   },
 });
