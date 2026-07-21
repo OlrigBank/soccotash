@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
-import { isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import {
   getCustomerBookingOffer,
@@ -33,7 +32,10 @@ let responseError = '';
 let responseResult: CustomerOfferResponseResult | null = null;
 
 if (Astro.request.method === 'POST') {
-  if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  // This public route is authorised by the unguessable booking-offer token in
+  // the URL and does not use a customer session cookie. A separate origin
+  // check would add no protection once that bearer token is known, but can
+  // incorrectly reject legitimate submissions behind Docker or Render.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
   if (action !== 'accept' && action !== 'decline') {

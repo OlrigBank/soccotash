@@ -133,6 +133,14 @@ export function isSameOrigin(request: Request): boolean {
   const origin = normaliseOrigin(suppliedOrigin);
   if (!origin) return false;
 
+  // Sec-Fetch-Site is a browser-controlled forbidden request header. For a
+  // form submitted by the page that served it, modern browsers send
+  // `same-origin`. This is a reliable fallback when a reverse proxy causes the
+  // server-side request URL to be reconstructed with an internal host or
+  // protocol. Cross-site forms send `cross-site` and do not pass this check.
+  const fetchSite = firstHeaderValue(request.headers.get('sec-fetch-site')).toLowerCase();
+  if (fetchSite === 'same-origin') return true;
+
   const requestUrl = new URL(request.url);
   const acceptedOrigins = new Set<string>([requestUrl.origin]);
 
