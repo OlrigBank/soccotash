@@ -16,6 +16,7 @@ export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+Astro.response.headers.set('X-Soccotash-Booking-UI', '28');
 
 const token = String(Astro.params.token || '');
 if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) return new Response('Booking offer not found.', { status: 404 });
@@ -38,8 +39,17 @@ if (Astro.request.method === 'POST') {
   // incorrectly reject legitimate submissions behind Docker or Render.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
+  const confirmed = action === 'accept'
+    ? form.get('confirmAccept') === 'yes'
+    : action === 'decline'
+      ? form.get('confirmDecline') === 'yes'
+      : false;
   if (action !== 'accept' && action !== 'decline') {
     responseError = 'The requested booking action was not recognised.';
+  } else if (!confirmed) {
+    responseError = action === 'accept'
+      ? 'Please tick the confirmation box before accepting the offer.'
+      : 'Please tick the confirmation box before declining the offer.';
   } else {
     responseResult = await respondToCustomerBookingOffer(token, action);
     if (responseResult === 'accepted' || responseResult === 'declined') {
@@ -187,13 +197,26 @@ const statusMessage = offer.customerStatus === 'accepted'
         <p>Acceptance records your agreement to the offer. The booking becomes fully confirmed only when Olrig Bank completes the final confirmation.</p>
       </div>
       <div class="customer-booking-actions">
-        <form method="post" data-customer-response="accept">
+        <form method="post" class="customer-booking-decision-form">
           <input type="hidden" name="action" value="accept" />
-          <button class="button customer-booking-accept" type="submit">Accept booking offer</button>
+          <strong>Accept this offer</strong>
+          <p>Confirm that you accept the dates, price and terms shown on this page.</p>
+          <label class="customer-booking-confirm-check">
+            <input type="checkbox" name="confirmAccept" value="yes" required />
+            <span>I have reviewed the offer and want to accept it.</span>
+          </label>
+          <button class="customer-booking-submit customer-booking-accept" type="submit">Accept booking offer</button>
         </form>
-        <form method="post" data-customer-response="decline">
+
+        <form method="post" class="customer-booking-decision-form is-decline">
           <input type="hidden" name="action" value="decline" />
-          <button class="button customer-booking-decline" type="submit">Decline offer</button>
+          <strong>Decline this offer</strong>
+          <p>Declining closes this offer. Contact Olrig Bank if you would like to discuss a different stay.</p>
+          <label class="customer-booking-confirm-check">
+            <input type="checkbox" name="confirmDecline" value="yes" required />
+            <span>I understand that declining will close this offer.</span>
+          </label>
+          <button class="customer-booking-submit customer-booking-decline" type="submit">Decline booking offer</button>
         </form>
       </div>
     </section>}
@@ -202,11 +225,3 @@ const statusMessage = offer.customerStatus === 'accepted'
   </section>
 </BaseLayout>
 
-<script>
-  document.querySelector('[data-customer-response="accept"]')?.addEventListener('submit', (event) => {
-    if (!window.confirm('Accept this booking offer?')) event.preventDefault();
-  });
-  document.querySelector('[data-customer-response="decline"]')?.addEventListener('submit', (event) => {
-    if (!window.confirm('Decline this booking offer?')) event.preventDefault();
-  });
-</script>
