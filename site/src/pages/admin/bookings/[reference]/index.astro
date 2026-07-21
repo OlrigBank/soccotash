@@ -4,10 +4,12 @@ import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import {
   createBookingOfferAttempt,
+  deleteProvisionalBookingRequest,
   getBookingOffers,
   getProvisionalBookingRequest,
   markBookingOfferFailed,
   markBookingOfferSent,
+  updateProvisionalBookingEmail,
   type BookingOfferLine,
 } from '../../../../lib/booking/repository';
 import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/booking/offer-email';
@@ -21,11 +23,15 @@ if (!booking) return new Response('Booking request not found.', { status: 404 })
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
 const emailConfiguration = getEmailConfiguration();
 const canOffer = booking.status === 'pending' || booking.status === 'offered';
+const canDelete = booking.status === 'pending' || booking.status === 'offered';
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 
 function cleanText(value: FormDataEntryValue | null, max: number): string {
   return String(value || '').trim().slice(0, max);
+}
+function validEmail(value: string): boolean {
+  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 function poundsToPence(value: string): number | null {
   const trimmed = value.trim();
@@ -61,102 +67,149 @@ let offerMessage = priorOffer?.offerMessage ?? `Thank you for your provisional b
 let terms = priorOffer?.terms ?? '';
 let validUntil = priorOffer?.validUntil ?? defaultValidity;
 let subject = priorOffer?.subject ?? defaultOfferSubject(booking, propertyName);
+let contactEmail = booking.email;
 let error = '';
 
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
-  const labels = form.getAll('lineLabel').map((value) => cleanText(value, 160));
-  const details = form.getAll('lineDetail').map((value) => cleanText(value, 500));
-  const amounts = form.getAll('lineAmount').map((value) => poundsToPence(String(value)));
-  offerMessage = cleanText(form.get('offerMessage'), 5000);
-  terms = cleanText(form.get('terms'), 5000);
-  validUntil = cleanText(form.get('validUntil'), 10);
-  subject = cleanText(form.get('subject'), 300);
-  formLines = labels.map((label, index) => ({
-    label,
-    detail: details[index] || '',
-    amountPence: amounts[index] ?? 0,
-  }));
+  const action = cleanText(form.get('action'), 40) || 'send-offer';
 
-  if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
-  else if (!emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
-  else if (!subject) error = 'Enter an email subject.';
-  else if (!formLines.length || formLines.length > 40) error = 'The offer must contain between 1 and 40 price lines.';
-  else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
-  else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
-  else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
+  if (action === 'save-contact') {
+    contactEmail = cleanText(form.get('contactEmail'), 254).toLowerCase();
+    if (!validEmail(contactEmail)) {
+      error = 'Enter a valid customer email address.';
+    } else {
+      const previousEmail = booking.email;
+      const updated = await updateProvisionalBookingEmail(reference, contactEmail);
+      if (!updated) return new Response('Booking request not found.', { status: 404 });
+      await audit(Astro.locals.adminUser!.id, 'booking.contact_email_updated', {
+        bookingReference: reference,
+        previousEmail,
+        newEmail: contactEmail,
+      });
+      return Astro.redirect(`/admin/bookings/${reference}/?contact=1`);
+    }
+  } else if (action === 'delete-booking') {
+    if (!canDelete) {
+      error = `A request with status “${booking.status}” cannot be deleted from this review screen.`;
+    } else if (form.get('confirmDelete') !== 'yes') {
+      error = 'Confirm that you understand this will permanently delete the request.';
+    } else {
+      const deleted = await deleteProvisionalBookingRequest(reference);
+      if (!deleted) {
+        error = 'The booking request could not be deleted. It may have changed status.';
+      } else {
+        await audit(Astro.locals.adminUser!.id, 'booking.request_deleted', {
+          bookingReference: reference,
+          propertyId: booking.propertyId,
+          arrival: booking.arrival,
+          departure: booking.departure,
+          guestName: booking.name,
+          guestEmail: booking.email,
+          previousStatus: booking.status,
+        });
+        return Astro.redirect('/admin/bookings/?deleted=1');
+      }
+    }
+  } else if (action === 'send-offer') {
+    const labels = form.getAll('lineLabel').map((value) => cleanText(value, 160));
+    const details = form.getAll('lineDetail').map((value) => cleanText(value, 500));
+    const amounts = form.getAll('lineAmount').map((value) => poundsToPence(String(value)));
+    offerMessage = cleanText(form.get('offerMessage'), 5000);
+    terms = cleanText(form.get('terms'), 5000);
+    validUntil = cleanText(form.get('validUntil'), 10);
+    subject = cleanText(form.get('subject'), 300);
+    formLines = labels.map((label, index) => ({
+      label,
+      detail: details[index] || '',
+      amountPence: amounts[index] ?? 0,
+    }));
 
-  const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
-  if (!error && totalPence < 0) error = 'The bottom-line offer price cannot be negative.';
+    if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
+    else if (!emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
+    else if (!subject) error = 'Enter an email subject.';
+    else if (!formLines.length || formLines.length > 40) error = 'The offer must contain between 1 and 40 price lines.';
+    else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
+    else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
+    else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
 
-  if (!error) {
-    const attempt = await createBookingOfferAttempt({
-      reference,
-      adminUserId: Astro.locals.adminUser!.id,
-      currency: booking.pricingCurrency || 'GBP',
-      lineItems: formLines,
-      totalPence,
-      offerMessage,
-      terms,
-      validUntil: validUntil || undefined,
-      recipientEmail: booking.email,
-      subject,
-    });
-    let delivery: Awaited<ReturnType<typeof sendBookingOfferEmail>> | null = null;
-    try {
-      delivery = await sendBookingOfferEmail({
-        booking,
-        propertyName,
+    const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
+    if (!error && totalPence < 0) error = 'The bottom-line offer price cannot be negative.';
+
+    if (!error) {
+      const attempt = await createBookingOfferAttempt({
+        reference,
+        adminUserId: Astro.locals.adminUser!.id,
         currency: booking.pricingCurrency || 'GBP',
         lineItems: formLines,
         totalPence,
         offerMessage,
         terms,
-        validUntil: validUntil || null,
+        validUntil: validUntil || undefined,
+        recipientEmail: booking.email,
         subject,
       });
-    } catch (sendError) {
-      await markBookingOfferFailed(attempt.id, sendError);
-      await audit(Astro.locals.adminUser!.id, 'booking.offer_failed', {
-        bookingReference: reference,
-        offerReference: attempt.publicId,
-        recipient: booking.email,
-        error: sendError instanceof Error ? sendError.message : String(sendError),
-      });
-      error = sendError instanceof Error ? `The offer was not sent: ${sendError.message}` : 'The offer was not sent.';
-    }
-    if (delivery) {
+      let delivery: Awaited<ReturnType<typeof sendBookingOfferEmail>> | null = null;
       try {
-        await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: delivery.messageId });
-        await audit(Astro.locals.adminUser!.id, 'booking.offer_sent', {
-          bookingReference: reference,
-          offerReference: attempt.publicId,
-          recipient: booking.email,
-          totalPence,
+        delivery = await sendBookingOfferEmail({
+          booking,
+          propertyName,
           currency: booking.pricingCurrency || 'GBP',
-          provider: delivery.provider,
+          lineItems: formLines,
+          totalPence,
+          offerMessage,
+          terms,
+          validUntil: validUntil || null,
+          subject,
         });
-        return Astro.redirect(`/admin/bookings/${reference}/?sent=1`);
-      } catch (updateError) {
-        await audit(Astro.locals.adminUser!.id, 'booking.offer_status_update_failed', {
+      } catch (sendError) {
+        await markBookingOfferFailed(attempt.id, sendError);
+        await audit(Astro.locals.adminUser!.id, 'booking.offer_failed', {
           bookingReference: reference,
           offerReference: attempt.publicId,
           recipient: booking.email,
-          deliveryMessageId: delivery.messageId,
-          error: updateError instanceof Error ? updateError.message : String(updateError),
+          error: sendError instanceof Error ? sendError.message : String(sendError),
         });
-        error = 'The email provider accepted the offer, but the booking status could not be updated. Do not resend before checking the offer history.';
+        error = sendError instanceof Error ? `The offer was not sent: ${sendError.message}` : 'The offer was not sent.';
+      }
+      if (delivery) {
+        try {
+          await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: delivery.messageId });
+          await audit(Astro.locals.adminUser!.id, 'booking.offer_sent', {
+            bookingReference: reference,
+            offerReference: attempt.publicId,
+            recipient: booking.email,
+            totalPence,
+            currency: booking.pricingCurrency || 'GBP',
+            provider: delivery.provider,
+          });
+          return Astro.redirect(`/admin/bookings/${reference}/?sent=1`);
+        } catch (updateError) {
+          await audit(Astro.locals.adminUser!.id, 'booking.offer_status_update_failed', {
+            bookingReference: reference,
+            offerReference: attempt.publicId,
+            recipient: booking.email,
+            deliveryMessageId: delivery.messageId,
+            error: updateError instanceof Error ? updateError.message : String(updateError),
+          });
+          error = 'The email provider accepted the offer, but the booking status could not be updated. Do not resend before checking the offer history.';
+        }
       }
     }
+  } else {
+    error = 'Unknown booking review action.';
   }
+
   booking = (await getProvisionalBookingRequest(reference)) ?? booking;
+  contactEmail = booking.email;
   offers = await getBookingOffers(reference);
 }
 
 const recordedLines = pricingLines(booking.pricingResult);
 const currency = booking.pricingCurrency || 'GBP';
 const sent = Astro.url.searchParams.get('sent') === '1';
+const contactSaved = Astro.url.searchParams.get('contact') === '1';
 ---
 <AdminLayout title={`Review ${booking.name}`}>
   <header class="admin-page-header booking-review-header">
@@ -169,6 +222,7 @@ const sent = Astro.url.searchParams.get('sent') === '1';
   </header>
 
   {sent && <div class="pricing-message is-success" role="status">The offer was emailed to {booking.email}, and the request status is now <strong>offered</strong>.</div>}
+  {contactSaved && <div class="pricing-message is-success" role="status">The customer email address was updated to <strong>{booking.email}</strong>.</div>}
   {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
   <div class="booking-review-grid">
@@ -176,12 +230,23 @@ const sent = Astro.url.searchParams.get('sent') === '1';
       <div class="booking-review-summary__heading"><h2>Request details</h2><span class={`status-badge status-${booking.status}`}>{booking.status}</span></div>
       <dl class="booking-detail-list">
         <div><dt>Reference</dt><dd><code>{booking.reference}</code></dd></div>
-        <div><dt>Guest</dt><dd><strong>{booking.name}</strong><br><a href={`mailto:${booking.email}`}>{booking.email}</a>{booking.telephone && <><br>{booking.telephone}</>}</dd></div>
+        <div><dt>Guest</dt><dd><strong>{booking.name}</strong></dd></div>
+        <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
         <div><dt>Stay</dt><dd>{propertyName}<br>{dateLabel(booking.arrival)} – {dateLabel(booking.departure)}</dd></div>
         <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
         <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         {booking.message && <div class="booking-detail-list__wide"><dt>Guest message</dt><dd>{booking.message}</dd></div>}
       </dl>
+      <form method="post" class="admin-form booking-contact-form">
+        <input type="hidden" name="action" value="save-contact" />
+        <label>Customer email address
+          <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="email" required />
+        </label>
+        <div class="booking-contact-form__actions">
+          <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
+          <small>The next booking offer will be sent to this saved address.</small>
+        </div>
+      </form>
     </section>
 
     <section class="admin-panel">
@@ -202,6 +267,7 @@ const sent = Astro.url.searchParams.get('sent') === '1';
     {!emailConfiguration.configured && <div class="pricing-message is-error"><strong>Email delivery is not configured.</strong> {emailConfiguration.problem}</div>}
 
     <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
+      <input type="hidden" name="action" value="send-offer" />
       <label>Email subject<input type="text" name="subject" value={subject} maxlength="300" required /></label>
       <div class="booking-offer-lines" id="offer-lines">
         {formLines.map((line) => <div class="booking-offer-line">
@@ -227,9 +293,25 @@ const sent = Astro.url.searchParams.get('sent') === '1';
   {offers.length > 0 && <section class="admin-panel">
     <h2>Offer history</h2>
     <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Administrator</th></tr></thead><tbody>
-      {offers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
+      {offers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
     </tbody></table></div>
   </section>}
+
+  <section class="admin-panel booking-delete-panel">
+    <div>
+      <p class="eyebrow">Danger zone</p>
+      <h2>Delete booking request</h2>
+      <p>{canDelete ? 'Permanently remove this request, its offer history and its provisional calendar block.' : `Requests with status “${booking.status}” cannot be deleted from this review screen.`}</p>
+    </div>
+    <form method="post" class="booking-delete-form" data-confirm-delete>
+      <input type="hidden" name="action" value="delete-booking" />
+      <label class="booking-delete-confirm">
+        <input type="checkbox" name="confirmDelete" value="yes" required disabled={!canDelete} />
+        <span>I understand that this permanently deletes the request.</span>
+      </label>
+      <button class="admin-button admin-button--danger" type="submit" disabled={!canDelete}>Delete booking request</button>
+    </form>
+  </section>
 </AdminLayout>
 
 <template id="offer-line-template">
@@ -264,6 +346,9 @@ const sent = Astro.url.searchParams.get('sent') === '1';
   }
   document.querySelectorAll('.booking-remove-line').forEach((button) => bindRemove(button));
   lines?.addEventListener('input', updateTotal);
+  document.querySelector('[data-confirm-delete]')?.addEventListener('submit', (event) => {
+    if (!window.confirm('Permanently delete this booking request and its offer history?')) event.preventDefault();
+  });
   document.querySelector('#add-offer-line')?.addEventListener('click', () => {
     if (!(lines instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) return;
     const node = template.content.firstElementChild?.cloneNode(true);

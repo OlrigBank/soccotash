@@ -42,28 +42,22 @@ services:
           name: soccotash
           envVarKey: RENDER_EXTERNAL_URL
 
-      # Customer booking-offer email. SMTP and Resend are both supported.
+      # Customer booking-offer emails are sent through the Resend HTTPS API.
+      # This is a fixed, non-secret setting and can safely remain in render.yaml.
       - key: EMAIL_PROVIDER
-        sync: false
-      - key: BOOKING_EMAIL_FROM
-        sync: false
-      - key: BOOKING_EMAIL_REPLY_TO
-        sync: false
-      - key: BOOKING_EMAIL_BCC
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_SECURE
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_TLS_REJECT_UNAUTHORIZED
-        sync: false
+        value: resend
+
+      # Secret API key generated in the Resend dashboard.
+      # Enter the value in Render when creating or updating the Blueprint.
+      # Never place the actual API key in render.yaml or commit it to GitHub.
       - key: RESEND_API_KEY
+        sync: false
+
+      # Address shown in the From field of customer emails.
+      # The domain must be verified in Resend, except when using Resend's
+      # restricted testing sender.
+      # Example: Olrig Bank <bookings@olrigbank.co.uk>
+      - key: BOOKING_EMAIL_FROM
         sync: false
 
     healthCheckPath: /api/health/

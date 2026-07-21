@@ -1904,3 +1904,46 @@ main {
   .booking-detail-list > div:nth-child(odd) { padding-right: 0; }
   .booking-offer-total { text-align: left; }
 }
+
+/* Booking contact correction and request deletion */
+.booking-contact-form {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.booking-contact-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 0.65rem;
+}
+.booking-contact-form__actions small { color: var(--muted); }
+.booking-delete-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  border-color: #d7aaa5;
+  background: #fff9f8;
+}
+.booking-delete-panel h2 { margin: 0.25rem 0 0.35rem; }
+.booking-delete-panel p:last-child { margin-bottom: 0; }
+.booking-delete-form {
+  min-width: min(100%, 350px);
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+}
+.booking-delete-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-weight: 600;
+}
+.booking-delete-confirm input { margin-top: 0.2rem; }
+@media (max-width: 680px) {
+  .booking-contact-form__actions,
+  .booking-delete-panel { align-items: stretch; flex-direction: column; }
+  .booking-delete-form { min-width: 0; width: 100%; }
+}

@@ -66,3 +66,11 @@ Migration `008_booking_offer_review.sql`:
 - creates `booking_offers` with the reviewed line items, total, message, validity, recipient and delivery audit fields.
 
 A sent offer does not replace the original published pricing snapshot in `provisional_bookings`.
+
+## Contact correction and request deletion
+
+The booking review screen now shows the supplied contact number as a separate field. When no number was supplied it displays **None supplied** rather than leaving the field absent.
+
+The saved customer email address can be corrected before an offer is sent. Selecting **Save email address** updates `provisional_bookings.guest_email`; subsequent offers use the corrected address. The previous and replacement values are retained in the administrator audit log, while each offer continues to record the exact recipient used for that delivery attempt.
+
+Pending and offered requests can be permanently deleted from the review screen. Deletion requires both a confirmation checkbox and a browser confirmation prompt. It removes the request, cascades to its offer history, and releases the dates previously blocked by that provisional request. Approved requests cannot be deleted through this control.

@@ -6,11 +6,13 @@ export const prerender = false;
 const requests = await getProvisionalBookingRequests();
 const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
+const deleted = Astro.url.searchParams.get('deleted') === '1';
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
     <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, amend the customer-facing price and send a booking offer.</p></div>
   </header>
+  {deleted && <div class="pricing-message is-success" role="status">The booking request and its offer history were deleted.</div>}
   <section class="admin-panel">
     {requests.length ? (
       <div class="admin-table-wrap"><table><thead><tr><th>Bottom-line price</th><th>Stay</th><th>Guest</th><th>Party</th><th>Status</th><th>Received</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>

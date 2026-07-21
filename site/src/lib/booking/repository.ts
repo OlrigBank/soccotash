@@ -274,6 +274,26 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   return result.rowCount ? normaliseBookingRow(result.rows[0]) : null;
 }
 
+export async function updateProvisionalBookingEmail(reference: string, email: string): Promise<boolean> {
+  const result = await getPool().query(
+    `UPDATE provisional_bookings
+        SET guest_email = $2
+      WHERE public_id = $1::uuid`,
+    [reference, email],
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function deleteProvisionalBookingRequest(reference: string): Promise<boolean> {
+  const result = await getPool().query(
+    `DELETE FROM provisional_bookings
+      WHERE public_id = $1::uuid
+        AND status IN ('pending', 'offered')`,
+    [reference],
+  );
+  return Boolean(result.rowCount);
+}
+
 function normaliseOfferRow(row: Record<string, any>): BookingOffer {
   return {
     id: String(row.id),
