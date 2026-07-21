@@ -6,6 +6,7 @@ const {
   title = 'Olrig Bank',
   description = 'Guest information and local guide for Olrig Bank.',
   showSidebar = true,
+  robots = '',
 } = Astro.props;
 
 const pageTitle = title === 'Olrig Bank' ? title : `${title} | Olrig Bank`;
@@ -20,6 +21,7 @@ const currentYear = new Date().getFullYear();
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#f7f3ec" />
+    {robots && <meta name="robots" content={robots} />}
     <title>{pageTitle}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>

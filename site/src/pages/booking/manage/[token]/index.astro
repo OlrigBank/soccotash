@@ -1,0 +1,210 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import { isSameOrigin } from '../../../../lib/admin/auth';
+import { getProperties } from '../../../../lib/booking/config';
+import {
+  getCustomerBookingOffer,
+  recordBookingActivity,
+  respondToCustomerBookingOffer,
+  type CustomerOfferResponseResult,
+} from '../../../../lib/booking/repository';
+import {
+  sendCustomerOfferResponseEmail,
+  sendManagementOfferResponseEmail,
+} from '../../../../lib/booking/offer-email';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'no-store, private');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+const token = String(Astro.params.token || '');
+if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) return new Response('Booking offer not found.', { status: 404 });
+
+let offer = await getCustomerBookingOffer(token, true);
+if (!offer) return new Response('Booking offer not found.', { status: 404 });
+
+const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
+const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+const publicOrigin = configuredOrigin || Astro.url.origin;
+const manageUrl = new URL(`/booking/manage/${token}/`, publicOrigin).toString();
+
+let responseError = '';
+let responseResult: CustomerOfferResponseResult | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') || '');
+  if (action !== 'accept' && action !== 'decline') {
+    responseError = 'The requested booking action was not recognised.';
+  } else {
+    responseResult = await respondToCustomerBookingOffer(token, action);
+    if (responseResult === 'accepted' || responseResult === 'declined') {
+      offer = await getCustomerBookingOffer(token, false);
+      if (!offer) return new Response('Booking offer not found.', { status: 404 });
+      const response = responseResult;
+      try {
+        const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: 'customer_response_email_sent',
+          details: { response, provider: sent.provider, messageId: sent.messageId },
+        });
+      } catch (error) {
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: 'customer_response_email_failed',
+          details: { response, error: error instanceof Error ? error.message : String(error) },
+        });
+      }
+      try {
+        const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
+        const sent = await sendManagementOfferResponseEmail({ offer, propertyName, response, adminUrl });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: sent ? 'management_response_email_sent' : 'management_response_email_skipped',
+          details: sent ? { response, provider: sent.provider, messageId: sent.messageId } : { response, reason: 'No management recipient configured.' },
+        });
+      } catch (error) {
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: 'management_response_email_failed',
+          details: { response, error: error instanceof Error ? error.message : String(error) },
+        });
+      }
+      return Astro.redirect(`/booking/manage/${token}/?response=${response}`);
+    }
+
+    const messages: Record<CustomerOfferResponseResult, string> = {
+      accepted: '',
+      declined: '',
+      already_accepted: 'This offer has already been accepted.',
+      already_declined: 'This offer has already been declined.',
+      expired: 'This offer has expired and can no longer be accepted or declined online.',
+      superseded: 'This offer link has been replaced by a newer offer. Please use the most recent email from Olrig Bank.',
+      dates_unavailable: 'The dates are no longer available. Your response was not recorded; please contact Olrig Bank.',
+      not_found: 'This booking offer could not be found.',
+    };
+    responseError = messages[responseResult];
+    offer = await getCustomerBookingOffer(token, false) ?? offer;
+  }
+}
+
+const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
+const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+}).format(new Date(`${value}T12:00:00Z`));
+const responseNotice = Astro.url.searchParams.get('response');
+const isActive = offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
+const statusHeading = offer.customerStatus === 'accepted'
+  ? 'Offer accepted'
+  : offer.customerStatus === 'declined'
+    ? 'Offer declined'
+    : offer.customerStatus === 'expired'
+      ? 'Offer expired'
+      : offer.customerStatus === 'superseded'
+        ? 'Offer replaced'
+        : 'Booking offer';
+const statusMessage = offer.customerStatus === 'accepted'
+  ? 'Your acceptance has been recorded. Olrig Bank will contact you separately when the booking is fully confirmed.'
+  : offer.customerStatus === 'declined'
+    ? 'You have declined this offer. Contact Olrig Bank if you would like to discuss another stay.'
+    : offer.customerStatus === 'expired'
+      ? 'The acceptance period has ended. Contact Olrig Bank if you would like the booking to be reconsidered.'
+      : offer.customerStatus === 'superseded'
+        ? 'A newer offer has replaced this one. Please use the secure link in the most recent email from Olrig Bank.'
+        : 'Review the details below, then accept or decline the offer.';
+---
+<BaseLayout title={`Booking offer · ${propertyName}`} description="Review and respond to your Olrig Bank booking offer." showSidebar={false} robots="noindex,nofollow,noarchive">
+  <section class="customer-booking-shell">
+    <header class="customer-booking-header">
+      <div>
+        <p class="eyebrow">Olrig Bank booking</p>
+        <h1>{statusHeading}</h1>
+        <p>{statusMessage}</p>
+      </div>
+      <span class={`customer-booking-status status-${offer.customerStatus}`}>{offer.customerStatus.replace('_', ' ')}</span>
+    </header>
+
+    {(responseNotice === 'accepted' || responseNotice === 'declined') && (
+      <div class="customer-booking-message is-success" role="status">
+        {responseNotice === 'accepted'
+          ? 'Thank you. Your acceptance has been recorded and a confirmation email has been requested.'
+          : 'Your decision to decline the offer has been recorded and a confirmation email has been requested.'}
+      </div>
+    )}
+    {responseError && <div class="customer-booking-message is-error" role="alert">{responseError}</div>}
+
+    <div class="customer-booking-grid">
+      <section class="customer-booking-card">
+        <p class="eyebrow">Stay details</p>
+        <h2>{propertyName}</h2>
+        <dl class="customer-booking-details">
+          <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
+          <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
+          <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Guest</dt><dd>{offer.guestName}</dd></div>
+          <div><dt>Email</dt><dd>{offer.guestEmail}</dd></div>
+          <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
+          <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
+          {offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
+        </dl>
+      </section>
+
+      <section class="customer-booking-card">
+        <p class="eyebrow">Price</p>
+        <h2>Your offer</h2>
+        <div class="customer-booking-price-table">
+          {offer.lineItems.map((line) => <div class="customer-booking-price-line">
+            <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
+            <span>{money(line.amountPence, offer.currency)}</span>
+          </div>)}
+          <div class="customer-booking-price-line is-total"><strong>Total</strong><strong>{money(offer.totalPence, offer.currency)}</strong></div>
+        </div>
+      </section>
+    </div>
+
+    {(offer.offerMessage || offer.terms) && <section class="customer-booking-card customer-booking-copy">
+      {offer.offerMessage && <><h2>Message from Olrig Bank</h2><p>{offer.offerMessage}</p></>}
+      {offer.terms && <><h2>Additional terms</h2><p>{offer.terms}</p></>}
+    </section>}
+
+    {isActive && <section class="customer-booking-card customer-booking-response">
+      <div>
+        <p class="eyebrow">Your response</p>
+        <h2>Accept or decline this offer</h2>
+        <p>Acceptance records your agreement to the offer. The booking becomes fully confirmed only when Olrig Bank completes the final confirmation.</p>
+      </div>
+      <div class="customer-booking-actions">
+        <form method="post" data-customer-response="accept">
+          <input type="hidden" name="action" value="accept" />
+          <button class="button customer-booking-accept" type="submit">Accept booking offer</button>
+        </form>
+        <form method="post" data-customer-response="decline">
+          <input type="hidden" name="action" value="decline" />
+          <button class="button customer-booking-decline" type="submit">Decline offer</button>
+        </form>
+      </div>
+    </section>}
+
+    <p class="customer-booking-help">Questions or changes? Reply to the booking email or use the <a href="/contact/">Olrig Bank contact page</a>.</p>
+  </section>
+</BaseLayout>
+
+<script>
+  document.querySelector('[data-customer-response="accept"]')?.addEventListener('submit', (event) => {
+    if (!window.confirm('Accept this booking offer?')) event.preventDefault();
+  });
+  document.querySelector('[data-customer-response="decline"]')?.addEventListener('submit', (event) => {
+    if (!window.confirm('Decline this booking offer?')) event.preventDefault();
+  });
+</script>

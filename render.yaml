@@ -60,4 +60,15 @@ services:
       - key: BOOKING_EMAIL_FROM
         sync: false
 
+      # Receives direct notifications when a customer accepts or declines an offer.
+      - key: BOOKING_ADMIN_EMAIL
+        sync: false
+
+      # Public origin used to construct secure customer booking links.
+      - key: BOOKING_PUBLIC_URL
+        fromService:
+          type: web
+          name: soccotash
+          envVarKey: RENDER_EXTERNAL_URL
+
     healthCheckPath: /api/health/

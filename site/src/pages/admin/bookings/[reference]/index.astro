@@ -5,6 +5,7 @@ import { getProperties } from '../../../../lib/booking/config';
 import {
   createBookingOfferAttempt,
   deleteProvisionalBookingRequest,
+  getBookingActivity,
   getBookingOffers,
   getProvisionalBookingRequest,
   markBookingOfferFailed,
@@ -54,6 +55,7 @@ function pricingLines(value: Record<string, unknown> | null | undefined): Bookin
 }
 
 let offers = await getBookingOffers(reference);
+let activity = await getBookingActivity(reference);
 const priorOffer = offers.find((offer) => offer.deliveryStatus === 'sent') ?? offers[0];
 const initialLines = priorOffer?.lineItems.length
   ? priorOffer.lineItems
@@ -152,6 +154,9 @@ if (Astro.request.method === 'POST') {
       });
       let delivery: Awaited<ReturnType<typeof sendBookingOfferEmail>> | null = null;
       try {
+        const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+        const publicOrigin = configuredOrigin || Astro.url.origin;
+        const manageUrl = new URL(`/booking/manage/${attempt.accessToken}/`, publicOrigin).toString();
         delivery = await sendBookingOfferEmail({
           booking,
           propertyName,
@@ -162,6 +167,7 @@ if (Astro.request.method === 'POST') {
           terms,
           validUntil: validUntil || null,
           subject,
+          manageUrl,
         });
       } catch (sendError) {
         await markBookingOfferFailed(attempt.id, sendError);
@@ -204,6 +210,7 @@ if (Astro.request.method === 'POST') {
   booking = (await getProvisionalBookingRequest(reference)) ?? booking;
   contactEmail = booking.email;
   offers = await getBookingOffers(reference);
+  activity = await getBookingActivity(reference);
 }
 
 const recordedLines = pricingLines(booking.pricingResult);
@@ -292,8 +299,21 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
 
   {offers.length > 0 && <section class="admin-panel">
     <h2>Offer history</h2>
-    <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Administrator</th></tr></thead><tbody>
-      {offers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
+    <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
+      {offers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
+    </tbody></table></div>
+  </section>}
+
+
+  {activity.length > 0 && <section class="admin-panel">
+    <h2>Booking activity</h2>
+    <div class="admin-table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Event</th><th>Offer</th></tr></thead><tbody>
+      {activity.map((event) => <tr>
+        <td>{new Date(event.createdAt).toLocaleString('en-GB')}</td>
+        <td><span class={`status-badge status-${event.actor}`}>{event.actor}</span></td>
+        <td>{event.eventType.replaceAll('_', ' ')}</td>
+        <td>{event.offerReference ? <code>{event.offerReference}</code> : <span class="muted">—</span>}</td>
+      </tr>)}
     </tbody></table></div>
   </section>}
 

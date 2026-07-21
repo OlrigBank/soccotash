@@ -41,6 +41,13 @@ function splitAddresses(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+
+export function getBookingManagementRecipients(): string[] {
+  const explicit = splitAddresses(process.env.BOOKING_ADMIN_EMAIL);
+  const fallback = splitAddresses(process.env.BOOKING_EMAIL_REPLY_TO);
+  return [...new Set((explicit.length ? explicit : fallback).map(cleanHeader))];
+}
+
 export function getEmailConfiguration(): EmailConfiguration {
   const requested = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
   const from = (process.env.BOOKING_EMAIL_FROM || '').trim();
@@ -225,7 +232,8 @@ async function sendWithSmtp(input: OutgoingEmail, configuration: EmailConfigurat
   const rejectUnauthorized = String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false';
   const username = String(process.env.SMTP_USER || '').trim();
   const password = String(process.env.SMTP_PASSWORD || '');
-  const recipients = [input.to, ...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)];
+  const recipients = [...new Set([input.to, ...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)]
+    .map((recipient) => envelopeAddress(recipient).toLowerCase()))];
   const { raw, messageId } = createMimeMessage(input, configuration.from, configuration.replyTo);
 
   const socket = await connectSocket(host, port, secure, rejectUnauthorized);
@@ -263,7 +271,14 @@ async function sendWithSmtp(input: OutgoingEmail, configuration: EmailConfigurat
 }
 
 async function sendWithResend(input: OutgoingEmail, configuration: EmailConfiguration): Promise<EmailSendResult> {
-  const bcc = [...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)];
+  const toAddress = envelopeAddress(input.to).toLowerCase();
+  const seen = new Set<string>([toAddress]);
+  const bcc = [...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)].filter((recipient) => {
+    const address = envelopeAddress(recipient).toLowerCase();
+    if (!address || seen.has(address)) return false;
+    seen.add(address);
+    return true;
+  });
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

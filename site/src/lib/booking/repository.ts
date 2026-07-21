@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty } from './config';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
@@ -8,6 +9,32 @@ export type BookingBlock = {
   endsOn: string;
   source: string;
 };
+
+export async function expireElapsedBookingOffers(): Promise<number> {
+  const result = await getPool().query(
+    `WITH expired AS (
+       UPDATE booking_offers
+          SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
+        WHERE delivery_status = 'sent'
+          AND customer_status = 'active'
+          AND valid_until IS NOT NULL
+          AND valid_until < CURRENT_DATE
+        RETURNING id, provisional_booking_id
+     ), booking_updates AS (
+       UPDATE provisional_bookings pb
+          SET status = 'expired'
+         FROM expired e
+        WHERE pb.id = e.provisional_booking_id AND pb.status = 'offered'
+        RETURNING pb.id
+     )
+     INSERT INTO booking_activity
+       (provisional_booking_id, booking_offer_id, actor, event_type)
+     SELECT provisional_booking_id, id, 'system', 'offer_expired'
+       FROM expired
+     RETURNING id`,
+  );
+  return result.rowCount || 0;
+}
 
 export async function recordSyncAttempt(propertyId: string): Promise<void> {
   await getPool().query(
@@ -64,6 +91,7 @@ export async function recordSyncError(propertyId: string, error: unknown): Promi
 }
 
 export async function getBlocks(propertyId: string, from: string, to: string): Promise<BookingBlock[]> {
+  await expireElapsedBookingOffers();
   const property = getProperty(propertyId);
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
@@ -76,7 +104,7 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
      UNION ALL
      SELECT arrival::text AS "startsOn", departure::text AS "endsOn", 'provisional' AS source
      FROM provisional_bookings
-     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'approved')
+     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'offer_accepted', 'approved')
        AND arrival < $3::date AND departure > $2::date
      ORDER BY "startsOn"`,
     [availabilityProperty.id, from, to, linkedPropertyIds],
@@ -105,6 +133,7 @@ export async function createProvisionalBooking(input: {
   message?: string;
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<string> {
+  await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
@@ -119,7 +148,7 @@ export async function createProvisionalBooking(input: {
        WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
        SELECT 1 FROM provisional_bookings
-       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','approved')
+       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','offer_accepted','approved')
          AND arrival < $3::date AND departure > $2::date LIMIT 1`,
       [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
     );
@@ -180,6 +209,11 @@ export type BookingOffer = {
   createdAt: string;
   sentAt: string | null;
   adminDisplayName: string | null;
+  customerStatus: 'pending' | 'active' | 'accepted' | 'declined' | 'expired' | 'superseded';
+  firstViewedAt: string | null;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  expiredAt: string | null;
 };
 
 export type ProvisionalBookingRequest = {
@@ -221,6 +255,7 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
 }
 
 export async function getProvisionalBookingRequests(limit = 100): Promise<ProvisionalBookingRequest[]> {
+  await expireElapsedBookingOffers();
   const result = await getPool().query(
     `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email, pb.guest_telephone AS telephone,
@@ -246,6 +281,7 @@ export async function getProvisionalBookingRequests(limit = 100): Promise<Provis
 }
 
 export async function getProvisionalBookingRequest(reference: string): Promise<ProvisionalBookingRequest | null> {
+  await expireElapsedBookingOffers();
   const result = await getPool().query(
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
             pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
@@ -312,6 +348,11 @@ function normaliseOfferRow(row: Record<string, any>): BookingOffer {
     createdAt: new Date(row.createdAt).toISOString(),
     sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
     adminDisplayName: row.adminDisplayName,
+    customerStatus: row.customerStatus,
+    firstViewedAt: row.firstViewedAt ? new Date(row.firstViewedAt).toISOString() : null,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    declinedAt: row.declinedAt ? new Date(row.declinedAt).toISOString() : null,
+    expiredAt: row.expiredAt ? new Date(row.expiredAt).toISOString() : null,
   };
 }
 
@@ -323,7 +364,9 @@ export async function getBookingOffers(reference: string): Promise<BookingOffer[
             bo.recipient_email AS "recipientEmail", bo.subject,
             bo.delivery_status AS "deliveryStatus", bo.delivery_message_id AS "deliveryMessageId",
             bo.delivery_error AS "deliveryError", bo.created_at AS "createdAt", bo.sent_at AS "sentAt",
-            au.display_name AS "adminDisplayName"
+            au.display_name AS "adminDisplayName", bo.customer_status AS "customerStatus",
+            bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
+            bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt"
        FROM booking_offers bo
        JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
        LEFT JOIN admin_users au ON au.id = bo.admin_user_id
@@ -332,6 +375,14 @@ export async function getBookingOffers(reference: string): Promise<BookingOffer[
     [reference],
   );
   return result.rows.map(normaliseOfferRow);
+}
+
+function accessTokenHash(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function validAccessToken(token: string): boolean {
+  return /^[A-Za-z0-9_-]{43,128}$/.test(token);
 }
 
 export async function createBookingOfferAttempt(input: {
@@ -345,12 +396,13 @@ export async function createBookingOfferAttempt(input: {
   validUntil?: string;
   recipientEmail: string;
   subject: string;
-}): Promise<{ id: string; publicId: string }> {
+}): Promise<{ id: string; publicId: string; accessToken: string }> {
+  const accessToken = crypto.randomBytes(32).toString('base64url');
   const result = await getPool().query(
     `INSERT INTO booking_offers
        (provisional_booking_id, admin_user_id, currency, line_items, total_pence,
-        offer_message, terms, valid_until, recipient_email, subject)
-     SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10
+        offer_message, terms, valid_until, recipient_email, subject, access_token_hash)
+     SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10, $11
        FROM provisional_bookings pb
       WHERE pb.public_id = $1::uuid
       RETURNING id::text, public_id::text AS "publicId"`,
@@ -365,10 +417,11 @@ export async function createBookingOfferAttempt(input: {
       input.validUntil || null,
       input.recipientEmail,
       input.subject,
+      accessTokenHash(accessToken),
     ],
   );
   if (!result.rowCount) throw new Error('BOOKING_NOT_FOUND');
-  return result.rows[0];
+  return { ...result.rows[0], accessToken };
 }
 
 export async function markBookingOfferSent(input: {
@@ -376,29 +429,410 @@ export async function markBookingOfferSent(input: {
   reference: string;
   deliveryMessageId?: string | null;
 }): Promise<void> {
-  // Record provider acceptance first. If the subsequent booking-status update fails,
-  // the audit trail must still show that an email was actually sent.
-  await getPool().query(
-    `UPDATE booking_offers
-        SET delivery_status = 'sent', delivery_message_id = $2,
-            delivery_error = NULL, sent_at = NOW()
-      WHERE id = $1`,
-    [input.offerId, input.deliveryMessageId || null],
-  );
-  await getPool().query(
-    `UPDATE provisional_bookings SET status = 'offered'
-      WHERE public_id = $1::uuid`,
-    [input.reference],
-  );
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT provisional_booking_id FROM booking_offers WHERE id = $1 FOR UPDATE`,
+      [input.offerId],
+    );
+    if (!selected.rowCount) throw new Error('BOOKING_OFFER_NOT_FOUND');
+    const bookingId = selected.rows[0].provisional_booking_id;
+
+    await client.query(
+      `UPDATE booking_offers
+          SET customer_status = 'superseded', token_revoked_at = COALESCE(token_revoked_at, NOW())
+        WHERE provisional_booking_id = $1 AND id <> $2 AND customer_status = 'active'`,
+      [bookingId, input.offerId],
+    );
+    await client.query(
+      `UPDATE booking_offers
+          SET delivery_status = 'sent', delivery_message_id = $2,
+              delivery_error = NULL, sent_at = NOW(), customer_status = 'active'
+        WHERE id = $1`,
+      [input.offerId, input.deliveryMessageId || null],
+    );
+    await client.query(
+      `UPDATE provisional_bookings SET status = 'offered'
+        WHERE id = $1 AND status IN ('pending', 'offered')`,
+      [bookingId],
+    );
+    await client.query(
+      `INSERT INTO booking_activity
+         (provisional_booking_id, booking_offer_id, actor, event_type, details)
+       VALUES ($1, $2, 'administrator', 'offer_sent', $3::jsonb)`,
+      [bookingId, input.offerId, JSON.stringify({ deliveryMessageId: input.deliveryMessageId || null })],
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function markBookingOfferFailed(offerId: string, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000);
   await getPool().query(
-    `UPDATE booking_offers
-        SET delivery_status = 'failed', delivery_error = $2
-      WHERE id = $1`,
-    [offerId, error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000)],
+    `WITH failed AS (
+       UPDATE booking_offers
+          SET delivery_status = 'failed', delivery_error = $2
+        WHERE id = $1
+        RETURNING provisional_booking_id, id
+     )
+     INSERT INTO booking_activity
+       (provisional_booking_id, booking_offer_id, actor, event_type, details)
+     SELECT provisional_booking_id, id, 'system', 'offer_delivery_failed', $3::jsonb
+       FROM failed`,
+    [offerId, message, JSON.stringify({ error: message })],
   );
+}
+
+export type CustomerBookingOffer = {
+  offerId: string;
+  offerReference: string;
+  bookingReference: string;
+  propertyId: string;
+  arrival: string;
+  departure: string;
+  guests: number;
+  pets: number;
+  guestName: string;
+  guestEmail: string;
+  guestTelephone: string | null;
+  bookingStatus: string;
+  currency: string;
+  lineItems: BookingOfferLine[];
+  totalPence: number;
+  offerMessage: string | null;
+  terms: string | null;
+  validUntil: string | null;
+  subject: string;
+  customerStatus: 'pending' | 'active' | 'accepted' | 'declined' | 'expired' | 'superseded';
+  sentAt: string;
+  firstViewedAt: string | null;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  expiredAt: string | null;
+  tokenRevokedAt: string | null;
+};
+
+function normaliseCustomerOffer(row: Record<string, any>): CustomerBookingOffer {
+  return {
+    offerId: String(row.offerId),
+    offerReference: String(row.offerReference),
+    bookingReference: String(row.bookingReference),
+    propertyId: row.propertyId,
+    arrival: row.arrival,
+    departure: row.departure,
+    guests: Number(row.guests),
+    pets: Number(row.pets || 0),
+    guestName: row.guestName,
+    guestEmail: row.guestEmail,
+    guestTelephone: row.guestTelephone,
+    bookingStatus: row.bookingStatus,
+    currency: row.currency,
+    lineItems: Array.isArray(row.lineItems) ? row.lineItems : [],
+    totalPence: Number(row.totalPence),
+    offerMessage: row.offerMessage,
+    terms: row.terms,
+    validUntil: row.validUntil,
+    subject: row.subject,
+    customerStatus: row.customerStatus,
+    sentAt: new Date(row.sentAt).toISOString(),
+    firstViewedAt: row.firstViewedAt ? new Date(row.firstViewedAt).toISOString() : null,
+    acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
+    declinedAt: row.declinedAt ? new Date(row.declinedAt).toISOString() : null,
+    expiredAt: row.expiredAt ? new Date(row.expiredAt).toISOString() : null,
+    tokenRevokedAt: row.tokenRevokedAt ? new Date(row.tokenRevokedAt).toISOString() : null,
+  };
+}
+
+async function expireCustomerOfferByHash(tokenHash: string): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const expired = await client.query(
+      `UPDATE booking_offers
+          SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
+        WHERE access_token_hash = $1
+          AND delivery_status = 'sent'
+          AND customer_status = 'active'
+          AND valid_until IS NOT NULL
+          AND valid_until < CURRENT_DATE
+        RETURNING id, provisional_booking_id`,
+      [tokenHash],
+    );
+    if (expired.rowCount) {
+      const row = expired.rows[0];
+      await client.query(
+        `UPDATE provisional_bookings SET status = 'expired'
+          WHERE id = $1 AND status = 'offered'`,
+        [row.provisional_booking_id],
+      );
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type)
+         VALUES ($1, $2, 'system', 'offer_expired')`,
+        [row.provisional_booking_id, row.id],
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCustomerBookingOffer(token: string, recordView = true): Promise<CustomerBookingOffer | null> {
+  if (!validAccessToken(token)) return null;
+  const tokenHash = accessTokenHash(token);
+  await expireCustomerOfferByHash(tokenHash);
+
+  if (recordView) {
+    const viewed = await getPool().query(
+      `WITH first_view AS (
+         UPDATE booking_offers
+            SET first_viewed_at = NOW()
+          WHERE access_token_hash = $1
+            AND delivery_status = 'sent'
+            AND first_viewed_at IS NULL
+          RETURNING id, provisional_booking_id
+       )
+       INSERT INTO booking_activity
+         (provisional_booking_id, booking_offer_id, actor, event_type)
+       SELECT provisional_booking_id, id, 'customer', 'offer_viewed'
+         FROM first_view`,
+      [tokenHash],
+    );
+    void viewed;
+  }
+
+  const result = await getPool().query(
+    `SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
+            pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
+            pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
+            pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
+            pb.guest_telephone AS "guestTelephone", pb.status AS "bookingStatus",
+            bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
+            bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
+            bo.subject, bo.customer_status AS "customerStatus", bo.sent_at AS "sentAt",
+            bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
+            bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
+            bo.token_revoked_at AS "tokenRevokedAt"
+       FROM booking_offers bo
+       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+      WHERE bo.access_token_hash = $1 AND bo.delivery_status = 'sent'`,
+    [tokenHash],
+  );
+  return result.rowCount ? normaliseCustomerOffer(result.rows[0]) : null;
+}
+
+export type CustomerOfferResponseResult =
+  | 'accepted'
+  | 'declined'
+  | 'already_accepted'
+  | 'already_declined'
+  | 'expired'
+  | 'superseded'
+  | 'dates_unavailable'
+  | 'not_found';
+
+export async function respondToCustomerBookingOffer(
+  token: string,
+  response: 'accept' | 'decline',
+): Promise<CustomerOfferResponseResult> {
+  if (!validAccessToken(token)) return 'not_found';
+  const tokenHash = accessTokenHash(token);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT bo.id, bo.provisional_booking_id, bo.customer_status,
+              bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
+              bo.token_revoked_at,
+              pb.public_id::text AS booking_reference, pb.property_id,
+              pb.arrival::text, pb.departure::text, pb.status AS booking_status
+         FROM booking_offers bo
+         JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+        WHERE bo.access_token_hash = $1 AND bo.delivery_status = 'sent'
+        FOR UPDATE OF bo, pb`,
+      [tokenHash],
+    );
+    if (!selected.rowCount) {
+      await client.query('ROLLBACK');
+      return 'not_found';
+    }
+    const row = selected.rows[0];
+
+    if (row.customer_status === 'accepted') {
+      await client.query('ROLLBACK');
+      return 'already_accepted';
+    }
+    if (row.customer_status === 'declined') {
+      await client.query('ROLLBACK');
+      return 'already_declined';
+    }
+    if (row.customer_status === 'superseded' || row.token_revoked_at) {
+      await client.query('ROLLBACK');
+      return 'superseded';
+    }
+    if (row.expired || row.customer_status === 'expired') {
+      if (row.customer_status === 'active') {
+        await client.query(
+          `UPDATE booking_offers
+              SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
+            WHERE id = $1`,
+          [row.id],
+        );
+        await client.query(
+          `UPDATE provisional_bookings SET status = 'expired'
+            WHERE id = $1 AND status = 'offered'`,
+          [row.provisional_booking_id],
+        );
+        await client.query(
+          `INSERT INTO booking_activity
+             (provisional_booking_id, booking_offer_id, actor, event_type)
+           VALUES ($1, $2, 'system', 'offer_expired')`,
+          [row.provisional_booking_id, row.id],
+        );
+        await client.query('COMMIT');
+      } else {
+        await client.query('ROLLBACK');
+      }
+      return 'expired';
+    }
+    if (row.customer_status !== 'active' || row.booking_status !== 'offered') {
+      await client.query('ROLLBACK');
+      return 'superseded';
+    }
+
+    if (response === 'accept') {
+      const property = getProperty(row.property_id);
+      const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
+      if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${row.property_id}`);
+      const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+      const conflict = await client.query(
+        `SELECT 1 FROM booking_blocks
+          WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
+         UNION ALL
+         SELECT 1 FROM provisional_bookings
+          WHERE property_id = ANY($4::text[]) AND id <> $5
+            AND status IN ('pending', 'offered', 'offer_accepted', 'approved')
+            AND arrival < $3::date AND departure > $2::date
+         LIMIT 1`,
+        [availabilityProperty.id, row.arrival, row.departure, linkedPropertyIds, row.provisional_booking_id],
+      );
+      if (conflict.rowCount) {
+        await client.query(
+          `INSERT INTO booking_activity
+             (provisional_booking_id, booking_offer_id, actor, event_type)
+           VALUES ($1, $2, 'customer', 'offer_acceptance_blocked_by_availability')`,
+          [row.provisional_booking_id, row.id],
+        );
+        await client.query('COMMIT');
+        return 'dates_unavailable';
+      }
+
+      await client.query(
+        `UPDATE booking_offers SET customer_status = 'accepted', accepted_at = NOW() WHERE id = $1`,
+        [row.id],
+      );
+      await client.query(
+        `UPDATE booking_offers
+            SET customer_status = 'superseded', token_revoked_at = COALESCE(token_revoked_at, NOW())
+          WHERE provisional_booking_id = $1 AND id <> $2 AND customer_status = 'active'`,
+        [row.provisional_booking_id, row.id],
+      );
+      await client.query(
+        `UPDATE provisional_bookings SET status = 'offer_accepted' WHERE id = $1`,
+        [row.provisional_booking_id],
+      );
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type)
+         VALUES ($1, $2, 'customer', 'offer_accepted')`,
+        [row.provisional_booking_id, row.id],
+      );
+      await client.query('COMMIT');
+      return 'accepted';
+    }
+
+    await client.query(
+      `UPDATE booking_offers SET customer_status = 'declined', declined_at = NOW() WHERE id = $1`,
+      [row.id],
+    );
+    await client.query(
+      `UPDATE provisional_bookings SET status = 'declined' WHERE id = $1`,
+      [row.provisional_booking_id],
+    );
+    await client.query(
+      `INSERT INTO booking_activity
+         (provisional_booking_id, booking_offer_id, actor, event_type)
+       VALUES ($1, $2, 'customer', 'offer_declined')`,
+      [row.provisional_booking_id, row.id],
+    );
+    await client.query('COMMIT');
+    return 'declined';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function recordBookingActivity(input: {
+  bookingReference: string;
+  offerId?: string | null;
+  actor: 'administrator' | 'customer' | 'system';
+  eventType: string;
+  details?: Record<string, unknown>;
+}): Promise<void> {
+  await getPool().query(
+    `INSERT INTO booking_activity
+       (provisional_booking_id, booking_offer_id, actor, event_type, details)
+     SELECT pb.id, $2, $3, $4, $5::jsonb
+       FROM provisional_bookings pb
+      WHERE pb.public_id = $1::uuid`,
+    [
+      input.bookingReference,
+      input.offerId || null,
+      input.actor,
+      input.eventType,
+      JSON.stringify(input.details || {}),
+    ],
+  );
+}
+
+export type BookingActivity = {
+  id: string;
+  actor: 'administrator' | 'customer' | 'system';
+  eventType: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+  offerReference: string | null;
+};
+
+export async function getBookingActivity(reference: string): Promise<BookingActivity[]> {
+  const result = await getPool().query(
+    `SELECT ba.id::text, ba.actor, ba.event_type AS "eventType", ba.details,
+            ba.created_at AS "createdAt", bo.public_id::text AS "offerReference"
+       FROM booking_activity ba
+       JOIN provisional_bookings pb ON pb.id = ba.provisional_booking_id
+       LEFT JOIN booking_offers bo ON bo.id = ba.booking_offer_id
+      WHERE pb.public_id = $1::uuid
+      ORDER BY ba.created_at DESC, ba.id DESC`,
+    [reference],
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    createdAt: new Date(row.createdAt).toISOString(),
+  }));
 }
 
 export async function getBookingReport(): Promise<{
