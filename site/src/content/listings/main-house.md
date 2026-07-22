@@ -1,5 +1,5 @@
 ---
-title: "Olrig Bank Main House"
+title: "Main House"
 slug: "main-house"
 summary: "A spacious Victorian house for family gatherings and group stays in Kendal."
 image: "/media/images/listings/house.jpeg"

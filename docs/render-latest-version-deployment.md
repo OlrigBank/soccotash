@@ -525,7 +525,7 @@ Complete all of the following:
 1. Open the home page and check that existing property and local-guide images still display.
 2. Open `/listings/` and both listing pages.
 3. Open `/book/`.
-4. Switch between **Olrig Bank** and **Olrig Bank Cottage**.
+4. Switch between **Main House**, **Cottage** and **Olrig Bank**.
 5. Confirm that Airbnb reservations appear as unavailable dates.
 6. Confirm the two-night minimum and maximum guest limits:
    - main house: maximum 10 guests;

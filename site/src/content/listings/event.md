@@ -1,5 +1,5 @@
 ---
-title: "Whole-property and large-group stays"
+title: "Olrig Bank"
 slug: "event"
 summary: "Combine the Main House and Cottage for larger family groups, longer stays and direct rebooking enquiries."
 image: "/media/images/listings/olrigbank.png"

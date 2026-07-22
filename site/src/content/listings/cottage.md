@@ -1,5 +1,5 @@
 ---
-title: "Olrig Bank Cottage"
+title: "Cottage"
 slug: "cottage"
 summary: "A self-contained cottage-style part of Olrig Bank with its own entrance and access to the shared garden."
 image: "/media/images/listings/cottage.jpeg"
