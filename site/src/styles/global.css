@@ -861,6 +861,24 @@ main {
 .admin-panel h2 {
   margin-top: 0.4rem;
 }
+.admin-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.admin-panel-heading h2 {
+  margin-bottom: 0.25rem;
+}
+.admin-panel-heading p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+}
+.admin-panel-heading .admin-button {
+  flex: 0 0 auto;
+}
 .status-badge {
   display: inline-flex;
   padding: 0.2rem 0.55rem;
@@ -963,6 +981,12 @@ main {
   .admin-page-header-with-action {
     flex-direction: column;
   }
+  .admin-panel-heading {
+    flex-direction: column;
+  }
+  .admin-panel-heading .admin-button {
+    width: 100%;
+  }
   .admin-secondary-button {
     width: 100%;
   }
@@ -994,6 +1018,14 @@ main {
   background: #e8f1f4;
   color: #204c5d;
   border-color: #b7d2dc;
+}
+.admin-alert--success {
+  background: #e6efe6;
+  color: #27552b;
+  border-color: #b8d3ba;
+}
+.admin-sync-feedback {
+  margin-bottom: 1rem;
 }
 .pricing-phase-note {
   margin-bottom: 1rem;

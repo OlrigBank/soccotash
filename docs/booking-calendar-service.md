@@ -10,7 +10,7 @@ This phase provides a small booking engine inside Soccotash. It supports:
 - displaying unavailable dates in a two-month public availability calendar;
 - checking availability from the public booking page;
 - saving guest provisional booking requests;
-- token-protected calendar synchronisation and booking reports.
+- administrator-session or token-protected calendar synchronisation and token-protected booking reports.
 
 It does not yet provide pricing, payment, automatic acceptance, email notifications, guest accounts, or write changes back to Airbnb.
 
@@ -100,6 +100,8 @@ docker compose logs -f site
 
 ## Test Airbnb extraction
 
+Signed-in administrators can run the same import from the **Calendar status** panel on `/admin/` by selecting **Refresh Airbnb calendars**.
+
 Force a complete import for all enabled properties:
 
 ```bash
@@ -136,6 +138,8 @@ docker compose --profile tools run --rm booking-report
 The report is retrieved through the same token-protected admin API used on Render. It includes guest contact details and must therefore be treated as private.
 
 ## Direct API testing
+
+The calendar sync endpoint accepts either the authenticated administration session used by the dashboard button or the bearer token shown below. Browser session requests are restricted to the same site.
 
 Force a sync:
 

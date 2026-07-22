@@ -18,6 +18,10 @@ The `whole-property` option is a derived calendar. It uses `availabilityProperty
 
 ## Booking operations
 
+From the protected administration dashboard, use **Refresh Airbnb calendars** in the **Calendar status** panel. This downloads the currently configured Airbnb iCal exports, replaces the existing imported Airbnb blocks and refreshes the dashboard status when the operation succeeds.
+
+The button uses the signed-in administrator session. `CALENDAR_SYNC_TOKEN` remains available for scheduled jobs and trusted command-line requests.
+
 Force an Airbnb refresh locally:
 
 ```bash
