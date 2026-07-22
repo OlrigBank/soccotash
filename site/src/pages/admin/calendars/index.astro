@@ -1,5 +1,136 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAvailabilityProperty, getProperties } from '../../../lib/booking/config';
+import { getAdminCalendarEntries, type AdminCalendarEntry } from '../../../lib/booking/repository';
 export const prerender = false;
+
+const properties = getProperties();
+const propertyNames = new Map(properties.map((property) => [property.id, property.name]));
+const requestedProperty = Astro.url.searchParams.get('property') || 'all';
+const selectedProperty = requestedProperty === 'all' || properties.some((property) => property.id === requestedProperty)
+  ? requestedProperty
+  : 'all';
+
+function monthStartFromQuery(value: string | null): Date {
+  if (value && /^\d{4}-\d{2}$/.test(value)) {
+    const [year, month] = value.split('-').map(Number);
+    if (year >= 2020 && year <= 2100 && month >= 1 && month <= 12) return new Date(Date.UTC(year, month - 1, 1));
+  }
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+function addMonths(value: Date, count: number): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + count, 1));
+}
+function isoDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+function monthValue(value: Date): string {
+  return value.toISOString().slice(0, 7);
+}
+function dayValue(year: number, month: number, day: number): string {
+  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
+}
+function daysInMonth(value: Date): number {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0)).getUTCDate();
+}
+function entriesOnDay(entries: AdminCalendarEntry[], value: string): AdminCalendarEntry[] {
+  return entries.filter((entry) => entry.startsOn <= value && entry.endsOn > value);
+}
+function entryLabel(entry: AdminCalendarEntry): string {
+  const propertyName = propertyNames.get(entry.propertyId) ?? entry.propertyId;
+  if (entry.source === 'direct') return `Direct · ${propertyName} · ${entry.guestName || 'Guest'}`;
+  if (entry.source === 'provisional') return `Provisional · ${propertyName} · ${entry.guestName || 'Guest'}`;
+  if (entry.source === 'airbnb') return `Airbnb · ${propertyName}`;
+  return `Unavailable · ${propertyName}`;
+}
+
+const startMonth = monthStartFromQuery(Astro.url.searchParams.get('month'));
+const rangeEnd = addMonths(startMonth, 3);
+const allEntries = await getAdminCalendarEntries(isoDate(startMonth), isoDate(rangeEnd));
+const selectedAvailabilityId = selectedProperty === 'all' ? null : getAvailabilityProperty(selectedProperty)?.id;
+const entries = selectedProperty === 'all'
+  ? allEntries
+  : allEntries.filter((entry) => getAvailabilityProperty(entry.propertyId)?.id === selectedAvailabilityId);
+const months = [startMonth, addMonths(startMonth, 1), addMonths(startMonth, 2)];
+const previousMonth = monthValue(addMonths(startMonth, -1));
+const nextMonth = monthValue(addMonths(startMonth, 1));
+const propertyQuery = selectedProperty === 'all' ? '' : `&property=${encodeURIComponent(selectedProperty)}`;
+const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const today = new Date().toISOString().slice(0, 10);
 ---
-<AdminLayout title="Calendars"><header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Calendars</h1><p>Calendar administration will display imported Airbnb reservations, manual blocks and synchronisation status.</p></div></header><section class="admin-panel"><span class="status-badge">Foundation established</span><h2>This section is ready for implementation</h2><p>The protected route, administration navigation and database-backed session are active. Functional controls will be added in the relevant development phase.</p></section></AdminLayout>
+<AdminLayout title="Calendars">
+  <header class="admin-page-header">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Calendars</h1>
+      <p>Imported Airbnb blocks, provisional requests and confirmed direct bookings are shown together.</p>
+    </div>
+  </header>
+
+  <section class="admin-panel admin-calendar-controls">
+    <form method="get" class="admin-calendar-filter">
+      <input type="hidden" name="month" value={monthValue(startMonth)} />
+      <label>Property
+        <select name="property">
+          <option value="all" selected={selectedProperty === 'all'}>All properties</option>
+          {properties.map((property) => <option value={property.id} selected={selectedProperty === property.id}>{property.name}</option>)}
+        </select>
+      </label>
+      <button class="admin-button admin-button--secondary" type="submit">Apply</button>
+    </form>
+    <nav class="admin-calendar-navigation" aria-label="Calendar months">
+      <a class="admin-button admin-button--secondary" href={`/admin/calendars/?month=${previousMonth}${propertyQuery}`}>← Previous</a>
+      <a class="admin-button admin-button--secondary" href={`/admin/calendars/?month=${monthValue(new Date())}${propertyQuery}`}>Current month</a>
+      <a class="admin-button admin-button--secondary" href={`/admin/calendars/?month=${nextMonth}${propertyQuery}`}>Next →</a>
+    </nav>
+  </section>
+
+  <div class="admin-calendar-legend" aria-label="Calendar legend">
+    <span><i class="admin-calendar-key is-direct"></i>Confirmed direct booking</span>
+    <span><i class="admin-calendar-key is-provisional"></i>Provisional request or offer</span>
+    <span><i class="admin-calendar-key is-airbnb"></i>Airbnb unavailable</span>
+    <span><i class="admin-calendar-key is-external"></i>Other unavailable block</span>
+  </div>
+
+  <div class="admin-calendar-stack">
+    {months.map((month) => {
+      const year = month.getUTCFullYear();
+      const monthIndex = month.getUTCMonth();
+      const leadingDays = (new Date(Date.UTC(year, monthIndex, 1)).getUTCDay() + 6) % 7;
+      const dayCount = daysInMonth(month);
+      return <section class="admin-panel admin-calendar-month">
+        <h2>{monthFormatter.format(month)}</h2>
+        <div class="admin-calendar-weekdays" aria-hidden="true">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((weekday) => <span>{weekday}</span>)}
+        </div>
+        <div class="admin-calendar-grid">
+          {Array.from({ length: leadingDays }, () => <div class="admin-calendar-spacer"></div>)}
+          {Array.from({ length: dayCount }, (_, index) => {
+            const day = index + 1;
+            const value = dayValue(year, monthIndex, day);
+            const dayEntries = entriesOnDay(entries, value);
+            return <div class:list={['admin-calendar-day', { 'is-today': value === today, 'has-events': dayEntries.length > 0 }]}>
+              <span class="admin-calendar-day-number">{day}</span>
+              <div class="admin-calendar-events">
+                {dayEntries.map((entry) => {
+                  const className = `admin-calendar-event is-${entry.source}`;
+                  const label = entryLabel(entry);
+                  if (entry.source === 'direct' && entry.bookingReference && entry.bookingStatus === 'confirmed') {
+                    return <a class={className} href={`/admin/bookings/${entry.bookingReference}/customer-view/`} title={`${label}. View the customer booking page.`}>{label}</a>;
+                  }
+                  if ((entry.source === 'direct' || entry.source === 'provisional') && entry.bookingReference) {
+                    return <a class={className} href={`/admin/bookings/${entry.bookingReference}/`} title={`${label}. Review the booking record.`}>{label}</a>;
+                  }
+                  return <span class={className} title={label}>{label}</span>;
+                })}
+              </div>
+            </div>;
+          })}
+        </div>
+      </section>;
+    })}
+  </div>
+
+  {!entries.length && <section class="admin-panel pricing-empty-page"><h2>No calendar entries in this period</h2><p>Choose another property or move to a different three-month period.</p></section>}
+</AdminLayout>

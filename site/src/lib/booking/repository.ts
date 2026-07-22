@@ -102,14 +102,66 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
      FROM booking_blocks
      WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
      UNION ALL
-     SELECT arrival::text AS "startsOn", departure::text AS "endsOn", 'provisional' AS source
+     SELECT arrival::text AS "startsOn", departure::text AS "endsOn",
+            CASE WHEN status IN ('confirmed', 'approved') THEN 'direct' ELSE 'provisional' END AS source
      FROM provisional_bookings
-     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'offer_accepted', 'approved')
+     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'confirmed', 'approved')
        AND arrival < $3::date AND departure > $2::date
      ORDER BY "startsOn"`,
     [availabilityProperty.id, from, to, linkedPropertyIds],
   );
   return result.rows;
+}
+
+export type AdminCalendarEntry = {
+  id: string;
+  propertyId: string;
+  startsOn: string;
+  endsOn: string;
+  source: 'airbnb' | 'external' | 'provisional' | 'direct';
+  guestName: string | null;
+  bookingReference: string | null;
+  bookingStatus: string | null;
+};
+
+export async function getAdminCalendarEntries(from: string, to: string): Promise<AdminCalendarEntry[]> {
+  await expireElapsedBookingOffers();
+  const result = await getPool().query(
+    `SELECT 'block-' || bb.id::text AS id,
+            bb.property_id AS "propertyId",
+            bb.starts_on::text AS "startsOn",
+            bb.ends_on::text AS "endsOn",
+            CASE WHEN bb.source = 'airbnb' THEN 'airbnb' ELSE 'external' END AS source,
+            NULL::text AS "guestName",
+            NULL::text AS "bookingReference",
+            NULL::text AS "bookingStatus"
+       FROM booking_blocks bb
+      WHERE bb.starts_on < $2::date AND bb.ends_on > $1::date
+      UNION ALL
+     SELECT 'booking-' || pb.id::text AS id,
+            pb.property_id AS "propertyId",
+            pb.arrival::text AS "startsOn",
+            pb.departure::text AS "endsOn",
+            CASE WHEN pb.status IN ('confirmed', 'approved') THEN 'direct' ELSE 'provisional' END AS source,
+            pb.guest_name AS "guestName",
+            pb.public_id::text AS "bookingReference",
+            pb.status AS "bookingStatus"
+       FROM provisional_bookings pb
+      WHERE pb.status IN ('pending', 'offered', 'confirmed', 'approved')
+        AND pb.arrival < $2::date AND pb.departure > $1::date
+      ORDER BY "startsOn", "propertyId", source`,
+    [from, to],
+  );
+  return result.rows.map((row) => ({
+    id: String(row.id),
+    propertyId: row.propertyId,
+    startsOn: row.startsOn,
+    endsOn: row.endsOn,
+    source: row.source,
+    guestName: row.guestName,
+    bookingReference: row.bookingReference,
+    bookingStatus: row.bookingStatus,
+  }));
 }
 
 export async function isCalendarStale(propertyId: string, minutes = 30): Promise<boolean> {
@@ -148,7 +200,7 @@ export async function createProvisionalBooking(input: {
        WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
        SELECT 1 FROM provisional_bookings
-       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','offer_accepted','approved')
+       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','confirmed','approved')
          AND arrival < $3::date AND departure > $2::date LIMIT 1`,
       [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
     );
@@ -254,7 +306,10 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
   } as ProvisionalBookingRequest;
 }
 
-export async function getProvisionalBookingRequests(limit = 100): Promise<ProvisionalBookingRequest[]> {
+export async function getProvisionalBookingRequests(
+  limit = 100,
+  includeInactive = false,
+): Promise<ProvisionalBookingRequest[]> {
   await expireElapsedBookingOffers();
   const result = await getPool().query(
     `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
@@ -273,9 +328,10 @@ export async function getProvisionalBookingRequests(limit = 100): Promise<Provis
           ORDER BY sent_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
+      WHERE $2::boolean OR pb.status NOT IN ('declined', 'expired')
       ORDER BY pb.created_at DESC
       LIMIT $1`,
-    [Math.max(1, Math.min(500, Math.round(limit)))],
+    [Math.max(1, Math.min(500, Math.round(limit))), includeInactive],
   );
   return result.rows.map(normaliseBookingRow);
 }
@@ -631,6 +687,36 @@ export async function getCustomerBookingOffer(token: string, recordView = true):
   return result.rowCount ? normaliseCustomerOffer(result.rows[0]) : null;
 }
 
+export async function getConfirmedCustomerBooking(reference: string): Promise<CustomerBookingOffer | null> {
+  const result = await getPool().query(
+    `SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
+            pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
+            pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
+            pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
+            pb.guest_telephone AS "guestTelephone", pb.status AS "bookingStatus",
+            bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
+            bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
+            bo.subject, bo.customer_status AS "customerStatus", bo.sent_at AS "sentAt",
+            bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
+            bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
+            bo.token_revoked_at AS "tokenRevokedAt"
+       FROM provisional_bookings pb
+       JOIN LATERAL (
+         SELECT candidate.*
+           FROM booking_offers candidate
+          WHERE candidate.provisional_booking_id = pb.id
+            AND candidate.delivery_status = 'sent'
+            AND candidate.customer_status = 'accepted'
+          ORDER BY candidate.accepted_at DESC NULLS LAST, candidate.id DESC
+          LIMIT 1
+       ) bo ON TRUE
+      WHERE pb.public_id = $1::uuid
+        AND pb.status IN ('confirmed', 'approved')`,
+    [reference],
+  );
+  return result.rowCount ? normaliseCustomerOffer(result.rows[0]) : null;
+}
+
 export type CustomerOfferResponseResult =
   | 'accepted'
   | 'declined'
@@ -722,7 +808,7 @@ export async function respondToCustomerBookingOffer(
          UNION ALL
          SELECT 1 FROM provisional_bookings
           WHERE property_id = ANY($4::text[]) AND id <> $5
-            AND status IN ('pending', 'offered', 'offer_accepted', 'approved')
+            AND status IN ('pending', 'offered', 'confirmed', 'approved')
             AND arrival < $3::date AND departure > $2::date
          LIMIT 1`,
         [availabilityProperty.id, row.arrival, row.departure, linkedPropertyIds, row.provisional_booking_id],
@@ -749,13 +835,13 @@ export async function respondToCustomerBookingOffer(
         [row.provisional_booking_id, row.id],
       );
       await client.query(
-        `UPDATE provisional_bookings SET status = 'offer_accepted' WHERE id = $1`,
+        `UPDATE provisional_bookings SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1`,
         [row.provisional_booking_id],
       );
       await client.query(
         `INSERT INTO booking_activity
            (provisional_booking_id, booking_offer_id, actor, event_type)
-         VALUES ($1, $2, 'customer', 'offer_accepted')`,
+         VALUES ($1, $2, 'customer', 'booking_confirmed')`,
         [row.provisional_booking_id, row.id],
       );
       await client.query('COMMIT');

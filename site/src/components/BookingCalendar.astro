@@ -330,7 +330,7 @@ const properties = getProperties();
       if (!response.ok) throw new Error(body.error || 'Availability could not be loaded.');
       visibleBlocks = Array.isArray(body.blocks) ? body.blocks : [];
       calendarLoading = false;
-      setCalendarMessage(body.refreshWarning || 'Unavailable dates include current Airbnb reservations and blocks.');
+      setCalendarMessage(body.refreshWarning || 'Unavailable dates include current reservations and booking holds.');
     } catch (error) {
       if (requestId !== calendarRequest) return;
       visibleBlocks = [];

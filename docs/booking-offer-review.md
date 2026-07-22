@@ -21,7 +21,7 @@ When **Send offer and mark as offered** is selected:
 3. after successful delivery acceptance, the offer is marked `sent` and the booking request becomes `offered`;
 4. if delivery fails, the attempt is marked `failed` and the booking stays at its previous status.
 
-`pending`, `offered` and `approved` requests continue to block the associated calendar dates.
+`pending`, `offered`, `confirmed` and `approved` bookings continue to block the associated calendar dates.
 
 ## Email configuration
 
@@ -74,3 +74,11 @@ The booking review screen now shows the supplied contact number as a separate fi
 The saved customer email address can be corrected before an offer is sent. Selecting **Save email address** updates `provisional_bookings.guest_email`; subsequent offers use the corrected address. The previous and replacement values are retained in the administrator audit log, while each offer continues to record the exact recipient used for that delivery attempt.
 
 Pending and offered requests can be permanently deleted from the review screen. Deletion requires both a confirmation checkbox and a browser confirmation prompt. It removes the request, cascades to its offer history, and releases the dates previously blocked by that provisional request. Approved requests cannot be deleted through this control.
+
+## Confirmed direct bookings
+
+An accepted offer now changes the request status directly to `confirmed`. The customer receives a confirmation email containing the same secure link that was used to review the offer. That link then displays a read-only confirmed booking record and is intended to support amendment requests in a later phase.
+
+The administration bookings list hides declined and expired records by default. They remain stored and can be revealed with **Show declined and expired**. Individual offer histories use the same default hiding behaviour.
+
+The administration calendar distinguishes confirmed direct bookings from provisional requests and Airbnb blocks. Clicking a confirmed direct booking opens an administrator-only preview of the current customer booking page.
