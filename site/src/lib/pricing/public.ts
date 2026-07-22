@@ -1,6 +1,7 @@
 import { getPublishedPricingPlan } from './repository';
 import { simulatePricing } from './engine';
 import type { PricingSimulationInput, PublishedPricingQuote } from './types';
+import { customerPricingLines } from './display';
 
 export async function getPublishedPricingQuote(
   input: PricingSimulationInput,
@@ -31,14 +32,7 @@ export function publicQuotePayload(quote: PublishedPricingQuote) {
     feesPence: result.feesPence,
     guestTotalPence: result.guestTotalPence,
     averageNightlyPence: result.averageNightlyPence,
-    lines: result.lines
-      .filter((item) => item.category !== 'commission')
-      .map((item) => ({
-        label: item.label,
-        category: item.category,
-        amountPence: item.amountPence,
-        detail: item.detail,
-      })),
+    lines: customerPricingLines(result),
     restrictions: result.lines
       .filter((item) => item.category === 'restriction')
       .map((item) => item.detail),

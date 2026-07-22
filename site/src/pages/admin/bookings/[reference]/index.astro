@@ -15,6 +15,7 @@ import {
 } from '../../../../lib/booking/repository';
 import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/booking/offer-email';
 import { getEmailConfiguration } from '../../../../lib/email/sender';
+import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
 export const prerender = false;
 
 const reference = String(Astro.params.reference || '');
@@ -44,14 +45,11 @@ function poundsToPence(value: string): number | null {
   return negative ? -amount : amount;
 }
 function pricingLines(value: Record<string, unknown> | null | undefined): BookingOfferLine[] {
-  const raw = value && Array.isArray(value.lines) ? value.lines : [];
-  return raw.flatMap((item) => {
-    if (!item || typeof item !== 'object') return [];
-    const row = item as Record<string, unknown>;
-    if (row.category === 'commission' || row.category === 'restriction') return [];
-    if (typeof row.label !== 'string' || typeof row.amountPence !== 'number') return [];
-    return [{ label: row.label, detail: typeof row.detail === 'string' ? row.detail : '', amountPence: row.amountPence }];
-  });
+  return customerPricingLinesFromUnknown(value).map(({ label, detail, amountPence }) => ({
+    label,
+    detail,
+    amountPence,
+  }));
 }
 
 let offers = await getBookingOffers(reference);

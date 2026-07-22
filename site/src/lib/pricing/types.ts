@@ -97,6 +97,7 @@ export type PricingSimulationInput = {
 
 export type PricingLine = {
   ruleId: string;
+  ruleType?: PricingRuleType;
   label: string;
   category: 'accommodation' | 'discount' | 'fee' | 'commission' | 'restriction';
   amountPence: number;

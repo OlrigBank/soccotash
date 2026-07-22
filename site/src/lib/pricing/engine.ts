@@ -92,7 +92,7 @@ function explanation(rule: PricingRule, applied: boolean, reason: string): Prici
 }
 
 function line(rule: PricingRule, category: PricingLine['category'], amountPence: number, detail: string): PricingLine {
-  return { ruleId: rule.id, label: rule.name, category, amountPence, detail };
+  return { ruleId: rule.id, ruleType: rule.type, label: rule.name, category, amountPence, detail };
 }
 
 function rulesOverlap(a: PricingRule, b: PricingRule): boolean {
