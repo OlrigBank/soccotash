@@ -213,6 +213,11 @@ if (Astro.request.method === 'POST') {
 
 const recordedLines = pricingLines(booking.pricingResult);
 const currency = booking.pricingCurrency || 'GBP';
+const showClosedOffers = Astro.url.searchParams.get('showClosedOffers') === '1';
+const visibleOffers = showClosedOffers
+  ? offers
+  : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
+const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const sent = Astro.url.searchParams.get('sent') === '1';
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
 ---
@@ -223,7 +228,10 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
       <h1>{booking.name}</h1>
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
-    <div class="pricing-header-actions"><a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a></div>
+    <div class="pricing-header-actions">
+      {booking.status === 'confirmed' && <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>}
+      <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
+    </div>
   </header>
 
   {sent && <div class="pricing-message is-success" role="status">The offer was emailed to {booking.email}, and the request status is now <strong>offered</strong>.</div>}
@@ -265,7 +273,8 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
     </section>
   </div>
 
-  <section class="admin-panel booking-offer-editor">
+  {canOffer ? (
+    <section class="admin-panel booking-offer-editor">
     <div class="booking-review-summary__heading"><div><h2>Customer offer</h2><p class="admin-panel-intro">Edit the calculation that will be sent to the customer. Negative amounts can be used for discounts.</p></div><div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div></div>
 
     {!canOffer && <div class="pricing-message is-error">This request has status <strong>{booking.status}</strong>. Only pending or already-offered requests can be sent an offer.</div>}
@@ -293,13 +302,27 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
         <button class="admin-button" type="submit" disabled={!emailConfiguration.configured || !canOffer}>Send offer and mark as offered</button>
       </div>
     </form>
-  </section>
+    </section>
+  ) : (
+    <section class="admin-panel booking-offer-editor">
+      <h2>{booking.status === 'confirmed' ? 'Confirmed direct booking' : 'Customer offer closed'}</h2>
+      <p>{booking.status === 'confirmed'
+        ? 'The customer accepted the offer and this booking is confirmed. The confirmed price and current booking details are retained on the customer booking page.'
+        : `This request has status “${booking.status}”. A new offer cannot be sent from this record.`}</p>
+      {booking.status === 'confirmed' && <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>}
+    </section>
+  )}
 
   {offers.length > 0 && <section class="admin-panel">
-    <h2>Offer history</h2>
-    <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
-      {offers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
-    </tbody></table></div>
+    <div class="booking-review-summary__heading">
+      <div><h2>Offer history</h2>{hiddenClosedOfferCount > 0 && !showClosedOffers && <p class="admin-panel-intro">{hiddenClosedOfferCount} declined or expired offer{hiddenClosedOfferCount === 1 ? ' is' : 's are'} hidden.</p>}</div>
+      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/${showClosedOffers ? '' : '?showClosedOffers=1'}`}>
+        {showClosedOffers ? 'Hide declined and expired offers' : 'Show declined and expired offers'}
+      </a>
+    </div>
+    {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
+      {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
+    </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
   </section>}
 
 

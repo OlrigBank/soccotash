@@ -2229,3 +2229,153 @@ main {
     width: 100%;
   }
 }
+
+/* Confirmed direct bookings and administration calendar */
+.status-confirmed,
+.customer-booking-status.status-confirmed {
+  background: #dfeee4;
+  color: #1f5a36;
+}
+.admin-filter-note {
+  margin: -0.35rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.customer-booking-message.is-preview {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #edf3f7;
+  border-color: #b9cbd8;
+  color: #294c61;
+}
+.customer-booking-message.is-preview a { font-weight: 800; }
+.admin-calendar-controls {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.admin-calendar-filter,
+.admin-calendar-navigation,
+.admin-calendar-legend {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.admin-calendar-filter label {
+  min-width: min(18rem, 100%);
+  margin: 0;
+}
+.admin-calendar-legend {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.admin-calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.admin-calendar-key {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 0.22rem;
+  background: #e3e5e2;
+  border: 1px solid rgba(23, 50, 58, 0.15);
+}
+.admin-calendar-key.is-direct { background: #dceede; }
+.admin-calendar-key.is-provisional { background: #e4edf8; }
+.admin-calendar-key.is-airbnb { background: #f2e2d9; }
+.admin-calendar-key.is-external { background: #ecebe7; }
+.admin-calendar-stack {
+  display: grid;
+  gap: 1rem;
+}
+.admin-calendar-month h2 { margin-top: 0; }
+.admin-calendar-weekdays,
+.admin-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.admin-calendar-weekdays {
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  overflow: hidden;
+  background: #f1f3ef;
+}
+.admin-calendar-weekdays span {
+  padding: 0.55rem 0.4rem;
+  border-right: 1px solid var(--line);
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.admin-calendar-weekdays span:last-child { border-right: 0; }
+.admin-calendar-grid {
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+.admin-calendar-spacer,
+.admin-calendar-day {
+  min-height: 8rem;
+  padding: 0.42rem;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.admin-calendar-spacer { background: #f7f7f4; }
+.admin-calendar-day.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.admin-calendar-day.has-events { background: #fcfcfa; }
+.admin-calendar-day-number {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.admin-calendar-events {
+  display: grid;
+  gap: 0.25rem;
+}
+.admin-calendar-event {
+  display: block;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  overflow: hidden;
+  color: #274047;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.25;
+  text-decoration: none;
+  text-overflow: ellipsis;
+}
+a.admin-calendar-event:hover,
+a.admin-calendar-event:focus-visible {
+  border-color: currentColor;
+  text-decoration: underline;
+  outline: none;
+}
+.admin-calendar-event.is-direct { background: #dceede; color: #1f5a36; }
+.admin-calendar-event.is-provisional { background: #e4edf8; color: #244f78; }
+.admin-calendar-event.is-airbnb { background: #f2e2d9; color: #75462f; }
+.admin-calendar-event.is-external { background: #ecebe7; color: #555b56; }
+@media (max-width: 900px) {
+  .admin-calendar-controls { align-items: stretch; flex-direction: column; }
+  .admin-calendar-day,
+  .admin-calendar-spacer { min-height: 6.5rem; }
+  .admin-calendar-event { font-size: 0.62rem; }
+}
+@media (max-width: 650px) {
+  .customer-booking-message.is-preview { flex-direction: column; }
+  .admin-calendar-month { overflow-x: auto; }
+  .admin-calendar-weekdays,
+  .admin-calendar-grid { min-width: 760px; }
+}

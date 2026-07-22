@@ -3,34 +3,42 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getProperties } from '../../../lib/booking/config';
 import { getProvisionalBookingRequests } from '../../../lib/booking/repository';
 export const prerender = false;
-const requests = await getProvisionalBookingRequests();
+const showInactive = Astro.url.searchParams.get('showInactive') === '1';
+const requests = await getProvisionalBookingRequests(100, showInactive);
 const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const deleted = Astro.url.searchParams.get('deleted') === '1';
+const statusLabel = (status: string) => status === 'confirmed' ? 'confirmed' : status.replaceAll('_', ' ');
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
-    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, amend the customer-facing price and send a booking offer.</p></div>
+    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, confirmed direct bookings and customer offers.</p></div>
+    <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary" href={showInactive ? '/admin/bookings/' : '/admin/bookings/?showInactive=1'}>
+        {showInactive ? 'Hide declined and expired' : 'Show declined and expired'}
+      </a>
+    </div>
   </header>
   {deleted && <div class="pricing-message is-success" role="status">The booking request and its offer history were deleted.</div>}
+  {!showInactive && <p class="admin-filter-note">Declined and expired offers are hidden from this list.</p>}
   <section class="admin-panel">
     {requests.length ? (
       <div class="admin-table-wrap"><table><thead><tr><th>Bottom-line price</th><th>Stay</th><th>Guest</th><th>Party</th><th>Status</th><th>Received</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
         {requests.map((request) => {
           const price = request.latestOfferTotalPence ?? request.guestTotalPence;
           const currency = request.latestOfferCurrency ?? request.pricingCurrency ?? 'GBP';
-          const source = request.latestOfferTotalPence !== null ? 'Latest offer' : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
+          const source = request.latestOfferTotalPence !== null ? (request.status === 'confirmed' ? 'Confirmed direct booking' : 'Latest offer') : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
           return <tr>
             <td>{price === null ? <span class="muted">Manual confirmation</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
             <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>
             <td><strong>{request.name}</strong><small><a href={`mailto:${request.email}`}>{request.email}</a>{request.telephone ? ` · ${request.telephone}` : ''}</small></td>
             <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
-            <td><span class={`status-badge status-${request.status}`}>{request.status}</span></td>
+            <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
             <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>
-            <td><a class="admin-button admin-button--small" href={`/admin/bookings/${request.reference}/`}>Review</a></td>
+            <td><a class="admin-button admin-button--small" href={`/admin/bookings/${request.reference}/`}>{request.status === 'confirmed' ? 'View' : 'Review'}</a></td>
           </tr>;
         })}
       </tbody></table></div>
-    ) : <div class="pricing-empty-page"><h2>No provisional requests yet</h2><p>Requests submitted through the public booking page will appear here.</p></div>}
+    ) : <div class="pricing-empty-page"><h2>No bookings to show</h2><p>{showInactive ? 'No booking requests have been recorded yet.' : 'There are no active, offered or confirmed bookings. Declined and expired offers remain available through the filter above.'}</p></div>}
   </section>
 </AdminLayout>

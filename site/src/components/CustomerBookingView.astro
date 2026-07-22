@@ -1,0 +1,152 @@
+---
+import type { CustomerBookingOffer } from '../lib/booking/repository';
+
+interface Props {
+  offer: CustomerBookingOffer;
+  propertyName: string;
+  responseNotice?: string | null;
+  responseError?: string;
+  allowResponse?: boolean;
+  adminPreview?: boolean;
+  emailStatus?: 'sent' | 'failed' | null;
+}
+
+const {
+  offer,
+  propertyName,
+  responseNotice = null,
+  responseError = '',
+  allowResponse = true,
+  adminPreview = false,
+  emailStatus = null,
+} = Astro.props;
+
+const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
+const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+}).format(new Date(`${value}T12:00:00Z`));
+
+const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
+const displayStatus = confirmed ? 'confirmed' : offer.customerStatus;
+const statusHeading = confirmed
+  ? 'Booking confirmed'
+  : offer.customerStatus === 'declined'
+    ? 'Offer declined'
+    : offer.customerStatus === 'expired'
+      ? 'Offer expired'
+      : offer.customerStatus === 'superseded'
+        ? 'Offer replaced'
+        : 'Booking offer';
+const statusMessage = confirmed
+  ? 'Your direct booking with Olrig Bank is confirmed. This page is your current booking record.'
+  : offer.customerStatus === 'declined'
+    ? 'You have declined this offer. Contact Olrig Bank if you would like to discuss another stay.'
+    : offer.customerStatus === 'expired'
+      ? 'The acceptance period has ended. Contact Olrig Bank if you would like the booking to be reconsidered.'
+      : offer.customerStatus === 'superseded'
+        ? 'A newer offer has replaced this one. Please use the secure link in the most recent email from Olrig Bank.'
+        : 'Review the details below, then accept or decline the offer.';
+---
+<section class="customer-booking-shell">
+  {adminPreview && <div class="customer-booking-message is-preview" role="status">
+    Administrator preview of the page available to the customer.
+    <a href={`/admin/bookings/${offer.bookingReference}/`}>Return to the booking record</a>
+  </div>}
+
+  <header class="customer-booking-header">
+    <div>
+      <p class="eyebrow">Olrig Bank booking</p>
+      <h1>{statusHeading}</h1>
+      <p>{statusMessage}</p>
+    </div>
+    <span class={`customer-booking-status status-${displayStatus}`}>{displayStatus.replaceAll('_', ' ')}</span>
+  </header>
+
+  {(responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'declined') && (
+    <div class="customer-booking-message is-success" role="status">
+      {(responseNotice === 'accepted' || responseNotice === 'confirmed')
+        ? emailStatus === 'failed'
+          ? 'Thank you. Your booking is confirmed, but the confirmation email could not be sent. Keep this secure page as your booking record and contact Olrig Bank if you need help.'
+          : 'Thank you. Your booking is confirmed and a confirmation email has been sent.'
+        : emailStatus === 'failed'
+          ? 'Your decision to decline the offer has been recorded, but the email notification could not be sent.'
+          : 'Your decision to decline the offer has been recorded and an email has been sent.'}
+    </div>
+  )}
+  {responseError && <div class="customer-booking-message is-error" role="alert">{responseError}</div>}
+
+  <div class="customer-booking-grid">
+    <section class="customer-booking-card">
+      <p class="eyebrow">Stay details</p>
+      <h2>{propertyName}</h2>
+      <dl class="customer-booking-details">
+        <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
+        <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
+        <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+        <div><dt>Guest</dt><dd>{offer.guestName}</dd></div>
+        <div><dt>Email</dt><dd>{offer.guestEmail}</dd></div>
+        <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
+        <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
+        {!confirmed && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
+        {confirmed && offer.acceptedAt && <div><dt>Confirmed</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
+      </dl>
+    </section>
+
+    <section class="customer-booking-card">
+      <p class="eyebrow">Price</p>
+      <h2>{confirmed ? 'Confirmed price' : 'Your offer'}</h2>
+      <div class="customer-booking-price-table">
+        {offer.lineItems.map((line) => <div class="customer-booking-price-line">
+          <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
+          <span>{money(line.amountPence, offer.currency)}</span>
+        </div>)}
+        <div class="customer-booking-price-line is-total"><strong>Total</strong><strong>{money(offer.totalPence, offer.currency)}</strong></div>
+      </div>
+    </section>
+  </div>
+
+  {(offer.offerMessage || offer.terms) && <section class="customer-booking-card customer-booking-copy">
+    {offer.offerMessage && <><h2>Message from Olrig Bank</h2><p>{offer.offerMessage}</p></>}
+    {offer.terms && <><h2>Additional terms</h2><p>{offer.terms}</p></>}
+  </section>}
+
+  {confirmed && <section class="customer-booking-card customer-booking-copy">
+    <p class="eyebrow">Booking amendments</p>
+    <h2>Need to request a change?</h2>
+    <p>Online amendment requests will be added to this page in a later development phase. For now, reply to the confirmation email or use the Olrig Bank contact page.</p>
+  </section>}
+
+  {isActive && <section class="customer-booking-card customer-booking-response">
+    <div>
+      <p class="eyebrow">Your response</p>
+      <h2>Accept or decline this offer</h2>
+      <p>Accepting confirms the direct booking immediately and sends you a confirmation email with a link back to this page.</p>
+    </div>
+    <div class="customer-booking-actions">
+      <form method="post" class="customer-booking-decision-form">
+        <input type="hidden" name="action" value="accept" />
+        <strong>Accept and confirm</strong>
+        <p>Confirm that you accept the dates, price and terms shown on this page.</p>
+        <label class="customer-booking-confirm-check">
+          <input type="checkbox" name="confirmAccept" value="yes" required />
+          <span>I have reviewed the offer and want to confirm this booking.</span>
+        </label>
+        <button class="customer-booking-submit customer-booking-accept" type="submit">Accept and confirm booking</button>
+      </form>
+
+      <form method="post" class="customer-booking-decision-form is-decline">
+        <input type="hidden" name="action" value="decline" />
+        <strong>Decline this offer</strong>
+        <p>Declining closes this offer. Contact Olrig Bank if you would like to discuss a different stay.</p>
+        <label class="customer-booking-confirm-check">
+          <input type="checkbox" name="confirmDecline" value="yes" required />
+          <span>I understand that declining will close this offer.</span>
+        </label>
+        <button class="customer-booking-submit customer-booking-decline" type="submit">Decline booking offer</button>
+      </form>
+    </div>
+  </section>}
+
+  <p class="customer-booking-help">Questions or changes? Reply to the booking email or use the <a href="/contact/">Olrig Bank contact page</a>.</p>
+</section>

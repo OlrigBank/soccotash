@@ -63,7 +63,7 @@ export async function sendBookingOfferEmail(input: {
     'View the booking details and accept or decline this offer using the secure link below:',
     input.manageUrl,
     '',
-    'This is an offer rather than a confirmed booking. If you accept it, Olrig Bank will record your acceptance and complete the final confirmation separately.',
+    'This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately and you will receive a confirmation email with a link to your booking page.',
     '',
     `Booking request reference: ${input.booking.reference}`,
     '',
@@ -95,7 +95,7 @@ export async function sendBookingOfferEmail(input: {
       ${validityText ? `<p style="margin-top:24px;"><strong>${escapeHtml(validityText)}</strong></p>` : ''}
       ${input.terms ? `<p>${escapeHtml(input.terms).replace(/\n/g, '<br>')}</p>` : ''}
       <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">View and respond to your offer</a></p>
-      <p>This is an offer rather than a confirmed booking. If you accept it, Olrig Bank will record your acceptance and complete the final confirmation separately.</p>
+      <p>This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately and you will receive a confirmation email with a link to your booking page.</p>
       <p style="color:#65706b;font-size:13px;">This secure link is unique to your offer. Please do not forward it.</p>
       <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.reference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
@@ -118,13 +118,18 @@ export async function sendCustomerOfferResponseEmail(input: {
   manageUrl: string;
 }): Promise<EmailSendResult> {
   const accepted = input.response === 'accepted';
-  const heading = accepted ? 'We have recorded your acceptance' : 'We have recorded that you declined the offer';
+  const heading = accepted ? 'Your booking is confirmed' : 'We have recorded that you declined the offer';
   const nextStep = accepted
-    ? 'Your acceptance has been recorded. This is not yet the final booking confirmation; Olrig Bank will contact you separately when the booking is fully confirmed.'
+    ? 'Your direct booking is now confirmed. Keep the secure link below: it shows the current booking details and will support amendment requests in a later development phase.'
     : 'No further action is required. Please contact Olrig Bank if this was not your intention or you would like to discuss another stay.';
   const subject = accepted
-    ? `Your ${input.propertyName} booking offer was accepted`
+    ? `Your ${input.propertyName} booking is confirmed`
     : `Your ${input.propertyName} booking offer was declined`;
+  const totalLabel = accepted ? 'Confirmed total' : 'Offer total';
+  const linkInstruction = accepted
+    ? 'View your confirmed booking using the secure link below:'
+    : 'You can review the booking details using the same secure link:';
+  const linkLabel = accepted ? 'View confirmed booking' : 'Review booking details';
   const text = [
     `Dear ${input.offer.guestName},`,
     '',
@@ -132,14 +137,14 @@ export async function sendCustomerOfferResponseEmail(input: {
     '',
     `${input.propertyName}`,
     `${formatDate(input.offer.arrival)} to ${formatDate(input.offer.departure)}`,
-    `Offer total: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
+    `${totalLabel}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
     '',
     nextStep,
     '',
-    'You can review the booking details using the same secure link:',
+    linkInstruction,
     input.manageUrl,
     '',
-    `Booking request reference: ${input.offer.bookingReference}`,
+    `Booking reference: ${input.offer.bookingReference}`,
     '',
     'Olrig Bank',
   ].join('\n');
@@ -147,10 +152,11 @@ export async function sendCustomerOfferResponseEmail(input: {
   <div style="max-width:680px;margin:0 auto;padding:28px 16px;"><div style="background:#fff;border:1px solid #ddd5c7;border-radius:16px;padding:28px;">
     <p style="margin-top:0;">Dear ${escapeHtml(input.offer.guestName)},</p>
     <h1 style="font-size:24px;">${escapeHtml(heading)}</h1>
-    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>Offer total: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
+    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${escapeHtml(totalLabel)}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
     <p>${escapeHtml(nextStep)}</p>
-    <p style="margin:26px 0;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#fff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Review booking details</a></p>
-    <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
+    <p style="margin:26px 0;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#fff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">${escapeHtml(linkLabel)}</a></p>
+    <p style="color:#65706b;font-size:13px;">This secure link is unique to your booking. Please do not forward it.</p>
+    <p style="color:#65706b;font-size:13px;">Booking reference: ${escapeHtml(input.offer.bookingReference)}</p>
     <p style="margin-bottom:0;">Olrig Bank</p>
   </div></div></body></html>`;
   return sendEmail({ to: input.offer.guestEmail, subject, text, html });
@@ -164,15 +170,19 @@ export async function sendManagementOfferResponseEmail(input: {
 }): Promise<EmailSendResult | null> {
   const recipients = getBookingManagementRecipients();
   if (!recipients.length) return null;
-  const action = input.response === 'accepted' ? 'accepted' : 'declined';
-  const subject = `Booking offer ${action}: ${input.offer.guestName} · ${input.propertyName}`;
+  const accepted = input.response === 'accepted';
+  const subject = accepted
+    ? `Direct booking confirmed: ${input.offer.guestName} · ${input.propertyName}`
+    : `Booking offer declined: ${input.offer.guestName} · ${input.propertyName}`;
   const text = [
-    `${input.offer.guestName} has ${action} the booking offer.`,
+    accepted
+      ? `${input.offer.guestName} has accepted the offer and the direct booking is now confirmed.`
+      : `${input.offer.guestName} has declined the booking offer.`,
     '',
     `${input.propertyName}`,
     `${formatDate(input.offer.arrival)} to ${formatDate(input.offer.departure)}`,
     `${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? `, ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}`,
-    `Offer total: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
+    `${accepted ? 'Confirmed total' : 'Offer total'}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
     `Customer email: ${input.offer.guestEmail}`,
     `Customer telephone: ${input.offer.guestTelephone || 'None supplied'}`,
     `Booking request reference: ${input.offer.bookingReference}`,
@@ -180,9 +190,9 @@ export async function sendManagementOfferResponseEmail(input: {
     `Administrator review: ${input.adminUrl}`,
   ].join('\n');
   const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;color:#17323a;">
-    <h1>Booking offer ${escapeHtml(action)}</h1>
-    <p><strong>${escapeHtml(input.offer.guestName)}</strong> has ${escapeHtml(action)} the booking offer.</p>
-    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>Offer total: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
+    <h1>${accepted ? 'Direct booking confirmed' : 'Booking offer declined'}</h1>
+    <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? 'has accepted the offer and the booking is now confirmed.' : 'has declined the booking offer.'}</p>
+    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>${accepted ? 'Confirmed total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
     <p>Customer email: ${escapeHtml(input.offer.guestEmail)}<br>Customer telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
     <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
   </body></html>`;
