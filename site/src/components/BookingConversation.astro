@@ -1,0 +1,251 @@
+---
+import type { BookingMessage, BookingMessageViewer } from '../lib/booking/messaging';
+
+interface Props {
+  messages: BookingMessage[];
+  viewer: BookingMessageViewer;
+  heading: string;
+  intro: string;
+  pollingUrl: string;
+  bookingStatus: string;
+  reservationVersion?: string;
+  canCompose?: boolean;
+  notificationAvailable?: boolean;
+  notificationLabel?: string;
+  messageNotice?: string;
+  messageError?: string;
+  reservationButtonLabel?: string;
+}
+
+const {
+  messages,
+  viewer,
+  heading,
+  intro,
+  pollingUrl,
+  bookingStatus,
+  reservationVersion = bookingStatus,
+  canCompose = true,
+  notificationAvailable = false,
+  notificationLabel = 'Also send an email notification',
+  messageNotice = '',
+  messageError = '',
+  reservationButtonLabel = 'Reservation',
+} = Astro.props;
+
+const lastMessageId = messages.at(-1)?.id || '0';
+const isSelf = (message: BookingMessage) => message.senderType === viewer;
+const notificationText = (message: BookingMessage) => {
+  if (message.notificationStatus === 'sent') return 'Email notification sent';
+  if (message.notificationStatus === 'failed') return 'Email notification failed';
+  if (message.notificationStatus === 'skipped') return 'Email notification skipped';
+  return '';
+};
+---
+<section
+  class={`booking-conversation booking-conversation--${viewer}`}
+  data-booking-conversation
+  data-polling-url={pollingUrl}
+  data-viewer={viewer}
+  data-last-message-id={lastMessageId}
+  data-booking-status={bookingStatus}
+  data-reservation-version={reservationVersion}
+>
+  <header class="booking-conversation__header">
+    <div>
+      <p class="eyebrow">Messages</p>
+      <h1>{heading}</h1>
+      <p>{intro}</p>
+    </div>
+    <button class="booking-reservation-button" type="button" data-open-reservation-drawer>
+      <span>{reservationButtonLabel}</span>
+      <span aria-hidden="true">›</span>
+    </button>
+  </header>
+
+  {messageNotice && <div class="booking-conversation__notice is-success" role="status">{messageNotice}</div>}
+  {messageError && <div class="booking-conversation__notice is-error" role="alert">{messageError}</div>}
+  <div class="booking-conversation__notice is-update" data-conversation-update hidden>
+    Reservation details changed. <button type="button" data-refresh-conversation-page>Refresh this page</button>
+  </div>
+
+  <div class="booking-message-list" data-booking-message-list aria-live="polite" aria-relevant="additions">
+    {!messages.length && <div class="booking-message-empty" data-message-empty>
+      <strong>No messages yet</strong>
+      <p>Use the composer below to start the booking conversation.</p>
+    </div>}
+    {messages.map((message) => <article
+      class:list={[
+        'booking-message',
+        message.senderType === 'bot' ? 'is-bot' : isSelf(message) ? 'is-self' : 'is-other',
+        message.unreadForViewer && 'is-new',
+      ]}
+      data-message-id={message.id}
+    >
+      <div class="booking-message__meta">
+        <strong>{message.senderName}</strong>
+        {message.unreadForViewer && <span class="booking-message__new">New</span>}
+        <time datetime={message.createdAt}>{new Date(message.createdAt).toLocaleString('en-GB')}</time>
+      </div>
+      <p>{message.body}</p>
+      {notificationText(message) && <small class={`booking-message__delivery status-${message.notificationStatus}`}>
+        {notificationText(message)}
+      </small>}
+    </article>)}
+  </div>
+
+  {canCompose && <form method="post" class="booking-message-composer">
+    <input type="hidden" name="action" value="send-message" />
+    <label for={`booking-message-${viewer}`}>Write a message</label>
+    <textarea
+      id={`booking-message-${viewer}`}
+      name="messageBody"
+      rows="4"
+      maxlength="5000"
+      placeholder={viewer === 'booker' ? 'Message Jenna and the Olrig Bank team…' : 'Message the Booker…'}
+      required
+    ></textarea>
+    <div class="booking-message-composer__footer">
+      <label class:list={['booking-message-notification', !notificationAvailable && 'is-disabled']}>
+        <input type="checkbox" name="sendMessageEmail" value="yes" disabled={!notificationAvailable} />
+        <span>{notificationAvailable ? notificationLabel : 'Email notification is not available'}</span>
+      </label>
+      <button class="booking-message-send" type="submit">Send message</button>
+    </div>
+    <small>Messages become part of the permanent booking record and cannot be edited or deleted.</small>
+  </form>}
+</section>
+
+<script>
+  type MessagePayload = {
+    id: string;
+    senderType: 'booker' | 'administrator' | 'bot';
+    senderName: string;
+    body: string;
+    createdAt: string;
+    unreadForViewer: boolean;
+    notificationStatus: 'not_requested' | 'pending' | 'sent' | 'failed' | 'skipped';
+  };
+
+  const conversations = document.querySelectorAll<HTMLElement>('[data-booking-conversation]');
+  conversations.forEach((conversation) => {
+    const list = conversation.querySelector<HTMLElement>('[data-booking-message-list]');
+    const pollingUrl = conversation.dataset.pollingUrl;
+    const viewer = conversation.dataset.viewer;
+    let lastMessageId = conversation.dataset.lastMessageId || '0';
+    let bookingStatus = conversation.dataset.bookingStatus || '';
+    let reservationVersion = conversation.dataset.reservationVersion || bookingStatus;
+    if (!list || !pollingUrl || !viewer) return;
+
+    const atBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 90;
+    const scrollToBottom = () => { list.scrollTop = list.scrollHeight; };
+    requestAnimationFrame(scrollToBottom);
+
+    const deliveryText = (status: MessagePayload['notificationStatus']) => {
+      if (status === 'sent') return 'Email notification sent';
+      if (status === 'failed') return 'Email notification failed';
+      if (status === 'skipped') return 'Email notification skipped';
+      return '';
+    };
+
+    const appendMessage = (message: MessagePayload) => {
+      if (list.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`)) return;
+      list.querySelector('[data-message-empty]')?.remove();
+      const shouldScroll = atBottom();
+      const article = document.createElement('article');
+      const self = message.senderType === viewer;
+      article.className = `booking-message ${message.senderType === 'bot' ? 'is-bot' : self ? 'is-self' : 'is-other'} is-new`;
+      article.dataset.messageId = message.id;
+
+      const meta = document.createElement('div');
+      meta.className = 'booking-message__meta';
+      const sender = document.createElement('strong');
+      sender.textContent = message.senderName;
+      const fresh = document.createElement('span');
+      fresh.className = 'booking-message__new';
+      fresh.textContent = 'New';
+      const time = document.createElement('time');
+      time.dateTime = message.createdAt;
+      time.textContent = new Date(message.createdAt).toLocaleString('en-GB');
+      meta.append(sender, fresh, time);
+
+      const body = document.createElement('p');
+      body.textContent = message.body;
+      article.append(meta, body);
+
+      const delivery = deliveryText(message.notificationStatus);
+      if (delivery) {
+        const small = document.createElement('small');
+        small.className = `booking-message__delivery status-${message.notificationStatus}`;
+        small.textContent = delivery;
+        article.append(small);
+      }
+      list.append(article);
+      lastMessageId = message.id;
+      conversation.dataset.lastMessageId = message.id;
+      if (shouldScroll) scrollToBottom();
+      window.setTimeout(() => article.classList.remove('is-new'), 5000);
+    };
+
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const separator = pollingUrl.includes('?') ? '&' : '?';
+        const response = await fetch(`${pollingUrl}${separator}after=${encodeURIComponent(lastMessageId)}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return;
+        const payload = await response.json() as { messages?: MessagePayload[]; bookingStatus?: string; reservationVersion?: string };
+        (payload.messages || []).forEach(appendMessage);
+        const statusChanged = Boolean(payload.bookingStatus && payload.bookingStatus !== bookingStatus);
+        const reservationChanged = Boolean(payload.reservationVersion && payload.reservationVersion !== reservationVersion);
+        if (payload.bookingStatus) {
+          bookingStatus = payload.bookingStatus;
+          conversation.dataset.bookingStatus = bookingStatus;
+        }
+        if (payload.reservationVersion) {
+          reservationVersion = payload.reservationVersion;
+          conversation.dataset.reservationVersion = reservationVersion;
+        }
+        if (statusChanged || reservationChanged) {
+          const update = conversation.querySelector<HTMLElement>('[data-conversation-update]');
+          if (update) update.hidden = false;
+        }
+      } catch {
+        // Messaging continues to work through ordinary form submissions when polling is unavailable.
+      }
+    };
+
+    window.setInterval(poll, 8000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void poll(); });
+    conversation.querySelector<HTMLButtonElement>('[data-refresh-conversation-page]')?.addEventListener('click', () => window.location.reload());
+  });
+
+  const reservationDrawer = document.querySelector<HTMLElement>('[data-reservation-drawer]');
+  const drawerBackdrop = document.querySelector<HTMLElement>('[data-reservation-backdrop]');
+  const openDrawer = () => {
+    if (!reservationDrawer || !drawerBackdrop) return;
+    reservationDrawer.classList.add('is-open');
+    drawerBackdrop.classList.add('is-open');
+    reservationDrawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('has-booking-drawer');
+    reservationDrawer.querySelector<HTMLElement>('[data-close-reservation-drawer]')?.focus();
+  };
+  const closeDrawer = () => {
+    if (!reservationDrawer || !drawerBackdrop) return;
+    reservationDrawer.classList.remove('is-open');
+    drawerBackdrop.classList.remove('is-open');
+    reservationDrawer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('has-booking-drawer');
+  };
+  document.querySelectorAll<HTMLButtonElement>('[data-open-reservation-drawer]').forEach((button) => button.addEventListener('click', openDrawer));
+  document.querySelectorAll<HTMLElement>('[data-close-reservation-drawer]').forEach((button) => button.addEventListener('click', closeDrawer));
+  drawerBackdrop?.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && reservationDrawer?.classList.contains('is-open')) closeDrawer();
+  });
+  if (reservationDrawer?.dataset.openOnLoad === 'yes') requestAnimationFrame(openDrawer);
+
+</script>

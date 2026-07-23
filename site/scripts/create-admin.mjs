@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 const { Client } = pg;
 const email = (process.argv[2] || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-const displayName = (process.argv[3] || process.env.ADMIN_DISPLAY_NAME || '').trim();
+const displayName = (process.argv[3] || process.env.ADMIN_DISPLAY_NAME || 'Jenna').trim();
 const password = process.env.ADMIN_PASSWORD || '';
-if (!email || !displayName || !password) {
-  console.error('Usage: ADMIN_PASSWORD="a-long-password" npm run admin:create -- admin@example.com "Display Name"');
+if (!email || !password) {
+  console.error('Usage: ADMIN_PASSWORD="a-long-password" npm run admin:create -- admin@example.com ["Display Name"]');
   process.exit(1);
 }
 if (password.length < 12) throw new Error('Password must contain at least 12 characters.');

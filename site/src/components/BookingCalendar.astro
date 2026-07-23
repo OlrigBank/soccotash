@@ -62,19 +62,19 @@ const properties = getProperties();
     <section class="booking-quote" data-booking-quote hidden aria-live="polite"></section>
     <div class="booking-contact" data-booking-contact hidden>
       <div class="booking-field">
-        <label for="guest-name">Name</label>
+        <label for="guest-name">Booker name</label>
         <input id="guest-name" name="name" autocomplete="name" maxlength="120" required />
       </div>
       <div class="booking-field">
-        <label for="guest-email">Email (optional)</label>
+        <label for="guest-email">Booker email (optional)</label>
         <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
       </div>
       <div class="booking-field">
-        <label for="guest-telephone">Telephone (optional)</label>
+        <label for="guest-telephone">Booker telephone (optional)</label>
         <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" maxlength="80" />
       </div>
       <div class="booking-field booking-field-wide">
-        <label for="guest-message">Message (optional)</label>
+        <label for="guest-message">Message to Olrig Bank (optional)</label>
         <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
       </div>
       <div class="booking-submit-review" data-booking-submit-review hidden></div>
@@ -421,7 +421,7 @@ const properties = getProperties();
     input.addEventListener('input', () => {
       if (contact) contact.hidden = true;
       clearReviewedQuote();
-      if (status) status.textContent = 'Guest details changed. Check availability and price again.';
+      if (status) status.textContent = 'Booking details changed. Check availability and price again.';
     });
   }
   previousButton?.addEventListener('click', () => {

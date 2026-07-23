@@ -12,7 +12,7 @@ const statusLabel = (status: string) => status === 'confirmed' ? 'confirmed' : s
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
-    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, confirmed direct bookings and customer offers.</p></div>
+    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, confirmed direct bookings and Booker conversations.</p></div>
     <div class="pricing-header-actions">
       <a class="admin-button admin-button--secondary" href={showInactive ? '/admin/bookings/' : '/admin/bookings/?showInactive=1'}>
         {showInactive ? 'Hide declined and expired' : 'Show declined and expired'}
@@ -23,19 +23,19 @@ const statusLabel = (status: string) => status === 'confirmed' ? 'confirmed' : s
   {!showInactive && <p class="admin-filter-note">Declined and expired offers are hidden from this list.</p>}
   <section class="admin-panel">
     {requests.length ? (
-      <div class="admin-table-wrap"><table><thead><tr><th>Bottom-line price</th><th>Stay</th><th>Guest</th><th>Party</th><th>Status</th><th>Received</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      <div class="admin-table-wrap"><table><thead><tr><th>Bottom-line price</th><th>Stay</th><th>Booker</th><th>Party</th><th>Status</th><th>Received</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
         {requests.map((request) => {
           const price = request.latestOfferTotalPence ?? request.guestTotalPence;
           const currency = request.latestOfferCurrency ?? request.pricingCurrency ?? 'GBP';
           const source = request.latestOfferTotalPence !== null ? (request.status === 'confirmed' ? 'Confirmed direct booking' : 'Latest offer') : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
-          return <tr>
+          return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']}>
             <td>{price === null ? <span class="muted">Manual confirmation</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
             <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>
-            <td><strong>{request.name}</strong><small><a href={`mailto:${request.email}`}>{request.email}</a>{request.telephone ? ` · ${request.telephone}` : ''}</small></td>
+            <td><strong>{request.name}</strong>{request.unreadMessageCount > 0 && <span class="booking-unread-badge">{request.unreadMessageCount} new</span>}<small><a href={`mailto:${request.email}`}>{request.email}</a>{request.telephone ? ` · ${request.telephone}` : ''}</small></td>
             <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
             <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
             <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>
-            <td><a class="admin-button admin-button--small" href={`/admin/bookings/${request.reference}/`}>{request.status === 'confirmed' ? 'View' : 'Review'}</a></td>
+            <td><a class="admin-button admin-button--small" href={`/admin/bookings/${request.reference}/`}>{request.unreadMessageCount > 0 ? 'Open messages' : request.status === 'confirmed' ? 'View' : 'Review'}</a></td>
           </tr>;
         })}
       </tbody></table></div>

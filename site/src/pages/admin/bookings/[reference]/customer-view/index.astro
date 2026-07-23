@@ -2,6 +2,7 @@
 import BaseLayout from '../../../../../layouts/BaseLayout.astro';
 import CustomerBookingView from '../../../../../components/CustomerBookingView.astro';
 import { getProperties } from '../../../../../lib/booking/config';
+import { getBookingMessagesByReference } from '../../../../../lib/booking/messaging';
 import { getCustomerBookingPageByReference } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
@@ -12,8 +13,17 @@ const reference = String(Astro.params.reference || '');
 if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
 const offer = await getCustomerBookingPageByReference(reference);
 if (!offer) return new Response('Booking not found.', { status: 404 });
+const messages = await getBookingMessagesByReference(reference, 'booker', { markRead: false });
 const propertyName = getProperties().find((property) => property.id === offer.propertyId)?.name ?? offer.propertyId;
 ---
-<BaseLayout title={`Customer booking preview · ${propertyName}`} description="Administrator preview of the customer booking page." showSidebar={false} robots="noindex,nofollow,noarchive">
-  <CustomerBookingView offer={offer} propertyName={propertyName} allowResponse={false} adminPreview={true} />
+<BaseLayout title={`Booker booking preview · ${propertyName}`} description="Administrator preview of the Booker booking page." showSidebar={false} robots="noindex,nofollow,noarchive">
+  <CustomerBookingView
+    offer={offer}
+    messages={messages}
+    propertyName={propertyName}
+    pollingUrl={`/api/admin/bookings/${reference}/messages`}
+    allowResponse={false}
+    adminPreview={true}
+    messageNotificationAvailable={false}
+  />
 </BaseLayout>

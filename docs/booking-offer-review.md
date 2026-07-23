@@ -1,4 +1,4 @@
-# Booking request review and customer offers
+# Booking requests, messaging and offers
 
 ## Administration workflow
 
@@ -6,10 +6,10 @@ The bookings list now uses the first column for the current **bottom-line price*
 
 Open **Review** to see:
 
-- guest and stay details;
+- Booker and stay details;
 - the request reference;
 - the immutable published-plan calculation recorded at submission;
-- an editable customer offer calculation;
+- an editable Booker offer calculation;
 - previous published offers and optional email attempts.
 
 The administrator can change labels, explanations and amounts, add or remove lines, and use negative lines for discounts. The original submitted pricing snapshot is not overwritten.
@@ -17,18 +17,25 @@ The administrator can change labels, explanations and amounts, add or remove lin
 When **Publish offer** is selected:
 
 1. a `booking_offers` record is created;
-2. the offer is published immediately on the customer's stable booking page;
+2. the offer is published immediately on the Booker's stable booking page;
 3. the request becomes `offered` independently of email delivery;
 4. when **Also email a copy** is selected, the application attempts delivery after publication;
 5. an email failure is recorded but does not remove or deactivate the published offer.
 
 `pending`, `offered`, `confirmed` and `approved` bookings continue to block the associated calendar dates.
 
-## Stable customer booking page
+
+## Conversation-first booking management
+
+The private booking page and the administrator booking page now make messaging the primary panel. The reservation and offer information opens from the right in a drawer containing stay details, price breakdown, terms and relevant booking actions. Manual administrator messages use the logged-in display name, while generated status notices are sent by **Olrig Bot**.
+
+The Booker and administrators can send immutable messages in both directions. Optional email copies can be selected per message, but the private conversation remains the authoritative record. New messages are checked automatically, unread counts appear on the administrator bookings list, and existing request/offer history is imported by migration `012_booking_messaging.sql`. See `docs/booking-messaging.md`.
+
+## Stable Booker booking page
 
 Submitting the public request now creates a random customer-access token and redirects the browser directly to `/booking/manage/<token>/`. The customer is told to bookmark or copy this address. The same page shows the pending request, later published offers, the accept/decline controls and the confirmed booking.
 
-The public email field is optional. This allows the complete booking process to continue through the private page without requiring email, while retaining email as an optional notification and backup channel.
+The Booker email field is optional. This allows the complete booking process to continue through the private page without requiring email, while retaining email as an optional notification and backup channel.
 
 ## Email configuration
 
@@ -75,7 +82,7 @@ A published offer does not replace the original published pricing snapshot in `p
 
 The booking review screen now shows the supplied contact number as a separate field. When no number was supplied it displays **None supplied** rather than leaving the field absent.
 
-The saved customer email address can be corrected or cleared before an offer is published. Selecting **Save email address** updates `provisional_bookings.guest_email`; a blank value means that email copies are not available. The previous and replacement values are retained in the administrator audit log, while each offer records the recipient used for any requested delivery attempt.
+The saved Booker email address can be corrected or cleared before an offer is published. Selecting **Save email address** updates `provisional_bookings.guest_email`; a blank value means that email copies are not available. The previous and replacement values are retained in the administrator audit log, while each offer records the recipient used for any requested delivery attempt.
 
 Pending and offered requests can be permanently deleted from the review screen. Deletion requires both a confirmation checkbox and a browser confirmation prompt. It removes the request, cascades to its offer history, and releases the dates previously blocked by that provisional request. Approved requests cannot be deleted through this control.
 
@@ -85,4 +92,4 @@ An accepted offer changes the request status directly to `confirmed`. The stable
 
 The administration bookings list hides declined and expired records by default. They remain stored and can be revealed with **Show declined and expired**. Individual offer histories use the same default hiding behaviour.
 
-The administration calendar distinguishes confirmed direct bookings from provisional requests and Airbnb blocks. Clicking a confirmed direct booking opens an administrator-only preview of the current customer booking page.
+The administration calendar distinguishes confirmed direct bookings from provisional requests and Airbnb blocks. Clicking a confirmed direct booking opens an administrator-only preview of the current Booker booking page.

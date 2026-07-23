@@ -4,147 +4,228 @@ import CustomerBookingView from '../../../../components/CustomerBookingView.astr
 import { getProperties } from '../../../../lib/booking/config';
 import {
   getCustomerBookingPage,
+  getProvisionalBookingRequest,
   recordBookingActivity,
   respondToCustomerBookingOffer,
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
 import {
+  createBookerBookingMessage,
+  getBookingMessagesByToken,
+  markBookingMessageNotification,
+  validBookingAccessToken,
+} from '../../../../lib/booking/messaging';
+import {
   sendCustomerOfferResponseEmail,
   sendManagementOfferResponseEmail,
 } from '../../../../lib/booking/offer-email';
+import { sendAdministratorMessageEmail } from '../../../../lib/booking/message-email';
+import {
+  getBookingManagementRecipients,
+  getEmailConfiguration,
+} from '../../../../lib/email/sender';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-Astro.response.headers.set('X-Soccotash-Booking-UI', '31');
+Astro.response.headers.set('X-Soccotash-Booking-UI', '37-messaging');
 
 const token = String(Astro.params.token || '');
-if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) return new Response('Booking offer not found.', { status: 404 });
+if (!validBookingAccessToken(token)) return new Response('Booking not found.', { status: 404 });
 
 let offer = await getCustomerBookingPage(token, true);
-if (!offer) return new Response('Booking offer not found.', { status: 404 });
+if (!offer) return new Response('Booking not found.', { status: 404 });
 
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
 const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
 const publicOrigin = configuredOrigin || Astro.url.origin;
 const manageUrl = new URL(`/booking/manage/${token}/`, publicOrigin).toString();
+const managementRecipients = getBookingManagementRecipients();
+const messageEmailConfiguration = getEmailConfiguration();
+const messageNotificationAvailable = messageEmailConfiguration.configured && managementRecipients.length > 0;
 
 let responseError = '';
+let messageError = '';
 let responseResult: CustomerOfferResponseResult | null = null;
 
 if (Astro.request.method === 'POST') {
-  // This route is authorised by the unguessable booking token in the URL.
-  // Avoid a separate origin test because reverse proxies can reject legitimate
-  // submissions even though the bearer token remains the authorisation check.
+  // The unguessable token in this URL is the authorisation credential for the Booker.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
-  const confirmed = action === 'accept'
-    ? form.get('confirmAccept') === 'yes'
-    : action === 'decline'
-      ? form.get('confirmDecline') === 'yes'
-      : false;
 
-  if (action !== 'accept' && action !== 'decline') {
-    responseError = 'The requested booking action was not recognised.';
-  } else if (!confirmed) {
-    responseError = action === 'accept'
-      ? 'Please tick the confirmation box before accepting the offer.'
-      : 'Please tick the confirmation box before declining the offer.';
-  } else {
-    responseResult = await respondToCustomerBookingOffer(token, action);
-    if (responseResult === 'accepted' || responseResult === 'declined') {
-      offer = await getCustomerBookingPage(token, false);
-      if (!offer) return new Response('Booking offer not found.', { status: 404 });
-      const response = responseResult;
-      let customerEmailStatus: 'sent' | 'failed' | 'skipped' = offer.guestEmail ? 'failed' : 'skipped';
-
-      if (offer.guestEmail) {
+  if (action === 'send-message') {
+    const body = String(form.get('messageBody') || '').trim().slice(0, 5000);
+    const notificationRequested = form.get('sendMessageEmail') === 'yes';
+    if (!body) {
+      messageError = 'Write a message before sending.';
+    } else {
+      const shouldNotify = notificationRequested && messageNotificationAvailable;
+      const message = await createBookerBookingMessage({
+        token,
+        body,
+        notificationRequested: shouldNotify,
+        notificationRecipient: shouldNotify ? managementRecipients[0] : null,
+      });
+      let notificationStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
+      if (shouldNotify) {
+        const booking = await getProvisionalBookingRequest(offer.bookingReference);
+        if (!booking) return new Response('Booking not found.', { status: 404 });
         try {
-          const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
-          customerEmailStatus = 'sent';
+          const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
+          const sent = await sendAdministratorMessageEmail({ booking, propertyName, body, adminUrl });
+          if (sent) {
+            notificationStatus = 'sent';
+            await markBookingMessageNotification({
+              messageId: message.id,
+              status: 'sent',
+              recipient: sent.primaryRecipient,
+              messageIdFromProvider: sent.result.messageId,
+            });
+          } else {
+            notificationStatus = 'skipped';
+            await markBookingMessageNotification({ messageId: message.id, status: 'skipped' });
+          }
+        } catch (error) {
+          notificationStatus = 'failed';
+          await markBookingMessageNotification({
+            messageId: message.id,
+            status: 'failed',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      await recordBookingActivity({
+        bookingReference: offer.bookingReference,
+        actor: 'customer',
+        eventType: 'booker_message_sent',
+        details: { messageId: message.publicId, notificationRequested, notificationAvailable: messageNotificationAvailable, notificationStatus },
+      });
+      return Astro.redirect(`/booking/manage/${token}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+    }
+  } else {
+    const confirmed = action === 'accept'
+      ? form.get('confirmAccept') === 'yes'
+      : action === 'decline'
+        ? form.get('confirmDecline') === 'yes'
+        : false;
+
+    if (action !== 'accept' && action !== 'decline') {
+      responseError = 'The requested booking action was not recognised.';
+    } else if (!confirmed) {
+      responseError = action === 'accept'
+        ? 'Please tick the confirmation box before accepting the offer.'
+        : 'Please tick the confirmation box before declining the offer.';
+    } else {
+      responseResult = await respondToCustomerBookingOffer(token, action);
+      if (responseResult === 'accepted' || responseResult === 'declined') {
+        offer = await getCustomerBookingPage(token, false);
+        if (!offer) return new Response('Booking not found.', { status: 404 });
+        const response = responseResult;
+        let customerEmailStatus: 'sent' | 'failed' | 'skipped' = offer.guestEmail ? 'failed' : 'skipped';
+
+        if (offer.guestEmail) {
+          try {
+            const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
+            customerEmailStatus = 'sent';
+            await recordBookingActivity({
+              bookingReference: offer.bookingReference,
+              offerId: offer.offerId,
+              actor: 'system',
+              eventType: response === 'accepted' ? 'booking_confirmation_email_sent' : 'customer_response_email_sent',
+              details: { response, provider: sent.provider, messageId: sent.messageId },
+            });
+          } catch (error) {
+            await recordBookingActivity({
+              bookingReference: offer.bookingReference,
+              offerId: offer.offerId,
+              actor: 'system',
+              eventType: response === 'accepted' ? 'booking_confirmation_email_failed' : 'customer_response_email_failed',
+              details: { response, error: error instanceof Error ? error.message : String(error) },
+            });
+          }
+        } else {
           await recordBookingActivity({
             bookingReference: offer.bookingReference,
             offerId: offer.offerId,
             actor: 'system',
-            eventType: response === 'accepted' ? 'booking_confirmation_email_sent' : 'customer_response_email_sent',
-            details: { response, provider: sent.provider, messageId: sent.messageId },
+            eventType: 'customer_response_email_skipped',
+            details: { response, reason: 'No Booker email supplied.' },
+          });
+        }
+
+        try {
+          const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
+          const sent = await sendManagementOfferResponseEmail({ offer, propertyName, response, adminUrl });
+          await recordBookingActivity({
+            bookingReference: offer.bookingReference,
+            offerId: offer.offerId,
+            actor: 'system',
+            eventType: sent ? 'management_response_email_sent' : 'management_response_email_skipped',
+            details: sent ? { response, provider: sent.provider, messageId: sent.messageId } : { response, reason: 'No management recipient configured.' },
           });
         } catch (error) {
           await recordBookingActivity({
             bookingReference: offer.bookingReference,
             offerId: offer.offerId,
             actor: 'system',
-            eventType: response === 'accepted' ? 'booking_confirmation_email_failed' : 'customer_response_email_failed',
+            eventType: 'management_response_email_failed',
             details: { response, error: error instanceof Error ? error.message : String(error) },
           });
         }
-      } else {
-        await recordBookingActivity({
-          bookingReference: offer.bookingReference,
-          offerId: offer.offerId,
-          actor: 'system',
-          eventType: 'customer_response_email_skipped',
-          details: { response, reason: 'No customer email supplied.' },
-        });
+
+        return Astro.redirect(`/booking/manage/${token}/?response=${response === 'accepted' ? 'confirmed' : 'declined'}&email=${customerEmailStatus}`);
       }
 
-      try {
-        const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
-        const sent = await sendManagementOfferResponseEmail({ offer, propertyName, response, adminUrl });
-        await recordBookingActivity({
-          bookingReference: offer.bookingReference,
-          offerId: offer.offerId,
-          actor: 'system',
-          eventType: sent ? 'management_response_email_sent' : 'management_response_email_skipped',
-          details: sent ? { response, provider: sent.provider, messageId: sent.messageId } : { response, reason: 'No management recipient configured.' },
-        });
-      } catch (error) {
-        await recordBookingActivity({
-          bookingReference: offer.bookingReference,
-          offerId: offer.offerId,
-          actor: 'system',
-          eventType: 'management_response_email_failed',
-          details: { response, error: error instanceof Error ? error.message : String(error) },
-        });
-      }
-
-      return Astro.redirect(`/booking/manage/${token}/?response=${response === 'accepted' ? 'confirmed' : 'declined'}&email=${customerEmailStatus}`);
+      const messages: Record<CustomerOfferResponseResult, string> = {
+        accepted: '',
+        declined: '',
+        already_accepted: 'This booking has already been confirmed.',
+        already_declined: 'This offer has already been declined.',
+        expired: 'This offer has expired and can no longer be accepted or declined online.',
+        superseded: 'This offer has been replaced. Reload this booking page to see the current offer.',
+        dates_unavailable: 'The dates are no longer available. Your response was not recorded; please message Olrig Bank.',
+        not_found: 'This booking offer could not be found.',
+      };
+      responseError = messages[responseResult];
+      offer = await getCustomerBookingPage(token, false) ?? offer;
     }
-
-    const messages: Record<CustomerOfferResponseResult, string> = {
-      accepted: '',
-      declined: '',
-      already_accepted: 'This booking has already been confirmed.',
-      already_declined: 'This offer has already been declined.',
-      expired: 'This offer has expired and can no longer be accepted or declined online.',
-      superseded: 'This offer has been replaced. Reload this booking page to see the current offer.',
-      dates_unavailable: 'The dates are no longer available. Your response was not recorded; please contact Olrig Bank.',
-      not_found: 'This booking offer could not be found.',
-    };
-    responseError = messages[responseResult];
-    offer = await getCustomerBookingPage(token, false) ?? offer;
   }
 }
 
 const responseNotice = Astro.url.searchParams.get('response');
 const emailParam = Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
+const messageSent = Astro.url.searchParams.get('message') === 'sent';
+const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
+const messageNotice = messageSent
+  ? messageEmailStatus === 'sent'
+    ? 'Your message was added to the conversation and the Olrig Bank administrators were notified by email.'
+    : messageEmailStatus === 'failed'
+      ? 'Your message was added to the conversation, but the optional administrator email notification failed.'
+      : 'Your message was added to the conversation.'
+  : '';
 const confirmedBooking = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
 const pendingBooking = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
+const conversationMessages = await getBookingMessagesByToken(token, 'booker', { markRead: true });
 ---
 <BaseLayout
   title={`${confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
-  description={confirmedBooking ? 'View your confirmed Olrig Bank booking.' : pendingBooking ? 'View your Olrig Bank booking request.' : 'Review and respond to your Olrig Bank booking offer.'}
+  description="Manage your Olrig Bank booking and conversation."
   showSidebar={false}
   robots="noindex,nofollow,noarchive"
 >
   <CustomerBookingView
     offer={offer}
+    messages={conversationMessages}
     propertyName={propertyName}
+    pollingUrl={`/api/booking/messages/${token}`}
     responseNotice={responseNotice}
     responseError={responseError}
+    messageNotice={messageNotice}
+    messageError={messageError}
     emailStatus={emailStatus}
     allowResponse={true}
+    messageNotificationAvailable={messageNotificationAvailable}
   />
 </BaseLayout>

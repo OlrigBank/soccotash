@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import BookingConversation from '../../../../components/BookingConversation.astro';
 import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import {
@@ -7,16 +8,25 @@ import {
   deleteProvisionalBookingRequest,
   getBookingActivity,
   getBookingOffers,
+  getCustomerBookingPageByReference,
   getProvisionalBookingRequest,
   markBookingOfferFailed,
   markBookingOfferSent,
   publishBookingOffer,
+  recordBookingActivity,
   updateProvisionalBookingEmail,
   type BookingOfferLine,
 } from '../../../../lib/booking/repository';
+import {
+  createAdministratorBookingMessage,
+  getBookingMessagesByReference,
+  markBookingMessageNotification,
+} from '../../../../lib/booking/messaging';
 import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/booking/offer-email';
+import { sendBookerMessageEmail } from '../../../../lib/booking/message-email';
 import { getEmailConfiguration } from '../../../../lib/email/sender';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
+
 export const prerender = false;
 
 const reference = String(Astro.params.reference || '');
@@ -28,7 +38,7 @@ const emailConfiguration = getEmailConfiguration();
 const canOffer = booking.status === 'pending' || booking.status === 'offered';
 const canDelete = booking.status === 'pending' || booking.status === 'offered';
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
-const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
+const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 
 function cleanText(value: FormDataEntryValue | null, max: number): string {
   return String(value || '').trim().slice(0, max);
@@ -49,11 +59,7 @@ function poundsToPence(value: string): number | null {
   return negative ? -amount : amount;
 }
 function pricingLines(value: Record<string, unknown> | null | undefined): BookingOfferLine[] {
-  return customerPricingLinesFromUnknown(value).map(({ label, detail, amountPence }) => ({
-    label,
-    detail,
-    amountPence,
-  }));
+  return customerPricingLinesFromUnknown(value).map(({ label, detail, amountPence }) => ({ label, detail, amountPence }));
 }
 
 let offers = await getBookingOffers(reference);
@@ -67,22 +73,84 @@ const initialLines = priorOffer?.lineItems.length
 const defaultValidity = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
 let formLines = initialLines;
-let offerMessage = priorOffer?.offerMessage ?? `Thank you for your provisional booking request for ${propertyName}. We are pleased to make the following offer.`;
+let offerMessage = priorOffer?.offerMessage ?? `Thank you for your booking request for ${propertyName}. We are pleased to make the following offer.`;
 let terms = priorOffer?.terms ?? '';
 let validUntil = priorOffer?.validUntil ?? defaultValidity;
 let subject = priorOffer?.subject ?? defaultOfferSubject(booking, propertyName);
 let contactEmail = booking.email;
 let error = '';
+let messageError = '';
 
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
-  if (action === 'save-contact') {
+  if (action === 'send-message') {
+    const body = cleanText(form.get('messageBody'), 5000);
+    const notificationRequested = form.get('sendMessageEmail') === 'yes';
+    const notificationAvailable = Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
+    if (!body) {
+      messageError = 'Write a message before sending.';
+    } else {
+      const shouldNotify = notificationRequested && notificationAvailable;
+      const message = await createAdministratorBookingMessage({
+        reference,
+        adminUserId: Astro.locals.adminUser!.id,
+        adminDisplayName: Astro.locals.adminUser!.displayName || 'Jenna',
+        body,
+        notificationRequested: shouldNotify,
+        notificationRecipient: shouldNotify ? booking.email : null,
+      });
+      let notificationStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
+      if (shouldNotify) {
+        try {
+          const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+          const publicOrigin = configuredOrigin || Astro.url.origin;
+          if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
+          const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
+          const sent = await sendBookerMessageEmail({
+            booking,
+            propertyName,
+            senderName: Astro.locals.adminUser!.displayName || 'Jenna',
+            body,
+            manageUrl,
+          });
+          notificationStatus = 'sent';
+          await markBookingMessageNotification({
+            messageId: message.id,
+            status: 'sent',
+            recipient: booking.email,
+            messageIdFromProvider: sent.messageId,
+          });
+        } catch (sendError) {
+          notificationStatus = 'failed';
+          await markBookingMessageNotification({
+            messageId: message.id,
+            status: 'failed',
+            error: sendError instanceof Error ? sendError.message : String(sendError),
+          });
+        }
+      }
+      await recordBookingActivity({
+        bookingReference: reference,
+        actor: 'administrator',
+        eventType: 'administrator_message_sent',
+        details: { messageId: message.publicId, notificationRequested, notificationAvailable, notificationStatus },
+      });
+      await audit(Astro.locals.adminUser!.id, 'booking.message_sent', {
+        bookingReference: reference,
+        messageId: message.publicId,
+        notificationRequested,
+        notificationAvailable,
+        notificationStatus,
+      });
+      return Astro.redirect(`/admin/bookings/${reference}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+    }
+  } else if (action === 'save-contact') {
     contactEmail = cleanText(form.get('contactEmail'), 254).toLowerCase();
     if (!validOptionalEmail(contactEmail)) {
-      error = 'Enter a valid customer email address or leave it blank.';
+      error = 'Enter a valid Booker email address or leave it blank.';
     } else {
       const previousEmail = booking.email;
       const updated = await updateProvisionalBookingEmail(reference, contactEmail);
@@ -96,7 +164,7 @@ if (Astro.request.method === 'POST') {
     }
   } else if (action === 'delete-booking') {
     if (!canDelete) {
-      error = `A request with status “${booking.status}” cannot be deleted from this review screen.`;
+      error = `A request with status “${booking.status}” cannot be deleted from this screen.`;
     } else if (form.get('confirmDelete') !== 'yes') {
       error = 'Confirm that you understand this will permanently delete the request.';
     } else {
@@ -109,8 +177,8 @@ if (Astro.request.method === 'POST') {
           propertyId: booking.propertyId,
           arrival: booking.arrival,
           departure: booking.departure,
-          guestName: booking.name,
-          guestEmail: booking.email,
+          bookerName: booking.name,
+          bookerEmail: booking.email,
           previousStatus: booking.status,
         });
         return Astro.redirect('/admin/bookings/?deleted=1');
@@ -125,11 +193,7 @@ if (Astro.request.method === 'POST') {
     terms = cleanText(form.get('terms'), 5000);
     validUntil = cleanText(form.get('validUntil'), 10);
     subject = cleanText(form.get('subject'), 300);
-    formLines = labels.map((label, index) => ({
-      label,
-      detail: details[index] || '',
-      amountPence: amounts[index] ?? 0,
-    }));
+    formLines = labels.map((label, index) => ({ label, detail: details[index] || '', amountPence: amounts[index] ?? 0 }));
 
     if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
     else if (!subject) error = 'Enter an offer title or email subject.';
@@ -137,8 +201,8 @@ if (Astro.request.method === 'POST') {
     else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
     else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
     else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
-    else if (emailRequested && !booking.email) error = 'Add a customer email address before requesting an email copy.';
-    else if (emailRequested && !validEmail(booking.email)) error = 'The saved customer email address is not valid.';
+    else if (emailRequested && !booking.email) error = 'Add a Booker email address before requesting an email copy.';
+    else if (emailRequested && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
     else if (emailRequested && !emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
 
     const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
@@ -168,14 +232,12 @@ if (Astro.request.method === 'POST') {
         emailRequested,
       });
 
-      if (!emailRequested) {
-        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=skipped`);
-      }
+      if (!emailRequested) return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=skipped`);
 
       try {
         const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
         const publicOrigin = configuredOrigin || Astro.url.origin;
-        if (!booking.customerAccessToken) throw new Error('The customer booking-page token is missing.');
+        if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
         const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
         const delivery = await sendBookingOfferEmail({
           booking,
@@ -209,7 +271,7 @@ if (Astro.request.method === 'POST') {
       }
     }
   } else {
-    error = 'Unknown booking review action.';
+    error = 'Unknown booking action.';
   }
 
   booking = (await getProvisionalBookingRequest(reference)) ?? booking;
@@ -221,153 +283,195 @@ if (Astro.request.method === 'POST') {
 const recordedLines = pricingLines(booking.pricingResult);
 const currency = booking.pricingCurrency || 'GBP';
 const showClosedOffers = Astro.url.searchParams.get('showClosedOffers') === '1';
-const visibleOffers = showClosedOffers
-  ? offers
-  : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
+const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
+const messageSent = Astro.url.searchParams.get('message') === 'sent';
+const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
+const notificationAvailable = Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
+const messages = await getBookingMessagesByReference(reference, 'administrator', { markRead: true });
+const reservationSnapshot = await getCustomerBookingPageByReference(reference);
+const reservationVersion = reservationSnapshot
+  ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}`
+  : booking.status;
+let notice = '';
+if (messageSent) {
+  notice = messageEmailStatus === 'sent'
+    ? `The message was sent and an email copy was sent to ${booking.email}.`
+    : messageEmailStatus === 'failed'
+      ? 'The message was added to the conversation, but the optional email copy failed.'
+      : 'The message was added to the conversation.';
+} else if (published) {
+  notice = publishEmailStatus === 'sent'
+    ? `The offer is published and an email copy was sent to ${booking.email}.`
+    : publishEmailStatus === 'failed'
+      ? 'The offer is published, but the optional email copy could not be sent.'
+      : 'The offer is published on the Booker booking page.';
+} else if (contactSaved) {
+  notice = booking.email ? `The Booker email address was updated to ${booking.email}.` : 'The Booker email address was cleared. Email remains optional.';
+}
 ---
-<AdminLayout title={`Review ${booking.name}`}>
-  <header class="admin-page-header booking-review-header">
+<AdminLayout title={`Messages · ${booking.name}`}>
+  <header class="admin-page-header booking-messaging-page-header">
     <div>
-      <p class="eyebrow">Booking review</p>
-      <h1>{booking.name}</h1>
+      <p class="eyebrow">Booking management</p>
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
     <div class="pricing-header-actions">
-      <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>
+      <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>Preview Booker page</a>
       <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
     </div>
   </header>
 
-  {published && <div class="pricing-message is-success" role="status">The offer is now published on the customer booking page.{publishEmailStatus === 'sent' ? ` An email copy was sent to ${booking.email}.` : publishEmailStatus === 'failed' ? ' The optional email copy could not be sent, but the offer remains available on the booking page.' : ' No email copy was requested.'}</div>}
-  {contactSaved && <div class="pricing-message is-success" role="status">{booking.email ? <>The customer email address was updated to <strong>{booking.email}</strong>.</> : 'The customer email address was cleared. Email updates are optional.'}</div>}
-  {error && <div class="pricing-message is-error" role="alert">{error}</div>}
+  <BookingConversation
+    messages={messages}
+    viewer="administrator"
+    heading={`Conversation with ${booking.name}`}
+    intro={`Messages are sent as ${Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.`}
+    pollingUrl={`/api/admin/bookings/${reference}/messages`}
+    bookingStatus={booking.status}
+    reservationVersion={reservationVersion}
+    notificationAvailable={notificationAvailable}
+    notificationLabel={`Also email a copy${booking.email ? ` to ${booking.email}` : ''}`}
+    messageNotice={notice}
+    messageError={messageError}
+    reservationButtonLabel="Reservation"
+  />
 
-  <div class="booking-review-grid">
-    <section class="admin-panel booking-review-summary">
-      <div class="booking-review-summary__heading"><h2>Request details</h2><span class={`status-badge status-${booking.status}`}>{booking.status}</span></div>
-      <dl class="booking-detail-list">
-        <div><dt>Reference</dt><dd><code>{booking.reference}</code></dd></div>
-        <div><dt>Guest</dt><dd><strong>{booking.name}</strong></dd></div>
-        <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
-        <div><dt>Stay</dt><dd>{propertyName}<br>{dateLabel(booking.arrival)} – {dateLabel(booking.departure)}</dd></div>
-        <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
-        <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
-        {booking.message && <div class="booking-detail-list__wide"><dt>Guest message</dt><dd>{booking.message}</dd></div>}
-      </dl>
-      <form method="post" class="admin-form booking-contact-form">
-        <input type="hidden" name="action" value="save-contact" />
-        <label>Customer email address
-          <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="email" />
-        </label>
-        <div class="booking-contact-form__actions">
-          <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
-          <small>When supplied, this address can receive an optional copy of booking-page updates.</small>
-        </div>
-      </form>
-    </section>
+  <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
+  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+    <header class="booking-reservation-drawer__header">
+      <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
+      <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
+    </header>
+    <div class="booking-reservation-drawer__body">
+      {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
-    <section class="admin-panel">
-      <h2>Recorded published calculation</h2>
-      <p class="admin-panel-intro">This is the immutable calculation shown when the request was submitted. Amendments are made in the offer below.</p>
-      {recordedLines.length ? <div class="booking-price-table"><table><tbody>
-        {recordedLines.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, currency)}</td></tr>)}
-        <tr class="booking-price-total"><th>Recorded provisional total</th><th>{money(booking.guestTotalPence ?? recordedLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</th></tr>
-      </tbody></table></div> : <p class="muted">No published pricing calculation was recorded. Build the offer manually below.</p>}
-      {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
-    </section>
-  </div>
+      <section class="booking-drawer-section booking-drawer-status">
+        <div><h3>{propertyName}</h3><p>{dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p></div>
+        <span class={`status-badge status-${booking.status}`}>{booking.status.replaceAll('_', ' ')}</span>
+      </section>
 
-  {canOffer ? (
-    <section class="admin-panel booking-offer-editor">
-    <div class="booking-review-summary__heading"><div><h2>Customer offer</h2><p class="admin-panel-intro">Edit the calculation that will be published on the customer booking page. Negative amounts can be used for discounts.</p></div><div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div></div>
-
-    {!canOffer && <div class="pricing-message is-error">This request has status <strong>{booking.status}</strong>. Only pending or already-offered requests can have an offer published.</div>}
-    {!emailConfiguration.configured && <div class="pricing-message"><strong>Email delivery is not configured.</strong> The offer can still be published on the booking page. {emailConfiguration.problem}</div>}
-
-    <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
-      <input type="hidden" name="action" value="publish-offer" />
-      <label>Offer title / email subject<input type="text" name="subject" value={subject} maxlength="300" required /></label>
-      <div class="booking-offer-lines" id="offer-lines">
-        {formLines.map((line) => <div class="booking-offer-line">
-          <label>Line label<input type="text" name="lineLabel" value={line.label} maxlength="160" required /></label>
-          <label>Explanation<input type="text" name="lineDetail" value={line.detail} maxlength="500" /></label>
-          <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value={(line.amountPence / 100).toFixed(2)} step="0.01" required /></label>
-          <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
-        </div>)}
-      </div>
-      <button class="admin-button admin-button--secondary" id="add-offer-line" type="button">Add price line</button>
-      <label>Message to the guest<textarea name="offerMessage" rows="5" maxlength="5000">{offerMessage}</textarea></label>
-      <div class="pricing-form-row">
-        <label>Offer valid until<input type="date" name="validUntil" value={validUntil} /></label>
-      </div>
-      <label>Additional terms<textarea name="terms" rows="4" maxlength="5000">{terms}</textarea></label>
-      <div class="booking-send-panel">
-        <div>
-          <strong>Publish on the customer booking page</strong>
-          <small>The offer becomes available immediately on the secure page the customer received when making the request.</small>
-          <label class="booking-email-copy-option">
-            <input type="checkbox" name="sendEmailCopy" value="yes" disabled={!booking.email || !emailConfiguration.configured} />
-            <span>Also email a copy{booking.email ? ` to ${booking.email}` : ' (no email address supplied)'}</span>
+      <section class="booking-drawer-section">
+        <p class="eyebrow">Stay details</p>
+        <dl class="booking-detail-list">
+          <div><dt>Reference</dt><dd><code>{booking.reference}</code></dd></div>
+          <div><dt>Booker</dt><dd><strong>{booking.name}</strong></dd></div>
+          <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
+          <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
+        </dl>
+        <form method="post" class="admin-form booking-contact-form">
+          <input type="hidden" name="action" value="save-contact" />
+          <label>Booker email address
+            <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="email" />
           </label>
+          <div class="booking-contact-form__actions">
+            <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
+            <small>Used only for optional email copies and notifications.</small>
+          </div>
+        </form>
+      </section>
+
+      <section class="booking-drawer-section">
+        <p class="eyebrow">Price breakdown</p>
+        <h3>Recorded provisional calculation</h3>
+        {recordedLines.length ? <div class="booking-price-table"><table><tbody>
+          {recordedLines.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, currency)}</td></tr>)}
+          <tr class="booking-price-total"><th>Recorded provisional total</th><th>{money(booking.guestTotalPence ?? recordedLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</th></tr>
+        </tbody></table></div> : <p class="muted">No published pricing calculation was recorded.</p>}
+        {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
+      </section>
+
+      {canOffer ? <section class="booking-drawer-section booking-offer-editor">
+        <div class="booking-review-summary__heading">
+          <div><p class="eyebrow">Offer controls</p><h3>Publish an offer</h3><p class="admin-panel-intro">The offer message becomes an administrator message in the conversation.</p></div>
+          <div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div>
         </div>
-        <button class="admin-button" type="submit" disabled={!canOffer}>Publish offer</button>
-      </div>
-    </form>
-    </section>
-  ) : (
-    <section class="admin-panel booking-offer-editor">
-      <h2>{booking.status === 'confirmed' ? 'Confirmed direct booking' : 'Customer offer closed'}</h2>
-      <p>{booking.status === 'confirmed'
-        ? 'The customer accepted the offer and this booking is confirmed. The confirmed price and current booking details are retained on the customer booking page.'
-        : `This request has status “${booking.status}”. A new offer cannot be published from this record.`}</p>
-      <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>
-    </section>
-  )}
-
-  {offers.length > 0 && <section class="admin-panel">
-    <div class="booking-review-summary__heading">
-      <div><h2>Offer history</h2>{hiddenClosedOfferCount > 0 && !showClosedOffers && <p class="admin-panel-intro">{hiddenClosedOfferCount} declined or expired offer{hiddenClosedOfferCount === 1 ? ' is' : 's are'} hidden.</p>}</div>
-      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/${showClosedOffers ? '' : '?showClosedOffers=1'}`}>
-        {showClosedOffers ? 'Hide declined and expired offers' : 'Show declined and expired offers'}
-      </a>
+        {!emailConfiguration.configured && <div class="pricing-message"><strong>Email delivery is not configured.</strong> The offer can still be published in the conversation. {emailConfiguration.problem}</div>}
+        <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
+          <input type="hidden" name="action" value="publish-offer" />
+          <label>Offer title / email subject<input type="text" name="subject" value={subject} maxlength="300" required /></label>
+          <div class="booking-offer-lines" id="offer-lines">
+            {formLines.map((line) => <div class="booking-offer-line">
+              <label>Line label<input type="text" name="lineLabel" value={line.label} maxlength="160" required /></label>
+              <label>Explanation<input type="text" name="lineDetail" value={line.detail} maxlength="500" /></label>
+              <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value={(line.amountPence / 100).toFixed(2)} step="0.01" required /></label>
+              <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
+            </div>)}
+          </div>
+          <button class="admin-button admin-button--secondary" id="add-offer-line" type="button">Add price line</button>
+          <label>Message from {Astro.locals.adminUser!.displayName || 'Jenna'}<textarea name="offerMessage" rows="5" maxlength="5000">{offerMessage}</textarea></label>
+          <label>Offer valid until<input type="date" name="validUntil" value={validUntil} /></label>
+          <label>Additional terms<textarea name="terms" rows="4" maxlength="5000">{terms}</textarea></label>
+          <div class="booking-send-panel">
+            <div>
+              <strong>Publish in the Booker conversation</strong>
+              <small>The offer and response controls become available immediately.</small>
+              <label class="booking-email-copy-option">
+                <input type="checkbox" name="sendEmailCopy" value="yes" disabled={!booking.email || !emailConfiguration.configured} />
+                <span>Also email a copy{booking.email ? ` to ${booking.email}` : ' (no email address supplied)'}</span>
+              </label>
+            </div>
+            <button class="admin-button" type="submit">Publish offer</button>
+          </div>
+        </form>
+      </section> : <section class="booking-drawer-section">
+        <p class="eyebrow">Offer controls</p>
+        <h3>{booking.status === 'confirmed' ? 'Confirmed direct booking' : 'Offer closed'}</h3>
+        <p>{booking.status === 'confirmed' ? 'The Booker accepted the offer and the booking is confirmed.' : `A new offer cannot be published while the record has status “${booking.status}”.`}</p>
+        {priorOffer?.terms && <><h4>Current terms</h4><p class="booking-terms-copy">{priorOffer.terms}</p></>}
+      </section>}
     </div>
-    {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Email copy</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
-      {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
-    </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
-  </section>}
+  </aside>
 
+  <details class="booking-administration" open={showClosedOffers}>
+    <summary>Administration and history</summary>
+    <div class="booking-administration__body">
+      {offers.length > 0 && <section class="admin-panel">
+        <div class="booking-review-summary__heading">
+          <div><h2>Offer history</h2>{hiddenClosedOfferCount > 0 && !showClosedOffers && <p class="admin-panel-intro">{hiddenClosedOfferCount} declined or expired offer{hiddenClosedOfferCount === 1 ? ' is' : 's are'} hidden.</p>}</div>
+          <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/${showClosedOffers ? '' : '?showClosedOffers=1'}`}>
+            {showClosedOffers ? 'Hide declined and expired offers' : 'Show declined and expired offers'}
+          </a>
+        </div>
+        {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Email copy</th><th>Booker response</th><th>Administrator</th></tr></thead><tbody>
+          {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Jenna'}</td></tr>)}
+        </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
+      </section>}
 
-  {activity.length > 0 && <section class="admin-panel">
-    <h2>Booking activity</h2>
-    <div class="admin-table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Event</th><th>Offer</th></tr></thead><tbody>
-      {activity.map((event) => <tr>
-        <td>{new Date(event.createdAt).toLocaleString('en-GB')}</td>
-        <td><span class={`status-badge status-${event.actor}`}>{event.actor}</span></td>
-        <td>{event.eventType.replaceAll('_', ' ')}</td>
-        <td>{event.offerReference ? <code>{event.offerReference}</code> : <span class="muted">—</span>}</td>
-      </tr>)}
-    </tbody></table></div>
-  </section>}
+      {activity.length > 0 && <section class="admin-panel">
+        <h2>Technical booking activity</h2>
+        <p class="admin-panel-intro">Technical and audit events remain separate from the Booker conversation.</p>
+        <div class="admin-table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Event</th><th>Offer</th></tr></thead><tbody>
+          {activity.map((event) => <tr>
+            <td>{new Date(event.createdAt).toLocaleString('en-GB')}</td>
+            <td><span class={`status-badge status-${event.actor}`}>{event.actor === 'customer' ? 'Booker' : event.actor}</span></td>
+            <td>{event.eventType.replaceAll('_', ' ')}</td>
+            <td>{event.offerReference ? <code>{event.offerReference}</code> : <span class="muted">—</span>}</td>
+          </tr>)}
+        </tbody></table></div>
+      </section>}
 
-  <section class="admin-panel booking-delete-panel">
-    <div>
-      <p class="eyebrow">Danger zone</p>
-      <h2>Delete booking request</h2>
-      <p>{canDelete ? 'Permanently remove this request, its offer history and its provisional calendar block.' : `Requests with status “${booking.status}” cannot be deleted from this review screen.`}</p>
+      <section class="admin-panel booking-delete-panel">
+        <div>
+          <p class="eyebrow">Danger zone</p>
+          <h2>Delete booking request</h2>
+          <p>{canDelete ? 'Permanently remove this request, its conversation, offer history and provisional calendar block.' : `Requests with status “${booking.status}” cannot be deleted from this screen.`}</p>
+        </div>
+        <form method="post" class="booking-delete-form" data-confirm-delete>
+          <input type="hidden" name="action" value="delete-booking" />
+          <label class="booking-delete-confirm">
+            <input type="checkbox" name="confirmDelete" value="yes" required disabled={!canDelete} />
+            <span>I understand that this permanently deletes the request and conversation.</span>
+          </label>
+          <button class="admin-button admin-button--danger" type="submit" disabled={!canDelete}>Delete booking request</button>
+        </form>
+      </section>
     </div>
-    <form method="post" class="booking-delete-form" data-confirm-delete>
-      <input type="hidden" name="action" value="delete-booking" />
-      <label class="booking-delete-confirm">
-        <input type="checkbox" name="confirmDelete" value="yes" required disabled={!canDelete} />
-        <span>I understand that this permanently deletes the request.</span>
-      </label>
-      <button class="admin-button admin-button--danger" type="submit" disabled={!canDelete}>Delete booking request</button>
-    </form>
-  </section>
+  </details>
 </AdminLayout>
 
 <template id="offer-line-template">
@@ -403,7 +507,7 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
   document.querySelectorAll('.booking-remove-line').forEach((button) => bindRemove(button));
   lines?.addEventListener('input', updateTotal);
   document.querySelector('[data-confirm-delete]')?.addEventListener('submit', (event) => {
-    if (!window.confirm('Permanently delete this booking request and its offer history?')) event.preventDefault();
+    if (!window.confirm('Permanently delete this booking request, conversation and offer history?')) event.preventDefault();
   });
   document.querySelector('#add-offer-line')?.addEventListener('click', () => {
     if (!(lines instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) return;

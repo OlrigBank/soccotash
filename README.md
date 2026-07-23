@@ -100,6 +100,7 @@ npm --prefix site run build
 
 The protected administration foundation is available at `/admin/`. After the database migration has run, create the first administrator using the instructions in [`docs/admin-foundation.md`](docs/admin-foundation.md). The pricing implementation is described in [`docs/pricing-foundation.md`](docs/pricing-foundation.md).
 Secure customer offer links and acceptance/decline handling are described in [`docs/customer-booking-offer-access.md`](docs/customer-booking-offer-access.md).
+The conversation-first Booker and administrator workflow is described in [`docs/booking-messaging.md`](docs/booking-messaging.md).
 
 
 ## Reusable pricing rule cards

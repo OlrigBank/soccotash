@@ -4,6 +4,11 @@ import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
 import { customerPricingLinesFromUnknown } from '../pricing/display';
+import {
+  botMessageForActivity,
+  insertAdministratorOfferMessage,
+  insertBotBookingMessage,
+} from './messaging';
 
 export type BookingBlock = {
   startsOn: string;
@@ -12,29 +17,47 @@ export type BookingBlock = {
 };
 
 export async function expireElapsedBookingOffers(): Promise<number> {
-  const result = await getPool().query(
-    `WITH expired AS (
-       UPDATE booking_offers
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const expired = await client.query(
+      `UPDATE booking_offers
           SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
         WHERE published_at IS NOT NULL
           AND customer_status = 'active'
           AND valid_until IS NOT NULL
           AND valid_until < CURRENT_DATE
-        RETURNING id, provisional_booking_id
-     ), booking_updates AS (
-       UPDATE provisional_bookings pb
-          SET status = 'expired'
-         FROM expired e
-        WHERE pb.id = e.provisional_booking_id AND pb.status = 'offered'
-        RETURNING pb.id
-     )
-     INSERT INTO booking_activity
-       (provisional_booking_id, booking_offer_id, actor, event_type)
-     SELECT provisional_booking_id, id, 'system', 'offer_expired'
-       FROM expired
-     RETURNING id`,
-  );
-  return result.rowCount || 0;
+      RETURNING id, provisional_booking_id`,
+    );
+    for (const row of expired.rows) {
+      await client.query(
+        `UPDATE provisional_bookings
+            SET status = 'expired'
+          WHERE id = $1 AND status = 'offered'`,
+        [row.provisional_booking_id],
+      );
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type)
+         VALUES ($1, $2, 'system', 'offer_expired')`,
+        [row.provisional_booking_id, row.id],
+      );
+      await insertBotBookingMessage(client, {
+        bookingId: row.provisional_booking_id,
+        offerId: row.id,
+        body: 'The booking offer has expired. Send a message if you would like Olrig Bank to reconsider the stay.',
+        audience: 'both',
+        sourceKey: `offer-expired:${row.id}`,
+      });
+    }
+    await client.query('COMMIT');
+    return expired.rowCount || 0;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function recordSyncAttempt(propertyId: string): Promise<void> {
@@ -214,7 +237,7 @@ export async function createProvisionalBooking(input: {
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21)
-       RETURNING public_id::text AS reference`,
+       RETURNING id::text, public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
         input.telephone || null, input.message || null,
@@ -234,11 +257,25 @@ export async function createProvisionalBooking(input: {
     );
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
-       SELECT id, 'customer', 'booking_requested'
-         FROM provisional_bookings
-        WHERE public_id = $1::uuid`,
-      [result.rows[0].reference],
+       VALUES ($1, 'customer', 'booking_requested')`,
+      [result.rows[0].id],
     );
+    if (input.message?.trim()) {
+      await client.query(
+        `INSERT INTO booking_messages (
+           provisional_booking_id, sender_type, sender_name, message_type, body,
+           source_key, booker_read_at, admin_read_at
+         ) VALUES ($1, 'booker', $2, 'message', $3, $4, NOW(), NULL)
+         ON CONFLICT (source_key) DO NOTHING`,
+        [result.rows[0].id, input.name, input.message.trim(), `request-message:${result.rows[0].id}`],
+      );
+    }
+    await insertBotBookingMessage(client, {
+      bookingId: result.rows[0].id,
+      body: 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
+      audience: 'booker',
+      sourceKey: `request-received:${result.rows[0].id}`,
+    });
     await client.query('COMMIT');
     return { reference: result.rows[0].reference, accessToken };
   } catch (error) {
@@ -307,6 +344,7 @@ export type ProvisionalBookingRequest = {
   latestOfferTotalPence: number | null;
   latestOfferCurrency: string | null;
   latestOfferSentAt: string | null;
+  unreadMessageCount: number;
 };
 
 function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
@@ -315,6 +353,7 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
     latestOfferSentAt: row.latestOfferSentAt ? new Date(row.latestOfferSentAt).toISOString() : null,
+    unreadMessageCount: Number(row.unreadMessageCount || 0),
   } as ProvisionalBookingRequest;
 }
 
@@ -331,7 +370,9 @@ export async function getProvisionalBookingRequests(
             pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
-            latest_offer.sent_at AS "latestOfferSentAt"
+            latest_offer.sent_at AS "latestOfferSentAt",
+            (SELECT COUNT(*)::int FROM booking_messages bm
+              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
        FROM provisional_bookings pb
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at
@@ -362,7 +403,9 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.pricing_result AS "pricingResult", pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
-            latest_offer.sent_at AS "latestOfferSentAt"
+            latest_offer.sent_at AS "latestOfferSentAt",
+            (SELECT COUNT(*)::int FROM booking_messages bm
+              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
        FROM provisional_bookings pb
        LEFT JOIN pricing_plans pp ON pp.id = pb.pricing_plan_id
        LEFT JOIN LATERAL (
@@ -504,16 +547,20 @@ export async function publishBookingOffer(input: {
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT bo.provisional_booking_id, pb.status AS booking_status
+      `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
+              COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
+              pb.status AS booking_status
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+         LEFT JOIN admin_users au ON au.id = bo.admin_user_id
         WHERE bo.id = $1 AND pb.public_id = $2::uuid
         FOR UPDATE OF bo, pb`,
       [input.offerId, input.reference],
     );
     if (!selected.rowCount) throw new Error('BOOKING_OFFER_NOT_FOUND');
-    const bookingId = selected.rows[0].provisional_booking_id;
-    if (!['pending', 'offered'].includes(selected.rows[0].booking_status)) {
+    const row = selected.rows[0];
+    const bookingId = row.provisional_booking_id;
+    if (!['pending', 'offered'].includes(row.booking_status)) {
       throw new Error('BOOKING_CANNOT_BE_OFFERED');
     }
 
@@ -540,6 +587,20 @@ export async function publishBookingOffer(input: {
        VALUES ($1, $2, 'administrator', 'offer_published')`,
       [bookingId, input.offerId],
     );
+    await insertAdministratorOfferMessage(client, {
+      bookingId,
+      offerId: input.offerId,
+      adminUserId: row.admin_user_id,
+      adminDisplayName: row.admin_display_name,
+      body: String(row.offer_message || ''),
+    });
+    await insertBotBookingMessage(client, {
+      bookingId,
+      offerId: input.offerId,
+      body: 'A booking offer has been published. Open Reservation details to review the price, terms and response options.',
+      audience: 'booker',
+      sourceKey: `offer-published:${input.offerId}`,
+    });
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -554,40 +615,80 @@ export async function markBookingOfferSent(input: {
   reference: string;
   deliveryMessageId?: string | null;
 }): Promise<void> {
-  await getPool().query(
-    `WITH sent AS (
-       UPDATE booking_offers bo
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const sent = await client.query(
+      `UPDATE booking_offers bo
           SET delivery_status = 'sent', delivery_message_id = $3,
               delivery_error = NULL, sent_at = NOW()
          FROM provisional_bookings pb
         WHERE bo.id = $1
           AND pb.id = bo.provisional_booking_id
           AND pb.public_id = $2::uuid
-        RETURNING bo.provisional_booking_id, bo.id
-     )
-     INSERT INTO booking_activity
-       (provisional_booking_id, booking_offer_id, actor, event_type, details)
-     SELECT provisional_booking_id, id, 'system', 'offer_email_sent', $4::jsonb
-       FROM sent`,
-    [input.offerId, input.reference, input.deliveryMessageId || null, JSON.stringify({ deliveryMessageId: input.deliveryMessageId || null })],
-  );
+      RETURNING bo.provisional_booking_id, bo.id`,
+      [input.offerId, input.reference, input.deliveryMessageId || null],
+    );
+    if (sent.rowCount) {
+      const row = sent.rows[0];
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type, details)
+         VALUES ($1, $2, 'system', 'offer_email_sent', $3::jsonb)`,
+        [row.provisional_booking_id, row.id, JSON.stringify({ deliveryMessageId: input.deliveryMessageId || null })],
+      );
+      await insertBotBookingMessage(client, {
+        bookingId: row.provisional_booking_id,
+        offerId: row.id,
+        body: 'The optional email copy of the booking offer was sent successfully.',
+        audience: 'booker',
+        sourceKey: `offer-email-sent:${row.id}`,
+      });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function markBookingOfferFailed(offerId: string, error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message.slice(0, 4000) : String(error).slice(0, 4000);
-  await getPool().query(
-    `WITH failed AS (
-       UPDATE booking_offers
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const failed = await client.query(
+      `UPDATE booking_offers
           SET delivery_status = 'failed', delivery_error = $2
         WHERE id = $1
-        RETURNING provisional_booking_id, id
-     )
-     INSERT INTO booking_activity
-       (provisional_booking_id, booking_offer_id, actor, event_type, details)
-     SELECT provisional_booking_id, id, 'system', 'offer_email_failed', $3::jsonb
-       FROM failed`,
-    [offerId, message, JSON.stringify({ error: message })],
-  );
+      RETURNING provisional_booking_id, id`,
+      [offerId, message],
+    );
+    if (failed.rowCount) {
+      const row = failed.rows[0];
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type, details)
+         VALUES ($1, $2, 'system', 'offer_email_failed', $3::jsonb)`,
+        [row.provisional_booking_id, row.id, JSON.stringify({ error: message })],
+      );
+      await insertBotBookingMessage(client, {
+        bookingId: row.provisional_booking_id,
+        offerId: row.id,
+        body: 'The booking offer remains available here, but its optional email copy could not be sent.',
+        audience: 'booker',
+        sourceKey: `offer-email-failed:${row.id}`,
+      });
+    }
+    await client.query('COMMIT');
+  } catch (transactionError) {
+    await client.query('ROLLBACK');
+    throw transactionError;
+  } finally {
+    client.release();
+  }
 }
 
 export type CustomerBookingOffer = {
@@ -859,6 +960,13 @@ export async function respondToCustomerBookingOffer(
            VALUES ($1, $2, 'system', 'offer_expired')`,
           [row.provisional_booking_id, row.id],
         );
+        await insertBotBookingMessage(client, {
+          bookingId: row.provisional_booking_id,
+          offerId: row.id,
+          body: 'The booking offer has expired. Send a message if you would like Olrig Bank to reconsider the stay.',
+          audience: 'both',
+          sourceKey: `offer-expired:${row.id}`,
+        });
         await client.query('COMMIT');
       } else {
         await client.query('ROLLBACK');
@@ -918,6 +1026,13 @@ export async function respondToCustomerBookingOffer(
          VALUES ($1, $2, 'customer', 'booking_confirmed')`,
         [row.provisional_booking_id, row.id],
       );
+      await insertBotBookingMessage(client, {
+        bookingId: row.provisional_booking_id,
+        offerId: row.id,
+        body: 'The Booker accepted the offer. This direct booking is now confirmed.',
+        audience: 'administrator',
+        sourceKey: `booking-confirmed:${row.id}`,
+      });
       await client.query('COMMIT');
       return 'accepted';
     }
@@ -936,6 +1051,13 @@ export async function respondToCustomerBookingOffer(
        VALUES ($1, $2, 'customer', 'offer_declined')`,
       [row.provisional_booking_id, row.id],
     );
+    await insertBotBookingMessage(client, {
+      bookingId: row.provisional_booking_id,
+      offerId: row.id,
+      body: 'The Booker declined the booking offer.',
+      audience: 'administrator',
+      sourceKey: `offer-declined:${row.id}`,
+    });
     await client.query('COMMIT');
     return 'declined';
   } catch (error) {
@@ -953,20 +1075,42 @@ export async function recordBookingActivity(input: {
   eventType: string;
   details?: Record<string, unknown>;
 }): Promise<void> {
-  await getPool().query(
-    `INSERT INTO booking_activity
-       (provisional_booking_id, booking_offer_id, actor, event_type, details)
-     SELECT pb.id, $2, $3, $4, $5::jsonb
-       FROM provisional_bookings pb
-      WHERE pb.public_id = $1::uuid`,
-    [
-      input.bookingReference,
-      input.offerId || null,
-      input.actor,
-      input.eventType,
-      JSON.stringify(input.details || {}),
-    ],
-  );
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `INSERT INTO booking_activity
+         (provisional_booking_id, booking_offer_id, actor, event_type, details)
+       SELECT pb.id, $2, $3, $4, $5::jsonb
+         FROM provisional_bookings pb
+        WHERE pb.public_id = $1::uuid
+       RETURNING id, provisional_booking_id, booking_offer_id`,
+      [
+        input.bookingReference,
+        input.offerId || null,
+        input.actor,
+        input.eventType,
+        JSON.stringify(input.details || {}),
+      ],
+    );
+    const botMessage = botMessageForActivity(input.eventType);
+    if (result.rowCount && botMessage) {
+      const row = result.rows[0];
+      await insertBotBookingMessage(client, {
+        bookingId: row.provisional_booking_id,
+        offerId: row.booking_offer_id,
+        body: botMessage.body,
+        audience: botMessage.audience,
+        sourceKey: `activity:${row.id}`,
+      });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type BookingActivity = {

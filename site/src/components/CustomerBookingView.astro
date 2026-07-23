@@ -1,24 +1,36 @@
 ---
+import BookingConversation from './BookingConversation.astro';
+import type { BookingMessage } from '../lib/booking/messaging';
 import type { CustomerBookingOffer } from '../lib/booking/repository';
 
 interface Props {
   offer: CustomerBookingOffer;
+  messages: BookingMessage[];
   propertyName: string;
+  pollingUrl: string;
   responseNotice?: string | null;
   responseError?: string;
+  messageNotice?: string;
+  messageError?: string;
   allowResponse?: boolean;
   adminPreview?: boolean;
   emailStatus?: 'sent' | 'failed' | 'skipped' | null;
+  messageNotificationAvailable?: boolean;
 }
 
 const {
   offer,
+  messages,
   propertyName,
+  pollingUrl,
   responseNotice = null,
   responseError = '',
+  messageNotice = '',
+  messageError = '',
   allowResponse = true,
   adminPreview = false,
   emailStatus = null,
+  messageNotificationAvailable = false,
 } = Astro.props;
 
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
@@ -44,42 +56,61 @@ const statusHeading = confirmed
             ? 'Booking cancelled'
             : 'Booking offer ready';
 const statusMessage = confirmed
-  ? 'Your direct booking with Olrig Bank is confirmed. This private page is your current booking record.'
+  ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
   : requestPending
-    ? 'Your requested dates are being held provisionally while Olrig Bank reviews the request. Return to this page to see the offer when it is ready.'
+    ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
     : offer.customerStatus === 'declined'
-      ? 'You have declined this offer. Contact Olrig Bank if you would like to discuss another stay.'
+      ? 'You declined this offer. Continue the conversation if you would like to discuss another stay.'
       : offer.customerStatus === 'expired'
-        ? 'The acceptance period has ended. Contact Olrig Bank if you would like the booking to be reconsidered.'
+        ? 'The acceptance period has ended. Send a message if you would like the stay to be reconsidered.'
         : offer.customerStatus === 'superseded'
-          ? 'A newer offer has replaced this one. This page will show the current offer when one is available.'
+          ? 'A newer offer replaced this one. Reservation details show the current offer when available.'
           : offer.customerStatus === 'cancelled'
-            ? 'This booking has been cancelled. Contact Olrig Bank if you need to discuss it.'
-            : 'Review the details below, then accept or decline the offer.';
+            ? 'This booking has been cancelled. The conversation remains available as a record.'
+            : 'Open Reservation details to review the price, terms and response options.';
 
 function responseMessage(): string {
   const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed';
   if (accepted) {
-    if (emailStatus === 'sent') return 'Thank you. Your booking is confirmed and a confirmation email has been sent. This page remains the main booking record.';
-    if (emailStatus === 'failed') return 'Thank you. Your booking is confirmed. The optional confirmation email could not be sent, so keep this page address as your booking record.';
-    return 'Thank you. Your booking is confirmed. No email was required; keep this page address as your booking record.';
+    if (emailStatus === 'sent') return 'Your booking is confirmed and a confirmation email was sent.';
+    if (emailStatus === 'failed') return 'Your booking is confirmed. The optional confirmation email could not be sent.';
+    return 'Your booking is confirmed. No email was required.';
   }
-  if (emailStatus === 'sent') return 'Your decision to decline the offer has been recorded and an email copy has been sent.';
-  if (emailStatus === 'failed') return 'Your decision to decline the offer has been recorded, although the optional email copy could not be sent.';
-  return 'Your decision to decline the offer has been recorded on this page.';
+  if (emailStatus === 'sent') return 'Your decision to decline was recorded and an email copy was sent.';
+  if (emailStatus === 'failed') return 'Your decision to decline was recorded, although the optional email copy could not be sent.';
+  return 'Your decision to decline was recorded.';
 }
+
+const conversationNotice = messageNotice || ((responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'declined') ? responseMessage() : '');
+const conversationError = messageError || responseError;
 ---
 <section class="customer-booking-shell">
   {adminPreview && <div class="customer-booking-message is-preview" role="status">
-    Administrator preview of the customer booking page.
-    <a href={`/admin/bookings/${offer.bookingReference}/`}>Return to the booking record</a>
+    Administrator preview of the Booker booking page.
+    <a href={`/admin/bookings/${offer.bookingReference}/`}>Return to the booking conversation</a>
   </div>}
+
+  <BookingConversation
+    messages={messages}
+    viewer="booker"
+    heading={adminPreview ? `Booker conversation: ${offer.guestName}` : 'Conversation with Olrig Bank'}
+    intro={adminPreview ? 'This is how the continuing booking conversation appears to the Booker.' : 'Reply here to Jenna and the Olrig Bank team. New messages are checked automatically.'}
+    pollingUrl={pollingUrl}
+    bookingStatus={offer.bookingStatus}
+    reservationVersion={`${offer.bookingStatus}:${offer.customerStatus}:${offer.offerId || ''}:${offer.publishedAt || ''}`}
+    canCompose={!adminPreview}
+    notificationAvailable={messageNotificationAvailable}
+    notificationLabel="Also notify the Olrig Bank administrators by email"
+    messageNotice={conversationNotice}
+    messageError={conversationError}
+    reservationButtonLabel={confirmed ? 'Reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
+  />
 
   {!adminPreview && <section class="customer-booking-card customer-booking-access-card">
     <div>
       <p class="eyebrow">Your private booking page</p>
       <h2>Save this page address</h2>
-      <p>Bookmark this page or copy its address somewhere safe. This secure link is how you return to the booking, see new offers and manage later stages. Email is optional.</p>
+      <p>Bookmark this page or keep its address somewhere safe. Messages, offers and later booking changes stay here; email is optional.</p>
       <p class="customer-booking-security-note">Anyone with this link can view and respond to the booking, so do not share it publicly.</p>
     </div>
     <div class="customer-booking-access-actions">
@@ -89,107 +120,94 @@ function responseMessage(): string {
     </div>
   </section>}
 
-  <header class="customer-booking-header">
-    <div>
-      <p class="eyebrow">Olrig Bank booking</p>
-      <h1>{statusHeading}</h1>
-      <p>{statusMessage}</p>
+
+  <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
+  <aside class="booking-reservation-drawer" data-reservation-drawer aria-hidden="true" aria-label="Reservation details">
+    <header class="booking-reservation-drawer__header">
+      <div>
+        <p class="eyebrow">Reservation</p>
+        <h2>{propertyName}</h2>
+      </div>
+      <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
+    </header>
+
+    <div class="booking-reservation-drawer__body">
+      <section class="booking-drawer-section booking-drawer-status">
+        <div>
+          <h3>{statusHeading}</h3>
+          <p>{statusMessage}</p>
+        </div>
+        <span class={`customer-booking-status status-${displayStatus}`}>{displayStatus.replaceAll('_', ' ')}</span>
+      </section>
+
+      <section class="booking-drawer-section">
+        <p class="eyebrow">Stay details</p>
+        <dl class="customer-booking-details">
+          <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
+          <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
+          <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Booker</dt><dd>{offer.guestName}</dd></div>
+          <div><dt>Email</dt><dd>{offer.guestEmail || 'Not supplied — email is optional'}</dd></div>
+          <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
+          <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
+          <div><dt>Requested</dt><dd>{new Date(offer.requestCreatedAt).toLocaleString('en-GB')}</dd></div>
+          {!confirmed && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
+          {confirmed && offer.acceptedAt && <div><dt>Confirmed</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
+        </dl>
+      </section>
+
+      <section class="booking-drawer-section">
+        <p class="eyebrow">Price breakdown</p>
+        <h3>{confirmed ? 'Confirmed price' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
+        {offer.priceAvailable ? <div class="customer-booking-price-table">
+          {offer.lineItems.map((line) => <div class="customer-booking-price-line">
+            <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
+            <span>{money(line.amountPence, offer.currency)}</span>
+          </div>)}
+          <div class="customer-booking-price-line is-total"><strong>{requestPending ? 'Provisional total' : 'Total'}</strong><strong>{money(offer.totalPence, offer.currency)}</strong></div>
+        </div> : <p>The price has not yet been confirmed. Olrig Bank will add it as part of the offer.</p>}
+        {requestPending && <p class="customer-booking-price-note">This calculation was recorded when the request was made and can be revised before an offer is published.</p>}
+      </section>
+
+      {offer.terms && <section class="booking-drawer-section customer-booking-copy">
+        <p class="eyebrow">Additional terms</p>
+        <p>{offer.terms}</p>
+      </section>}
+
+      {isActive && <section class="booking-drawer-section customer-booking-response">
+        <div>
+          <p class="eyebrow">Your response</p>
+          <h3>Accept or decline this offer</h3>
+          <p>Accepting confirms the direct booking immediately. The decision is recorded on this page.</p>
+        </div>
+        <div class="customer-booking-actions">
+          <form method="post" class="customer-booking-decision-form">
+            <input type="hidden" name="action" value="accept" />
+            <strong>Accept and confirm</strong>
+            <p>Confirm that you accept the dates, price and terms shown here.</p>
+            <label class="customer-booking-confirm-check">
+              <input type="checkbox" name="confirmAccept" value="yes" required />
+              <span>I have reviewed the offer and want to confirm this booking.</span>
+            </label>
+            <button class="customer-booking-submit customer-booking-accept" type="submit">Accept and confirm booking</button>
+          </form>
+
+          <form method="post" class="customer-booking-decision-form is-decline">
+            <input type="hidden" name="action" value="decline" />
+            <strong>Decline this offer</strong>
+            <p>Declining closes this offer. Continue the conversation to discuss a different stay.</p>
+            <label class="customer-booking-confirm-check">
+              <input type="checkbox" name="confirmDecline" value="yes" required />
+              <span>I understand that declining will close this offer.</span>
+            </label>
+            <button class="customer-booking-submit customer-booking-decline" type="submit">Decline booking offer</button>
+          </form>
+        </div>
+      </section>}
+
+      <p class="customer-booking-help">Use the conversation as the primary contact method for questions, changes and later amendment requests.</p>
     </div>
-    <span class={`customer-booking-status status-${displayStatus}`}>{displayStatus.replaceAll('_', ' ')}</span>
-  </header>
-
-  {(responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'declined') && (
-    <div class="customer-booking-message is-success" role="status">{responseMessage()}</div>
-  )}
-  {responseError && <div class="customer-booking-message is-error" role="alert">{responseError}</div>}
-
-  <div class="customer-booking-grid">
-    <section class="customer-booking-card">
-      <p class="eyebrow">Stay details</p>
-      <h2>{propertyName}</h2>
-      <dl class="customer-booking-details">
-        <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
-        <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
-        <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
-        <div><dt>Guest</dt><dd>{offer.guestName}</dd></div>
-        <div><dt>Email</dt><dd>{offer.guestEmail || 'Not supplied — email updates are optional'}</dd></div>
-        <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
-        <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
-        <div><dt>Requested</dt><dd>{new Date(offer.requestCreatedAt).toLocaleString('en-GB')}</dd></div>
-        {!confirmed && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
-        {confirmed && offer.acceptedAt && <div><dt>Confirmed</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
-      </dl>
-    </section>
-
-    <section class="customer-booking-card">
-      <p class="eyebrow">Price</p>
-      <h2>{confirmed ? 'Confirmed price' : requestPending ? 'Recorded provisional cost' : 'Your offer'}</h2>
-      {offer.priceAvailable ? <div class="customer-booking-price-table">
-        {offer.lineItems.map((line) => <div class="customer-booking-price-line">
-          <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
-          <span>{money(line.amountPence, offer.currency)}</span>
-        </div>)}
-        <div class="customer-booking-price-line is-total"><strong>{requestPending ? 'Provisional total' : 'Total'}</strong><strong>{money(offer.totalPence, offer.currency)}</strong></div>
-      </div> : <p>The price has not yet been confirmed. Olrig Bank will add it to this page as part of the offer.</p>}
-      {requestPending && <p class="customer-booking-price-note">This is the calculation recorded when the request was made. Olrig Bank can revise it before publishing the offer.</p>}
-    </section>
-  </div>
-
-  {offer.guestMessage && <section class="customer-booking-card customer-booking-copy">
-    <p class="eyebrow">Your request</p>
-    <h2>Message supplied with the booking request</h2>
-    <p>{offer.guestMessage}</p>
-  </section>}
-
-  {(offer.offerMessage || offer.terms) && <section class="customer-booking-card customer-booking-copy">
-    {offer.offerMessage && <><h2>Message from Olrig Bank</h2><p>{offer.offerMessage}</p></>}
-    {offer.terms && <><h2>Additional terms</h2><p>{offer.terms}</p></>}
-  </section>}
-
-  {requestPending && <section class="customer-booking-card customer-booking-copy">
-    <p class="eyebrow">What happens next</p>
-    <h2>Olrig Bank will review the request</h2>
-    <p>When an offer is published, it will appear on this same page with buttons to accept or decline it. You do not need an email to continue the booking.</p>
-  </section>}
-
-  {confirmed && <section class="customer-booking-card customer-booking-copy">
-    <p class="eyebrow">Booking amendments</p>
-    <h2>Need to request a change?</h2>
-    <p>Online amendment requests will be added to this page in a later development phase. For now, use the Olrig Bank contact page and quote the booking reference above.</p>
-  </section>}
-
-  {isActive && <section class="customer-booking-card customer-booking-response">
-    <div>
-      <p class="eyebrow">Your response</p>
-      <h2>Accept or decline this offer</h2>
-      <p>Accepting confirms the direct booking immediately. The result is recorded on this page; an email copy is sent only when an email address was supplied and delivery is available.</p>
-    </div>
-    <div class="customer-booking-actions">
-      <form method="post" class="customer-booking-decision-form">
-        <input type="hidden" name="action" value="accept" />
-        <strong>Accept and confirm</strong>
-        <p>Confirm that you accept the dates, price and terms shown on this page.</p>
-        <label class="customer-booking-confirm-check">
-          <input type="checkbox" name="confirmAccept" value="yes" required />
-          <span>I have reviewed the offer and want to confirm this booking.</span>
-        </label>
-        <button class="customer-booking-submit customer-booking-accept" type="submit">Accept and confirm booking</button>
-      </form>
-
-      <form method="post" class="customer-booking-decision-form is-decline">
-        <input type="hidden" name="action" value="decline" />
-        <strong>Decline this offer</strong>
-        <p>Declining closes this offer. Contact Olrig Bank if you would like to discuss a different stay.</p>
-        <label class="customer-booking-confirm-check">
-          <input type="checkbox" name="confirmDecline" value="yes" required />
-          <span>I understand that declining will close this offer.</span>
-        </label>
-        <button class="customer-booking-submit customer-booking-decline" type="submit">Decline booking offer</button>
-      </form>
-    </div>
-  </section>}
-
-  <p class="customer-booking-help">Questions or changes? Use the <a href="/contact/">Olrig Bank contact page</a> and include your booking reference.</p>
+  </aside>
 </section>
 
 <script>
@@ -199,7 +217,7 @@ function responseMessage(): string {
       await navigator.clipboard.writeText(window.location.href);
       if (status) status.textContent = 'Page address copied.';
     } catch {
-      if (status) status.textContent = 'Copy was not available. Use your browser address bar to copy this page address.';
+      if (status) status.textContent = 'Use your browser address bar to copy this page address.';
     }
   });
   document.querySelector<HTMLButtonElement>('[data-refresh-booking-page]')?.addEventListener('click', () => window.location.reload());

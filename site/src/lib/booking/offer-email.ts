@@ -183,8 +183,8 @@ export async function sendManagementOfferResponseEmail(input: {
     `${formatDate(input.offer.arrival)} to ${formatDate(input.offer.departure)}`,
     `${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? `, ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}`,
     `${accepted ? 'Confirmed total' : 'Offer total'}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
-    `Customer email: ${input.offer.guestEmail || 'Not supplied'}`,
-    `Customer telephone: ${input.offer.guestTelephone || 'None supplied'}`,
+    `Booker email: ${input.offer.guestEmail || 'Not supplied'}`,
+    `Booker telephone: ${input.offer.guestTelephone || 'None supplied'}`,
     `Booking request reference: ${input.offer.bookingReference}`,
     '',
     `Administrator review: ${input.adminUrl}`,
@@ -193,7 +193,7 @@ export async function sendManagementOfferResponseEmail(input: {
     <h1>${accepted ? 'Direct booking confirmed' : 'Booking offer declined'}</h1>
     <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? 'has accepted the offer and the booking is now confirmed.' : 'has declined the booking offer.'}</p>
     <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>${accepted ? 'Confirmed total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
-    <p>Customer email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Customer telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
+    <p>Booker email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Booker telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
     <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
   </body></html>`;
   return sendEmail({

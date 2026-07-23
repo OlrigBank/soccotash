@@ -39,8 +39,8 @@ function entriesOnDay(entries: AdminCalendarEntry[], value: string): AdminCalend
 }
 function entryLabel(entry: AdminCalendarEntry): string {
   const propertyName = propertyNames.get(entry.propertyId) ?? entry.propertyId;
-  if (entry.source === 'direct') return `Direct · ${propertyName} · ${entry.guestName || 'Guest'}`;
-  if (entry.source === 'provisional') return `Provisional · ${propertyName} · ${entry.guestName || 'Guest'}`;
+  if (entry.source === 'direct') return `Direct · ${propertyName} · ${entry.guestName || 'Booker'}`;
+  if (entry.source === 'provisional') return `Provisional · ${propertyName} · ${entry.guestName || 'Booker'}`;
   if (entry.source === 'airbnb') return `Airbnb · ${propertyName}`;
   return `Unavailable · ${propertyName}`;
 }
@@ -117,7 +117,7 @@ const today = new Date().toISOString().slice(0, 10);
                   const className = `admin-calendar-event is-${entry.source}`;
                   const label = entryLabel(entry);
                   if (entry.source === 'direct' && entry.bookingReference && entry.bookingStatus === 'confirmed') {
-                    return <a class={className} href={`/admin/bookings/${entry.bookingReference}/customer-view/`} title={`${label}. View the customer booking page.`}>{label}</a>;
+                    return <a class={className} href={`/admin/bookings/${entry.bookingReference}/customer-view/`} title={`${label}. View the Booker booking page.`}>{label}</a>;
                   }
                   if ((entry.source === 'direct' || entry.source === 'provisional') && entry.bookingReference) {
                     return <a class={className} href={`/admin/bookings/${entry.bookingReference}/`} title={`${label}. Review the booking record.`}>{label}</a>;

@@ -37,10 +37,10 @@ Then create the administrator, replacing the sample values:
 ```bash
 docker compose run --rm \
   -e ADMIN_PASSWORD='replace-with-a-long-unique-password' \
-  site npm run admin:create -- admin@example.com 'Administrator'
+  site npm run admin:create -- admin@example.com 'Jenna'
 ```
 
-The password must contain at least 12 characters. Running the command again for the same email address resets that account's password and re-enables it.
+The password must contain at least 12 characters. Running the command again for the same email address resets that account's password and re-enables it. The display name is optional; when omitted it defaults to **Jenna**. Manually composed booking messages use the logged-in administrator's display name.
 
 For a directly configured local environment, the equivalent command is:
 
@@ -49,7 +49,7 @@ cd site
 DATABASE_URL='postgresql://...' \
 DATABASE_SSL=false \
 ADMIN_PASSWORD='replace-with-a-long-unique-password' \
-npm run admin:create -- admin@example.com 'Administrator'
+npm run admin:create -- admin@example.com 'Jenna'
 ```
 
 ## Session behaviour
