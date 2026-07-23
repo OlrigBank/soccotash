@@ -2,7 +2,7 @@
 import BaseLayout from '../../../../../layouts/BaseLayout.astro';
 import CustomerBookingView from '../../../../../components/CustomerBookingView.astro';
 import { getProperties } from '../../../../../lib/booking/config';
-import { getConfirmedCustomerBooking } from '../../../../../lib/booking/repository';
+import { getCustomerBookingPageByReference } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
@@ -10,10 +10,10 @@ Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
 const reference = String(Astro.params.reference || '');
 if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
-const offer = await getConfirmedCustomerBooking(reference);
-if (!offer) return new Response('Confirmed booking not found.', { status: 404 });
+const offer = await getCustomerBookingPageByReference(reference);
+if (!offer) return new Response('Booking not found.', { status: 404 });
 const propertyName = getProperties().find((property) => property.id === offer.propertyId)?.name ?? offer.propertyId;
 ---
-<BaseLayout title={`Customer booking preview · ${propertyName}`} description="Administrator preview of the confirmed customer booking." showSidebar={false} robots="noindex,nofollow,noarchive">
+<BaseLayout title={`Customer booking preview · ${propertyName}`} description="Administrator preview of the customer booking page." showSidebar={false} robots="noindex,nofollow,noarchive">
   <CustomerBookingView offer={offer} propertyName={propertyName} allowResponse={false} adminPreview={true} />
 </BaseLayout>

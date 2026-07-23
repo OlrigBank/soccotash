@@ -10,6 +10,7 @@ import {
   getProvisionalBookingRequest,
   markBookingOfferFailed,
   markBookingOfferSent,
+  publishBookingOffer,
   updateProvisionalBookingEmail,
   type BookingOfferLine,
 } from '../../../../lib/booking/repository';
@@ -35,6 +36,9 @@ function cleanText(value: FormDataEntryValue | null, max: number): string {
 function validEmail(value: string): boolean {
   return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+function validOptionalEmail(value: string): boolean {
+  return value === '' || validEmail(value);
+}
 function poundsToPence(value: string): number | null {
   const trimmed = value.trim();
   if (!/^-?\d{1,8}(?:\.\d{1,2})?$/.test(trimmed)) return null;
@@ -54,7 +58,7 @@ function pricingLines(value: Record<string, unknown> | null | undefined): Bookin
 
 let offers = await getBookingOffers(reference);
 let activity = await getBookingActivity(reference);
-const priorOffer = offers.find((offer) => offer.deliveryStatus === 'sent') ?? offers[0];
+const priorOffer = offers.find((offer) => offer.customerStatus === 'active' || offer.customerStatus === 'accepted') ?? offers[0];
 const initialLines = priorOffer?.lineItems.length
   ? priorOffer.lineItems
   : pricingLines(booking.pricingResult).length
@@ -73,12 +77,12 @@ let error = '';
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
-  const action = cleanText(form.get('action'), 40) || 'send-offer';
+  const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
   if (action === 'save-contact') {
     contactEmail = cleanText(form.get('contactEmail'), 254).toLowerCase();
-    if (!validEmail(contactEmail)) {
-      error = 'Enter a valid customer email address.';
+    if (!validOptionalEmail(contactEmail)) {
+      error = 'Enter a valid customer email address or leave it blank.';
     } else {
       const previousEmail = booking.email;
       const updated = await updateProvisionalBookingEmail(reference, contactEmail);
@@ -112,10 +116,11 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect('/admin/bookings/?deleted=1');
       }
     }
-  } else if (action === 'send-offer') {
+  } else if (action === 'publish-offer') {
     const labels = form.getAll('lineLabel').map((value) => cleanText(value, 160));
     const details = form.getAll('lineDetail').map((value) => cleanText(value, 500));
     const amounts = form.getAll('lineAmount').map((value) => poundsToPence(String(value)));
+    const emailRequested = form.get('sendEmailCopy') === 'yes';
     offerMessage = cleanText(form.get('offerMessage'), 5000);
     terms = cleanText(form.get('terms'), 5000);
     validUntil = cleanText(form.get('validUntil'), 10);
@@ -127,12 +132,14 @@ if (Astro.request.method === 'POST') {
     }));
 
     if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
-    else if (!emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
-    else if (!subject) error = 'Enter an email subject.';
+    else if (!subject) error = 'Enter an offer title or email subject.';
     else if (!formLines.length || formLines.length > 40) error = 'The offer must contain between 1 and 40 price lines.';
     else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
     else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
     else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
+    else if (emailRequested && !booking.email) error = 'Add a customer email address before requesting an email copy.';
+    else if (emailRequested && !validEmail(booking.email)) error = 'The saved customer email address is not valid.';
+    else if (emailRequested && !emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
 
     const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
     if (!error && totalPence < 0) error = 'The bottom-line offer price cannot be negative.';
@@ -147,15 +154,30 @@ if (Astro.request.method === 'POST') {
         offerMessage,
         terms,
         validUntil: validUntil || undefined,
-        recipientEmail: booking.email,
+        recipientEmail: booking.email || '',
         subject,
+        emailRequested,
       });
-      let delivery: Awaited<ReturnType<typeof sendBookingOfferEmail>> | null = null;
+
+      await publishBookingOffer({ offerId: attempt.id, reference });
+      await audit(Astro.locals.adminUser!.id, 'booking.offer_published', {
+        bookingReference: reference,
+        offerReference: attempt.publicId,
+        totalPence,
+        currency: booking.pricingCurrency || 'GBP',
+        emailRequested,
+      });
+
+      if (!emailRequested) {
+        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=skipped`);
+      }
+
       try {
         const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
         const publicOrigin = configuredOrigin || Astro.url.origin;
-        const manageUrl = new URL(`/booking/manage/${attempt.accessToken}/`, publicOrigin).toString();
-        delivery = await sendBookingOfferEmail({
+        if (!booking.customerAccessToken) throw new Error('The customer booking-page token is missing.');
+        const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
+        const delivery = await sendBookingOfferEmail({
           booking,
           propertyName,
           currency: booking.pricingCurrency || 'GBP',
@@ -167,38 +189,23 @@ if (Astro.request.method === 'POST') {
           subject,
           manageUrl,
         });
+        await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: delivery.messageId });
+        await audit(Astro.locals.adminUser!.id, 'booking.offer_email_sent', {
+          bookingReference: reference,
+          offerReference: attempt.publicId,
+          recipient: booking.email,
+          provider: delivery.provider,
+        });
+        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=sent`);
       } catch (sendError) {
         await markBookingOfferFailed(attempt.id, sendError);
-        await audit(Astro.locals.adminUser!.id, 'booking.offer_failed', {
+        await audit(Astro.locals.adminUser!.id, 'booking.offer_email_failed', {
           bookingReference: reference,
           offerReference: attempt.publicId,
           recipient: booking.email,
           error: sendError instanceof Error ? sendError.message : String(sendError),
         });
-        error = sendError instanceof Error ? `The offer was not sent: ${sendError.message}` : 'The offer was not sent.';
-      }
-      if (delivery) {
-        try {
-          await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: delivery.messageId });
-          await audit(Astro.locals.adminUser!.id, 'booking.offer_sent', {
-            bookingReference: reference,
-            offerReference: attempt.publicId,
-            recipient: booking.email,
-            totalPence,
-            currency: booking.pricingCurrency || 'GBP',
-            provider: delivery.provider,
-          });
-          return Astro.redirect(`/admin/bookings/${reference}/?sent=1`);
-        } catch (updateError) {
-          await audit(Astro.locals.adminUser!.id, 'booking.offer_status_update_failed', {
-            bookingReference: reference,
-            offerReference: attempt.publicId,
-            recipient: booking.email,
-            deliveryMessageId: delivery.messageId,
-            error: updateError instanceof Error ? updateError.message : String(updateError),
-          });
-          error = 'The email provider accepted the offer, but the booking status could not be updated. Do not resend before checking the offer history.';
-        }
+        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=failed`);
       }
     }
   } else {
@@ -218,7 +225,8 @@ const visibleOffers = showClosedOffers
   ? offers
   : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
-const sent = Astro.url.searchParams.get('sent') === '1';
+const published = Astro.url.searchParams.get('published') === '1';
+const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
 ---
 <AdminLayout title={`Review ${booking.name}`}>
@@ -229,13 +237,13 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
     <div class="pricing-header-actions">
-      {booking.status === 'confirmed' && <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>}
+      <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>
       <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
     </div>
   </header>
 
-  {sent && <div class="pricing-message is-success" role="status">The offer was emailed to {booking.email}, and the request status is now <strong>offered</strong>.</div>}
-  {contactSaved && <div class="pricing-message is-success" role="status">The customer email address was updated to <strong>{booking.email}</strong>.</div>}
+  {published && <div class="pricing-message is-success" role="status">The offer is now published on the customer booking page.{publishEmailStatus === 'sent' ? ` An email copy was sent to ${booking.email}.` : publishEmailStatus === 'failed' ? ' The optional email copy could not be sent, but the offer remains available on the booking page.' : ' No email copy was requested.'}</div>}
+  {contactSaved && <div class="pricing-message is-success" role="status">{booking.email ? <>The customer email address was updated to <strong>{booking.email}</strong>.</> : 'The customer email address was cleared. Email updates are optional.'}</div>}
   {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
   <div class="booking-review-grid">
@@ -253,11 +261,11 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
       <form method="post" class="admin-form booking-contact-form">
         <input type="hidden" name="action" value="save-contact" />
         <label>Customer email address
-          <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="email" required />
+          <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="email" />
         </label>
         <div class="booking-contact-form__actions">
           <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
-          <small>The next booking offer will be sent to this saved address.</small>
+          <small>When supplied, this address can receive an optional copy of booking-page updates.</small>
         </div>
       </form>
     </section>
@@ -275,14 +283,14 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
 
   {canOffer ? (
     <section class="admin-panel booking-offer-editor">
-    <div class="booking-review-summary__heading"><div><h2>Customer offer</h2><p class="admin-panel-intro">Edit the calculation that will be sent to the customer. Negative amounts can be used for discounts.</p></div><div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div></div>
+    <div class="booking-review-summary__heading"><div><h2>Customer offer</h2><p class="admin-panel-intro">Edit the calculation that will be published on the customer booking page. Negative amounts can be used for discounts.</p></div><div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div></div>
 
-    {!canOffer && <div class="pricing-message is-error">This request has status <strong>{booking.status}</strong>. Only pending or already-offered requests can be sent an offer.</div>}
-    {!emailConfiguration.configured && <div class="pricing-message is-error"><strong>Email delivery is not configured.</strong> {emailConfiguration.problem}</div>}
+    {!canOffer && <div class="pricing-message is-error">This request has status <strong>{booking.status}</strong>. Only pending or already-offered requests can have an offer published.</div>}
+    {!emailConfiguration.configured && <div class="pricing-message"><strong>Email delivery is not configured.</strong> The offer can still be published on the booking page. {emailConfiguration.problem}</div>}
 
     <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
-      <input type="hidden" name="action" value="send-offer" />
-      <label>Email subject<input type="text" name="subject" value={subject} maxlength="300" required /></label>
+      <input type="hidden" name="action" value="publish-offer" />
+      <label>Offer title / email subject<input type="text" name="subject" value={subject} maxlength="300" required /></label>
       <div class="booking-offer-lines" id="offer-lines">
         {formLines.map((line) => <div class="booking-offer-line">
           <label>Line label<input type="text" name="lineLabel" value={line.label} maxlength="160" required /></label>
@@ -298,8 +306,15 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
       </div>
       <label>Additional terms<textarea name="terms" rows="4" maxlength="5000">{terms}</textarea></label>
       <div class="booking-send-panel">
-        <div><strong>Send to {booking.email}</strong><small>The request will be marked as offered only after the email provider accepts the message.</small></div>
-        <button class="admin-button" type="submit" disabled={!emailConfiguration.configured || !canOffer}>Send offer and mark as offered</button>
+        <div>
+          <strong>Publish on the customer booking page</strong>
+          <small>The offer becomes available immediately on the secure page the customer received when making the request.</small>
+          <label class="booking-email-copy-option">
+            <input type="checkbox" name="sendEmailCopy" value="yes" disabled={!booking.email || !emailConfiguration.configured} />
+            <span>Also email a copy{booking.email ? ` to ${booking.email}` : ' (no email address supplied)'}</span>
+          </label>
+        </div>
+        <button class="admin-button" type="submit" disabled={!canOffer}>Publish offer</button>
       </div>
     </form>
     </section>
@@ -308,8 +323,8 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
       <h2>{booking.status === 'confirmed' ? 'Confirmed direct booking' : 'Customer offer closed'}</h2>
       <p>{booking.status === 'confirmed'
         ? 'The customer accepted the offer and this booking is confirmed. The confirmed price and current booking details are retained on the customer booking page.'
-        : `This request has status “${booking.status}”. A new offer cannot be sent from this record.`}</p>
-      {booking.status === 'confirmed' && <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>}
+        : `This request has status “${booking.status}”. A new offer cannot be published from this record.`}</p>
+      <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>View customer booking page</a>
     </section>
   )}
 
@@ -320,8 +335,8 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
         {showClosedOffers ? 'Hide declined and expired offers' : 'Show declined and expired offers'}
       </a>
     </div>
-    {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Delivery</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
-      {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small><small>Recipient: {offer.recipientEmail}</small></td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
+    {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Email copy</th><th>Customer response</th><th>Administrator</th></tr></thead><tbody>
+      {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Administrator'}</td></tr>)}
     </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
   </section>}
 

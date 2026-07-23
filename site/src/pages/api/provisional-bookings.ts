@@ -49,7 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
       pets < 0 ||
       pets > 10 ||
       name.length < 2 ||
-      !/^\S+@\S+\.\S+$/.test(email)
+      (email.length > 0 && !/^\S+@\S+\.\S+$/.test(email))
     ) {
       return Response.json(
         { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} nights.` },
@@ -100,7 +100,7 @@ export const POST: APIRoute = async ({ request }) => {
       return Response.json({ error: restrictions || 'This stay does not meet the published booking rules.' }, { status: 422 });
     }
 
-    const reference = await createProvisionalBooking({
+    const booking = await createProvisionalBooking({
       propertyId: property.id,
       arrival,
       departure,
@@ -113,8 +113,9 @@ export const POST: APIRoute = async ({ request }) => {
       pricingQuote,
     });
     return Response.json({
-      reference,
+      reference: booking.reference,
       status: 'pending',
+      managePath: `/booking/manage/${booking.accessToken}/`,
       pricingAvailable: Boolean(pricingQuote),
       currency: pricingQuote?.result.currency,
       guestTotalPence: pricingQuote?.result.guestTotalPence,

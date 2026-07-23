@@ -3,7 +3,7 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
 import { getProperties } from '../../../../lib/booking/config';
 import {
-  getCustomerBookingOffer,
+  getCustomerBookingPage,
   recordBookingActivity,
   respondToCustomerBookingOffer,
   type CustomerOfferResponseResult,
@@ -22,7 +22,7 @@ Astro.response.headers.set('X-Soccotash-Booking-UI', '31');
 const token = String(Astro.params.token || '');
 if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) return new Response('Booking offer not found.', { status: 404 });
 
-let offer = await getCustomerBookingOffer(token, true);
+let offer = await getCustomerBookingPage(token, true);
 if (!offer) return new Response('Booking offer not found.', { status: 404 });
 
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
@@ -54,28 +54,38 @@ if (Astro.request.method === 'POST') {
   } else {
     responseResult = await respondToCustomerBookingOffer(token, action);
     if (responseResult === 'accepted' || responseResult === 'declined') {
-      offer = await getCustomerBookingOffer(token, false);
+      offer = await getCustomerBookingPage(token, false);
       if (!offer) return new Response('Booking offer not found.', { status: 404 });
       const response = responseResult;
-      let customerEmailStatus: 'sent' | 'failed' = 'failed';
+      let customerEmailStatus: 'sent' | 'failed' | 'skipped' = offer.guestEmail ? 'failed' : 'skipped';
 
-      try {
-        const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
-        customerEmailStatus = 'sent';
+      if (offer.guestEmail) {
+        try {
+          const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
+          customerEmailStatus = 'sent';
+          await recordBookingActivity({
+            bookingReference: offer.bookingReference,
+            offerId: offer.offerId,
+            actor: 'system',
+            eventType: response === 'accepted' ? 'booking_confirmation_email_sent' : 'customer_response_email_sent',
+            details: { response, provider: sent.provider, messageId: sent.messageId },
+          });
+        } catch (error) {
+          await recordBookingActivity({
+            bookingReference: offer.bookingReference,
+            offerId: offer.offerId,
+            actor: 'system',
+            eventType: response === 'accepted' ? 'booking_confirmation_email_failed' : 'customer_response_email_failed',
+            details: { response, error: error instanceof Error ? error.message : String(error) },
+          });
+        }
+      } else {
         await recordBookingActivity({
           bookingReference: offer.bookingReference,
           offerId: offer.offerId,
           actor: 'system',
-          eventType: response === 'accepted' ? 'booking_confirmation_email_sent' : 'customer_response_email_sent',
-          details: { response, provider: sent.provider, messageId: sent.messageId },
-        });
-      } catch (error) {
-        await recordBookingActivity({
-          bookingReference: offer.bookingReference,
-          offerId: offer.offerId,
-          actor: 'system',
-          eventType: response === 'accepted' ? 'booking_confirmation_email_failed' : 'customer_response_email_failed',
-          details: { response, error: error instanceof Error ? error.message : String(error) },
+          eventType: 'customer_response_email_skipped',
+          details: { response, reason: 'No customer email supplied.' },
         });
       }
 
@@ -108,22 +118,24 @@ if (Astro.request.method === 'POST') {
       already_accepted: 'This booking has already been confirmed.',
       already_declined: 'This offer has already been declined.',
       expired: 'This offer has expired and can no longer be accepted or declined online.',
-      superseded: 'This offer link has been replaced by a newer offer. Please use the most recent email from Olrig Bank.',
+      superseded: 'This offer has been replaced. Reload this booking page to see the current offer.',
       dates_unavailable: 'The dates are no longer available. Your response was not recorded; please contact Olrig Bank.',
       not_found: 'This booking offer could not be found.',
     };
     responseError = messages[responseResult];
-    offer = await getCustomerBookingOffer(token, false) ?? offer;
+    offer = await getCustomerBookingPage(token, false) ?? offer;
   }
 }
 
 const responseNotice = Astro.url.searchParams.get('response');
-const emailStatus = Astro.url.searchParams.get('email') === 'failed' ? 'failed' : Astro.url.searchParams.get('email') === 'sent' ? 'sent' : null;
+const emailParam = Astro.url.searchParams.get('email');
+const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const confirmedBooking = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const pendingBooking = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 ---
 <BaseLayout
-  title={`${confirmedBooking ? 'Confirmed booking' : 'Booking offer'} · ${propertyName}`}
-  description={confirmedBooking ? 'View your confirmed Olrig Bank booking.' : 'Review and respond to your Olrig Bank booking offer.'}
+  title={`${confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
+  description={confirmedBooking ? 'View your confirmed Olrig Bank booking.' : pendingBooking ? 'View your Olrig Bank booking request.' : 'Review and respond to your Olrig Bank booking offer.'}
   showSidebar={false}
   robots="noindex,nofollow,noarchive"
 >

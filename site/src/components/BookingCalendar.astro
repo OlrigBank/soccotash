@@ -66,8 +66,8 @@ const properties = getProperties();
         <input id="guest-name" name="name" autocomplete="name" maxlength="120" required />
       </div>
       <div class="booking-field">
-        <label for="guest-email">Email</label>
-        <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+        <label for="guest-email">Email (optional)</label>
+        <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
       </div>
       <div class="booking-field">
         <label for="guest-telephone">Telephone (optional)</label>
@@ -78,12 +78,11 @@ const properties = getProperties();
         <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
       </div>
       <div class="booking-submit-review" data-booking-submit-review hidden></div>
-      <button class="button" type="submit" data-submit-booking>Request provisional booking</button>
+      <button class="button" type="submit" data-submit-booking>Request booking</button>
     </div>
   </form>
-  <section class="booking-confirmation" data-booking-confirmation hidden aria-live="polite"></section>
   <p class="booking-note">
-    Airbnb reservations and other blocked dates are shown as unavailable. A request is provisional until Jenna accepts it and contacts you.
+    Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.
   </p>
 </section>
 <script>
@@ -101,7 +100,6 @@ const properties = getProperties();
   const checkButton = root?.querySelector<HTMLButtonElement>('[data-check-availability]');
   const submitButton = root?.querySelector<HTMLButtonElement>('[data-submit-booking]');
   const submitReview = root?.querySelector<HTMLElement>('[data-booking-submit-review]');
-  const confirmation = root?.querySelector<HTMLElement>('[data-booking-confirmation]');
   const propertySelect = form?.querySelector<HTMLSelectElement>('[name="propertyId"]');
   const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
   const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
@@ -499,8 +497,8 @@ const properties = getProperties();
     if (!submitReview) return;
     submitReview.hidden = false;
     submitReview.innerHTML = body.pricingAvailable
-      ? `<span>Provisional cost to be recorded</span><strong>${money(body.guestTotalPence)}</strong><small>Review the itemised calculation above before submitting.</small>`
-      : `<span>Price to be confirmed</span><strong>Enquiry only</strong><small>Jenna will confirm the cost before accepting the booking.</small>`;
+      ? `<span>Provisional cost to be recorded</span><strong>${money(body.guestTotalPence)}</strong><small>Requesting creates your private booking page. Save its address so you can return without relying on email.</small>`
+      : `<span>Price to be confirmed</span><strong>Booking request</strong><small>Requesting creates your private booking page. Jenna will add the confirmed offer there.</small>`;
   }
 
   function renderQuote(body: Record<string, any>): void {
@@ -514,45 +512,10 @@ const properties = getProperties();
     quotePanel.innerHTML = `
       <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Provisional cost</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
       <table><tbody>${quoteRows(body)}<tr class="booking-quote-total"><th>Total for ${Number(body.nights) || 0} nights</th><th>${money(body.guestTotalPence)}</th></tr></tbody></table>
-      <p>This is the provisional amount that will be recorded with your request. The server recalculates it when you submit; the booking is not confirmed until Jenna accepts it.</p>`;
+      <p>This provisional amount will be recorded on your private booking page. The server recalculates it when you submit; the booking is not confirmed until an offer is published and you accept it.</p>`;
     renderSubmitReview(body);
   }
 
-  function renderConfirmation(body: Record<string, any>, submitted: Record<string, FormDataEntryValue>): void {
-    if (!confirmation || !form) return;
-    const quote = body.quote && typeof body.quote === 'object' ? body.quote as Record<string, any> : null;
-    const propertyName = propertySelect?.selectedOptions[0]?.textContent?.trim() || String(submitted.propertyId || 'Selected property');
-    const stay = `${dayFormatter.format(parseIso(String(submitted.arrival)))} to ${dayFormatter.format(parseIso(String(submitted.departure)))}`;
-    const price = quote?.pricingAvailable
-      ? `<div class="booking-confirmation-price"><div class="booking-quote-heading"><div><p class="eyebrow">Recorded provisional cost</p><h3>Cost attached to this request</h3></div><strong>${money(quote.guestTotalPence)}</strong></div><table><tbody>${quoteRows(quote)}<tr class="booking-quote-total"><th>Total for ${Number(quote.nights) || 0} nights</th><th>${money(quote.guestTotalPence)}</th></tr></tbody></table></div>`
-      : `<div class="booking-confirmation-price"><h3>Price to be confirmed</h3><p>Jenna will confirm the cost before accepting the booking.</p></div>`;
-    confirmation.innerHTML = `
-      <p class="eyebrow">Request received</p>
-      <h2>Your provisional booking request has been recorded</h2>
-      <p><strong>Reference:</strong> ${escapeHtml(body.reference)}</p>
-      <dl class="booking-confirmation-details">
-        <div><dt>Property</dt><dd>${escapeHtml(propertyName)}</dd></div>
-        <div><dt>Stay</dt><dd>${escapeHtml(stay)}</dd></div>
-        <div><dt>Guests</dt><dd>${escapeHtml(submitted.guests)}</dd></div>
-        <div><dt>Pets</dt><dd>${escapeHtml(submitted.pets || 0)}</dd></div>
-      </dl>
-      ${price}
-      <p>This remains a provisional request until Jenna accepts it and contacts you.</p>
-      <button class="button button-secondary" type="button" data-new-booking-request>Make another request</button>`;
-    confirmation.hidden = false;
-    form.hidden = true;
-    confirmation.querySelector<HTMLButtonElement>('[data-new-booking-request]')?.addEventListener('click', () => {
-      confirmation.hidden = true;
-      confirmation.innerHTML = '';
-      form.hidden = false;
-      form.reset();
-      resetSelection();
-      applyPropertyRules();
-      void loadVisibleCalendar();
-      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    confirmation.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 
   async function checkAvailability() {
     if (!form || !status || !contact) return false;
@@ -637,7 +600,7 @@ const properties = getProperties();
     if (!reviewedQuote || reviewedQuoteKey !== currentKey) {
       const available = await checkAvailability();
       if (available) {
-        status.textContent = 'Please review the provisional cost, complete your contact details, then press Request provisional booking again.';
+        status.textContent = 'Please review the provisional cost, complete your details, then press Request booking again.';
         quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       return;
@@ -658,7 +621,7 @@ const properties = getProperties();
           }
         : { pricingAvailable: false },
     };
-    status.textContent = 'Rechecking the price and saving your request…';
+    status.textContent = 'Rechecking the price and creating your private booking page…';
     if (submitButton) submitButton.disabled = true;
     if (checkButton) checkButton.disabled = true;
 
@@ -683,7 +646,12 @@ const properties = getProperties();
         }
         return;
       }
-      renderConfirmation(body, raw);
+      const managePath = typeof body.managePath === 'string' ? body.managePath : '';
+      if (!/^\/booking\/manage\/[A-Za-z0-9_-]{43,128}\/$/.test(managePath)) {
+        status.textContent = 'The booking was saved, but its private page could not be opened. Please contact Olrig Bank and quote the reference shown by the server.';
+        return;
+      }
+      window.location.assign(managePath);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {

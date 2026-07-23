@@ -2411,3 +2411,69 @@ a.admin-calendar-event:focus-visible {
   .admin-calendar-weekdays,
   .admin-calendar-grid { min-width: 760px; }
 }
+
+/* Stable customer booking page */
+.customer-booking-access-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border-color: #b9cbd8;
+  background: #f2f7fa;
+}
+.customer-booking-access-card h2 { margin: 0.2rem 0 0.55rem; }
+.customer-booking-security-note,
+.customer-booking-price-note {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.customer-booking-access-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(10rem, auto));
+  gap: 0.55rem;
+  flex: 0 0 auto;
+}
+.customer-booking-refresh {
+  background: #fff;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+}
+.customer-booking-refresh:hover,
+.customer-booking-refresh:focus-visible {
+  background: #f7efe9;
+  color: var(--accent-dark);
+}
+.customer-booking-copy-status {
+  grid-column: 1 / -1;
+  min-height: 1.2em;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+.customer-booking-status.status-pending,
+.status-not_requested {
+  background: #e8eef6;
+  color: #2f4f72;
+}
+.booking-email-copy-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  font-weight: 700;
+}
+.booking-email-copy-option input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+}
+@media (max-width: 760px) {
+  .customer-booking-access-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .customer-booking-access-actions {
+    grid-template-columns: 1fr;
+  }
+  .customer-booking-copy-status { grid-column: auto; }
+}

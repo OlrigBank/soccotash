@@ -60,10 +60,10 @@ export async function sendBookingOfferEmail(input: {
     validityText,
     input.terms,
     '',
-    'View the booking details and accept or decline this offer using the secure link below:',
+    'Return to your private booking page to review and respond to this offer:',
     input.manageUrl,
     '',
-    'This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately and you will receive a confirmation email with a link to your booking page.',
+    'This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately on the same private booking page. Email copies are optional.',
     '',
     `Booking request reference: ${input.booking.reference}`,
     '',
@@ -94,9 +94,9 @@ export async function sendBookingOfferEmail(input: {
       </table>
       ${validityText ? `<p style="margin-top:24px;"><strong>${escapeHtml(validityText)}</strong></p>` : ''}
       ${input.terms ? `<p>${escapeHtml(input.terms).replace(/\n/g, '<br>')}</p>` : ''}
-      <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">View and respond to your offer</a></p>
-      <p>This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately and you will receive a confirmation email with a link to your booking page.</p>
-      <p style="color:#65706b;font-size:13px;">This secure link is unique to your offer. Please do not forward it.</p>
+      <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Open your booking page</a></p>
+      <p>This is an offer rather than a confirmed booking. If you accept it, the direct booking will be confirmed immediately on the same private booking page. Email copies are optional.</p>
+      <p style="color:#65706b;font-size:13px;">This secure link is the continuing page for your booking. Save it and do not forward it.</p>
       <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.reference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
     </div>
@@ -183,7 +183,7 @@ export async function sendManagementOfferResponseEmail(input: {
     `${formatDate(input.offer.arrival)} to ${formatDate(input.offer.departure)}`,
     `${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? `, ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}`,
     `${accepted ? 'Confirmed total' : 'Offer total'}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
-    `Customer email: ${input.offer.guestEmail}`,
+    `Customer email: ${input.offer.guestEmail || 'Not supplied'}`,
     `Customer telephone: ${input.offer.guestTelephone || 'None supplied'}`,
     `Booking request reference: ${input.offer.bookingReference}`,
     '',
@@ -193,7 +193,7 @@ export async function sendManagementOfferResponseEmail(input: {
     <h1>${accepted ? 'Direct booking confirmed' : 'Booking offer declined'}</h1>
     <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? 'has accepted the offer and the booking is now confirmed.' : 'has declined the booking offer.'}</p>
     <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>${accepted ? 'Confirmed total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
-    <p>Customer email: ${escapeHtml(input.offer.guestEmail)}<br>Customer telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
+    <p>Customer email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Customer telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
     <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
   </body></html>`;
   return sendEmail({

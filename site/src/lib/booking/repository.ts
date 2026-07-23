@@ -3,6 +3,7 @@ import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty 
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
+import { customerPricingLinesFromUnknown } from '../pricing/display';
 
 export type BookingBlock = {
   startsOn: string;
@@ -15,7 +16,7 @@ export async function expireElapsedBookingOffers(): Promise<number> {
     `WITH expired AS (
        UPDATE booking_offers
           SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
-        WHERE delivery_status = 'sent'
+        WHERE published_at IS NOT NULL
           AND customer_status = 'active'
           AND valid_until IS NOT NULL
           AND valid_until < CURRENT_DATE
@@ -184,12 +185,13 @@ export async function createProvisionalBooking(input: {
   telephone?: string;
   message?: string;
   pricingQuote?: PublishedPricingQuote | null;
-}): Promise<string> {
+}): Promise<{ reference: string; accessToken: string }> {
   await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
   const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+  const accessToken = crypto.randomBytes(32).toString('base64url');
 
   const client = await getPool().connect();
   try {
@@ -209,9 +211,10 @@ export async function createProvisionalBooking(input: {
       `INSERT INTO provisional_bookings
        (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
-        guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20)
-       RETURNING public_id`,
+        guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
+        customer_access_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21)
+       RETURNING public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
         input.telephone || null, input.message || null,
@@ -226,10 +229,18 @@ export async function createProvisionalBooking(input: {
         input.pricingQuote ? JSON.stringify(input.pricingQuote.input) : null,
         input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
         input.pricingQuote ? new Date() : null,
+        accessToken,
       ],
     );
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
+       SELECT id, 'customer', 'booking_requested'
+         FROM provisional_bookings
+        WHERE public_id = $1::uuid`,
+      [result.rows[0].reference],
+    );
     await client.query('COMMIT');
-    return result.rows[0].public_id;
+    return { reference: result.rows[0].reference, accessToken };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -255,7 +266,7 @@ export type BookingOffer = {
   validUntil: string | null;
   recipientEmail: string;
   subject: string;
-  deliveryStatus: 'pending' | 'sent' | 'failed';
+  deliveryStatus: 'pending' | 'sent' | 'failed' | 'not_requested';
   deliveryMessageId: string | null;
   deliveryError: string | null;
   createdAt: string;
@@ -271,6 +282,7 @@ export type BookingOffer = {
 export type ProvisionalBookingRequest = {
   internalId?: string;
   reference: string;
+  customerAccessToken?: string;
   propertyId: string;
   arrival: string;
   departure: string;
@@ -324,8 +336,8 @@ export async function getProvisionalBookingRequests(
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at
            FROM booking_offers
-          WHERE provisional_booking_id = pb.id AND delivery_status = 'sent'
-          ORDER BY sent_at DESC, id DESC
+          WHERE provisional_booking_id = pb.id AND published_at IS NOT NULL
+          ORDER BY published_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
       WHERE $2::boolean OR pb.status NOT IN ('declined', 'expired')
@@ -340,7 +352,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   await expireElapsedBookingOffers();
   const result = await getPool().query(
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
-            pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+            pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
             pb.guest_telephone AS telephone, pb.guest_message AS message, pb.status,
             pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
@@ -356,8 +368,8 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at
            FROM booking_offers
-          WHERE provisional_booking_id = pb.id AND delivery_status = 'sent'
-          ORDER BY sent_at DESC, id DESC
+          WHERE provisional_booking_id = pb.id AND published_at IS NOT NULL
+          ORDER BY published_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
       WHERE pb.public_id = $1::uuid`,
@@ -452,15 +464,18 @@ export async function createBookingOfferAttempt(input: {
   validUntil?: string;
   recipientEmail: string;
   subject: string;
+  emailRequested: boolean;
 }): Promise<{ id: string; publicId: string; accessToken: string }> {
   const accessToken = crypto.randomBytes(32).toString('base64url');
   const result = await getPool().query(
     `INSERT INTO booking_offers
        (provisional_booking_id, admin_user_id, currency, line_items, total_pence,
-        offer_message, terms, valid_until, recipient_email, subject, access_token_hash)
-     SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10, $11
+        offer_message, terms, valid_until, recipient_email, subject, access_token_hash, delivery_status)
+     SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10, $11,
+            CASE WHEN $12::boolean THEN 'pending' ELSE 'not_requested' END
        FROM provisional_bookings pb
       WHERE pb.public_id = $1::uuid
+        AND pb.status IN ('pending', 'offered')
       RETURNING id::text, public_id::text AS "publicId"`,
     [
       input.reference,
@@ -474,26 +489,33 @@ export async function createBookingOfferAttempt(input: {
       input.recipientEmail,
       input.subject,
       accessTokenHash(accessToken),
+      input.emailRequested,
     ],
   );
   if (!result.rowCount) throw new Error('BOOKING_NOT_FOUND');
   return { ...result.rows[0], accessToken };
 }
 
-export async function markBookingOfferSent(input: {
+export async function publishBookingOffer(input: {
   offerId: string;
   reference: string;
-  deliveryMessageId?: string | null;
 }): Promise<void> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT provisional_booking_id FROM booking_offers WHERE id = $1 FOR UPDATE`,
-      [input.offerId],
+      `SELECT bo.provisional_booking_id, pb.status AS booking_status
+         FROM booking_offers bo
+         JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+        WHERE bo.id = $1 AND pb.public_id = $2::uuid
+        FOR UPDATE OF bo, pb`,
+      [input.offerId, input.reference],
     );
     if (!selected.rowCount) throw new Error('BOOKING_OFFER_NOT_FOUND');
     const bookingId = selected.rows[0].provisional_booking_id;
+    if (!['pending', 'offered'].includes(selected.rows[0].booking_status)) {
+      throw new Error('BOOKING_CANNOT_BE_OFFERED');
+    }
 
     await client.query(
       `UPDATE booking_offers
@@ -503,10 +525,9 @@ export async function markBookingOfferSent(input: {
     );
     await client.query(
       `UPDATE booking_offers
-          SET delivery_status = 'sent', delivery_message_id = $2,
-              delivery_error = NULL, sent_at = NOW(), customer_status = 'active'
+          SET published_at = NOW(), customer_status = 'active'
         WHERE id = $1`,
-      [input.offerId, input.deliveryMessageId || null],
+      [input.offerId],
     );
     await client.query(
       `UPDATE provisional_bookings SET status = 'offered'
@@ -515,9 +536,9 @@ export async function markBookingOfferSent(input: {
     );
     await client.query(
       `INSERT INTO booking_activity
-         (provisional_booking_id, booking_offer_id, actor, event_type, details)
-       VALUES ($1, $2, 'administrator', 'offer_sent', $3::jsonb)`,
-      [bookingId, input.offerId, JSON.stringify({ deliveryMessageId: input.deliveryMessageId || null })],
+         (provisional_booking_id, booking_offer_id, actor, event_type)
+       VALUES ($1, $2, 'administrator', 'offer_published')`,
+      [bookingId, input.offerId],
     );
     await client.query('COMMIT');
   } catch (error) {
@@ -526,6 +547,30 @@ export async function markBookingOfferSent(input: {
   } finally {
     client.release();
   }
+}
+
+export async function markBookingOfferSent(input: {
+  offerId: string;
+  reference: string;
+  deliveryMessageId?: string | null;
+}): Promise<void> {
+  await getPool().query(
+    `WITH sent AS (
+       UPDATE booking_offers bo
+          SET delivery_status = 'sent', delivery_message_id = $3,
+              delivery_error = NULL, sent_at = NOW()
+         FROM provisional_bookings pb
+        WHERE bo.id = $1
+          AND pb.id = bo.provisional_booking_id
+          AND pb.public_id = $2::uuid
+        RETURNING bo.provisional_booking_id, bo.id
+     )
+     INSERT INTO booking_activity
+       (provisional_booking_id, booking_offer_id, actor, event_type, details)
+     SELECT provisional_booking_id, id, 'system', 'offer_email_sent', $4::jsonb
+       FROM sent`,
+    [input.offerId, input.reference, input.deliveryMessageId || null, JSON.stringify({ deliveryMessageId: input.deliveryMessageId || null })],
+  );
 }
 
 export async function markBookingOfferFailed(offerId: string, error: unknown): Promise<void> {
@@ -539,15 +584,15 @@ export async function markBookingOfferFailed(offerId: string, error: unknown): P
      )
      INSERT INTO booking_activity
        (provisional_booking_id, booking_offer_id, actor, event_type, details)
-     SELECT provisional_booking_id, id, 'system', 'offer_delivery_failed', $3::jsonb
+     SELECT provisional_booking_id, id, 'system', 'offer_email_failed', $3::jsonb
        FROM failed`,
     [offerId, message, JSON.stringify({ error: message })],
   );
 }
 
 export type CustomerBookingOffer = {
-  offerId: string;
-  offerReference: string;
+  offerId: string | null;
+  offerReference: string | null;
   bookingReference: string;
   propertyId: string;
   arrival: string;
@@ -557,16 +602,20 @@ export type CustomerBookingOffer = {
   guestName: string;
   guestEmail: string;
   guestTelephone: string | null;
+  guestMessage: string | null;
   bookingStatus: string;
+  requestCreatedAt: string;
+  priceAvailable: boolean;
   currency: string;
   lineItems: BookingOfferLine[];
   totalPence: number;
   offerMessage: string | null;
   terms: string | null;
   validUntil: string | null;
-  subject: string;
-  customerStatus: 'pending' | 'active' | 'accepted' | 'declined' | 'expired' | 'superseded';
-  sentAt: string;
+  subject: string | null;
+  customerStatus: 'request_pending' | 'pending' | 'active' | 'accepted' | 'declined' | 'expired' | 'superseded' | 'cancelled';
+  sentAt: string | null;
+  publishedAt: string | null;
   firstViewedAt: string | null;
   acceptedAt: string | null;
   declinedAt: string | null;
@@ -574,10 +623,17 @@ export type CustomerBookingOffer = {
   tokenRevokedAt: string | null;
 };
 
-function normaliseCustomerOffer(row: Record<string, any>): CustomerBookingOffer {
+function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffer {
+  const offerLines = Array.isArray(row.lineItems) ? row.lineItems : [];
+  const recordedLines = customerPricingLinesFromUnknown(row.recordedPricingResult)
+    .map(({ label, detail, amountPence }) => ({ label, detail, amountPence }));
+  const lineItems = offerLines.length ? offerLines : recordedLines;
+  const recordedTotal = row.recordedTotalPence == null ? null : Number(row.recordedTotalPence);
+  const offerTotal = row.totalPence == null ? null : Number(row.totalPence);
+
   return {
-    offerId: String(row.offerId),
-    offerReference: String(row.offerReference),
+    offerId: row.offerId == null ? null : String(row.offerId),
+    offerReference: row.offerReference == null ? null : String(row.offerReference),
     bookingReference: String(row.bookingReference),
     propertyId: row.propertyId,
     arrival: row.arrival,
@@ -585,18 +641,22 @@ function normaliseCustomerOffer(row: Record<string, any>): CustomerBookingOffer 
     guests: Number(row.guests),
     pets: Number(row.pets || 0),
     guestName: row.guestName,
-    guestEmail: row.guestEmail,
+    guestEmail: row.guestEmail || '',
     guestTelephone: row.guestTelephone,
+    guestMessage: row.guestMessage,
     bookingStatus: row.bookingStatus,
-    currency: row.currency,
-    lineItems: Array.isArray(row.lineItems) ? row.lineItems : [],
-    totalPence: Number(row.totalPence),
+    requestCreatedAt: new Date(row.requestCreatedAt).toISOString(),
+    priceAvailable: offerTotal !== null || recordedTotal !== null || lineItems.length > 0,
+    currency: row.currency || row.recordedCurrency || 'GBP',
+    lineItems,
+    totalPence: offerTotal ?? recordedTotal ?? lineItems.reduce((sum, line) => sum + Number(line.amountPence || 0), 0),
     offerMessage: row.offerMessage,
     terms: row.terms,
     validUntil: row.validUntil,
     subject: row.subject,
     customerStatus: row.customerStatus,
-    sentAt: new Date(row.sentAt).toISOString(),
+    sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
+    publishedAt: row.publishedAt ? new Date(row.publishedAt).toISOString() : null,
     firstViewedAt: row.firstViewedAt ? new Date(row.firstViewedAt).toISOString() : null,
     acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
     declinedAt: row.declinedAt ? new Date(row.declinedAt).toISOString() : null,
@@ -605,116 +665,118 @@ function normaliseCustomerOffer(row: Record<string, any>): CustomerBookingOffer 
   };
 }
 
-async function expireCustomerOfferByHash(tokenHash: string): Promise<void> {
-  const client = await getPool().connect();
-  try {
-    await client.query('BEGIN');
-    const expired = await client.query(
-      `UPDATE booking_offers
-          SET customer_status = 'expired', expired_at = COALESCE(expired_at, NOW())
-        WHERE access_token_hash = $1
-          AND delivery_status = 'sent'
-          AND customer_status = 'active'
-          AND valid_until IS NOT NULL
-          AND valid_until < CURRENT_DATE
-        RETURNING id, provisional_booking_id`,
-      [tokenHash],
-    );
-    if (expired.rowCount) {
-      const row = expired.rows[0];
-      await client.query(
-        `UPDATE provisional_bookings SET status = 'expired'
-          WHERE id = $1 AND status = 'offered'`,
-        [row.provisional_booking_id],
-      );
-      await client.query(
-        `INSERT INTO booking_activity
-           (provisional_booking_id, booking_offer_id, actor, event_type)
-         VALUES ($1, $2, 'system', 'offer_expired')`,
-        [row.provisional_booking_id, row.id],
-      );
-    }
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-}
+const customerBookingSelect = `
+  SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
+         pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
+         pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
+         pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
+         pb.guest_telephone AS "guestTelephone", pb.guest_message AS "guestMessage",
+         pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt",
+         pb.pricing_currency AS "recordedCurrency", pb.guest_total_pence AS "recordedTotalPence",
+         pb.pricing_result AS "recordedPricingResult",
+         bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
+         bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
+         bo.subject,
+         COALESCE(
+           bo.customer_status,
+           CASE WHEN pb.status = 'declined' THEN 'declined'
+                WHEN pb.status = 'expired' THEN 'expired'
+                WHEN pb.status = 'cancelled' THEN 'cancelled'
+                ELSE 'request_pending' END
+         ) AS "customerStatus",
+         bo.sent_at AS "sentAt", bo.published_at AS "publishedAt",
+         bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
+         bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
+         bo.token_revoked_at AS "tokenRevokedAt"
+    FROM provisional_bookings pb
+    LEFT JOIN LATERAL (
+      SELECT candidate.*
+        FROM booking_offers candidate
+       WHERE candidate.provisional_booking_id = pb.id
+         AND candidate.published_at IS NOT NULL
+       ORDER BY candidate.published_at DESC, candidate.id DESC
+       LIMIT 1
+    ) bo ON TRUE`;
 
-export async function getCustomerBookingOffer(token: string, recordView = true): Promise<CustomerBookingOffer | null> {
+export async function getCustomerBookingPage(token: string, recordView = true): Promise<CustomerBookingOffer | null> {
   if (!validAccessToken(token)) return null;
+  await expireElapsedBookingOffers();
   const tokenHash = accessTokenHash(token);
-  await expireCustomerOfferByHash(tokenHash);
 
   if (recordView) {
-    const viewed = await getPool().query(
-      `WITH first_view AS (
-         UPDATE booking_offers
+    await getPool().query(
+      `WITH resolved AS (
+         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+         UNION
+         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       ), first_view AS (
+         UPDATE provisional_bookings pb
+            SET customer_first_viewed_at = NOW()
+           FROM resolved r
+          WHERE pb.id = r.id AND pb.customer_first_viewed_at IS NULL
+          RETURNING pb.id
+       )
+       INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
+       SELECT id, 'customer', 'booking_page_first_viewed' FROM first_view`,
+      [token, tokenHash],
+    );
+    await getPool().query(
+      `WITH resolved AS (
+         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+         UNION
+         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       ), current_offer AS (
+         SELECT bo.id
+           FROM booking_offers bo
+           JOIN resolved r ON r.id = bo.provisional_booking_id
+          WHERE bo.published_at IS NOT NULL
+          ORDER BY bo.published_at DESC, bo.id DESC
+          LIMIT 1
+       ), first_offer_view AS (
+         UPDATE booking_offers bo
             SET first_viewed_at = NOW()
-          WHERE access_token_hash = $1
-            AND delivery_status = 'sent'
-            AND first_viewed_at IS NULL
-          RETURNING id, provisional_booking_id
+           FROM current_offer current
+          WHERE bo.id = current.id AND bo.first_viewed_at IS NULL
+          RETURNING bo.id, bo.provisional_booking_id
        )
        INSERT INTO booking_activity
          (provisional_booking_id, booking_offer_id, actor, event_type)
        SELECT provisional_booking_id, id, 'customer', 'offer_viewed'
-         FROM first_view`,
-      [tokenHash],
+         FROM first_offer_view`,
+      [token, tokenHash],
     );
-    void viewed;
   }
 
   const result = await getPool().query(
-    `SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
-            pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
-            pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
-            pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
-            pb.guest_telephone AS "guestTelephone", pb.status AS "bookingStatus",
-            bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
-            bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
-            bo.subject, bo.customer_status AS "customerStatus", bo.sent_at AS "sentAt",
-            bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
-            bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
-            bo.token_revoked_at AS "tokenRevokedAt"
-       FROM booking_offers bo
-       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-      WHERE bo.access_token_hash = $1 AND bo.delivery_status = 'sent'`,
-    [tokenHash],
+    `WITH resolved AS (
+       SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+       UNION
+       SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+     )
+     ${customerBookingSelect}
+     JOIN resolved r ON r.id = pb.id
+     LIMIT 1`,
+    [token, tokenHash],
   );
-  return result.rowCount ? normaliseCustomerOffer(result.rows[0]) : null;
+  return result.rowCount ? normaliseCustomerBooking(result.rows[0]) : null;
+}
+
+// Compatibility name for older callers and links.
+export const getCustomerBookingOffer = getCustomerBookingPage;
+
+export async function getCustomerBookingPageByReference(reference: string): Promise<CustomerBookingOffer | null> {
+  await expireElapsedBookingOffers();
+  const result = await getPool().query(
+    `${customerBookingSelect}
+      WHERE pb.public_id = $1::uuid`,
+    [reference],
+  );
+  return result.rowCount ? normaliseCustomerBooking(result.rows[0]) : null;
 }
 
 export async function getConfirmedCustomerBooking(reference: string): Promise<CustomerBookingOffer | null> {
-  const result = await getPool().query(
-    `SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
-            pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
-            pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
-            pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
-            pb.guest_telephone AS "guestTelephone", pb.status AS "bookingStatus",
-            bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
-            bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
-            bo.subject, bo.customer_status AS "customerStatus", bo.sent_at AS "sentAt",
-            bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
-            bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
-            bo.token_revoked_at AS "tokenRevokedAt"
-       FROM provisional_bookings pb
-       JOIN LATERAL (
-         SELECT candidate.*
-           FROM booking_offers candidate
-          WHERE candidate.provisional_booking_id = pb.id
-            AND candidate.delivery_status = 'sent'
-            AND candidate.customer_status = 'accepted'
-          ORDER BY candidate.accepted_at DESC NULLS LAST, candidate.id DESC
-          LIMIT 1
-       ) bo ON TRUE
-      WHERE pb.public_id = $1::uuid
-        AND pb.status IN ('confirmed', 'approved')`,
-    [reference],
-  );
-  return result.rowCount ? normaliseCustomerOffer(result.rows[0]) : null;
+  const booking = await getCustomerBookingPageByReference(reference);
+  return booking && (booking.bookingStatus === 'confirmed' || booking.bookingStatus === 'approved') ? booking : null;
 }
 
 export type CustomerOfferResponseResult =
@@ -737,16 +799,28 @@ export async function respondToCustomerBookingOffer(
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT bo.id, bo.provisional_booking_id, bo.customer_status,
+      `WITH resolved AS (
+         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+         UNION
+         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       )
+       SELECT bo.id, bo.provisional_booking_id, bo.customer_status,
               bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
               bo.token_revoked_at,
               pb.public_id::text AS booking_reference, pb.property_id,
               pb.arrival::text, pb.departure::text, pb.status AS booking_status
-         FROM booking_offers bo
-         JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-        WHERE bo.access_token_hash = $1 AND bo.delivery_status = 'sent'
+         FROM provisional_bookings pb
+         JOIN resolved r ON r.id = pb.id
+         JOIN booking_offers bo ON bo.id = (
+           SELECT candidate.id
+             FROM booking_offers candidate
+            WHERE candidate.provisional_booking_id = pb.id
+              AND candidate.published_at IS NOT NULL
+            ORDER BY candidate.published_at DESC, candidate.id DESC
+            LIMIT 1
+         )
         FOR UPDATE OF bo, pb`,
-      [tokenHash],
+      [token, tokenHash],
     );
     if (!selected.rowCount) {
       await client.query('ROLLBACK');
