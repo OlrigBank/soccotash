@@ -2803,3 +2803,44 @@ body.has-booking-drawer { overflow: hidden; }
   font-weight: 700;
   white-space: nowrap;
 }
+
+.customer-booking-payment-options {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.customer-booking-payment-option {
+  position: relative;
+  padding: 1rem;
+  border: 1px solid var(--line, #d7d2c8);
+  border-radius: 0.9rem;
+  background: var(--surface, #fff);
+}
+.customer-booking-payment-option.is-recommended {
+  border-width: 2px;
+}
+.customer-booking-payment-option h4 {
+  margin: 0 0 0.35rem;
+}
+.customer-booking-payment-option p {
+  margin: 0 0 0.85rem;
+}
+.customer-booking-payment-option small {
+  display: block;
+  margin-top: 0.65rem;
+}
+.customer-booking-payment-badge {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef5ea;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.customer-booking-payment-option button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
