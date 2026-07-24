@@ -129,7 +129,7 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
      SELECT arrival::text AS "startsOn", departure::text AS "endsOn",
             CASE WHEN status IN ('confirmed', 'approved') THEN 'direct' ELSE 'provisional' END AS source
      FROM provisional_bookings
-     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'confirmed', 'approved')
+     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
        AND arrival < $3::date AND departure > $2::date
      ORDER BY "startsOn"`,
     [availabilityProperty.id, from, to, linkedPropertyIds],
@@ -171,7 +171,7 @@ export async function getAdminCalendarEntries(from: string, to: string): Promise
             pb.public_id::text AS "bookingReference",
             pb.status AS "bookingStatus"
        FROM provisional_bookings pb
-      WHERE pb.status IN ('pending', 'offered', 'confirmed', 'approved')
+      WHERE pb.status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
         AND pb.arrival < $2::date AND pb.departure > $1::date
       ORDER BY "startsOn", "propertyId", source`,
     [from, to],
@@ -225,7 +225,7 @@ export async function createProvisionalBooking(input: {
        WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
        UNION ALL
        SELECT 1 FROM provisional_bookings
-       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','confirmed','approved')
+       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','payment_pending','payment_reported','confirmed','approved')
          AND arrival < $3::date AND departure > $2::date LIMIT 1`,
       [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
     );
@@ -722,6 +722,12 @@ export type CustomerBookingOffer = {
   declinedAt: string | null;
   expiredAt: string | null;
   tokenRevokedAt: string | null;
+  paymentMethod: 'gocardless' | 'stripe' | 'bank_transfer' | null;
+  depositPence: number;
+  balanceDuePence: number;
+  balanceDueOn: string | null;
+  paymentReportedAt: string | null;
+  paymentReceivedAt: string | null;
 };
 
 function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffer {
@@ -763,6 +769,12 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     declinedAt: row.declinedAt ? new Date(row.declinedAt).toISOString() : null,
     expiredAt: row.expiredAt ? new Date(row.expiredAt).toISOString() : null,
     tokenRevokedAt: row.tokenRevokedAt ? new Date(row.tokenRevokedAt).toISOString() : null,
+    paymentMethod: row.paymentMethod || null,
+    depositPence: Number(row.depositPence || 0),
+    balanceDuePence: Number(row.balanceDuePence || 0),
+    balanceDueOn: row.balanceDueOn || null,
+    paymentReportedAt: row.paymentReportedAt ? new Date(row.paymentReportedAt).toISOString() : null,
+    paymentReceivedAt: row.paymentReceivedAt ? new Date(row.paymentReceivedAt).toISOString() : null,
   };
 }
 
@@ -773,6 +785,9 @@ const customerBookingSelect = `
          pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
          pb.guest_telephone AS "guestTelephone", pb.guest_message AS "guestMessage",
          pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt",
+         pb.payment_method AS "paymentMethod", pb.deposit_pence AS "depositPence",
+         pb.balance_due_pence AS "balanceDuePence", pb.balance_due_on::text AS "balanceDueOn",
+         pb.payment_reported_at AS "paymentReportedAt", pb.payment_received_at AS "paymentReceivedAt",
          pb.pricing_currency AS "recordedCurrency", pb.guest_total_pence AS "recordedTotalPence",
          pb.pricing_result AS "recordedPricingResult",
          bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
@@ -848,18 +863,21 @@ export async function getCustomerBookingPage(token: string, recordView = true): 
     );
   }
 
-  const result = await getPool().query(
-    `WITH resolved AS (
-       SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-       UNION
-       SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
-     )
-     ${customerBookingSelect}
-     JOIN resolved r ON r.id = pb.id
+  const resolved = await getPool().query(
+    `SELECT pb.public_id::text AS reference
+       FROM provisional_bookings pb
+      WHERE pb.customer_access_token = $1
+     UNION
+     SELECT pb.public_id::text AS reference
+       FROM booking_offers bo
+       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+      WHERE bo.access_token_hash = $2
      LIMIT 1`,
     [token, tokenHash],
   );
-  return result.rowCount ? normaliseCustomerBooking(result.rows[0]) : null;
+  if (!resolved.rowCount) return null;
+
+  return getCustomerBookingPageByReference(resolved.rows[0].reference);
 }
 
 // Compatibility name for older callers and links.
@@ -868,8 +886,7 @@ export const getCustomerBookingOffer = getCustomerBookingPage;
 export async function getCustomerBookingPageByReference(reference: string): Promise<CustomerBookingOffer | null> {
   await expireElapsedBookingOffers();
   const result = await getPool().query(
-    `${customerBookingSelect}
-      WHERE pb.public_id = $1::uuid`,
+    customerBookingSelect + '\nWHERE pb.public_id = $1::uuid',
     [reference],
   );
   return result.rowCount ? normaliseCustomerBooking(result.rows[0]) : null;
@@ -990,7 +1007,7 @@ export async function respondToCustomerBookingOffer(
          UNION ALL
          SELECT 1 FROM provisional_bookings
           WHERE property_id = ANY($4::text[]) AND id <> $5
-            AND status IN ('pending', 'offered', 'confirmed', 'approved')
+            AND status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
             AND arrival < $3::date AND departure > $2::date
          LIMIT 1`,
         [availabilityProperty.id, row.arrival, row.departure, linkedPropertyIds, row.provisional_booking_id],
@@ -1017,21 +1034,29 @@ export async function respondToCustomerBookingOffer(
         [row.provisional_booking_id, row.id],
       );
       await client.query(
-        `UPDATE provisional_bookings SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1`,
-        [row.provisional_booking_id],
+        `UPDATE provisional_bookings
+            SET status = 'payment_pending',
+                deposit_pence = GREATEST(1, ROUND(COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) *
+                  (COALESCE(NULLIF($3, ''), '25')::numeric / 100.0)))::integer,
+                balance_due_pence = GREATEST(0, COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) -
+                  GREATEST(1, ROUND(COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) *
+                  (COALESCE(NULLIF($3, ''), '25')::numeric / 100.0)))::integer),
+                deposit_due_at = NOW() + INTERVAL '7 days'
+          WHERE id = $1`,
+        [row.provisional_booking_id, row.id, String(process.env.BOOKING_DEPOSIT_PERCENT || '25')],
       );
       await client.query(
         `INSERT INTO booking_activity
            (provisional_booking_id, booking_offer_id, actor, event_type)
-         VALUES ($1, $2, 'customer', 'booking_confirmed')`,
+         VALUES ($1, $2, 'customer', 'offer_accepted_payment_required')`,
         [row.provisional_booking_id, row.id],
       );
       await insertBotBookingMessage(client, {
         bookingId: row.provisional_booking_id,
         offerId: row.id,
-        body: 'The Booker accepted the offer. This direct booking is now confirmed.',
+        body: 'The Booker accepted the offer. A deposit is now required before the booking is confirmed.',
         audience: 'administrator',
-        sourceKey: `booking-confirmed:${row.id}`,
+        sourceKey: `offer-accepted-payment-required:${row.id}`,
       });
       await client.query('COMMIT');
       return 'accepted';
@@ -1066,6 +1091,81 @@ export async function respondToCustomerBookingOffer(
   } finally {
     client.release();
   }
+}
+
+
+export type ManualTransferResult = 'confirmed' | 'paid_in_full' | 'already_paid' | 'payment_not_due' | 'not_found';
+
+export async function reportManualBankTransfer(token: string): Promise<ManualTransferResult> {
+  if (!validAccessToken(token)) return 'not_found';
+  const tokenHash = accessTokenHash(token);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `WITH resolved AS (
+         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+         UNION
+         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       )
+       SELECT pb.id, pb.status, pb.public_id::text AS booking_reference,
+              pb.balance_due_pence, pb.payment_received_at, bo.id AS offer_id
+         FROM provisional_bookings pb
+         JOIN resolved r ON r.id = pb.id
+         LEFT JOIN LATERAL (
+           SELECT id FROM booking_offers candidate
+            WHERE candidate.provisional_booking_id = pb.id
+              AND candidate.customer_status = 'accepted'
+            ORDER BY candidate.id DESC LIMIT 1
+         ) bo ON TRUE
+        FOR UPDATE OF pb`, [token, tokenHash]);
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
+    const row = selected.rows[0];
+    if ((row.status === 'confirmed' || row.status === 'approved') && Number(row.balance_due_pence || 0) <= 0) { await client.query('ROLLBACK'); return 'already_paid'; }
+    if (!['payment_pending', 'payment_reported', 'confirmed', 'approved'].includes(row.status)) { await client.query('ROLLBACK'); return 'payment_not_due'; }
+
+    const payingBalance = row.status === 'confirmed' || row.status === 'approved';
+    await client.query(
+      payingBalance
+        ? `UPDATE provisional_bookings
+              SET payment_method = 'bank_transfer', balance_due_pence = 0,
+                  payment_reported_at = NOW(), payment_received_at = NOW()
+            WHERE id = $1`
+        : `UPDATE provisional_bookings
+              SET status = 'confirmed', payment_method = 'bank_transfer',
+                  payment_reported_at = COALESCE(payment_reported_at, NOW()),
+                  payment_received_at = COALESCE(payment_received_at, NOW()),
+                  confirmed_at = COALESCE(confirmed_at, NOW())
+            WHERE id = $1`, [row.id]);
+    await client.query(
+      `INSERT INTO booking_activity
+         (provisional_booking_id, booking_offer_id, actor, event_type, details)
+       VALUES ($1, $2, 'customer', CASE WHEN $3 THEN 'manual_balance_transfer_reported' ELSE 'manual_bank_transfer_reported' END,
+               jsonb_build_object('confirmation_basis','booker_reported_sent','payment_stage',CASE WHEN $3 THEN 'balance' ELSE 'deposit' END))`, [row.id, row.offer_id, payingBalance]);
+    await insertBotBookingMessage(client, {
+      bookingId: row.id,
+      offerId: row.offer_id,
+      body: payingBalance
+        ? 'The Booker has reported that the remaining balance was sent by manual bank transfer. Administrators should verify the transfer against the bank account.'
+        : 'The Booker has reported that the deposit was sent by manual bank transfer. The booking status is now confirmed; administrators should verify the transfer against the bank account.',
+      audience: 'administrator',
+      sourceKey: `manual-transfer-admin:${row.id}:${payingBalance ? 'balance' : 'deposit'}`, 
+    });
+    await insertBotBookingMessage(client, {
+      bookingId: row.id,
+      offerId: row.offer_id,
+      body: payingBalance
+        ? 'Balance payment reported. You told us that the remaining balance was sent by bank transfer. Olrig Bank will verify it and contact you here if anything needs attention.'
+        : 'Booking confirmed. You reported that the deposit was sent by bank transfer. Olrig Bank will verify the transfer and contact you here if anything needs attention.',
+      audience: 'booker',
+      sourceKey: `manual-transfer-confirmed:${row.id}:${payingBalance ? 'balance' : 'deposit'}`, 
+    });
+    await client.query('COMMIT');
+    return payingBalance ? 'paid_in_full' : 'confirmed';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }
 
 export async function recordBookingActivity(input: {

@@ -8,7 +8,7 @@ const requests = await getProvisionalBookingRequests(100, showInactive);
 const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const deleted = Astro.url.searchParams.get('deleted') === '1';
-const statusLabel = (status: string) => status === 'confirmed' ? 'confirmed' : status.replaceAll('_', ' ');
+const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit payment required' : status === 'payment_reported' ? 'payment reported' : status === 'confirmed' ? 'confirmed' : status.replaceAll('_', ' ');
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
@@ -27,7 +27,7 @@ const statusLabel = (status: string) => status === 'confirmed' ? 'confirmed' : s
         {requests.map((request) => {
           const price = request.latestOfferTotalPence ?? request.guestTotalPence;
           const currency = request.latestOfferCurrency ?? request.pricingCurrency ?? 'GBP';
-          const source = request.latestOfferTotalPence !== null ? (request.status === 'confirmed' ? 'Confirmed direct booking' : 'Latest offer') : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
+          const source = request.latestOfferTotalPence !== null ? (request.status === 'confirmed' ? 'Confirmed direct booking' : request.status === 'payment_pending' ? 'Accepted offer — payment due' : 'Latest offer') : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
           return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']}>
             <td>{price === null ? <span class="muted">Manual confirmation</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
             <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>

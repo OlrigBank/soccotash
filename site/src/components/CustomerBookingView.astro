@@ -39,11 +39,15 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
 }).format(new Date(`${value}T12:00:00Z`));
 
 const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const paymentPending = offer.bookingStatus === 'payment_pending' || offer.bookingStatus === 'payment_reported';
 const requestPending = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
-const displayStatus = confirmed ? 'confirmed' : requestPending ? 'pending' : offer.customerStatus;
+const displayStatus = confirmed ? 'confirmed'
+  : paymentPending ? 'payment_pending' : requestPending ? 'pending' : offer.customerStatus;
 const statusHeading = confirmed
   ? 'Booking confirmed'
+  : paymentPending
+    ? 'Deposit payment required'
   : requestPending
     ? 'Booking request received'
     : offer.customerStatus === 'declined'
@@ -57,6 +61,8 @@ const statusHeading = confirmed
             : 'Booking offer ready';
 const statusMessage = confirmed
   ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
+  : paymentPending
+    ? 'You accepted the offer. Pay or report the required deposit below to confirm the booking.'
   : requestPending
     ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
     : offer.customerStatus === 'declined'
@@ -70,18 +76,18 @@ const statusMessage = confirmed
             : 'Open Reservation details to review the price, terms and response options.';
 
 function responseMessage(): string {
-  const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed';
+  const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'payment-required';
   if (accepted) {
-    if (emailStatus === 'sent') return 'Your booking is confirmed and a confirmation email was sent.';
-    if (emailStatus === 'failed') return 'Your booking is confirmed. The optional confirmation email could not be sent.';
-    return 'Your booking is confirmed. No email was required.';
+    if (emailStatus === 'sent') return 'Your offer is accepted. Deposit payment is now required, and an email copy was sent.';
+    if (emailStatus === 'failed') return 'Your offer is accepted and deposit payment is now required. The optional email copy could not be sent.';
+    return 'Your offer is accepted. Deposit payment is now required.';
   }
   if (emailStatus === 'sent') return 'Your decision to decline was recorded and an email copy was sent.';
   if (emailStatus === 'failed') return 'Your decision to decline was recorded, although the optional email copy could not be sent.';
   return 'Your decision to decline was recorded.';
 }
 
-const conversationNotice = messageNotice || ((responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'declined') ? responseMessage() : '');
+const conversationNotice = messageNotice || ((responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'payment-required' || responseNotice === 'declined') ? responseMessage() : '');
 const conversationError = messageError || responseError;
 ---
 <section class="customer-booking-shell">
@@ -103,7 +109,7 @@ const conversationError = messageError || responseError;
     notificationLabel="Also notify the Olrig Bank administrators by email"
     messageNotice={conversationNotice}
     messageError={conversationError}
-    reservationButtonLabel={confirmed ? 'Reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
+    reservationButtonLabel={confirmed ? 'Reservation' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
   />
 
   {!adminPreview && <section class="customer-booking-card customer-booking-access-card">
@@ -158,7 +164,7 @@ const conversationError = messageError || responseError;
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>{confirmed ? 'Confirmed price' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
+        <h3>{confirmed ? 'Confirmed price' : paymentPending ? 'Accepted offer' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
         {offer.priceAvailable ? <div class="customer-booking-price-table">
           {offer.lineItems.map((line) => <div class="customer-booking-price-line">
             <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
@@ -174,22 +180,58 @@ const conversationError = messageError || responseError;
         <p>{offer.terms}</p>
       </section>}
 
+
+
+      {paymentPending && <section class="booking-drawer-section customer-booking-payment">
+        <div>
+          <p class="eyebrow">Deposit payment</p>
+          <h3>Pay {money(offer.depositPence || Math.max(1, Math.round(offer.totalPence * 0.25)), offer.currency)} to confirm</h3>
+          <p>The remaining balance is {money(offer.balanceDuePence || Math.max(0, offer.totalPence - (offer.depositPence || Math.round(offer.totalPence * 0.25))), offer.currency)} and will be payable later through this same booking page.</p>
+        </div>
+        <div class="customer-booking-payment-options">
+          <article class="customer-booking-payment-option is-recommended">
+            <span class="customer-booking-payment-badge">Recommended</span>
+            <h4>Pay by Bank</h4>
+            <p>Lower-cost bank payment through GoCardless. Secure checkout integration will be enabled in a later implementation.</p>
+            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">GoCardless coming soon</button>
+          </article>
+          <article class="customer-booking-payment-option">
+            <h4>Pay by card</h4>
+            <p>Pay with a debit or credit card through Stripe. Secure checkout integration will be enabled in a later implementation.</p>
+            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Stripe coming soon</button>
+          </article>
+          <article class="customer-booking-payment-option is-exceptional">
+            <h4>Manual bank transfer</h4>
+            <p>Use only when agreed with Olrig Bank. Send the deposit using the bank details supplied by Jenna, using booking reference <code>{offer.bookingReference}</code>.</p>
+            <form method="post" class="customer-booking-decision-form">
+              <input type="hidden" name="action" value="report-bank-transfer" />
+              <label class="customer-booking-confirm-check">
+                <input type="checkbox" name="confirmTransfer" value="yes" required />
+                <span>I confirm that I have sent the deposit by bank transfer.</span>
+              </label>
+              <button class="customer-booking-submit customer-booking-accept" type="submit">I have sent the bank transfer</button>
+            </form>
+            <small>This immediately marks the booking confirmed and tells administrators to verify the transfer.</small>
+          </article>
+        </div>
+      </section>}
+
       {isActive && <section class="booking-drawer-section customer-booking-response">
         <div>
           <p class="eyebrow">Your response</p>
           <h3>Accept or decline this offer</h3>
-          <p>Accepting confirms the direct booking immediately. The decision is recorded on this page.</p>
+          <p>Accepting records your agreement to the dates, price and terms. The booking is confirmed after the required deposit is recorded.</p>
         </div>
         <div class="customer-booking-actions">
           <form method="post" class="customer-booking-decision-form">
             <input type="hidden" name="action" value="accept" />
-            <strong>Accept and confirm</strong>
+            <strong>Accept offer</strong>
             <p>Confirm that you accept the dates, price and terms shown here.</p>
             <label class="customer-booking-confirm-check">
               <input type="checkbox" name="confirmAccept" value="yes" required />
-              <span>I have reviewed the offer and want to confirm this booking.</span>
+              <span>I have reviewed and accept the dates, price and terms.</span>
             </label>
-            <button class="customer-booking-submit customer-booking-accept" type="submit">Accept and confirm booking</button>
+            <button class="customer-booking-submit customer-booking-accept" type="submit">Accept offer and continue to payment</button>
           </form>
 
           <form method="post" class="customer-booking-decision-form is-decline">

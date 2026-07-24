@@ -6,6 +6,7 @@ import {
   getCustomerBookingPage,
   getProvisionalBookingRequest,
   recordBookingActivity,
+  reportManualBankTransfer,
   respondToCustomerBookingOffer,
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
@@ -103,6 +104,22 @@ if (Astro.request.method === 'POST') {
       });
       return Astro.redirect(`/booking/manage/${token}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
     }
+  } else if (action === 'report-bank-transfer') {
+    const confirmedTransfer = form.get('confirmTransfer') === 'yes';
+    if (!confirmedTransfer) {
+      responseError = 'Please tick the confirmation box before reporting the transfer.';
+    } else {
+      const transferResult = await reportManualBankTransfer(token);
+      if (transferResult === 'confirmed') {
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-confirmed`);
+      }
+      if (transferResult === 'paid_in_full' || transferResult === 'already_paid') {
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-balance-reported`);
+      }
+      responseError = transferResult === 'payment_not_due'
+        ? 'A manual transfer cannot be reported at this stage of the booking.'
+        : 'The booking could not be found.';
+    }
   } else {
     const confirmed = action === 'accept'
       ? form.get('confirmAccept') === 'yes'
@@ -174,13 +191,13 @@ if (Astro.request.method === 'POST') {
           });
         }
 
-        return Astro.redirect(`/booking/manage/${token}/?response=${response === 'accepted' ? 'confirmed' : 'declined'}&email=${customerEmailStatus}`);
+        return Astro.redirect(`/booking/manage/${token}/?response=${response === 'accepted' ? 'payment-required' : 'declined'}&email=${customerEmailStatus}`);
       }
 
       const messages: Record<CustomerOfferResponseResult, string> = {
         accepted: '',
         declined: '',
-        already_accepted: 'This booking has already been confirmed.',
+        already_accepted: 'This offer has already been accepted and is awaiting payment.',
         already_declined: 'This offer has already been declined.',
         expired: 'This offer has expired and can no longer be accepted or declined online.',
         superseded: 'This offer has been replaced. Reload this booking page to see the current offer.',
@@ -194,6 +211,12 @@ if (Astro.request.method === 'POST') {
 }
 
 const responseNotice = Astro.url.searchParams.get('response');
+const paymentStatus = Astro.url.searchParams.get('payment');
+const paymentNotice = paymentStatus === 'bank-transfer-confirmed'
+  ? 'Bank transfer reported. Your booking is now confirmed and Olrig Bank administrators have been notified in the conversation.'
+  : paymentStatus === 'bank-transfer-balance-reported'
+    ? 'Bank transfer reported. Your remaining balance is now recorded as paid and Olrig Bank administrators have been notified in the conversation.'
+    : '';
 const emailParam = Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
@@ -222,7 +245,7 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     pollingUrl={`/api/booking/messages/${token}`}
     responseNotice={responseNotice}
     responseError={responseError}
-    messageNotice={messageNotice}
+    messageNotice={paymentNotice || messageNotice}
     messageError={messageError}
     emailStatus={emailStatus}
     allowResponse={true}
