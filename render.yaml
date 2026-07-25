@@ -1,13 +1,13 @@
 databases:
-  - name: soccotash-bookings
-    databaseName: soccotash
-    user: soccotash
+  - name: olrigbank-bookings
+    databaseName: olrigbank
+    user: olrigbank
     region: frankfurt
     plan: free
 
 services:
   - type: web
-    name: soccotash
+    name: olrigbank-web
     runtime: docker
     rootDir: site
     autoDeployTrigger: off
@@ -21,7 +21,7 @@ services:
 
       - key: DATABASE_URL
         fromDatabase:
-          name: soccotash-bookings
+          name: olrigbank-bookings
           property: connectionString
 
       - key: DATABASE_SSL
@@ -39,7 +39,7 @@ services:
       - key: BOOKING_SERVICE_URL
         fromService:
           type: web
-          name: soccotash
+          name: olrigbank-web
           envVarKey: RENDER_EXTERNAL_URL
 
       # Customer booking-offer emails are sent through the Resend HTTPS API.
@@ -68,7 +68,7 @@ services:
       - key: BOOKING_PUBLIC_URL
         fromService:
           type: web
-          name: soccotash
+          name: olrigbank-web
           envVarKey: RENDER_EXTERNAL_URL
 
     healthCheckPath: /api/health/
