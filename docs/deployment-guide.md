@@ -2,21 +2,27 @@
 
 ## Local production-like deployment
 
-Soccotash is run locally as a complete Docker Compose stack.
+Olrig Bank Web is run beside the existing Soccotash Docker Compose stack during
+the migration comparison.
 
 ```bash
 cp .env.example .env
+# Run this from the existing Soccotash checkout first:
+docker compose -p soccotash up --build -d
+
+# Then run this from the MigrationToOlrigBankWeb checkout:
 docker compose up --build -d
 ```
 
 Services:
 
 ```text
-database   PostgreSQL 17 with persistent volume
-site       Astro standalone Node server built from site/Dockerfile
+soccotash-database-1   Existing PostgreSQL 17 container and persistent volume
+olrigbank-site-1       Astro standalone Node server built from site/Dockerfile
 ```
 
-Open `http://localhost:8080/`.
+Open Soccotash at `http://localhost:8080/` and Olrig Bank Web at
+`http://localhost:8081/`.
 
 Useful commands:
 
@@ -45,7 +51,7 @@ Copy the resulting file from `backups/` together with the repository to the new 
 
 ```bash
 docker compose up --build -d
-./restore-db.bash backups/soccotash-YYYYMMDD-HHMMSS.dump
+./restore-db.bash backups/olrigbank-YYYYMMDD-HHMMSS.dump
 ```
 
 The scripts use `pg_dump` and `pg_restore` inside the PostgreSQL container, so PostgreSQL tools do not need to be installed on Mint.
@@ -54,8 +60,8 @@ The scripts use `pg_dump` and `pg_restore` inside the PostgreSQL container, so P
 
 `render.yaml` defines:
 
-- a Docker web service built from `site/Dockerfile`;
-- a separate managed Render PostgreSQL database;
+- a Docker web service named `olrigbank-web`, built from `site/Dockerfile`;
+- a separate managed Render PostgreSQL database named `olrigbank-bookings`;
 - `DATABASE_URL` injected from that database;
 - secret placeholders for Airbnb calendars and the admin token;
 - `/api/health/` as a database-aware health check.
