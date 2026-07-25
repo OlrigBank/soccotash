@@ -1,15 +1,16 @@
-# Soccotash / Olrig Bank website
+# Olrig Bank website
 
-Soccotash is an Astro/Node website with PostgreSQL-backed availability, a visible two-month booking calendar, provisional booking requests, and a versioned administration pricing-rule builder. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
+Olrig Bank Web is an Astro/Node website with PostgreSQL-backed availability, a visible two-month booking calendar, provisional booking requests, and a versioned administration pricing-rule builder. Content is maintained as Markdown/YAML through Pages CMS or direct Git editing.
 
 ## Runtime architecture
 
 ### Local development and testing
 
-Docker Compose runs:
+For migration comparison, Docker Compose runs the Olrig Bank application alongside
+the existing Soccotash stack:
 
 - `site`: Astro/Node application
-- `database`: PostgreSQL 17 with a persistent Docker volume
+- the existing `soccotash-database-1` remains the sole PostgreSQL owner
 - optional one-shot tools for calendar synchronisation and booking reports
 
 ### Render
@@ -22,7 +23,8 @@ Render runs the same `site/Dockerfile` as a Docker web service and supplies a se
 cp .env.example .env
 ```
 
-Edit `.env`, adding strong local values and the Airbnb iCal export URLs. Then run:
+Edit `.env`, using the same PostgreSQL password and calendar settings as the
+Soccotash stack. Start Soccotash first, then run:
 
 ```bash
 docker compose up --build -d
@@ -31,11 +33,13 @@ docker compose up --build -d
 Open:
 
 ```text
-http://localhost:8080/
-http://localhost:8080/book/
+http://localhost:8081/
+http://localhost:8081/book/
 ```
 
-Database migrations run automatically whenever the application container starts.
+The Olrig Bank container joins `soccotash_default` and runs migrations against
+the same database. Actions performed in either application are immediately
+visible in the other.
 
 ## Test the booking service
 
@@ -70,6 +74,8 @@ npm run docker:down
 ```
 
 See `docs/booking-calendar-service.md` and `docs/deployment-guide.md` for the complete workflow.
+See `docs/olrigbank-migration.md` for the side-by-side migration and independent
+Render Blueprint procedure.
 
 ## Source structure
 
