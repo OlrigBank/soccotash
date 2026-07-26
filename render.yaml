@@ -7,7 +7,7 @@ databases:
 
 services:
   - type: web
-    name: olrigbank-web
+    name: olrigbankweb
     runtime: docker
     rootDir: site
     autoDeployTrigger: off
@@ -39,7 +39,7 @@ services:
       - key: BOOKING_SERVICE_URL
         fromService:
           type: web
-          name: olrigbank-web
+          name: olrigbankweb
           envVarKey: RENDER_EXTERNAL_URL
 
       # Customer booking-offer emails are sent through the Resend HTTPS API.
@@ -68,7 +68,7 @@ services:
       - key: BOOKING_PUBLIC_URL
         fromService:
           type: web
-          name: olrigbank-web
+          name: olrigbankweb
           envVarKey: RENDER_EXTERNAL_URL
 
     healthCheckPath: /api/health/
