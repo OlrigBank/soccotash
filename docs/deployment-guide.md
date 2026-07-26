@@ -84,7 +84,7 @@ The container entrypoint waits for PostgreSQL and applies migrations before star
 
 ## Updating Render
 
-Normal pushes to the connected branch trigger a new Docker build and deployment. Database data remains in the separate Render PostgreSQL service.
+Automatic deployment is disabled in `render.yaml`. After pushing changes to the connected branch, manually deploy the Blueprint from the Render dashboard. Database data remains in the separate Render PostgreSQL service.
 
 Each new container start runs only unapplied migrations. Existing migration files are checksum protected and must not be edited after deployment.
 
