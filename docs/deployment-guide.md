@@ -54,7 +54,7 @@ docker compose up --build -d
 ./restore-db.bash backups/olrigbank-YYYYMMDD-HHMMSS.dump
 ```
 
-The scripts use `pg_dump` and `pg_restore` inside the PostgreSQL container, so PostgreSQL tools do not need to be installed on Mint.
+The scripts use `pg_dump` and `pg_restore` inside the existing `soccotash-database-1` container, so PostgreSQL tools do not need to be installed on Mint. Set `SOCCOTASH_DATABASE_CONTAINER` if that container has a different name.
 
 ## Render architecture
 
