@@ -16,7 +16,7 @@ function money(pence: number): string {
 export function pricingScenarioCsv(run: PricingScenarioRun): string {
   const { input, result } = run;
   const rows: string[] = [
-    row(['Soccotash pricing scenario report']),
+    row(['Olrig Bank pricing scenario report']),
     row(['Scenario', run.name]),
     row(['Property', run.propertyId]),
     row(['Plan ID', run.planId]),

@@ -96,7 +96,7 @@ function dotStuff(value: string): string {
 }
 
 function createMimeMessage(input: OutgoingEmail, from: string, defaultReplyTo: string | null): { raw: string; messageId: string } {
-  const boundary = `soccotash-${crypto.randomBytes(12).toString('hex')}`;
+  const boundary = `olrigbank-${crypto.randomBytes(12).toString('hex')}`;
   const messageId = `<${crypto.randomUUID()}@olrigbank.local>`;
   const headers = [
     `Date: ${new Date().toUTCString()}`,
