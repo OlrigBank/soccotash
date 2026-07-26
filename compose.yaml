@@ -13,7 +13,7 @@ services:
     networks:
       - soccotash-shared
     environment:
-      PORT: "8080"
+      PORT: "8081"
       DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
       AIRBNB_MAIN_HOUSE_ICAL_URLS: ${AIRBNB_MAIN_HOUSE_ICAL_URLS:-}
       AIRBNB_COTTAGE_ICAL_URLS: ${AIRBNB_COTTAGE_ICAL_URLS:-}
@@ -32,7 +32,7 @@ services:
       SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     ports:
-      - "${OLRIGBANK_PORT:-8081}:8080"
+      - "${OLRIGBANK_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD", "node", "./scripts/healthcheck.mjs"]
       interval: 10s
