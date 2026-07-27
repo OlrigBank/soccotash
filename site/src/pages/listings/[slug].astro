@@ -76,3 +76,7 @@ const bookingHref = bookingProperty ? `/book/?property=${encodeURIComponent(book
     </section>
   ) : null}
 </BaseLayout>
+
+<script is:inline define:vars={{ listing: entry.data.slug }}>
+  window.olrigAnalytics?.track('listing_viewed', { listing });
+</script>
