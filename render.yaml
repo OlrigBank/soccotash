@@ -71,4 +71,13 @@ services:
           name: soccotash
           envVarKey: RENDER_EXTERNAL_URL
 
+      # Optional privacy-friendly visitor analytics. Leave the website ID unset
+      # to disable tracking. Private booking tokens and query strings are never
+      # sent to Umami.
+      - key: UMAMI_WEBSITE_ID
+        sync: false
+
+      - key: UMAMI_SCRIPT_URL
+        value: https://cloud.umami.is/script.js
+
     healthCheckPath: /api/health/

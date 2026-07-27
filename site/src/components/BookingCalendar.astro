@@ -520,6 +520,7 @@ const properties = getProperties();
   async function checkAvailability() {
     if (!form || !status || !contact) return false;
     const data = new FormData(form);
+    const propertyId = String(data.get('propertyId') || '');
     const start = String(data.get('arrival') || '');
     const end = String(data.get('departure') || '');
     const { minimumNights } = selectedRules();
@@ -533,6 +534,7 @@ const properties = getProperties();
     }
 
     status.textContent = 'Checking the latest calendar…';
+    window.olrigAnalytics?.track('availability_started', { property: propertyId });
     contact.hidden = true;
     clearReviewedQuote();
     if (checkButton) checkButton.disabled = true;
@@ -547,10 +549,12 @@ const properties = getProperties();
       const body = await readJson(response);
       if (!response.ok) {
         status.textContent = body.error || 'Availability could not be checked.';
+        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
         return false;
       }
       if (Array.isArray(body.blocks) && body.blocks.length) {
         status.textContent = 'Those dates are unavailable. Please choose different dates.';
+        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'unavailable' });
         clearReviewedQuote();
         return false;
       }
@@ -568,6 +572,7 @@ const properties = getProperties();
       const quoteBody = await readJson(quoteResponse);
       if (!quoteResponse.ok) {
         status.textContent = quoteBody.error || 'A price could not be calculated for this stay.';
+        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'quote_error' });
         clearReviewedQuote();
         return false;
       }
@@ -578,9 +583,11 @@ const properties = getProperties();
         ? `The dates appear available. ${body.refreshWarning} Review the price and complete your details.`
         : 'The dates currently appear available. Review the price and complete your details.';
       contact.hidden = false;
+      window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'available' });
       return true;
     } catch {
       status.textContent = 'Availability could not be checked. Please try again.';
+      window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
       return false;
     } finally {
       if (checkButton) checkButton.disabled = false;
@@ -651,6 +658,10 @@ const properties = getProperties();
         status.textContent = 'The booking was saved, but its private page could not be opened. Please contact Olrig Bank and quote the reference shown by the server.';
         return;
       }
+      window.olrigAnalytics?.track('booking_requested', {
+        property: String(raw.propertyId || ''),
+        pricing_available: reviewedQuote?.pricingAvailable === true,
+      });
       window.location.assign(managePath);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';

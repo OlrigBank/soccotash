@@ -1,0 +1,58 @@
+---
+const websiteId = String(process.env.UMAMI_WEBSITE_ID || '').trim();
+const configuredScriptUrl = String(process.env.UMAMI_SCRIPT_URL || '').trim();
+const scriptUrl = configuredScriptUrl || 'https://cloud.umami.is/script.js';
+
+let enabled = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(websiteId);
+try {
+  enabled = enabled && new URL(scriptUrl).protocol === 'https:';
+} catch {
+  enabled = false;
+}
+---
+
+{enabled ? (
+  <>
+    <script is:inline>
+      (() => {
+        const queue = [];
+        const cleanPage = () => {
+          const privateBookingPage = /^\/booking\/manage\/[^/]+\/?$/.test(location.pathname);
+          return privateBookingPage
+            ? { url: '/booking/manage', title: 'Private booking page | Olrig Bank' }
+            : { url: `${location.pathname}${location.search}`, title: document.title };
+        };
+        const send = (name, data) => {
+          if (!window.umami) {
+            queue.push([name, data]);
+            return;
+          }
+          if (name) window.umami.track(name, data);
+          else window.umami.track((properties) => ({ ...properties, ...cleanPage() }));
+        };
+
+        window.olrigAnalytics = {
+          track(name, data = {}) {
+            send(name, data);
+          },
+          ready() {
+            send();
+            while (queue.length) {
+              const [name, data] = queue.shift();
+              send(name, data);
+            }
+          },
+        };
+      })();
+    </script>
+    <script
+      is:inline
+      defer
+      src={scriptUrl}
+      data-website-id={websiteId}
+      data-auto-track="false"
+      onload="window.olrigAnalytics?.ready()"
+    ></script>
+  </>
+) : null}
+
