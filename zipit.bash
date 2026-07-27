@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTPUT="../soccotash-render-deploy-no-images.zip"
+OUTPUT="../olrigbank-web-render-deploy-no-images.zip"
 
 rm -f "$OUTPUT"
 

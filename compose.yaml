@@ -1,43 +1,24 @@
-name: soccotash
+name: olrigbank
 
 x-app-image: &app-image
   build:
     context: ./site
     dockerfile: Dockerfile
-  image: soccotash-site:local
+  image: olrigbank-web:local
 
 services:
-  database:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-soccotash}
-      POSTGRES_USER: ${POSTGRES_USER:-soccotash}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soccotash} -d ${POSTGRES_DB:-soccotash}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-
   site:
     <<: *app-image
     restart: unless-stopped
-    depends_on:
-      database:
-        condition: service_healthy
+    networks:
+      - soccotash-shared
     environment:
-      PORT: "8080"
+      PORT: "8081"
       DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
       AIRBNB_MAIN_HOUSE_ICAL_URLS: ${AIRBNB_MAIN_HOUSE_ICAL_URLS:-}
       AIRBNB_COTTAGE_ICAL_URLS: ${AIRBNB_COTTAGE_ICAL_URLS:-}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8080
+      BOOKING_SERVICE_URL: http://site:8081
       DATABASE_SSL: "false"
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       BOOKING_EMAIL_FROM: ${BOOKING_EMAIL_FROM:-}
@@ -51,7 +32,7 @@ services:
       SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     ports:
-      - "${SOCCOTASH_PORT:-8080}:8080"
+      - "${OLRIGBANK_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD", "node", "./scripts/healthcheck.mjs"]
       interval: 10s
@@ -62,6 +43,8 @@ services:
   calendar-sync:
     <<: *app-image
     profiles: ["tools"]
+    networks:
+      - soccotash-shared
     depends_on:
       site:
         condition: service_healthy
@@ -70,22 +53,26 @@ services:
       AIRBNB_MAIN_HOUSE_ICAL_URLS: ${AIRBNB_MAIN_HOUSE_ICAL_URLS:-}
       AIRBNB_COTTAGE_ICAL_URLS: ${AIRBNB_COTTAGE_ICAL_URLS:-}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8080
+      BOOKING_SERVICE_URL: http://site:8081
       DATABASE_SSL: "false"
     command: ["npm", "run", "sync:calendars"]
 
   booking-report:
     <<: *app-image
     profiles: ["tools"]
+    networks:
+      - soccotash-shared
     depends_on:
       site:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8080
+      BOOKING_SERVICE_URL: http://site:8081
       DATABASE_SSL: "false"
     command: ["npm", "run", "booking:report"]
 
-volumes:
-  postgres-data:
+networks:
+  soccotash-shared:
+    external: true
+    name: ${SOCCOTASH_DOCKER_NETWORK:-soccotash_default}

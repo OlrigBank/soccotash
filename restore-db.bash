@@ -10,7 +10,10 @@ backup_file="$1"
 docker compose stop site >/dev/null
 trap 'docker compose start site >/dev/null' EXIT
 
-cat "$backup_file" | docker compose exec -T database sh -c \
-  'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+database_container="${SOCCOTASH_DATABASE_CONTAINER:-soccotash-database-1}"
+
+docker exec -i "$database_container" sh -c \
+  'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < "$backup_file"
 
 echo "Database restored from $backup_file"
