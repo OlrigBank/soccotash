@@ -252,3 +252,22 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     messageNotificationAvailable={messageNotificationAvailable}
   />
 </BaseLayout>
+
+<script is:inline define:vars={{ responseNotice, paymentStatus, messageSent, confirmedBooking, propertyId: offer.propertyId }}>
+  const analyticsEvents = [
+    ['manage_booking_opened', { property: propertyId }],
+    responseNotice === 'payment-required' && ['offer_accepted', { property: propertyId }],
+    responseNotice === 'declined' && ['offer_declined', { property: propertyId }],
+    messageSent && ['message_sent', { property: propertyId }],
+    paymentStatus && ['payment_started', { property: propertyId, method: 'bank_transfer' }],
+    confirmedBooking && ['booking_confirmed', { property: propertyId }],
+  ].filter(Boolean);
+
+  for (const [name, data] of analyticsEvents) {
+    const key = `olrig-analytics:${name}:${location.search}`;
+    if (name === 'manage_booking_opened' || sessionStorage.getItem(key) !== 'sent') {
+      window.olrigAnalytics?.track(name, data);
+      if (name !== 'manage_booking_opened') sessionStorage.setItem(key, 'sent');
+    }
+  }
+</script>
