@@ -1,5 +1,6 @@
 ---
 import SideMenu from '../components/SideMenu.astro';
+import Analytics from '../components/Analytics.astro';
 import '../styles/global.css';
 
 const {
@@ -24,6 +25,7 @@ const currentYear = new Date().getFullYear();
     {robots && <meta name="robots" content={robots} />}
     <title>{pageTitle}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <Analytics />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
