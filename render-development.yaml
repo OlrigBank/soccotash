@@ -1,6 +1,13 @@
+databases:
+  - name: soccotash-development-bookings
+    databaseName: soccotash_development
+    user: soccotash_development
+    region: frankfurt
+    plan: free
+
 services:
   - type: web
-    name: olrigbankweb
+    name: soccotash
     runtime: docker
     rootDir: site
     autoDeployTrigger: off
@@ -12,11 +19,11 @@ services:
       - key: PORT
         value: "8080"
 
-      # Existing paid production database.
-      # Enter the internal connection URL for soccotash-bookings in Render.
-      # This Blueprint deliberately does not declare or manage that database.
+
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: soccotash-development-bookings
+          property: connectionString
 
       - key: DATABASE_SSL
         value: "true"
@@ -33,7 +40,7 @@ services:
       - key: BOOKING_SERVICE_URL
         fromService:
           type: web
-          name: olrigbankweb
+          name: soccotash
           envVarKey: RENDER_EXTERNAL_URL
 
       # Customer booking-offer emails are sent through the Resend HTTPS API.
@@ -62,7 +69,7 @@ services:
       - key: BOOKING_PUBLIC_URL
         fromService:
           type: web
-          name: olrigbankweb
+          name: soccotash
           envVarKey: RENDER_EXTERNAL_URL
 
       # Optional privacy-friendly visitor analytics. Leave the website ID unset
