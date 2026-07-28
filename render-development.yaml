@@ -1,0 +1,84 @@
+databases:
+  - name: soccotash-development-bookings
+    databaseName: soccotash_development
+    user: soccotash_development
+    region: frankfurt
+    plan: free
+
+services:
+  - type: web
+    name: soccotash
+    runtime: docker
+    rootDir: site
+    autoDeployTrigger: off
+    region: frankfurt
+    plan: starter
+    renderSubdomainPolicy: enabled
+
+    envVars:
+      - key: PORT
+        value: "8080"
+
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: soccotash-development-bookings
+          property: connectionString
+
+      - key: DATABASE_SSL
+        value: "true"
+
+      - key: AIRBNB_MAIN_HOUSE_ICAL_URLS
+        sync: false
+
+      - key: AIRBNB_COTTAGE_ICAL_URLS
+        sync: false
+
+      - key: CALENDAR_SYNC_TOKEN
+        sync: false
+
+      - key: BOOKING_SERVICE_URL
+        fromService:
+          type: web
+          name: soccotash
+          envVarKey: RENDER_EXTERNAL_URL
+
+      # Customer booking-offer emails are sent through the Resend HTTPS API.
+      # This is a fixed, non-secret setting and can safely remain in render.yaml.
+      - key: EMAIL_PROVIDER
+        value: resend
+
+      # Secret API key generated in the Resend dashboard.
+      # Enter the value in Render when creating or updating the Blueprint.
+      # Never place the actual API key in render.yaml or commit it to GitHub.
+      - key: RESEND_API_KEY
+        sync: false
+
+      # Address shown in the From field of customer emails.
+      # The domain must be verified in Resend, except when using Resend's
+      # restricted testing sender.
+      # Example: Olrig Bank <bookings@olrigbank.co.uk>
+      - key: BOOKING_EMAIL_FROM
+        sync: false
+
+      # Receives direct notifications when a customer accepts or declines an offer.
+      - key: BOOKING_ADMIN_EMAIL
+        sync: false
+
+      # Public origin used to construct secure customer booking links.
+      - key: BOOKING_PUBLIC_URL
+        fromService:
+          type: web
+          name: soccotash
+          envVarKey: RENDER_EXTERNAL_URL
+
+      # Optional privacy-friendly visitor analytics. Leave the website ID unset
+      # to disable tracking. Private booking tokens and query strings are never
+      # sent to Umami.
+      - key: UMAMI_WEBSITE_ID
+        sync: false
+
+      - key: UMAMI_SCRIPT_URL
+        value: https://cloud.umami.is/script.js
+
+    healthCheckPath: /api/health/
