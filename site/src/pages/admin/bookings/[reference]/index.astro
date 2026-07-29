@@ -35,6 +35,11 @@ let booking = await getProvisionalBookingRequest(reference);
 if (!booking) return new Response('Booking request not found.', { status: 404 });
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
 const emailConfiguration = getEmailConfiguration();
+const configuredPublicOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+const publicOrigin = configuredPublicOrigin || Astro.url.origin;
+const bookerManageUrl = booking.customerAccessToken
+  ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+  : '';
 const canOffer = booking.status === 'pending' || booking.status === 'offered';
 const canDelete = booking.status === 'pending' || booking.status === 'offered';
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
@@ -105,8 +110,6 @@ if (Astro.request.method === 'POST') {
       let notificationStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
       if (shouldNotify) {
         try {
-          const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
-          const publicOrigin = configuredOrigin || Astro.url.origin;
           if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
           const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
           const sent = await sendBookerMessageEmail({
@@ -235,8 +238,6 @@ if (Astro.request.method === 'POST') {
       if (!emailRequested) return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=skipped`);
 
       try {
-        const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
-        const publicOrigin = configuredOrigin || Astro.url.origin;
         if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
         const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
         const delivery = await sendBookingOfferEmail({
@@ -321,6 +322,13 @@ if (messageSent) {
     </div>
     <div class="pricing-header-actions">
       <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>Preview Booker page</a>
+      {bookerManageUrl && (
+        <>
+          <a class="admin-button admin-button--secondary" href={bookerManageUrl} target="_blank" rel="noopener noreferrer">Open Booker page</a>
+          <button class="admin-button admin-button--secondary" type="button" data-copy-booker-link={bookerManageUrl}>Copy Booker link</button>
+          <span data-copy-booker-status aria-live="polite"></span>
+        </>
+      )}
       <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
     </div>
   </header>
@@ -473,6 +481,23 @@ if (messageSent) {
     </div>
   </details>
 </AdminLayout>
+
+<script>
+  const copyBookerLinkButton = document.querySelector<HTMLButtonElement>('[data-copy-booker-link]');
+  const copyBookerLinkStatus = document.querySelector<HTMLElement>('[data-copy-booker-status]');
+
+  copyBookerLinkButton?.addEventListener('click', async () => {
+    const bookerUrl = copyBookerLinkButton.dataset.copyBookerLink;
+    if (!bookerUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(bookerUrl);
+      if (copyBookerLinkStatus) copyBookerLinkStatus.textContent = 'Booker link copied.';
+    } catch {
+      if (copyBookerLinkStatus) copyBookerLinkStatus.textContent = 'Could not copy the link. Use Open Booker page instead.';
+    }
+  });
+</script>
 
 <template id="offer-line-template">
   <div class="booking-offer-line">
