@@ -171,15 +171,18 @@ export async function rotateBookingAccessCredential(input: {
     }
 
     const row = selected.rows[0];
+    const previousTokenHash = row.customer_access_token
+      ? tokenHash(String(row.customer_access_token))
+      : null;
     await client.query(
       `UPDATE provisional_bookings
-          SET customer_access_revoked_token_hash = $3,
+          SET customer_access_revoked_token_hash = COALESCE($3, customer_access_revoked_token_hash),
               customer_access_token = $2,
               customer_access_token_issued_at = NOW(),
               customer_access_token_revoked_at = NULL,
               customer_access_last_used_at = NULL
         WHERE id = $1`,
-      [row.id, token, tokenHash(String(row.customer_access_token))],
+      [row.id, token, previousTokenHash],
     );
     const revokedOffers = await client.query(
       `UPDATE booking_offers
@@ -221,7 +224,6 @@ export async function revokeBookingAccessCredential(input: {
   adminUserId: string;
   reason: string;
 }): Promise<boolean> {
-  const tombstoneToken = crypto.randomBytes(32).toString('base64url');
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
@@ -243,13 +245,16 @@ export async function revokeBookingAccessCredential(input: {
       return true;
     }
 
+    const revokedTokenHash = row.customer_access_token
+      ? tokenHash(String(row.customer_access_token))
+      : null;
     await client.query(
       `UPDATE provisional_bookings
-          SET customer_access_revoked_token_hash = $3,
-              customer_access_token = $2,
+          SET customer_access_revoked_token_hash = $2,
+              customer_access_token = NULL,
               customer_access_token_revoked_at = NOW()
         WHERE id = $1`,
-      [row.id, tombstoneToken, tokenHash(String(row.customer_access_token))],
+      [row.id, revokedTokenHash],
     );
     const revokedOffers = await client.query(
       `UPDATE booking_offers
