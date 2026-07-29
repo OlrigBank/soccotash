@@ -441,6 +441,21 @@ export async function deleteProvisionalBookingRequest(reference: string): Promis
   return Boolean(result.rowCount);
 }
 
+export async function deleteProductionAcceptanceTestBooking(
+  reference: string,
+  confirmedReference: string,
+): Promise<boolean> {
+  if (reference !== confirmedReference || !/^[0-9a-f-]{36}$/i.test(reference)) return false;
+  const result = await getPool().query(
+    `DELETE FROM provisional_bookings
+      WHERE public_id = $1::uuid
+        AND guest_name LIKE 'Production Acceptance Test%'
+        AND status IN ('payment_pending', 'payment_reported', 'confirmed', 'approved')`,
+    [reference],
+  );
+  return Boolean(result.rowCount);
+}
+
 function normaliseOfferRow(row: Record<string, any>): BookingOffer {
   return {
     id: String(row.id),
