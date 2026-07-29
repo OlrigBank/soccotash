@@ -60,10 +60,7 @@ services:
 
       # Public origin used to construct secure customer booking links.
       - key: BOOKING_PUBLIC_URL
-        fromService:
-          type: web
-          name: olrigbankweb
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://olrig-bank.com
 
       # Optional privacy-friendly visitor analytics. Leave the website ID unset
       # to disable tracking. Private booking tokens and query strings are never
