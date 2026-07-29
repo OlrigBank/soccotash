@@ -37,7 +37,7 @@ const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit 
             <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
             <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
             <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>
-            <td><a class="admin-button admin-button--small" href={actionHref}>{actionLabel}</a></td>
+            <td><div class="pricing-header-actions"><a class="admin-button admin-button--small" href={actionHref}>{actionLabel}</a><a class="admin-button admin-button--small admin-button--secondary" href={`/admin/bookings/${request.reference}/access/`}>Access</a></div></td>
           </tr>;
         })}
       </tbody></table></div>
