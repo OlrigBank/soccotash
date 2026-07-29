@@ -48,7 +48,7 @@ if (Astro.request.method === 'POST') {
       });
       if (!rotated) return new Response('Booking request not found.', { status: 404 });
       generatedAccessUrl = new URL(`/booking/manage/${rotated.token}/`, publicOrigin).toString();
-      notice = 'A replacement Booker link was generated. Copy it now; every older private link has been invalidated.';
+      notice = 'A replacement Booker link was generated and every older private link was invalidated.';
       await audit(Astro.locals.adminUser!.id, 'booking.access_rotated', {
         bookingReference: reference,
         reason: reason || null,
@@ -107,9 +107,9 @@ const stateLabel = access.state === 'active'
   {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
   {generatedAccessUrl && <section class="admin-panel">
-    <p class="eyebrow">One-time display</p>
-    <h2>Replacement Booker link</h2>
-    <p>Copy this link before leaving or refreshing the page. It is the only private link that should now be shared with the Booker.</p>
+    <p class="eyebrow">Replacement generated</p>
+    <h2>New Booker link</h2>
+    <p>This is now the active private link. Copy or test it here; it also appears as the current link below while access remains active.</p>
     <div class="booking-contact-form__actions">
       <input type="text" readonly value={generatedAccessUrl} aria-label="Replacement Booker link" />
       <button class="admin-button" type="button" data-copy-booker-link={generatedAccessUrl}>Copy replacement link</button>
