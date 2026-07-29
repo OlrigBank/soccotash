@@ -38,34 +38,43 @@ export async function resolveBookingAccessCredential(
 ): Promise<BookingAccessResolution> {
   if (!validBookingAccessCredential(token)) return { allowed: false, reason: 'invalid' };
 
+  const hash = tokenHash(token);
   const result = await getPool().query(
     `WITH candidate AS (
        SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
               pb.departure::text, pb.customer_access_token_revoked_at AS revoked_at,
-              'booking'::text AS source, NULL::text AS offer_id
+              'booking'::text AS source, NULL::text AS offer_id, 1 AS priority
          FROM provisional_bookings pb
         WHERE pb.customer_access_token = $1
        UNION ALL
        SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
+              pb.departure::text, COALESCE(pb.customer_access_token_revoked_at, NOW()) AS revoked_at,
+              'previous_booking'::text AS source, NULL::text AS offer_id, 2 AS priority
+         FROM provisional_bookings pb
+        WHERE pb.customer_access_revoked_token_hash = $2
+       UNION ALL
+       SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
               pb.departure::text, bo.token_revoked_at AS revoked_at,
-              'offer'::text AS source, bo.id::text AS offer_id
+              'offer'::text AS source, bo.id::text AS offer_id, 3 AS priority
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
         WHERE bo.access_token_hash = $2
      )
-     SELECT * FROM candidate LIMIT 1`,
-    [token, tokenHash(token)],
+     SELECT * FROM candidate ORDER BY priority LIMIT 1`,
+    [token, hash],
   );
 
   if (!result.rowCount) return { allowed: false, reason: 'not_found' };
 
   const row = result.rows[0];
   const expiryDays = getBookingAccessExpiryDays();
-  const state = bookingAccessState({
-    departure: row.departure,
-    revokedAt: row.revoked_at,
-    expiryDays,
-  });
+  const state = row.source === 'previous_booking'
+    ? 'revoked'
+    : bookingAccessState({
+        departure: row.departure,
+        revokedAt: row.revoked_at,
+        expiryDays,
+      });
 
   if (state !== 'active') {
     if (options.recordDenied) {
@@ -95,7 +104,7 @@ export async function resolveBookingAccessCredential(
     allowed: true,
     bookingId: row.booking_id,
     reference: row.reference,
-    source: row.source,
+    source: row.source as 'booking' | 'offer',
     offerId: row.offer_id,
     expiresOn: bookingAccessExpiresOn(row.departure, expiryDays),
   };
@@ -150,7 +159,7 @@ export async function rotateBookingAccessCredential(input: {
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT id, departure::text
+      `SELECT id, departure::text, customer_access_token
          FROM provisional_bookings
         WHERE public_id = $1::uuid
         FOR UPDATE`,
@@ -164,12 +173,13 @@ export async function rotateBookingAccessCredential(input: {
     const row = selected.rows[0];
     await client.query(
       `UPDATE provisional_bookings
-          SET customer_access_token = $2,
+          SET customer_access_revoked_token_hash = $3,
+              customer_access_token = $2,
               customer_access_token_issued_at = NOW(),
               customer_access_token_revoked_at = NULL,
               customer_access_last_used_at = NULL
         WHERE id = $1`,
-      [row.id, token],
+      [row.id, token, tokenHash(String(row.customer_access_token))],
     );
     const revokedOffers = await client.query(
       `UPDATE booking_offers
@@ -211,11 +221,12 @@ export async function revokeBookingAccessCredential(input: {
   adminUserId: string;
   reason: string;
 }): Promise<boolean> {
+  const tombstoneToken = crypto.randomBytes(32).toString('base64url');
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT id, customer_access_token_revoked_at
+      `SELECT id, customer_access_token, customer_access_token_revoked_at
          FROM provisional_bookings
         WHERE public_id = $1::uuid
         FOR UPDATE`,
@@ -227,11 +238,18 @@ export async function revokeBookingAccessCredential(input: {
     }
 
     const row = selected.rows[0];
+    if (row.customer_access_token_revoked_at) {
+      await client.query('ROLLBACK');
+      return true;
+    }
+
     await client.query(
       `UPDATE provisional_bookings
-          SET customer_access_token_revoked_at = COALESCE(customer_access_token_revoked_at, NOW())
+          SET customer_access_revoked_token_hash = $3,
+              customer_access_token = $2,
+              customer_access_token_revoked_at = NOW()
         WHERE id = $1`,
-      [row.id],
+      [row.id, tombstoneToken, tokenHash(String(row.customer_access_token))],
     );
     const revokedOffers = await client.query(
       `UPDATE booking_offers
@@ -249,7 +267,6 @@ export async function revokeBookingAccessCredential(input: {
         JSON.stringify({
           adminUserId: input.adminUserId,
           reason: input.reason.trim(),
-          alreadyRevoked: Boolean(row.customer_access_token_revoked_at),
           revokedOfferCredentials: revokedOffers.rowCount,
         }),
       ],
