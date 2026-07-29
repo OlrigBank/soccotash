@@ -6,10 +6,10 @@ import {
   getCustomerBookingPage,
   getProvisionalBookingRequest,
   recordBookingActivity,
-  reportManualBankTransfer,
   respondToCustomerBookingOffer,
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
+import { reportManualBankTransfer } from '../../../../lib/booking/payment-lifecycle';
 import {
   createBookerBookingMessage,
   getBookingMessagesByToken,
@@ -30,7 +30,7 @@ export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-Astro.response.headers.set('X-Soccotash-Booking-UI', '37-messaging');
+Astro.response.headers.set('X-Soccotash-Booking-UI', '38-payment-verification');
 
 const token = String(Astro.params.token || '');
 if (!validBookingAccessToken(token)) return new Response('Booking not found.', { status: 404 });
@@ -110,11 +110,8 @@ if (Astro.request.method === 'POST') {
       responseError = 'Please tick the confirmation box before reporting the transfer.';
     } else {
       const transferResult = await reportManualBankTransfer(token);
-      if (transferResult === 'confirmed') {
-        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-confirmed`);
-      }
-      if (transferResult === 'paid_in_full' || transferResult === 'already_paid') {
-        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-balance-reported`);
+      if (transferResult === 'payment_reported' || transferResult === 'already_reported') {
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'
         ? 'A manual transfer cannot be reported at this stage of the booking.'
@@ -149,7 +146,7 @@ if (Astro.request.method === 'POST') {
               bookingReference: offer.bookingReference,
               offerId: offer.offerId,
               actor: 'system',
-              eventType: response === 'accepted' ? 'booking_confirmation_email_sent' : 'customer_response_email_sent',
+              eventType: 'customer_response_email_sent',
               details: { response, provider: sent.provider, messageId: sent.messageId },
             });
           } catch (error) {
@@ -157,7 +154,7 @@ if (Astro.request.method === 'POST') {
               bookingReference: offer.bookingReference,
               offerId: offer.offerId,
               actor: 'system',
-              eventType: response === 'accepted' ? 'booking_confirmation_email_failed' : 'customer_response_email_failed',
+              eventType: 'customer_response_email_failed',
               details: { response, error: error instanceof Error ? error.message : String(error) },
             });
           }
@@ -212,11 +209,9 @@ if (Astro.request.method === 'POST') {
 
 const responseNotice = Astro.url.searchParams.get('response');
 const paymentStatus = Astro.url.searchParams.get('payment');
-const paymentNotice = paymentStatus === 'bank-transfer-confirmed'
-  ? 'Bank transfer reported. Your booking is now confirmed and Olrig Bank administrators have been notified in the conversation.'
-  : paymentStatus === 'bank-transfer-balance-reported'
-    ? 'Bank transfer reported. Your remaining balance is now recorded as paid and Olrig Bank administrators have been notified in the conversation.'
-    : '';
+const paymentNotice = paymentStatus === 'bank-transfer-reported'
+  ? 'Bank transfer reported. Olrig Bank will verify the payment before confirming your booking.'
+  : '';
 const emailParam = Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
@@ -259,7 +254,7 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     responseNotice === 'payment-required' && ['offer_accepted', { property: propertyId }],
     responseNotice === 'declined' && ['offer_declined', { property: propertyId }],
     messageSent && ['message_sent', { property: propertyId }],
-    paymentStatus && ['payment_started', { property: propertyId, method: 'bank_transfer' }],
+    paymentStatus === 'bank-transfer-reported' && ['payment_reported', { property: propertyId, method: 'bank_transfer' }],
     confirmedBooking && ['booking_confirmed', { property: propertyId }],
   ].filter(Boolean);
 
