@@ -41,13 +41,13 @@ Rotation generates a new random stable credential and immediately invalidates:
 - the previous stable Booker link; and
 - every older offer-specific link for the booking.
 
-The replacement link is shown once on the administrator response page so it can be copied and tested. Rotation preserves the booking reference, status, offer history, conversation and activity history. A `booking_access_rotated` technical activity event and a protected administrator audit event are recorded.
+The replacement is displayed immediately so it can be copied and tested, and remains available on the protected access screen while it is the active credential. Rotation preserves the booking reference, status, offer history, conversation and activity history. A `booking_access_rotated` technical activity event and a protected administrator audit event are recorded.
 
 A replacement cannot be generated after the booking has passed the configured automatic-expiry date. Extending that period requires an explicit configuration change.
 
 ### Revoke access
 
-Revocation immediately blocks the stable link and every offer-specific link. A reason and explicit confirmation are required. The booking record remains intact and can be restored with a later rotation while its automatic access period remains open.
+Revocation immediately blocks the stable link and every offer-specific link. A reason and explicit confirmation are required. The active stable credential is cleared, while only its SHA-256 hash is retained to recognise denied reuse without storing the old link. The booking record remains intact and can be restored with a later rotation while its automatic access period remains open.
 
 A `booking_access_revoked` technical activity event and a protected administrator audit event are recorded.
 
@@ -97,6 +97,6 @@ Rotation, revocation and denied-access activity details never store the credenti
 
 ## Migration and the next hardening phase
 
-Migration `014_booking_access_lifecycle.sql` adds stable credential issue, revocation and last-use timestamps. It also clears already-revoked offer hashes and installs a trigger that clears any offer hash when the offer credential is revoked.
+Migration `014_booking_access_lifecycle.sql` adds stable credential issue, revocation, last-use and revoked-token-hash fields. It allows the active credential to be cleared on revocation, clears already-revoked offer hashes and installs a trigger that clears any offer hash when the offer credential is revoked.
 
-This lifecycle release deliberately retains the existing stable credential column so current email, bookmark and administrator workflows can be proven without a simultaneous transport migration. The next hardening phase will migrate stable credentials to hash-only storage and exchange URL credentials into a Secure, HttpOnly, SameSite cookie before redirecting to a token-free booking address.
+This lifecycle release deliberately retains the active stable credential column so current email, bookmark and administrator workflows can be proven without a simultaneous transport migration. The next hardening phase will migrate active stable credentials to hash-only storage and exchange URL credentials into a Secure, HttpOnly, SameSite cookie before redirecting to a token-free booking address.
