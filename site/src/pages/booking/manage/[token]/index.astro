@@ -11,6 +11,10 @@ import {
 } from '../../../../lib/booking/repository';
 import { reportManualBankTransfer } from '../../../../lib/booking/payment-lifecycle';
 import {
+  getBookingPaymentNotice,
+  isCurrentPaymentReportResult,
+} from '../../../../lib/booking/payment-notice';
+import {
   createBookerBookingMessage,
   getBookingMessagesByToken,
   markBookingMessageNotification,
@@ -209,9 +213,8 @@ if (Astro.request.method === 'POST') {
 
 const responseNotice = Astro.url.searchParams.get('response');
 const paymentStatus = Astro.url.searchParams.get('payment');
-const paymentNotice = paymentStatus === 'bank-transfer-reported'
-  ? 'Bank transfer reported. Olrig Bank will verify the payment before confirming your booking.'
-  : '';
+const paymentReportResultCurrent = isCurrentPaymentReportResult(paymentStatus, offer.bookingStatus);
+const paymentNotice = getBookingPaymentNotice(paymentStatus, offer.bookingStatus);
 const emailParam = Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
@@ -248,13 +251,13 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
   />
 </BaseLayout>
 
-<script is:inline define:vars={{ responseNotice, paymentStatus, messageSent, confirmedBooking, propertyId: offer.propertyId }}>
+<script is:inline define:vars={{ responseNotice, paymentReportResultCurrent, messageSent, confirmedBooking, propertyId: offer.propertyId }}>
   const analyticsEvents = [
     ['manage_booking_opened', { property: propertyId }],
     responseNotice === 'payment-required' && ['offer_accepted', { property: propertyId }],
     responseNotice === 'declined' && ['offer_declined', { property: propertyId }],
     messageSent && ['message_sent', { property: propertyId }],
-    paymentStatus === 'bank-transfer-reported' && ['payment_reported', { property: propertyId, method: 'bank_transfer' }],
+    paymentReportResultCurrent && ['payment_reported', { property: propertyId, method: 'bank_transfer' }],
     confirmedBooking && ['booking_confirmed', { property: propertyId }],
   ].filter(Boolean);
 
