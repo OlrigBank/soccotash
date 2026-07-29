@@ -10,7 +10,8 @@ UPDATE provisional_bookings
 
 ALTER TABLE provisional_bookings
   ALTER COLUMN customer_access_token_issued_at SET DEFAULT NOW(),
-  ALTER COLUMN customer_access_token_issued_at SET NOT NULL;
+  ALTER COLUMN customer_access_token_issued_at SET NOT NULL,
+  ALTER COLUMN customer_access_token DROP NOT NULL;
 
 ALTER TABLE provisional_bookings
   DROP CONSTRAINT IF EXISTS provisional_bookings_revoked_token_hash_format_check;
