@@ -1,0 +1,148 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
+import { getProperties } from '../../../../../lib/booking/config';
+import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
+import {
+  rejectReportedPayment,
+  verifyReportedPayment,
+} from '../../../../../lib/booking/payment-lifecycle';
+
+export const prerender = false;
+
+const reference = String(Astro.params.reference || '');
+if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
+let booking = await getProvisionalBookingRequest(reference);
+if (!booking) return new Response('Booking request not found.', { status: 404 });
+
+const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
+const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') || '');
+
+  if (action === 'verify-payment') {
+    if (form.get('confirmVerification') !== 'yes') {
+      error = 'Confirm that you have verified the transfer against the bank account.';
+    } else {
+      const result = await verifyReportedPayment(reference);
+      if (result === 'verified') {
+        await audit(Astro.locals.adminUser!.id, 'booking.payment_verified', {
+          bookingReference: reference,
+          previousStatus: booking.status,
+          newStatus: 'confirmed',
+          paymentMethod: 'bank_transfer',
+        });
+        return Astro.redirect(`/admin/bookings/${reference}/payment/?result=verified`);
+      }
+      error = result === 'not_found'
+        ? 'The booking could not be found.'
+        : 'The payment can no longer be verified from its current booking status.';
+    }
+  } else if (action === 'reject-payment') {
+    const reason = String(form.get('reason') || '').trim().slice(0, 1000);
+    if (!reason) {
+      error = 'Enter the reason the reported transfer could not be verified.';
+    } else {
+      const result = await rejectReportedPayment(reference, reason);
+      if (result === 'rejected') {
+        await audit(Astro.locals.adminUser!.id, 'booking.payment_report_rejected', {
+          bookingReference: reference,
+          previousStatus: booking.status,
+          newStatus: 'payment_pending',
+          paymentMethod: 'bank_transfer',
+          reason,
+        });
+        return Astro.redirect(`/admin/bookings/${reference}/payment/?result=rejected`);
+      }
+      error = result === 'not_found'
+        ? 'The booking could not be found.'
+        : 'The payment report can no longer be rejected from its current booking status.';
+    }
+  } else {
+    error = 'Unknown payment action.';
+  }
+
+  booking = (await getProvisionalBookingRequest(reference)) ?? booking;
+}
+
+const result = Astro.url.searchParams.get('result');
+const totalPence = booking.latestOfferTotalPence ?? booking.guestTotalPence;
+const currency = booking.latestOfferCurrency ?? booking.pricingCurrency ?? 'GBP';
+---
+<AdminLayout title={`Payment verification · ${booking.name}`}>
+  <header class="admin-page-header">
+    <div>
+      <p class="eyebrow">Booking payment</p>
+      <h1>{booking.name}</h1>
+      <p>{propertyName} · {booking.arrival} to {booking.departure}</p>
+    </div>
+    <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${reference}/`}>Open conversation</a>
+      <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
+    </div>
+  </header>
+
+  {result === 'verified' && <div class="pricing-message is-success" role="status">The bank transfer was verified and the booking is now confirmed.</div>}
+  {result === 'rejected' && <div class="pricing-message is-success" role="status">The payment report was rejected and the booking returned to payment required.</div>}
+  {error && <div class="pricing-message is-error" role="alert">{error}</div>}
+
+  <section class="admin-panel">
+    <div class="booking-review-summary__heading">
+      <div>
+        <p class="eyebrow">Current state</p>
+        <h2>{booking.status === 'payment_reported' ? 'Payment reported — verification required' : booking.status.replaceAll('_', ' ')}</h2>
+        <p class="admin-panel-intro">A Booker declaration is not proof of receipt. Confirm only after checking the Olrig Bank account.</p>
+      </div>
+      <span class={`status-badge status-${booking.status}`}>{booking.status.replaceAll('_', ' ')}</span>
+    </div>
+
+    <dl class="booking-detail-list">
+      <div><dt>Reference</dt><dd><code>{reference}</code></dd></div>
+      <div><dt>Booker</dt><dd>{booking.name}</dd></div>
+      <div><dt>Property</dt><dd>{propertyName}</dd></div>
+      <div><dt>Stay</dt><dd>{booking.arrival} to {booking.departure}</dd></div>
+      <div><dt>Accepted total</dt><dd>{totalPence === null ? 'Not available' : money(totalPence, currency)}</dd></div>
+      <div><dt>Payment method</dt><dd>Manual bank transfer</dd></div>
+    </dl>
+  </section>
+
+  {booking.status === 'payment_reported' ? (
+    <div class="admin-grid admin-grid--two">
+      <section class="admin-panel">
+        <p class="eyebrow">Verify receipt</p>
+        <h2>Confirm the booking</h2>
+        <p>Use this only after the reported transfer is visible in the bank account and matches this booking.</p>
+        <form method="post" class="admin-form">
+          <input type="hidden" name="action" value="verify-payment" />
+          <label class="booking-delete-confirm">
+            <input type="checkbox" name="confirmVerification" value="yes" required />
+            <span>I have verified the transfer against the bank account.</span>
+          </label>
+          <button class="admin-button" type="submit">Verify payment and confirm booking</button>
+        </form>
+      </section>
+
+      <section class="admin-panel">
+        <p class="eyebrow">Could not verify</p>
+        <h2>Return to payment required</h2>
+        <p>The Booker will see the reason in the permanent conversation and can report payment again later.</p>
+        <form method="post" class="admin-form">
+          <input type="hidden" name="action" value="reject-payment" />
+          <label>Reason
+            <textarea name="reason" rows="5" maxlength="1000" required placeholder="For example: the transfer is not visible or the amount/reference does not match."></textarea>
+          </label>
+          <button class="admin-button admin-button--secondary" type="submit">Reject payment report</button>
+        </form>
+      </section>
+    </div>
+  ) : (
+    <section class="admin-panel">
+      <h2>No payment decision is currently required</h2>
+      <p>This screen acts only on bookings in the <strong>payment reported</strong> state. The current status is <strong>{booking.status.replaceAll('_', ' ')}</strong>.</p>
+    </section>
+  )}
+</AdminLayout>

@@ -63,7 +63,7 @@ export async function sendBookingOfferEmail(input: {
     'Return to your private booking page to review and respond to this offer:',
     input.manageUrl,
     '',
-    'This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows when the deposit is recorded. Email copies are optional.',
+    'This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows after Olrig Bank verifies receipt of the deposit. Email copies are optional.',
     '',
     `Booking request reference: ${input.booking.reference}`,
     '',
@@ -95,7 +95,7 @@ export async function sendBookingOfferEmail(input: {
       ${validityText ? `<p style="margin-top:24px;"><strong>${escapeHtml(validityText)}</strong></p>` : ''}
       ${input.terms ? `<p>${escapeHtml(input.terms).replace(/\n/g, '<br>')}</p>` : ''}
       <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Open your booking page</a></p>
-      <p>This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows when the deposit is recorded. Email copies are optional.</p>
+      <p>This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows after Olrig Bank verifies receipt of the deposit. Email copies are optional.</p>
       <p style="color:#65706b;font-size:13px;">This secure link is the continuing page for your booking. Save it and do not forward it.</p>
       <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.reference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
@@ -120,7 +120,7 @@ export async function sendCustomerOfferResponseEmail(input: {
   const accepted = input.response === 'accepted';
   const heading = accepted ? 'Your offer is accepted — deposit required' : 'We have recorded that you declined the offer';
   const nextStep = accepted
-    ? 'Your offer has been accepted. Return to the secure booking page to choose a deposit payment method. The booking is confirmed after the required deposit is recorded.'
+    ? 'Your offer has been accepted. Return to the secure booking page to choose a deposit payment method. The booking is confirmed after Olrig Bank verifies receipt of the required deposit.'
     : 'No further action is required. Please contact Olrig Bank if this was not your intention or you would like to discuss another stay.';
   const subject = accepted
     ? `Deposit required for your ${input.propertyName} booking`

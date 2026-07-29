@@ -39,41 +39,48 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
 }).format(new Date(`${value}T12:00:00Z`));
 
 const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
-const paymentPending = offer.bookingStatus === 'payment_pending' || offer.bookingStatus === 'payment_reported';
+const paymentPending = offer.bookingStatus === 'payment_pending';
+const paymentReported = offer.bookingStatus === 'payment_reported';
 const requestPending = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
 const displayStatus = confirmed ? 'confirmed'
-  : paymentPending ? 'payment_pending' : requestPending ? 'pending' : offer.customerStatus;
+  : paymentReported ? 'payment_reported'
+    : paymentPending ? 'payment_pending'
+      : requestPending ? 'pending' : offer.customerStatus;
 const statusHeading = confirmed
   ? 'Booking confirmed'
-  : paymentPending
-    ? 'Deposit payment required'
-  : requestPending
-    ? 'Booking request received'
-    : offer.customerStatus === 'declined'
-      ? 'Offer declined'
-      : offer.customerStatus === 'expired'
-        ? 'Offer expired'
-        : offer.customerStatus === 'superseded'
-          ? 'Offer replaced'
-          : offer.customerStatus === 'cancelled'
-            ? 'Booking cancelled'
-            : 'Booking offer ready';
+  : paymentReported
+    ? 'Payment reported — awaiting verification'
+    : paymentPending
+      ? 'Deposit payment required'
+      : requestPending
+        ? 'Booking request received'
+        : offer.customerStatus === 'declined'
+          ? 'Offer declined'
+          : offer.customerStatus === 'expired'
+            ? 'Offer expired'
+            : offer.customerStatus === 'superseded'
+              ? 'Offer replaced'
+              : offer.customerStatus === 'cancelled'
+                ? 'Booking cancelled'
+                : 'Booking offer ready';
 const statusMessage = confirmed
   ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
-  : paymentPending
-    ? 'You accepted the offer. Pay or report the required deposit below to confirm the booking.'
-  : requestPending
-    ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
-    : offer.customerStatus === 'declined'
-      ? 'You declined this offer. Continue the conversation if you would like to discuss another stay.'
-      : offer.customerStatus === 'expired'
-        ? 'The acceptance period has ended. Send a message if you would like the stay to be reconsidered.'
-        : offer.customerStatus === 'superseded'
-          ? 'A newer offer replaced this one. Reservation details show the current offer when available.'
-          : offer.customerStatus === 'cancelled'
-            ? 'This booking has been cancelled. The conversation remains available as a record.'
-            : 'Open Reservation details to review the price, terms and response options.';
+  : paymentReported
+    ? 'You reported that the deposit was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.'
+    : paymentPending
+      ? 'You accepted the offer. Pay or report the required deposit below; confirmation follows after Olrig Bank verifies receipt.'
+      : requestPending
+        ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
+        : offer.customerStatus === 'declined'
+          ? 'You declined this offer. Continue the conversation if you would like to discuss another stay.'
+          : offer.customerStatus === 'expired'
+            ? 'The acceptance period has ended. Send a message if you would like the stay to be reconsidered.'
+            : offer.customerStatus === 'superseded'
+              ? 'A newer offer replaced this one. Reservation details show the current offer when available.'
+              : offer.customerStatus === 'cancelled'
+                ? 'This booking has been cancelled. The conversation remains available as a record.'
+                : 'Open Reservation details to review the price, terms and response options.';
 
 function responseMessage(): string {
   const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'payment-required';
@@ -109,7 +116,7 @@ const conversationError = messageError || responseError;
     notificationLabel="Also notify the Olrig Bank administrators by email"
     messageNotice={conversationNotice}
     messageError={conversationError}
-    reservationButtonLabel={confirmed ? 'Reservation' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
+    reservationButtonLabel={confirmed ? 'Reservation' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
   />
 
   {!adminPreview && <section class="customer-booking-card customer-booking-access-card">
@@ -125,7 +132,6 @@ const conversationError = messageError || responseError;
       <span class="customer-booking-copy-status" data-copy-booking-status aria-live="polite"></span>
     </div>
   </section>}
-
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
   <aside class="booking-reservation-drawer" data-reservation-drawer aria-hidden="true" aria-label="Reservation details">
@@ -158,13 +164,13 @@ const conversationError = messageError || responseError;
           <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
           <div><dt>Requested</dt><dd>{new Date(offer.requestCreatedAt).toLocaleString('en-GB')}</dd></div>
           {!confirmed && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
-          {confirmed && offer.acceptedAt && <div><dt>Confirmed</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
+          {confirmed && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
         </dl>
       </section>
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>{confirmed ? 'Confirmed price' : paymentPending ? 'Accepted offer' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
+        <h3>{confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
         {offer.priceAvailable ? <div class="customer-booking-price-table">
           {offer.lineItems.map((line) => <div class="customer-booking-price-line">
             <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
@@ -180,12 +186,21 @@ const conversationError = messageError || responseError;
         <p>{offer.terms}</p>
       </section>}
 
-
+      {paymentReported && <section class="booking-drawer-section customer-booking-payment">
+        <div>
+          <p class="eyebrow">Deposit verification</p>
+          <h3>Your payment report is awaiting verification</h3>
+          <p>Olrig Bank will check the bank account. No further payment-report action is needed unless Jenna contacts you in the conversation.</p>
+        </div>
+        <div class="pricing-message" role="status">
+          <strong>The booking is not confirmed yet.</strong> It becomes confirmed only after an administrator verifies receipt of the deposit.
+        </div>
+      </section>}
 
       {paymentPending && <section class="booking-drawer-section customer-booking-payment">
         <div>
           <p class="eyebrow">Deposit payment</p>
-          <h3>Pay {money(offer.depositPence || Math.max(1, Math.round(offer.totalPence * 0.25)), offer.currency)} to confirm</h3>
+          <h3>Pay {money(offer.depositPence || Math.max(1, Math.round(offer.totalPence * 0.25)), offer.currency)} to continue</h3>
           <p>The remaining balance is {money(offer.balanceDuePence || Math.max(0, offer.totalPence - (offer.depositPence || Math.round(offer.totalPence * 0.25))), offer.currency)} and will be payable later through this same booking page.</p>
         </div>
         <div class="customer-booking-payment-options">
@@ -209,9 +224,9 @@ const conversationError = messageError || responseError;
                 <input type="checkbox" name="confirmTransfer" value="yes" required />
                 <span>I confirm that I have sent the deposit by bank transfer.</span>
               </label>
-              <button class="customer-booking-submit customer-booking-accept" type="submit">I have sent the bank transfer</button>
+              <button class="customer-booking-submit customer-booking-accept" type="submit">Report bank transfer sent</button>
             </form>
-            <small>This immediately marks the booking confirmed and tells administrators to verify the transfer.</small>
+            <small>This records your report for administrator verification; it does not confirm the booking.</small>
           </article>
         </div>
       </section>}
@@ -220,7 +235,7 @@ const conversationError = messageError || responseError;
         <div>
           <p class="eyebrow">Your response</p>
           <h3>Accept or decline this offer</h3>
-          <p>Accepting records your agreement to the dates, price and terms. The booking is confirmed after the required deposit is recorded.</p>
+          <p>Accepting records your agreement to the dates, price and terms. The booking is confirmed after the required deposit is verified.</p>
         </div>
         <div class="customer-booking-actions">
           <form method="post" class="customer-booking-decision-form">
