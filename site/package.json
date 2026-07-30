@@ -16,7 +16,7 @@
     "generate:booking-lifecycle-docs": "node --experimental-strip-types ./scripts/generate-booking-lifecycle-docs.ts",
     "check:booking-lifecycle-docs": "node --experimental-strip-types ./scripts/generate-booking-lifecycle-docs.ts --check",
     "test:booking-lifecycle": "node --experimental-strip-types --test ./tests/booking-lifecycle/*.test.ts",
-    "test:booking-access-integration": "node --experimental-strip-types --test ./tests/integration/booking-access-lifecycle.test.ts"
+    "test:booking-integration": "node --experimental-strip-types --test ./tests/integration/*.test.ts"
   },
   "dependencies": {
     "astro": "^7.0.6",
