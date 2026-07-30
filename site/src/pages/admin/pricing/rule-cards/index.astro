@@ -12,6 +12,7 @@ const categories: PricingRuleCategory[] = [
   'Seasons and dates',
   'Stay rules',
   'Booking window',
+  'Payment terms',
   'Fees',
   'Channels',
 ];
@@ -81,8 +82,11 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
           <label class="pricing-field definition-type-field" data-types="default_nightly_price,date_override,fixed_package,extra_guest_charge,cleaning_fee,pet_fee,price_floor">Default amount (£)
             <input name="amountPounds" type="number" min="0" step="0.01" />
           </label>
-          <label class="pricing-field definition-type-field" data-types="weekend_adjustment,seasonal_adjustment,length_discount,early_booking_discount,last_minute_discount,channel_commission,non_refundable_discount">Default percentage
+          <label class="pricing-field definition-type-field" data-types="weekend_adjustment,seasonal_adjustment,length_discount,early_booking_discount,last_minute_discount,channel_commission,non_refundable_discount,deposit_percentage">Default percentage
             <input name="percentage" type="number" min="-100" max="1000" step="0.1" />
+          </label>
+          <label class="pricing-field definition-type-field" data-types="initial_payment_deadline,balance_payment_deadline">Calendar days
+            <input name="days" type="number" min="0" max="3650" />
           </label>
           <label class="pricing-field definition-type-field" data-types="seasonal_adjustment,date_override,minimum_stay,maximum_stay,arrival_day_restriction,departure_day_restriction,fixed_package,price_floor">From date
             <input name="arrivalDateFrom" type="date" />
@@ -223,6 +227,7 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     setChecked('defaultStackable', starter.stackable);
     setValue('amountPounds', starter.action.amountPence === undefined ? '' : (starter.action.amountPence / 100).toFixed(2));
     setValue('percentage', starter.action.percentage ?? '');
+    setValue('days', starter.action.days ?? '');
     setValue('arrivalDateFrom', starter.conditions.arrivalDateFrom ?? '');
     setValue('arrivalDateTo', starter.conditions.arrivalDateTo ?? '');
     setValue('minimumNights', starter.conditions.minimumNights ?? '');
@@ -268,6 +273,7 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     setChecked('defaultStackable', definition.defaultStackable);
     setValue('amountPounds', definition.defaultAction.amountPence === undefined ? '' : (definition.defaultAction.amountPence / 100).toFixed(2));
     setValue('percentage', definition.defaultAction.percentage ?? '');
+    setValue('days', definition.defaultAction.days ?? '');
     setValue('arrivalDateFrom', definition.defaultConditions.arrivalDateFrom ?? '');
     setValue('arrivalDateTo', definition.defaultConditions.arrivalDateTo ?? '');
     setValue('minimumNights', definition.defaultConditions.minimumNights ?? '');
@@ -309,7 +315,8 @@ const starterValues = Object.fromEntries(RULE_CATALOG.map((entry) => [entry.type
     if (type === 'channel_commission') conditions.channel = data.get('channel');
     if (type === 'non_refundable_discount') conditions.cancellationPlan = 'non_refundable';
     if (['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee','price_floor'].includes(type)) setNumber(ruleAction, 'amountPence', 'amountPounds', 100);
-    if (['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount'].includes(type)) setNumber(ruleAction, 'percentage', 'percentage');
+    if (['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount','deposit_percentage'].includes(type)) setNumber(ruleAction, 'percentage', 'percentage');
+    if (['initial_payment_deadline','balance_payment_deadline'].includes(type)) setNumber(ruleAction, 'days', 'days');
     if (['minimum_stay','maximum_stay','fixed_package'].includes(type)) setNumber(ruleAction, 'nights', 'nights');
     if (type === 'extra_guest_charge') {
       setNumber(ruleAction, 'includedGuests', 'includedGuests');

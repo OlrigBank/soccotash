@@ -26,6 +26,9 @@ function summary(): string {
     case 'length_discount': return `${rule.action.percentage ?? 0}% from ${rule.conditions.minimumNights ?? 1} nights`;
     case 'early_booking_discount': return `${rule.action.percentage ?? 0}% at ${rule.conditions.minimumLeadDays ?? 0}+ days`;
     case 'last_minute_discount': return `${rule.action.percentage ?? 0}% within ${rule.conditions.maximumLeadDays ?? 0} days`;
+    case 'deposit_percentage': return `${rule.action.percentage ?? 0}% of the accepted total`;
+    case 'initial_payment_deadline': return `${rule.action.days ?? 0} calendar days after acceptance`;
+    case 'balance_payment_deadline': return `${rule.action.days ?? 0} calendar days before arrival`;
     case 'extra_guest_charge': return `£${pounds(rule.action.amountPence)} above ${rule.action.includedGuests ?? 0} guests${rule.action.perNight ? ' per night' : ''}`;
     case 'cleaning_fee': return `£${pounds(rule.action.amountPence)} per booking`;
     case 'pet_fee': return `£${pounds(rule.action.amountPence)}${rule.action.perPet ? ' per pet' : ' per stay'}`;
@@ -60,8 +63,10 @@ function summary(): string {
 
           {(['default_nightly_price','date_override','fixed_package','extra_guest_charge','cleaning_fee','pet_fee','price_floor'].includes(rule.type)) &&
             <label class="pricing-field">Amount (£)<input name="action.amountPounds" type="number" min="0" step="0.01" value={pounds(rule.action.amountPence)} /></label>}
-          {(['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount'].includes(rule.type)) &&
+          {(['weekend_adjustment','seasonal_adjustment','length_discount','early_booking_discount','last_minute_discount','channel_commission','non_refundable_discount','deposit_percentage'].includes(rule.type)) &&
             <label class="pricing-field">Percentage<input name="action.percentage" type="number" min={(rule.type === 'weekend_adjustment' || rule.type === 'seasonal_adjustment') ? -100 : 0} max="100" step="0.1" value={rule.action.percentage ?? 0} /></label>}
+          {(['initial_payment_deadline','balance_payment_deadline'].includes(rule.type)) &&
+            <label class="pricing-field">Calendar days<input name="action.days" type="number" min="0" max="3650" value={rule.action.days ?? 0} /></label>}
 
           {(['seasonal_adjustment','date_override','minimum_stay','maximum_stay','arrival_day_restriction','departure_day_restriction','fixed_package','price_floor'].includes(rule.type)) && <>
             <label class="pricing-field">From date<input name="conditions.arrivalDateFrom" type="date" value={from} /></label>

@@ -41,6 +41,12 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
 const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
 const paymentPending = offer.bookingStatus === 'payment_pending';
 const paymentReported = offer.bookingStatus === 'payment_reported';
+const fullPaymentRequired = offer.balanceDuePence === 0;
+const initialPaymentLabel = fullPaymentRequired ? 'full payment' : 'deposit';
+const initialPaymentLabelTitle = fullPaymentRequired ? 'Full payment' : 'Deposit';
+const initialPaymentDueLabel = offer.depositDueAt
+  ? new Date(offer.depositDueAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })
+  : null;
 const requestPending = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
 const displayStatus = confirmed ? 'confirmed'
@@ -52,7 +58,7 @@ const statusHeading = confirmed
   : paymentReported
     ? 'Payment reported — awaiting verification'
     : paymentPending
-      ? 'Deposit payment required'
+      ? `${initialPaymentLabelTitle} required`
       : requestPending
         ? 'Booking request received'
         : offer.customerStatus === 'declined'
@@ -67,9 +73,9 @@ const statusHeading = confirmed
 const statusMessage = confirmed
   ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
   : paymentReported
-    ? 'You reported that the deposit was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.'
+    ? `You reported that the ${initialPaymentLabel} was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.`
     : paymentPending
-      ? 'You accepted the offer. Pay or report the required deposit below; confirmation follows after Olrig Bank verifies receipt.'
+      ? `You accepted the offer. Send the required ${initialPaymentLabel} by manual bank transfer; confirmation follows after Olrig Bank verifies receipt.`
       : requestPending
         ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
         : offer.customerStatus === 'declined'
@@ -85,9 +91,9 @@ const statusMessage = confirmed
 function responseMessage(): string {
   const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'payment-required';
   if (accepted) {
-    if (emailStatus === 'sent') return 'Your offer is accepted. Deposit payment is now required, and an email copy was sent.';
-    if (emailStatus === 'failed') return 'Your offer is accepted and deposit payment is now required. The optional email copy could not be sent.';
-    return 'Your offer is accepted. Deposit payment is now required.';
+    if (emailStatus === 'sent') return `Your offer is accepted. The ${initialPaymentLabel} is now required, and an email copy was sent.`;
+    if (emailStatus === 'failed') return `Your offer is accepted and the ${initialPaymentLabel} is now required. The optional email copy could not be sent.`;
+    return `Your offer is accepted. The ${initialPaymentLabel} is now required.`;
   }
   if (emailStatus === 'sent') return 'Your decision to decline was recorded and an email copy was sent.';
   if (emailStatus === 'failed') return 'Your decision to decline was recorded, although the optional email copy could not be sent.';
@@ -188,45 +194,48 @@ const conversationError = messageError || responseError;
 
       {paymentReported && <section class="booking-drawer-section customer-booking-payment">
         <div>
-          <p class="eyebrow">Deposit verification</p>
+          <p class="eyebrow">{initialPaymentLabelTitle} verification</p>
           <h3>Your payment report is awaiting verification</h3>
           <p>Olrig Bank will check the bank account. No further payment-report action is needed unless Jenna contacts you in the conversation.</p>
         </div>
         <div class="pricing-message" role="status">
-          <strong>The booking is not confirmed yet.</strong> It becomes confirmed only after an administrator verifies receipt of the deposit.
+          <strong>The booking is not confirmed yet.</strong> It becomes confirmed only after an administrator verifies receipt of the {initialPaymentLabel}.
         </div>
       </section>}
 
       {paymentPending && <section class="booking-drawer-section customer-booking-payment">
         <div>
-          <p class="eyebrow">Deposit payment</p>
-          <h3>Pay {money(offer.depositPence || Math.max(1, Math.round(offer.totalPence * 0.25)), offer.currency)} to continue</h3>
-          <p>The remaining balance is {money(offer.balanceDuePence || Math.max(0, offer.totalPence - (offer.depositPence || Math.round(offer.totalPence * 0.25))), offer.currency)} and will be payable later through this same booking page.</p>
+          <p class="eyebrow">{initialPaymentLabelTitle}</p>
+          <h3>Send {money(offer.depositPence, offer.currency)} by manual bank transfer</h3>
+          {initialPaymentDueLabel && <p>This payment is due by <strong>{initialPaymentDueLabel}</strong>.</p>}
+          {fullPaymentRequired
+            ? <p>The full accepted total is due because this booking was accepted within the pricing plan’s balance-payment period.</p>
+            : <p>The remaining balance is {money(offer.balanceDuePence, offer.currency)} and is due by <strong>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'the date agreed with Olrig Bank'}</strong>.</p>}
         </div>
         <div class="customer-booking-payment-options">
           <article class="customer-booking-payment-option is-recommended">
-            <span class="customer-booking-payment-badge">Recommended</span>
-            <h4>Pay by Bank</h4>
-            <p>Lower-cost bank payment through GoCardless. Secure checkout integration will be enabled in a later implementation.</p>
-            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">GoCardless coming soon</button>
-          </article>
-          <article class="customer-booking-payment-option">
-            <h4>Pay by card</h4>
-            <p>Pay with a debit or credit card through Stripe. Secure checkout integration will be enabled in a later implementation.</p>
-            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Stripe coming soon</button>
-          </article>
-          <article class="customer-booking-payment-option is-exceptional">
+            <span class="customer-booking-payment-badge">Available for first live bookings</span>
             <h4>Manual bank transfer</h4>
-            <p>Use only when agreed with Olrig Bank. Send the deposit using the bank details supplied by Jenna, using booking reference <code>{offer.bookingReference}</code>.</p>
+            <p>Send the {initialPaymentLabel} using the bank details supplied by Olrig Bank. Use booking reference <code>{offer.bookingReference}</code>.</p>
             <form method="post" class="customer-booking-decision-form">
               <input type="hidden" name="action" value="report-bank-transfer" />
               <label class="customer-booking-confirm-check">
                 <input type="checkbox" name="confirmTransfer" value="yes" required />
-                <span>I confirm that I have sent the deposit by bank transfer.</span>
+                <span>I confirm that I have sent the {initialPaymentLabel} by bank transfer.</span>
               </label>
               <button class="customer-booking-submit customer-booking-accept" type="submit">Report bank transfer sent</button>
             </form>
             <small>This records your report for administrator verification; it does not confirm the booking.</small>
+          </article>
+          <article class="customer-booking-payment-option">
+            <h4>GoCardless Instant Bank Pay</h4>
+            <p>Hosted online bank payment is planned for a later release.</p>
+            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Not available yet</button>
+          </article>
+          <article class="customer-booking-payment-option">
+            <h4>Stripe card payment</h4>
+            <p>Hosted card checkout is planned for a later release.</p>
+            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Not available yet</button>
           </article>
         </div>
       </section>}
@@ -235,7 +244,7 @@ const conversationError = messageError || responseError;
         <div>
           <p class="eyebrow">Your response</p>
           <h3>Accept or decline this offer</h3>
-          <p>Accepting records your agreement to the dates, price and terms. The booking is confirmed after the required deposit is verified.</p>
+          <p>Accepting records your agreement to the dates, price and terms. The booking is confirmed after the initial payment required by the pricing plan is verified.</p>
         </div>
         <div class="customer-booking-actions">
           <form method="post" class="customer-booking-decision-form">

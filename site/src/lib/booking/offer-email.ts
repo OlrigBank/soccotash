@@ -63,7 +63,7 @@ export async function sendBookingOfferEmail(input: {
     'Return to your private booking page to review and respond to this offer:',
     input.manageUrl,
     '',
-    'This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows after Olrig Bank verifies receipt of the deposit. Email copies are optional.',
+    'This is an offer rather than a confirmed booking. If you accept it, your pricing plan determines the initial payment amount and deadline. For the first live-booking phase, payment is by manual bank transfer and confirmation follows after Olrig Bank verifies receipt. Email copies are optional.',
     '',
     `Booking request reference: ${input.booking.reference}`,
     '',
@@ -95,7 +95,7 @@ export async function sendBookingOfferEmail(input: {
       ${validityText ? `<p style="margin-top:24px;"><strong>${escapeHtml(validityText)}</strong></p>` : ''}
       ${input.terms ? `<p>${escapeHtml(input.terms).replace(/\n/g, '<br>')}</p>` : ''}
       <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Open your booking page</a></p>
-      <p>This is an offer rather than a confirmed booking. If you accept it, the required deposit can be paid or reported on the same private booking page; confirmation follows after Olrig Bank verifies receipt of the deposit. Email copies are optional.</p>
+      <p>This is an offer rather than a confirmed booking. If you accept it, your pricing plan determines the initial payment amount and deadline. For the first live-booking phase, payment is by manual bank transfer and confirmation follows after Olrig Bank verifies receipt. Email copies are optional.</p>
       <p style="color:#65706b;font-size:13px;">This secure link is the continuing page for your booking. Save it and do not forward it.</p>
       <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.reference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
@@ -118,18 +118,21 @@ export async function sendCustomerOfferResponseEmail(input: {
   manageUrl: string;
 }): Promise<EmailSendResult> {
   const accepted = input.response === 'accepted';
-  const heading = accepted ? 'Your offer is accepted — deposit required' : 'We have recorded that you declined the offer';
+  const paymentLabel = input.offer.balanceDuePence === 0 ? 'full payment' : 'deposit';
+  const paymentLabelTitle = input.offer.balanceDuePence === 0 ? 'Full payment' : 'Deposit';
+  const paymentAmount = formatCurrency(input.offer.depositPence, input.offer.currency);
+  const heading = accepted ? `Your offer is accepted — ${paymentLabel} required` : 'We have recorded that you declined the offer';
   const nextStep = accepted
-    ? 'Your offer has been accepted. Return to the secure booking page to choose a deposit payment method. The booking is confirmed after Olrig Bank verifies receipt of the required deposit.'
+    ? `Your offer has been accepted. Send the required ${paymentLabel} of ${paymentAmount} by manual bank transfer using the instructions on the secure booking page. The booking is confirmed after Olrig Bank verifies receipt.`
     : 'No further action is required. Please contact Olrig Bank if this was not your intention or you would like to discuss another stay.';
   const subject = accepted
-    ? `Deposit required for your ${input.propertyName} booking`
+    ? `${paymentLabelTitle} required for your ${input.propertyName} booking`
     : `Your ${input.propertyName} booking offer was declined`;
   const totalLabel = accepted ? 'Accepted offer total' : 'Offer total';
   const linkInstruction = accepted
-    ? 'Choose a deposit payment method using the secure link below:'
+    ? 'Open the secure booking page for the manual bank-transfer instructions:'
     : 'You can review the booking details using the same secure link:';
-  const linkLabel = accepted ? 'Pay booking deposit' : 'Review booking details';
+  const linkLabel = accepted ? `View ${paymentLabel} instructions` : 'Review booking details';
   const text = [
     `Dear ${input.offer.guestName},`,
     '',
@@ -171,12 +174,13 @@ export async function sendManagementOfferResponseEmail(input: {
   const recipients = getBookingManagementRecipients();
   if (!recipients.length) return null;
   const accepted = input.response === 'accepted';
+  const paymentLabel = input.offer.balanceDuePence === 0 ? 'full payment' : 'deposit';
   const subject = accepted
     ? `Offer accepted — payment required: ${input.offer.guestName} · ${input.propertyName}`
     : `Booking offer declined: ${input.offer.guestName} · ${input.propertyName}`;
   const text = [
     accepted
-      ? `${input.offer.guestName} has accepted the offer. The booking is awaiting the required deposit.`
+      ? `${input.offer.guestName} has accepted the offer. The booking is awaiting the required ${paymentLabel} by manual bank transfer.`
       : `${input.offer.guestName} has declined the booking offer.`,
     '',
     `${input.propertyName}`,
@@ -191,7 +195,7 @@ export async function sendManagementOfferResponseEmail(input: {
   ].join('\n');
   const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;color:#17323a;">
     <h1>${accepted ? 'Offer accepted — payment required' : 'Booking offer declined'}</h1>
-    <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? 'has accepted the offer and the booking is awaiting the required deposit.' : 'has declined the booking offer.'}</p>
+    <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? `has accepted the offer and the booking is awaiting the required ${escapeHtml(paymentLabel)} by manual bank transfer.` : 'has declined the booking offer.'}</p>
     <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>${accepted ? 'Accepted offer total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
     <p>Booker email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Booker telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
     <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
