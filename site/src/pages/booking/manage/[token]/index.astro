@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
+import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access';
 import { getProperties } from '../../../../lib/booking/config';
 import {
   getCustomerBookingPage,
@@ -18,7 +19,6 @@ import {
   createBookerBookingMessage,
   getBookingMessagesByToken,
   markBookingMessageNotification,
-  validBookingAccessToken,
 } from '../../../../lib/booking/messaging';
 import {
   sendCustomerOfferResponseEmail,
@@ -34,10 +34,11 @@ export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-Astro.response.headers.set('X-Soccotash-Booking-UI', '38-payment-verification');
+Astro.response.headers.set('X-Soccotash-Booking-UI', '39-access-lifecycle');
 
 const token = String(Astro.params.token || '');
-if (!validBookingAccessToken(token)) return new Response('Booking not found.', { status: 404 });
+const access = await resolveBookingAccessCredential(token, { recordUse: true, recordDenied: true });
+if (!access.allowed) return new Response('Booking not found.', { status: 404 });
 
 let offer = await getCustomerBookingPage(token, true);
 if (!offer) return new Response('Booking not found.', { status: 404 });

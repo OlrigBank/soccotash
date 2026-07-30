@@ -69,6 +69,10 @@ services:
       - key: BOOKING_PUBLIC_URL
         value: https://soccotash.onrender.com
 
+      # Private Booker links remain valid through this many days after departure.
+      - key: BOOKING_ACCESS_EXPIRY_DAYS_AFTER_DEPARTURE
+        value: "90"
+
       # Optional privacy-friendly visitor analytics. Leave the website ID unset
       # to disable tracking. Private booking tokens and query strings are never
       # sent to Umami.

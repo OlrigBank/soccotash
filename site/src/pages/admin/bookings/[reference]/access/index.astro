@@ -1,0 +1,198 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
+import {
+  getBookingAccessAdminState,
+  revokeBookingAccessCredential,
+  rotateBookingAccessCredential,
+} from '../../../../../lib/booking/booking-access';
+import { BOOKING_ACCESS_EXPIRY_ENV } from '../../../../../lib/booking/booking-access-policy';
+import { getProperties } from '../../../../../lib/booking/config';
+import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'no-store, private');
+
+const reference = String(Astro.params.reference || '');
+if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
+let booking = await getProvisionalBookingRequest(reference);
+if (!booking) return new Response('Booking request not found.', { status: 404 });
+let access = await getBookingAccessAdminState(reference);
+if (!access) return new Response('Booking access record not found.', { status: 404 });
+
+const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
+const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+const publicOrigin = configuredOrigin || Astro.url.origin;
+let generatedAccessUrl = '';
+let error = '';
+let notice = Astro.url.searchParams.get('result') === 'revoked'
+  ? 'Booker access was revoked. Existing private links no longer work.'
+  : '';
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') || '');
+  const reason = String(form.get('reason') || '').trim().slice(0, 1000);
+
+  if (action === 'rotate-access') {
+    if (form.get('confirmRotation') !== 'yes') {
+      error = 'Confirm that all existing private booking links must stop working.';
+    } else if (access.state === 'expired') {
+      error = `This booking is beyond its automatic access period. Adjust ${BOOKING_ACCESS_EXPIRY_ENV} before issuing another link.`;
+    } else {
+      const rotated = await rotateBookingAccessCredential({
+        reference,
+        adminUserId: Astro.locals.adminUser!.id,
+        reason,
+      });
+      if (!rotated) return new Response('Booking request not found.', { status: 404 });
+      generatedAccessUrl = new URL(`/booking/manage/${rotated.token}/`, publicOrigin).toString();
+      notice = 'A replacement Booker link was generated and every older private link was invalidated.';
+      await audit(Astro.locals.adminUser!.id, 'booking.access_rotated', {
+        bookingReference: reference,
+        reason: reason || null,
+        expiresOn: rotated.expiresOn,
+      });
+    }
+  } else if (action === 'revoke-access') {
+    if (form.get('confirmRevocation') !== 'yes') {
+      error = 'Confirm that Booker access must be revoked.';
+    } else if (!reason) {
+      error = 'Enter the reason access is being revoked.';
+    } else {
+      const revoked = await revokeBookingAccessCredential({
+        reference,
+        adminUserId: Astro.locals.adminUser!.id,
+        reason,
+      });
+      if (!revoked) return new Response('Booking request not found.', { status: 404 });
+      await audit(Astro.locals.adminUser!.id, 'booking.access_revoked', {
+        bookingReference: reference,
+        reason,
+      });
+      return Astro.redirect(`/admin/bookings/${reference}/access/?result=revoked`);
+    }
+  } else {
+    error = 'Unknown access action.';
+  }
+
+  booking = (await getProvisionalBookingRequest(reference)) ?? booking;
+  access = (await getBookingAccessAdminState(reference)) ?? access;
+}
+
+const currentAccessUrl = access.state === 'active' && booking.customerAccessToken
+  ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+  : '';
+const stateLabel = access.state === 'active'
+  ? 'Active'
+  : access.state === 'revoked'
+    ? 'Revoked'
+    : 'Automatically expired';
+---
+<AdminLayout title={`Booker access · ${booking.name}`}>
+  <header class="admin-page-header">
+    <div>
+      <p class="eyebrow">Private booking access</p>
+      <h1>{booking.name}</h1>
+      <p>{propertyName} · {booking.arrival} to {booking.departure}</p>
+    </div>
+    <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${reference}/`}>Open booking</a>
+      <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
+    </div>
+  </header>
+
+  {notice && <div class="pricing-message is-success" role="status">{notice}</div>}
+  {error && <div class="pricing-message is-error" role="alert">{error}</div>}
+
+  {generatedAccessUrl && <section class="admin-panel">
+    <p class="eyebrow">Replacement generated</p>
+    <h2>New Booker link</h2>
+    <p>This is now the active private link. Copy or test it here; it also appears as the current link below while access remains active.</p>
+    <div class="booking-contact-form__actions">
+      <input type="text" readonly value={generatedAccessUrl} aria-label="Replacement Booker link" />
+      <button class="admin-button" type="button" data-copy-booker-link={generatedAccessUrl}>Copy replacement link</button>
+      <a class="admin-button admin-button--secondary" href={generatedAccessUrl} target="_blank" rel="noopener noreferrer">Test replacement link</a>
+      <span data-copy-booker-status aria-live="polite"></span>
+    </div>
+  </section>}
+
+  <section class="admin-panel">
+    <div class="booking-review-summary__heading">
+      <div>
+        <p class="eyebrow">Current credential</p>
+        <h2>{stateLabel}</h2>
+        <p class="admin-panel-intro">The private link is a bearer credential. Anyone holding an active link can read and use the Booker booking page.</p>
+      </div>
+      <span class={`status-badge status-${access.state}`}>{stateLabel}</span>
+    </div>
+
+    <dl class="booking-detail-list">
+      <div><dt>Issued</dt><dd>{new Date(access.issuedAt).toLocaleString('en-GB')}</dd></div>
+      <div><dt>Last used</dt><dd>{access.lastUsedAt ? new Date(access.lastUsedAt).toLocaleString('en-GB') : 'Not recorded yet'}</dd></div>
+      <div><dt>Automatic expiry</dt><dd>{access.expiresOn}</dd></div>
+      <div><dt>Expiry policy</dt><dd>{access.expiryDays} days after departure</dd></div>
+      <div><dt>Environment variable</dt><dd><code>{BOOKING_ACCESS_EXPIRY_ENV}</code></dd></div>
+      <div><dt>Other active offer credentials</dt><dd>{access.activeOfferCredentialCount}</dd></div>
+      {access.revokedAt && <div><dt>Revoked</dt><dd>{new Date(access.revokedAt).toLocaleString('en-GB')}</dd></div>}
+    </dl>
+
+    {currentAccessUrl && <div class="pricing-header-actions">
+      <a class="admin-button admin-button--secondary" href={currentAccessUrl} target="_blank" rel="noopener noreferrer">Open current Booker link</a>
+      <button class="admin-button admin-button--secondary" type="button" data-copy-booker-link={currentAccessUrl}>Copy current link</button>
+      <span data-copy-booker-status aria-live="polite"></span>
+    </div>}
+  </section>
+
+  <div class="admin-grid admin-grid--two">
+    <section class="admin-panel">
+      <p class="eyebrow">Compromised or lost link</p>
+      <h2>Generate a replacement</h2>
+      <p>This immediately invalidates the stable link and every older offer-specific link. The booking, offer history and conversation are preserved.</p>
+      <form method="post" class="admin-form">
+        <input type="hidden" name="action" value="rotate-access" />
+        <label>Administrative note (optional)
+          <textarea name="reason" rows="4" maxlength="1000" placeholder="For example: Booker lost the original link."></textarea>
+        </label>
+        <label class="booking-delete-confirm">
+          <input type="checkbox" name="confirmRotation" value="yes" required />
+          <span>I understand that every existing private booking link will stop working.</span>
+        </label>
+        <button class="admin-button" type="submit" disabled={access.state === 'expired'}>Generate replacement link</button>
+      </form>
+    </section>
+
+    <section class="admin-panel">
+      <p class="eyebrow">Withdraw access</p>
+      <h2>Revoke Booker access</h2>
+      <p>This blocks all current private links without deleting or changing the booking record. A later rotation can restore access while the automatic access period remains open.</p>
+      <form method="post" class="admin-form">
+        <input type="hidden" name="action" value="revoke-access" />
+        <label>Reason
+          <textarea name="reason" rows="4" maxlength="1000" required placeholder="Explain why access is being withdrawn."></textarea>
+        </label>
+        <label class="booking-delete-confirm">
+          <input type="checkbox" name="confirmRevocation" value="yes" required />
+          <span>I understand that all Booker links will stop working immediately.</span>
+        </label>
+        <button class="admin-button admin-button--secondary" type="submit" disabled={access.state === 'revoked'}>Revoke access</button>
+      </form>
+    </section>
+  </div>
+</AdminLayout>
+
+<script>
+  document.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>('[data-copy-booker-link]');
+    if (!button) return;
+    const value = button.dataset.copyBookerLink || '';
+    const status = button.parentElement?.querySelector<HTMLElement>('[data-copy-booker-status]');
+    try {
+      await navigator.clipboard.writeText(value);
+      if (status) status.textContent = 'Copied.';
+    } catch {
+      if (status) status.textContent = 'Copy failed; select the link manually.';
+    }
+  });
+</script>
