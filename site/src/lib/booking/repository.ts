@@ -9,12 +9,16 @@ import {
   insertAdministratorOfferMessage,
   insertBotBookingMessage,
 } from './messaging';
+import {
+  hasBookingDateConflict,
+  queryAdminCalendarEntries,
+  queryBookingBlocks,
+  queryProvisionalBookingRequestRows,
+  type AdminCalendarEntry,
+  type BookingBlock,
+} from './status-calendar';
 
-export type BookingBlock = {
-  startsOn: string;
-  endsOn: string;
-  source: string;
-};
+export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
 export async function expireElapsedBookingOffers(): Promise<number> {
   const client = await getPool().connect();
@@ -121,71 +125,17 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
   const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
 
-  const result = await getPool().query(
-    `SELECT starts_on::text AS "startsOn", ends_on::text AS "endsOn", source
-     FROM booking_blocks
-     WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
-     UNION ALL
-     SELECT arrival::text AS "startsOn", departure::text AS "endsOn",
-            CASE WHEN status IN ('confirmed', 'approved') THEN 'direct' ELSE 'provisional' END AS source
-     FROM provisional_bookings
-     WHERE property_id = ANY($4::text[]) AND status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
-       AND arrival < $3::date AND departure > $2::date
-     ORDER BY "startsOn"`,
-    [availabilityProperty.id, from, to, linkedPropertyIds],
-  );
-  return result.rows;
+  return queryBookingBlocks(getPool(), {
+    availabilityPropertyId: availabilityProperty.id,
+    propertyIds: linkedPropertyIds,
+    from,
+    to,
+  });
 }
-
-export type AdminCalendarEntry = {
-  id: string;
-  propertyId: string;
-  startsOn: string;
-  endsOn: string;
-  source: 'airbnb' | 'external' | 'provisional' | 'direct';
-  guestName: string | null;
-  bookingReference: string | null;
-  bookingStatus: string | null;
-};
 
 export async function getAdminCalendarEntries(from: string, to: string): Promise<AdminCalendarEntry[]> {
   await expireElapsedBookingOffers();
-  const result = await getPool().query(
-    `SELECT 'block-' || bb.id::text AS id,
-            bb.property_id AS "propertyId",
-            bb.starts_on::text AS "startsOn",
-            bb.ends_on::text AS "endsOn",
-            CASE WHEN bb.source = 'airbnb' THEN 'airbnb' ELSE 'external' END AS source,
-            NULL::text AS "guestName",
-            NULL::text AS "bookingReference",
-            NULL::text AS "bookingStatus"
-       FROM booking_blocks bb
-      WHERE bb.starts_on < $2::date AND bb.ends_on > $1::date
-      UNION ALL
-     SELECT 'booking-' || pb.id::text AS id,
-            pb.property_id AS "propertyId",
-            pb.arrival::text AS "startsOn",
-            pb.departure::text AS "endsOn",
-            CASE WHEN pb.status IN ('confirmed', 'approved') THEN 'direct' ELSE 'provisional' END AS source,
-            pb.guest_name AS "guestName",
-            pb.public_id::text AS "bookingReference",
-            pb.status AS "bookingStatus"
-       FROM provisional_bookings pb
-      WHERE pb.status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
-        AND pb.arrival < $2::date AND pb.departure > $1::date
-      ORDER BY "startsOn", "propertyId", source`,
-    [from, to],
-  );
-  return result.rows.map((row) => ({
-    id: String(row.id),
-    propertyId: row.propertyId,
-    startsOn: row.startsOn,
-    endsOn: row.endsOn,
-    source: row.source,
-    guestName: row.guestName,
-    bookingReference: row.bookingReference,
-    bookingStatus: row.bookingStatus,
-  }));
+  return queryAdminCalendarEntries(getPool(), from, to);
 }
 
 export async function isCalendarStale(propertyId: string, minutes = 30): Promise<boolean> {
@@ -220,16 +170,13 @@ export async function createProvisionalBooking(input: {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
-    const conflict = await client.query(
-      `SELECT 1 FROM booking_blocks
-       WHERE property_id=$1 AND starts_on < $3::date AND ends_on > $2::date
-       UNION ALL
-       SELECT 1 FROM provisional_bookings
-       WHERE property_id = ANY($4::text[]) AND status IN ('pending','offered','payment_pending','payment_reported','confirmed','approved')
-         AND arrival < $3::date AND departure > $2::date LIMIT 1`,
-      [availabilityProperty.id, input.arrival, input.departure, linkedPropertyIds],
-    );
-    if (conflict.rowCount) throw new Error('DATES_UNAVAILABLE');
+    const conflict = await hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id,
+      propertyIds: linkedPropertyIds,
+      arrival: input.arrival,
+      departure: input.departure,
+    });
+    if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
        (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_message,
@@ -362,31 +309,8 @@ export async function getProvisionalBookingRequests(
   includeInactive = false,
 ): Promise<ProvisionalBookingRequest[]> {
   await expireElapsedBookingOffers();
-  const result = await getPool().query(
-    `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
-            pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email, pb.guest_telephone AS telephone,
-            pb.guest_message AS message, pb.status, pb.pricing_currency AS "pricingCurrency",
-            pb.guest_total_pence AS "guestTotalPence", pb.pricing_plan_version AS "pricingPlanVersion",
-            pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
-            latest_offer.total_pence AS "latestOfferTotalPence",
-            latest_offer.currency AS "latestOfferCurrency",
-            latest_offer.sent_at AS "latestOfferSentAt",
-            (SELECT COUNT(*)::int FROM booking_messages bm
-              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
-       FROM provisional_bookings pb
-       LEFT JOIN LATERAL (
-         SELECT total_pence, currency, sent_at
-           FROM booking_offers
-          WHERE provisional_booking_id = pb.id AND published_at IS NOT NULL
-          ORDER BY published_at DESC, id DESC
-          LIMIT 1
-       ) latest_offer ON TRUE
-      WHERE $2::boolean OR pb.status NOT IN ('declined', 'expired')
-      ORDER BY pb.created_at DESC
-      LIMIT $1`,
-    [Math.max(1, Math.min(500, Math.round(limit))), includeInactive],
-  );
-  return result.rows.map(normaliseBookingRow);
+  const rows = await queryProvisionalBookingRequestRows(getPool(), limit, includeInactive);
+  return rows.map(normaliseBookingRow);
 }
 
 export async function getProvisionalBookingRequest(reference: string): Promise<ProvisionalBookingRequest | null> {
@@ -1006,18 +930,14 @@ export async function respondToCustomerBookingOffer(
       if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${row.property_id}`);
       const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
-      const conflict = await client.query(
-        `SELECT 1 FROM booking_blocks
-          WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
-         UNION ALL
-         SELECT 1 FROM provisional_bookings
-          WHERE property_id = ANY($4::text[]) AND id <> $5
-            AND status IN ('pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed', 'approved')
-            AND arrival < $3::date AND departure > $2::date
-         LIMIT 1`,
-        [availabilityProperty.id, row.arrival, row.departure, linkedPropertyIds, row.provisional_booking_id],
-      );
-      if (conflict.rowCount) {
+      const conflict = await hasBookingDateConflict(client, {
+        availabilityPropertyId: availabilityProperty.id,
+        propertyIds: linkedPropertyIds,
+        arrival: row.arrival,
+        departure: row.departure,
+        excludeBookingId: row.provisional_booking_id,
+      });
+      if (conflict) {
         await client.query(
           `INSERT INTO booking_activity
              (provisional_booking_id, booking_offer_id, actor, event_type)
