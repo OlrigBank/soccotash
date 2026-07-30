@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
-import { getPool } from './db';
+import { getPool } from './db.ts';
 import {
   bookingAccessExpiresOn,
   bookingAccessState,
   getBookingAccessExpiryDays,
   type BookingAccessState,
-} from './booking-access-policy';
+} from './booking-access-policy.ts';
 
 const tokenPattern = /^[A-Za-z0-9_-]{43,128}$/;
 
