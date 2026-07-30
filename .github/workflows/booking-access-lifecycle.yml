@@ -56,8 +56,8 @@ jobs:
       - name: Run booking lifecycle unit tests
         run: npm run test:booking-lifecycle
 
-      - name: Run Booker access integration test
-        run: npm run test:booking-access-integration
+      - name: Run booking integration tests
+        run: npm run test:booking-integration
 
       - name: Type-check Astro
         run: npm run check
