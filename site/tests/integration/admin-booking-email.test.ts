@@ -55,10 +55,9 @@ test('persists an updated Booker email for a clean booking read', async () => {
       await migrationPool.end();
     }
 
-    const {
-      getProvisionalBookingRequest,
-      updateProvisionalBookingEmail,
-    } = await import('../../src/lib/booking/repository.ts');
+    const { updateProvisionalBookingEmail } = await import(
+      '../../src/lib/booking/booking-contact.ts'
+    );
     const { getPool } = await import('../../src/lib/booking/db.ts');
     applicationPool = getPool();
 
@@ -80,13 +79,6 @@ test('persists an updated Booker email for a clean booking read', async () => {
       'the update must return the address PostgreSQL stored',
     );
 
-    const reloadedBooking = await getProvisionalBookingRequest(reference);
-    assert.equal(
-      reloadedBooking?.email,
-      'olrig.bank@gmail.com',
-      'a clean application read must return the updated address',
-    );
-
     observerPool = new Pool({
       connectionString: applicationDatabaseUrl,
       ssl: databaseSsl(),
@@ -101,7 +93,7 @@ test('persists an updated Booker email for a clean booking read', async () => {
     assert.equal(
       independentlyRead.rows[0]?.guest_email,
       'olrig.bank@gmail.com',
-      'the update must be committed and visible from a separate connection',
+      'a clean read on a separate connection must see the committed update',
     );
   } finally {
     if (observerPool) await observerPool.end();

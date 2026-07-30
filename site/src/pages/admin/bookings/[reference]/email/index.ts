@@ -1,9 +1,7 @@
 import type { APIRoute } from 'astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
-import {
-  getProvisionalBookingRequest,
-  updateProvisionalBookingEmail,
-} from '../../../../../lib/booking/repository';
+import { updateProvisionalBookingEmail } from '../../../../../lib/booking/booking-contact';
+import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
 

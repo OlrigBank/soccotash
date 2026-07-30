@@ -421,17 +421,6 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   return result.rowCount ? normaliseBookingRow(result.rows[0]) : null;
 }
 
-export async function updateProvisionalBookingEmail(reference: string, email: string): Promise<string | null> {
-  const result = await getPool().query(
-    `UPDATE provisional_bookings
-        SET guest_email = $2
-      WHERE public_id = $1::uuid
-      RETURNING guest_email`,
-    [reference, email],
-  );
-  return result.rowCount ? String(result.rows[0].guest_email) : null;
-}
-
 export async function deleteProvisionalBookingRequest(reference: string): Promise<boolean> {
   const result = await getPool().query(
     `DELETE FROM provisional_bookings
