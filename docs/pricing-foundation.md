@@ -186,6 +186,8 @@ Plans with error-level conflicts cannot be published. Warning and information me
 
 The public booking form now asks for dates, guests and pets before calculating a direct-booking quote. The calculation uses only the listing's current **published** pricing plan. Draft and archived plans cannot affect a public quote.
 
+Payment terms are also versioned pricing-plan rules. Each publishable plan requires one enabled deposit-percentage rule, one initial-payment-deadline rule and one balance-payment-deadline rule. They do not change the displayed quote total; they determine the amounts and dates snapshotted when an offer is accepted.
+
 The public flow operates in this order:
 
 1. validate the listing, dates and party size;

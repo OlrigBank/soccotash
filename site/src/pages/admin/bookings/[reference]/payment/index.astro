@@ -72,6 +72,8 @@ if (Astro.request.method === 'POST') {
 const result = Astro.url.searchParams.get('result');
 const totalPence = booking.latestOfferTotalPence ?? booking.guestTotalPence;
 const currency = booking.latestOfferCurrency ?? booking.pricingCurrency ?? 'GBP';
+const fullPaymentRequired = (booking.balanceDuePence ?? 0) === 0;
+const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
 ---
 <AdminLayout title={`Payment verification · ${booking.name}`}>
   <header class="admin-page-header">
@@ -106,6 +108,9 @@ const currency = booking.latestOfferCurrency ?? booking.pricingCurrency ?? 'GBP'
       <div><dt>Property</dt><dd>{propertyName}</dd></div>
       <div><dt>Stay</dt><dd>{booking.arrival} to {booking.departure}</dd></div>
       <div><dt>Accepted total</dt><dd>{totalPence === null ? 'Not available' : money(totalPence, currency)}</dd></div>
+      <div><dt>{initialPaymentLabel}</dt><dd>{money(booking.depositPence ?? 0, currency)}</dd></div>
+      <div><dt>Initial payment due</dt><dd>{booking.depositDueAt ? new Date(booking.depositDueAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' }) : 'Not recorded'}</dd></div>
+      {!fullPaymentRequired && <div><dt>Remaining balance</dt><dd>{money(booking.balanceDuePence ?? 0, currency)} · due {booking.balanceDueOn ?? 'date not recorded'}</dd></div>}
       <div><dt>Payment method</dt><dd>Manual bank transfer</dd></div>
     </dl>
   </section>

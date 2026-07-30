@@ -54,7 +54,8 @@ export async function reportManualBankTransfer(token: string): Promise<ReportMan
          UNION
          SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
        )
-       SELECT pb.id, pb.status, pb.public_id::text AS booking_reference, bo.id AS offer_id
+       SELECT pb.id, pb.status, pb.public_id::text AS booking_reference,
+              pb.balance_due_pence, bo.id AS offer_id
          FROM provisional_bookings pb
          JOIN resolved r ON r.id = pb.id
          LEFT JOIN LATERAL (
@@ -84,6 +85,8 @@ export async function reportManualBankTransfer(token: string): Promise<ReportMan
       await client.query('ROLLBACK');
       return 'payment_not_due';
     }
+    const paymentStage = Number(row.balance_due_pence || 0) > 0 ? 'deposit' : 'full_payment';
+    const paymentLabel = paymentStage === 'deposit' ? 'deposit' : 'full payment';
 
     const updated = await client.query(
       `UPDATE provisional_bookings
@@ -109,21 +112,21 @@ export async function reportManualBankTransfer(token: string): Promise<ReportMan
       details: {
         confirmationBasis: 'booker_reported_sent',
         paymentMethod: 'bank_transfer',
-        paymentStage: 'deposit',
+        paymentStage,
         lifecycleRule: `${plan.from}.${plan.action}.${plan.actor}`,
       },
     });
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
-      body: 'The Booker has reported that the deposit was sent by manual bank transfer. Verify the transfer against the bank account before confirming the booking.',
+      body: `The Booker has reported that the ${paymentLabel} was sent by manual bank transfer. Verify the transfer against the bank account before confirming the booking.`,
       audience: 'administrator',
       sourceKey: `payment-reported-admin:${row.id}`,
     });
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
-      body: 'Deposit payment reported. Olrig Bank will verify the bank transfer before confirming your booking.',
+      body: `${paymentStage === 'deposit' ? 'Deposit' : 'Full'} payment reported. Olrig Bank will verify the bank transfer before confirming your booking.`,
       audience: 'booker',
       sourceKey: `payment-reported-booker:${row.id}`,
     });
@@ -197,7 +200,7 @@ export async function verifyReportedPayment(reference: string): Promise<Administ
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
-      body: 'The reported deposit has been verified against the bank account. The direct booking is now confirmed.',
+      body: 'The reported initial payment has been verified against the bank account. The direct booking is now confirmed.',
       audience: 'both',
       sourceKey: `payment-verified:${row.id}`,
     });

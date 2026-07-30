@@ -38,6 +38,7 @@ const RULE_CATEGORIES: PricingRuleCategory[] = [
   'Seasons and dates',
   'Stay rules',
   'Booking window',
+  'Payment terms',
   'Fees',
   'Channels',
 ];
@@ -111,6 +112,8 @@ function ruleAction(value: unknown): PricingAction {
       0,
       Math.round(number(input.includedGuests)),
     );
+  if (input.days !== undefined && input.days !== '')
+    output.days = Math.max(0, Math.min(3650, Math.round(number(input.days))));
   if (input.perNight !== undefined) output.perNight = boolean(input.perNight);
   if (input.perPet !== undefined) output.perPet = boolean(input.perPet);
   if (input.includesCleaning !== undefined) output.includesCleaning = boolean(input.includesCleaning);
@@ -164,6 +167,7 @@ function pricingRuleDefinitionInput(input: JsonObject) {
     'last_minute_discount',
     'channel_commission',
     'non_refundable_discount',
+    'deposit_percentage',
   ];
   if (
     amountTypes.includes(input.baseType) &&
@@ -194,6 +198,12 @@ function pricingRuleDefinitionInput(input: JsonObject) {
     defaultConditions.maximumLeadDays === undefined
   )
     throw new Error('RULE_DEFINITION_LEAD_DAYS_REQUIRED');
+  if (
+    (input.baseType === 'initial_payment_deadline' ||
+      input.baseType === 'balance_payment_deadline') &&
+    defaultAction.days === undefined
+  )
+    throw new Error('RULE_DEFINITION_PAYMENT_DAYS_REQUIRED');
   if ((input.baseType === 'arrival_day_restriction' || input.baseType === 'departure_day_restriction') && !defaultAction.daysOfWeek?.length)
     throw new Error('RULE_DEFINITION_DAYS_REQUIRED');
   if (input.baseType === 'price_floor' && !defaultAction.floorBasis) defaultAction.floorBasis = 'nightly';
@@ -251,6 +261,8 @@ function errorResponse(error: unknown): Response {
       'This rule card requires a number of nights.',
     RULE_DEFINITION_LEAD_DAYS_REQUIRED:
       'This rule card requires a booking lead-time value.',
+    RULE_DEFINITION_PAYMENT_DAYS_REQUIRED:
+      'This payment-term rule card requires a number of calendar days.',
     RULE_DEFINITION_CHANNEL_REQUIRED: 'Choose the sales channel for this card.',
     RULE_DEFINITION_DAYS_REQUIRED: 'Choose at least one allowed weekday.',
   };

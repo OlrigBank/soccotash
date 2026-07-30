@@ -5,6 +5,7 @@ export type PricingRuleCategory =
   | 'Seasons and dates'
   | 'Stay rules'
   | 'Booking window'
+  | 'Payment terms'
   | 'Fees'
   | 'Channels';
 
@@ -22,6 +23,9 @@ export type PricingRuleType =
   | 'length_discount'
   | 'early_booking_discount'
   | 'last_minute_discount'
+  | 'deposit_percentage'
+  | 'initial_payment_deadline'
+  | 'balance_payment_deadline'
   | 'extra_guest_charge'
   | 'cleaning_fee'
   | 'pet_fee'
@@ -46,6 +50,7 @@ export type PricingAction = {
   daysOfWeek?: number[];
   nights?: number;
   includedGuests?: number;
+  days?: number;
   perNight?: boolean;
   perPet?: boolean;
   includesCleaning?: boolean;
