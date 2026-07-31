@@ -25,6 +25,7 @@ import {
   sendManagementOfferResponseEmail,
 } from '../../../../lib/booking/offer-email';
 import { sendAdministratorMessageEmail } from '../../../../lib/booking/message-email';
+import { sendAdministratorPaymentReportedEmail } from '../../../../lib/booking/payment-email';
 import {
   getBookingManagementRecipients,
   getEmailConfiguration,
@@ -115,8 +116,50 @@ if (Astro.request.method === 'POST') {
       responseError = 'Please tick the confirmation box before reporting the transfer.';
     } else {
       const transferResult = await reportManualBankTransfer(token);
-      if (transferResult === 'payment_reported' || transferResult === 'already_reported') {
-        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
+      if (transferResult === 'payment_reported') {
+        const booking = await getProvisionalBookingRequest(offer.bookingReference);
+        if (!booking) return new Response('Booking not found.', { status: 404 });
+        let paymentEmailStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
+        if (messageEmailConfiguration.configured && managementRecipients.length) {
+          try {
+            const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/payment/`, publicOrigin).toString();
+            const sent = await sendAdministratorPaymentReportedEmail({ booking, propertyName, adminUrl });
+            paymentEmailStatus = 'sent';
+            await recordBookingActivity({
+              bookingReference: offer.bookingReference,
+              actor: 'system',
+              eventType: 'payment_report_email_sent',
+              details: {
+                recipient: managementRecipients[0],
+                provider: sent.provider,
+                messageId: sent.messageId,
+              },
+            });
+          } catch (error) {
+            paymentEmailStatus = 'failed';
+            await recordBookingActivity({
+              bookingReference: offer.bookingReference,
+              actor: 'system',
+              eventType: 'payment_report_email_failed',
+              details: { error: error instanceof Error ? error.message : String(error) },
+            });
+          }
+        } else {
+          await recordBookingActivity({
+            bookingReference: offer.bookingReference,
+            actor: 'system',
+            eventType: 'payment_report_email_skipped',
+            details: {
+              reason: !managementRecipients.length
+                ? 'No booking-management recipient configured.'
+                : messageEmailConfiguration.problem || 'Email delivery is not configured.',
+            },
+          });
+        }
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=${paymentEmailStatus}`);
+      }
+      if (transferResult === 'already_reported') {
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=not-repeated`);
       }
       responseError = transferResult === 'payment_not_due'
         ? 'A manual transfer cannot be reported at this stage of the booking.'
