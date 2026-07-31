@@ -11,6 +11,7 @@ import {
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
 import { reportManualBankTransfer } from '../../../../lib/booking/payment-lifecycle';
+import { deliverBookingLifecycleEmail } from '../../../../lib/booking/lifecycle-email';
 import {
   getBookingPaymentNotice,
   isCurrentPaymentReportResult,
@@ -115,7 +116,31 @@ if (Astro.request.method === 'POST') {
       responseError = 'Please tick the confirmation box before reporting the transfer.';
     } else {
       const transferResult = await reportManualBankTransfer(token);
-      if (transferResult === 'payment_reported' || transferResult === 'already_reported') {
+      if (transferResult === 'payment_reported') {
+        const booking = await getProvisionalBookingRequest(offer.bookingReference);
+        if (!booking) return new Response('Booking not found.', { status: 404 });
+        const adminUrl = new URL(
+          `/admin/bookings/${offer.bookingReference}/payment/`,
+          publicOrigin,
+        ).toString();
+        const notification = await deliverBookingLifecycleEmail({
+          event: 'payment_reported',
+          booking,
+          propertyName,
+          adminUrl,
+        });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: `payment_reported_email_${notification.status}`,
+          details: notification,
+        });
+        return Astro.redirect(
+          `/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
+        );
+      }
+      if (transferResult === 'already_reported') {
         return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'

@@ -12,10 +12,15 @@ The direct booking flow is now:
 5. For the first live-booking phase, manual bank transfer is the only active payment method.
 6. GoCardless Instant Bank Pay and Stripe Checkout remain clearly disabled integration stubs.
 7. Reporting the transfer changes the booking to `payment_reported`. It does **not** confirm the booking or record the money as received.
+   The configured booking administrators are notified automatically.
 8. The administrator opens the payment-verification screen from the bookings list and checks the Olrig Bank account.
 9. Administrator verification changes the booking from `payment_reported` to `confirmed`, records receipt and adds an Olrig Bot message to the permanent conversation.
+   The Booker is notified automatically at the saved email address.
 10. If the transfer cannot be verified, the administrator records a reason and returns the booking to `payment_pending`; the Booker can report payment again later.
+    The Booker is notified automatically and the email includes the recorded reason.
 11. The remaining balance is retained on the booking record for later collection through the same management page.
+
+An administrator can cancel an active request or booking from its permanent booking record by entering a reason and explicitly confirming the action. Cancellation changes the status to `cancelled`, releases the dates, preserves the booking and conversation, and automatically emails the reason to the Booker. Email failure is recorded but does not roll back the cancellation.
 
 The launch defaults are 25% deposit, initial payment due seven calendar days after acceptance, and balance due 42 calendar days before arrival. Acceptance on or after the balance-due date requires the full accepted total as the initial payment. These values are seeded as rules on existing plans and are not global environment settings.
 

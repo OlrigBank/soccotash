@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { getPool } from './db';
+import { getPool } from './db.ts';
 
 export type BookingMessageSender = 'booker' | 'administrator' | 'bot';
 export type BookingMessageType = 'message' | 'system';

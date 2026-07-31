@@ -2,11 +2,15 @@
 import AdminLayout from '../../../../../layouts/AdminLayout.astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
 import { getProperties } from '../../../../../lib/booking/config';
-import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
+import {
+  getProvisionalBookingRequest,
+  recordBookingActivity,
+} from '../../../../../lib/booking/repository';
 import {
   rejectReportedPayment,
   verifyReportedPayment,
 } from '../../../../../lib/booking/payment-lifecycle';
+import { deliverBookingLifecycleEmail } from '../../../../../lib/booking/lifecycle-email';
 
 export const prerender = false;
 
@@ -16,6 +20,8 @@ let booking = await getProvisionalBookingRequest(reference);
 if (!booking) return new Response('Booking request not found.', { status: 404 });
 
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
+const configuredPublicOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
+const publicOrigin = configuredPublicOrigin || Astro.url.origin;
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 let error = '';
 
@@ -30,13 +36,31 @@ if (Astro.request.method === 'POST') {
     } else {
       const result = await verifyReportedPayment(reference);
       if (result === 'verified') {
+        const manageUrl = booking.customerAccessToken
+          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+          : undefined;
+        const notification = await deliverBookingLifecycleEmail({
+          event: 'payment_verified_booking_confirmed',
+          booking,
+          propertyName,
+          manageUrl,
+        });
+        await recordBookingActivity({
+          bookingReference: reference,
+          actor: 'system',
+          eventType: `payment_verified_booking_confirmed_email_${notification.status}`,
+          details: notification,
+        });
         await audit(Astro.locals.adminUser!.id, 'booking.payment_verified', {
           bookingReference: reference,
           previousStatus: booking.status,
           newStatus: 'confirmed',
           paymentMethod: 'bank_transfer',
+          notificationStatus: notification.status,
         });
-        return Astro.redirect(`/admin/bookings/${reference}/payment/?result=verified`);
+        return Astro.redirect(
+          `/admin/bookings/${reference}/payment/?result=verified&email=${notification.status}`,
+        );
       }
       error = result === 'not_found'
         ? 'The booking could not be found.'
@@ -49,14 +73,33 @@ if (Astro.request.method === 'POST') {
     } else {
       const result = await rejectReportedPayment(reference, reason);
       if (result === 'rejected') {
+        const manageUrl = booking.customerAccessToken
+          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+          : undefined;
+        const notification = await deliverBookingLifecycleEmail({
+          event: 'payment_report_rejected',
+          booking,
+          propertyName,
+          manageUrl,
+          reason,
+        });
+        await recordBookingActivity({
+          bookingReference: reference,
+          actor: 'system',
+          eventType: `payment_report_rejected_email_${notification.status}`,
+          details: notification,
+        });
         await audit(Astro.locals.adminUser!.id, 'booking.payment_report_rejected', {
           bookingReference: reference,
           previousStatus: booking.status,
           newStatus: 'payment_pending',
           paymentMethod: 'bank_transfer',
           reason,
+          notificationStatus: notification.status,
         });
-        return Astro.redirect(`/admin/bookings/${reference}/payment/?result=rejected`);
+        return Astro.redirect(
+          `/admin/bookings/${reference}/payment/?result=rejected&email=${notification.status}`,
+        );
       }
       error = result === 'not_found'
         ? 'The booking could not be found.'
@@ -70,6 +113,7 @@ if (Astro.request.method === 'POST') {
 }
 
 const result = Astro.url.searchParams.get('result');
+const emailResult = Astro.url.searchParams.get('email');
 const totalPence = booking.latestOfferTotalPence ?? booking.guestTotalPence;
 const currency = booking.latestOfferCurrency ?? booking.pricingCurrency ?? 'GBP';
 const fullPaymentRequired = (booking.balanceDuePence ?? 0) === 0;
@@ -88,8 +132,14 @@ const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
     </div>
   </header>
 
-  {result === 'verified' && <div class="pricing-message is-success" role="status">The bank transfer was verified and the booking is now confirmed.</div>}
-  {result === 'rejected' && <div class="pricing-message is-success" role="status">The payment report was rejected and the booking returned to payment required.</div>}
+  {result === 'verified' && <div class="pricing-message is-success" role="status">
+    The bank transfer was verified and the booking is now confirmed.
+    {emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? ' The Booker email notification failed; the confirmed booking and conversation were preserved.' : ' No Booker email notification was sent.'}
+  </div>}
+  {result === 'rejected' && <div class="pricing-message is-success" role="status">
+    The payment report was rejected and the booking returned to payment required.
+    {emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? ' The Booker email notification failed; the payment-required status and conversation were preserved.' : ' No Booker email notification was sent.'}
+  </div>}
   {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
   <section class="admin-panel">
