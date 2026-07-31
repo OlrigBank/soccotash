@@ -5,7 +5,13 @@ import {
   type BookingTransitionAllowedDecision,
 } from './lifecycle.ts';
 
-export type PaymentLifecycleAction = 'report_payment' | 'verify_payment' | 'reject_payment_report';
+export type PaymentLifecycleAction =
+  | 'report_payment'
+  | 'verify_payment'
+  | 'reject_payment_report'
+  | 'report_balance_payment'
+  | 'verify_balance_payment'
+  | 'reject_balance_payment_report';
 
 export type PaymentTransitionPlan = Readonly<{
   action: PaymentLifecycleAction;
@@ -33,8 +39,9 @@ export function planPaymentTransition(input: {
   });
   if (decision.nextStatus === null) throw new Error('PAYMENT_TRANSITION_CANNOT_DELETE_BOOKING');
 
-  const reason = input.action === 'reject_payment_report' ? cleanReason(input.reason || '') : null;
-  if (input.action === 'reject_payment_report' && !reason) throw new Error('PAYMENT_REJECTION_REASON_REQUIRED');
+  const rejection = input.action === 'reject_payment_report' || input.action === 'reject_balance_payment_report';
+  const reason = rejection ? cleanReason(input.reason || '') : null;
+  if (rejection && !reason) throw new Error('PAYMENT_REJECTION_REASON_REQUIRED');
 
   return Object.freeze({
     action: input.action,

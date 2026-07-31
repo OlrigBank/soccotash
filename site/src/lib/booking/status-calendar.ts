@@ -157,6 +157,9 @@ export async function queryProvisionalBookingRequestRows(
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
             latest_offer.sent_at AS "latestOfferSentAt",
+            payment_summary."currentPaymentPublicId", payment_summary."currentPaymentStage",
+            payment_summary."currentPaymentStatus", payment_summary."depositVerified",
+            payment_summary."balanceVerified", payment_summary."fullPaymentVerified",
             (SELECT COUNT(*)::int FROM booking_messages bm
               WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
        FROM provisional_bookings pb
@@ -167,6 +170,18 @@ export async function queryProvisionalBookingRequestRows(
           ORDER BY published_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           (ARRAY_AGG(bp.public_id::text ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentPublicId",
+           (ARRAY_AGG(bp.stage ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentStage",
+           (ARRAY_AGG(bp.status ORDER BY bp.reported_at DESC, bp.id DESC))[1] AS "currentPaymentStatus",
+           BOOL_OR(bp.stage = 'deposit' AND bp.status = 'verified') AS "depositVerified",
+           BOOL_OR(bp.stage = 'balance' AND bp.status = 'verified') AS "balanceVerified",
+           BOOL_OR(bp.stage = 'full_payment' AND bp.status = 'verified') AS "fullPaymentVerified"
+         FROM booking_payments bp WHERE bp.provisional_booking_id = pb.id
+       ) payment_summary ON TRUE
       WHERE $2::boolean OR NOT (pb.status = ANY($3::text[]))
       ORDER BY pb.created_at DESC
       LIMIT $1`,

@@ -1,4 +1,5 @@
 import type { ProvisionalBookingRequest } from './repository.ts';
+import type { PaymentStage } from './payment-lifecycle.ts';
 import {
   BOOKING_TRANSITION_RULES,
   type NotificationTarget,
@@ -14,6 +15,9 @@ export type BookingLifecycleEmailEvent =
   | 'payment_reported'
   | 'payment_verified_booking_confirmed'
   | 'payment_report_rejected'
+  | 'balance_payment_reported'
+  | 'balance_payment_verified'
+  | 'balance_payment_report_rejected'
   | 'booking_cancelled';
 
 export type BookingLifecycleEmailOutcome =
@@ -47,6 +51,9 @@ export type BookingLifecycleEmailInput = {
   manageUrl?: string;
   adminUrl?: string;
   reason?: string;
+  paymentStage?: PaymentStage;
+  paymentAmountPence?: number;
+  paymentCurrency?: string;
 };
 
 function escapeHtml(value: string): string {
@@ -69,17 +76,21 @@ function formatCurrency(pence: number, currency: string): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 }
 
-function paymentDetails(booking: ProvisionalBookingRequest): {
+function paymentDetails(input: BookingLifecycleEmailInput): {
   label: string;
   labelTitle: string;
   amount: string;
 } {
-  const fullPayment = Number(booking.balanceDuePence || 0) === 0;
-  const currency = booking.latestOfferCurrency || booking.pricingCurrency || 'GBP';
+  const booking = input.booking;
+  const stage = input.paymentStage
+    || (Number(booking.balanceDuePence || 0) === 0 ? 'full_payment' : 'deposit');
+  const currency = input.paymentCurrency || booking.latestOfferCurrency || booking.pricingCurrency || 'GBP';
+  const amountPence = input.paymentAmountPence
+    ?? (stage === 'balance' ? Number(booking.balanceDuePence || 0) : Number(booking.depositPence || 0));
   return {
-    label: fullPayment ? 'full payment' : 'deposit',
-    labelTitle: fullPayment ? 'Full payment' : 'Deposit',
-    amount: formatCurrency(Number(booking.depositPence || 0), currency),
+    label: stage === 'balance' ? 'remaining balance' : stage === 'full_payment' ? 'full payment' : 'deposit',
+    labelTitle: stage === 'balance' ? 'Remaining balance' : stage === 'full_payment' ? 'Full payment' : 'Deposit',
+    amount: formatCurrency(amountPence, currency),
   };
 }
 
@@ -139,7 +150,7 @@ function bookerEmail(
 }
 
 function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
-  const payment = paymentDetails(input.booking);
+  const payment = paymentDetails(input);
   switch (input.event) {
     case 'payment_reported': {
       if (!input.adminUrl) throw new Error('ADMIN_BOOKING_URL_REQUIRED');
@@ -188,6 +199,53 @@ function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
           input,
           heading,
           `Olrig Bank could not verify the reported bank transfer. Reason: ${reason} Please review the details in the booking conversation before reporting payment again.`,
+          'Review payment details',
+        ),
+      };
+    }
+    case 'balance_payment_reported': {
+      if (!input.adminUrl) throw new Error('ADMIN_BOOKING_URL_REQUIRED');
+      const subject = `Balance reported: ${input.booking.name} · ${input.propertyName}`;
+      const text = [
+        `${input.booking.name} has reported sending the ${payment.label} of ${payment.amount} by manual bank transfer.`,
+        '',
+        'The booking remains confirmed while the transfer is verified.',
+        '',
+        ...bookingSummary(input),
+        '',
+        `Verify the balance payment: ${input.adminUrl}`,
+      ].join('\n');
+      const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;color:#17323a;">
+        <h1>Balance reported — verification required</h1>
+        <p><strong>${escapeHtml(input.booking.name)}</strong> has reported sending the remaining balance of <strong>${escapeHtml(payment.amount)}</strong> by manual bank transfer.</p>
+        <p>The booking remains confirmed while the transfer is verified.</p>
+        ${bookingSummaryHtml(input)}
+        <p><a href="${escapeHtml(input.adminUrl)}">Verify the reported balance</a></p>
+      </body></html>`;
+      return { to: '', subject, text, html };
+    }
+    case 'balance_payment_verified': {
+      const heading = `Your ${input.propertyName} booking is fully paid`;
+      return {
+        to: '',
+        ...bookerEmail(
+          input,
+          heading,
+          `Olrig Bank has verified receipt of your remaining balance of ${payment.amount}. Your booking is confirmed and fully paid.`,
+          'View confirmed booking',
+        ),
+      };
+    }
+    case 'balance_payment_report_rejected': {
+      const reason = String(input.reason || '').trim();
+      if (!reason) throw new Error('PAYMENT_REJECTION_REASON_REQUIRED');
+      const heading = `Balance payment could not be verified for your ${input.propertyName} booking`;
+      return {
+        to: '',
+        ...bookerEmail(
+          input,
+          heading,
+          `Olrig Bank could not verify the reported remaining-balance transfer. Reason: ${reason} Your booking remains confirmed, and you can report the balance again after reviewing the details.`,
           'Review payment details',
         ),
       };

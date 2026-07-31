@@ -10,7 +10,10 @@ import {
   respondToCustomerBookingOffer,
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
-import { reportManualBankTransfer } from '../../../../lib/booking/payment-lifecycle';
+import {
+  getBookingPaymentHistory,
+  reportManualBankTransfer,
+} from '../../../../lib/booking/payment-lifecycle';
 import { deliverBookingLifecycleEmail } from '../../../../lib/booking/lifecycle-email';
 import {
   getBookingPaymentNotice,
@@ -123,11 +126,18 @@ if (Astro.request.method === 'POST') {
           `/admin/bookings/${offer.bookingReference}/payment/`,
           publicOrigin,
         ).toString();
+        const paymentStage = booking.currentPaymentStage || (booking.balanceDuePence ? 'deposit' : 'full_payment');
+        const paymentAmountPence = paymentStage === 'balance'
+          ? Number(booking.balanceDuePence || 0)
+          : Number(booking.depositPence || 0);
         const notification = await deliverBookingLifecycleEmail({
-          event: 'payment_reported',
+          event: paymentStage === 'balance' ? 'balance_payment_reported' : 'payment_reported',
           booking,
           propertyName,
           adminUrl,
+          paymentStage,
+          paymentAmountPence,
+          paymentCurrency: booking.latestOfferCurrency || booking.pricingCurrency || 'GBP',
         });
         await recordBookingActivity({
           bookingReference: offer.bookingReference,
@@ -238,10 +248,15 @@ if (Astro.request.method === 'POST') {
 }
 
 const responseNotice = Astro.url.searchParams.get('response');
+const payments = await getBookingPaymentHistory(offer.bookingReference);
+const currentReportedPayment = payments.find((payment) => payment.status === 'reported') || null;
 const paymentStatus = Astro.url.searchParams.get('payment');
-const paymentReportResultCurrent = isCurrentPaymentReportResult(paymentStatus, offer.bookingStatus);
-const paymentNotice = getBookingPaymentNotice(paymentStatus, offer.bookingStatus);
-const emailParam = Astro.url.searchParams.get('email');
+const paymentReportResultCurrent = isCurrentPaymentReportResult(paymentStatus, offer.bookingStatus)
+  || (paymentStatus === 'bank-transfer-reported' && currentReportedPayment?.stage === 'balance');
+const paymentNotice = paymentStatus === 'bank-transfer-reported' && currentReportedPayment?.stage === 'balance'
+  ? 'Your remaining-balance transfer was reported. Your booking remains confirmed while Olrig Bank verifies it.'
+  : getBookingPaymentNotice(paymentStatus, offer.bookingStatus);
+const emailParam = Astro.url.searchParams.get('paymentEmail') || Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
@@ -274,6 +289,7 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     emailStatus={emailStatus}
     allowResponse={true}
     messageNotificationAvailable={messageNotificationAvailable}
+    payments={payments}
   />
 </BaseLayout>
 

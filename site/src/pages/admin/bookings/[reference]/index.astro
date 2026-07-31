@@ -26,6 +26,7 @@ import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/book
 import { sendBookerMessageEmail } from '../../../../lib/booking/message-email';
 import { cancelBooking } from '../../../../lib/booking/cancellation-lifecycle';
 import { deliverBookingLifecycleEmail } from '../../../../lib/booking/lifecycle-email';
+import { getBookingPaymentHistory } from '../../../../lib/booking/payment-lifecycle';
 import { listAllowedBookingTransitions } from '../../../../lib/booking/lifecycle';
 import { getEmailConfiguration } from '../../../../lib/email/sender';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
@@ -75,6 +76,7 @@ function pricingLines(value: Record<string, unknown> | null | undefined): Bookin
 
 let offers = await getBookingOffers(reference);
 let activity = await getBookingActivity(reference);
+let payments = await getBookingPaymentHistory(reference);
 const priorOffer = offers.find((offer) => offer.customerStatus === 'active' || offer.customerStatus === 'accepted') ?? offers[0];
 const initialLines = priorOffer?.lineItems.length
   ? priorOffer.lineItems
@@ -321,6 +323,7 @@ if (Astro.request.method === 'POST') {
   contactEmail = booking.email;
   offers = await getBookingOffers(reference);
   activity = await getBookingActivity(reference);
+  payments = await getBookingPaymentHistory(reference);
 }
 
 const recordedLines = pricingLines(booking.pricingResult);
@@ -500,6 +503,21 @@ if (cancelled) {
           {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Jenna'}</td></tr>)}
         </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
       </section>}
+
+      <section class="admin-panel">
+        <p class="eyebrow">Permanent financial record</p>
+        <h2>Payment history</h2>
+        <p class="admin-panel-intro">Payment reports and decisions are retained separately from the conversation and technical audit activity.</p>
+        {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Reported</th><th>Stage</th><th>Amount</th><th>Method</th><th>Status and decision</th></tr></thead><tbody>
+          {payments.map((payment) => <tr>
+            <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}<small><code>{payment.publicId}</code></small></td>
+            <td>{payment.stage.replaceAll('_', ' ')}</td>
+            <td>{money(payment.amountPence, payment.currency)}</td>
+            <td>Manual bank transfer</td>
+            <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
+          </tr>)}
+        </tbody></table></div> : <p class="muted">No payment has been reported.</p>}
+      </section>
 
       {activity.length > 0 && <section class="admin-panel">
         <h2>Technical booking activity</h2>

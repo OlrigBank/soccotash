@@ -42,6 +42,9 @@ export const EXPECTED_ALLOWED_TRANSITIONS: readonly ExpectedTransition[] = Objec
   { from: 'payment_pending', action: 'report_payment', actor: 'booker', to: 'payment_reported', calendarEffect: 'retain', requirements: ['confirmation'] },
   { from: 'payment_reported', action: 'verify_payment', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'] },
   { from: 'payment_reported', action: 'reject_payment_report', actor: 'administrator', to: 'payment_pending', calendarEffect: 'retain', requirements: ['reason'] },
+  { from: 'confirmed', action: 'report_balance_payment', actor: 'booker', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'] },
+  { from: 'confirmed', action: 'verify_balance_payment', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'] },
+  { from: 'confirmed', action: 'reject_balance_payment_report', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['reason'] },
   cancel('pending'), cancel('offered'), cancel('offer_accepted'), cancel('payment_pending'), cancel('payment_reported'), cancel('confirmed'), cancel('approved'),
   remove('pending'), remove('offered'),
 ]);

@@ -31,8 +31,11 @@ This document presents the executable rules used to decide whether a booking lif
 | `decline_offer` | Decline offer | Decline the current offer and release the held dates. |
 | `expire_offer` | Expire offer | Expire an elapsed offer and release the held dates. |
 | `report_payment` | Report payment | Record the Booker declaration that the required payment was sent. |
+| `report_balance_payment` | Report balance payment | Record the Booker declaration that the remaining balance was sent while retaining confirmation. |
 | `verify_payment` | Verify payment | Record administrator verification that the required payment was received. |
 | `reject_payment_report` | Reject payment report | Return an unverified or incorrect payment report to payment required. |
+| `verify_balance_payment` | Verify balance payment | Verify the reported remaining balance while retaining confirmation. |
+| `reject_balance_payment_report` | Reject balance payment report | Reject the reported remaining balance while retaining confirmation. |
 | `cancel_booking` | Cancel booking | Cancel an active booking or request and release the held dates. |
 | `delete_request` | Delete request | Permanently delete a pending or offered request under the existing guarded deletion rules. |
 
@@ -50,6 +53,9 @@ This document presents the executable rules used to decide whether a booking lif
 | `payment_pending` | `report_payment` | Booker | `payment_reported` | Retain | Confirmation | `payment_reported` |
 | `payment_reported` | `verify_payment` | Administrator | `confirmed` | Retain | Confirmation | `payment_verified_booking_confirmed` |
 | `payment_reported` | `reject_payment_report` | Administrator | `payment_pending` | Retain | Reason | `payment_report_rejected` |
+| `confirmed` | `report_balance_payment` | Booker | `confirmed` | Retain | Confirmation | `balance_payment_reported` |
+| `confirmed` | `verify_balance_payment` | Administrator | `confirmed` | Retain | Confirmation | `balance_payment_verified` |
+| `confirmed` | `reject_balance_payment_report` | Administrator | `confirmed` | Retain | Reason | `balance_payment_report_rejected` |
 | `pending` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `offered` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `offer_accepted` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |

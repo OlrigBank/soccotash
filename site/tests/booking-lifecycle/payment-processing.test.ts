@@ -48,3 +48,22 @@ test('payment cannot be reported before the offer is accepted', () => {
     /transition/i,
   );
 });
+
+test('balance reporting and decisions retain confirmed booking status', () => {
+  const report = planPaymentTransition({ status: 'confirmed', action: 'report_balance_payment', actor: 'booker' });
+  assert.equal(report.to, 'confirmed');
+  assert.equal(report.activityEvent, 'balance_payment_reported');
+
+  const verify = planPaymentTransition({ status: 'confirmed', action: 'verify_balance_payment', actor: 'administrator' });
+  assert.equal(verify.to, 'confirmed');
+  assert.equal(verify.activityEvent, 'balance_payment_verified');
+
+  const reject = planPaymentTransition({
+    status: 'confirmed',
+    action: 'reject_balance_payment_report',
+    actor: 'administrator',
+    reason: 'Balance not visible.',
+  });
+  assert.equal(reject.to, 'confirmed');
+  assert.equal(reject.activityEvent, 'balance_payment_report_rejected');
+});

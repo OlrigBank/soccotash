@@ -2,6 +2,7 @@
 import BookingConversation from './BookingConversation.astro';
 import type { BookingMessage } from '../lib/booking/messaging';
 import type { CustomerBookingOffer } from '../lib/booking/repository';
+import type { BookingPayment } from '../lib/booking/payment-lifecycle';
 
 interface Props {
   offer: CustomerBookingOffer;
@@ -16,6 +17,7 @@ interface Props {
   adminPreview?: boolean;
   emailStatus?: 'sent' | 'failed' | 'skipped' | null;
   messageNotificationAvailable?: boolean;
+  payments?: BookingPayment[];
 }
 
 const {
@@ -31,6 +33,7 @@ const {
   adminPreview = false,
   emailStatus = null,
   messageNotificationAvailable = false,
+  payments = [],
 } = Astro.props;
 
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
@@ -42,6 +45,13 @@ const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus ===
 const cancelled = offer.bookingStatus === 'cancelled';
 const paymentPending = offer.bookingStatus === 'payment_pending';
 const paymentReported = offer.bookingStatus === 'payment_reported';
+const openPayment = payments.find((payment) => payment.status === 'reported') || null;
+const depositVerified = payments.some((payment) => payment.stage === 'deposit' && payment.status === 'verified');
+const balanceVerified = payments.some((payment) => payment.stage === 'balance' && payment.status === 'verified');
+const fullPaymentVerified = payments.some((payment) => payment.stage === 'full_payment' && payment.status === 'verified');
+const balanceReported = confirmed && openPayment?.stage === 'balance';
+const fullyPaid = fullPaymentVerified || (offer.balanceDuePence > 0 && depositVerified && balanceVerified);
+const canReportBalance = allowResponse && confirmed && offer.balanceDuePence > 0 && depositVerified && !balanceVerified && !openPayment && !cancelled;
 const fullPaymentRequired = offer.balanceDuePence === 0;
 const initialPaymentLabel = fullPaymentRequired ? 'full payment' : 'deposit';
 const initialPaymentLabelTitle = fullPaymentRequired ? 'Full payment' : 'Deposit';
@@ -57,8 +67,12 @@ const displayStatus = cancelled ? 'cancelled'
       : requestPending ? 'pending' : offer.customerStatus;
 const statusHeading = cancelled
   ? 'Booking cancelled'
+  : fullyPaid
+  ? 'Booking confirmed and fully paid'
+  : balanceReported
+  ? 'Booking confirmed · balance awaiting verification'
   : confirmed
-  ? 'Booking confirmed'
+  ? 'Booking confirmed · balance outstanding'
   : paymentReported
     ? 'Payment reported — awaiting verification'
     : paymentPending
@@ -76,8 +90,12 @@ const statusHeading = cancelled
                 : 'Booking offer ready';
 const statusMessage = cancelled
   ? 'This booking has been cancelled. The conversation remains available as the permanent record.'
+  : fullyPaid
+  ? 'Your direct booking with Olrig Bank is confirmed and fully paid. This private page remains the current booking record.'
+  : balanceReported
+  ? 'Your booking remains confirmed while Olrig Bank verifies the reported remaining-balance transfer.'
   : confirmed
-  ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
+  ? 'Your direct booking with Olrig Bank is confirmed. The remaining balance can be paid now and must be received by the recorded deadline.'
   : paymentReported
     ? `You reported that the ${initialPaymentLabel} was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.`
     : paymentPending
@@ -128,7 +146,7 @@ const conversationError = messageError || responseError;
     notificationLabel="Also notify the Olrig Bank administrators by email"
     messageNotice={conversationNotice}
     messageError={conversationError}
-    reservationButtonLabel={cancelled ? 'Booking record' : confirmed ? 'Reservation' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
+    reservationButtonLabel={cancelled ? 'Booking record' : confirmed ? 'Reservation & payments' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
   />
 
   {!adminPreview && <section class="customer-booking-card customer-booking-access-card">
@@ -180,6 +198,35 @@ const conversationError = messageError || responseError;
         </dl>
       </section>
 
+      {(paymentPending || paymentReported || confirmed || cancelled) && <section class="booking-drawer-section customer-booking-payment-history">
+        <p class="eyebrow">Payment summary</p>
+        <h3>{fullyPaid ? 'Booking confirmed and fully paid' : 'Accepted payment plan'}</h3>
+        <dl class="customer-booking-details">
+          <div><dt>Accepted total</dt><dd>{money(offer.totalPence, offer.currency)}</dd></div>
+          <div><dt>{fullPaymentRequired ? 'Full payment' : 'Deposit'}</dt><dd>{money(offer.depositPence, offer.currency)}</dd></div>
+          {!fullPaymentRequired && <div><dt>Remaining balance</dt><dd>{money(offer.balanceDuePence, offer.currency)}</dd></div>}
+          {!fullPaymentRequired && <div><dt>Balance deadline</dt><dd>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'Date agreed with Olrig Bank'}</dd></div>}
+          {!fullPaymentRequired && !balanceVerified && <div><dt>Balance state</dt><dd>{balanceReported
+            ? 'Reported — awaiting verification'
+            : offer.balanceDueOn && offer.balanceDueOn < new Date().toISOString().slice(0, 10)
+              ? 'Overdue'
+              : offer.balanceDueOn === new Date().toISOString().slice(0, 10)
+                ? 'Due today'
+                : 'Upcoming'}</dd></div>}
+          {fullyPaid && <div><dt>Payment state</dt><dd>Paid</dd></div>}
+        </dl>
+
+        <h3>Payment history</h3>
+        {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Reported</th><th>Payment</th><th>Method</th><th>Status</th></tr></thead><tbody>
+          {payments.map((payment) => <tr>
+            <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}</td>
+            <td><strong>{payment.stage === 'balance' ? 'Balance' : payment.stage === 'full_payment' ? 'Full payment' : 'Deposit'}</strong><small>{money(payment.amountPence, payment.currency)}</small></td>
+            <td>Manual bank transfer</td>
+            <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
+          </tr>)}
+        </tbody></table></div> : <p>No payment has been reported yet.</p>}
+      </section>}
+
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
         <h3>{confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
@@ -206,6 +253,40 @@ const conversationError = messageError || responseError;
         </div>
         <div class="pricing-message" role="status">
           <strong>The booking is not confirmed yet.</strong> It becomes confirmed only after an administrator verifies receipt of the {initialPaymentLabel}.
+        </div>
+      </section>}
+
+      {balanceReported && <section class="booking-drawer-section customer-booking-payment">
+        <div>
+          <p class="eyebrow">Balance verification</p>
+          <h3>Your balance report is awaiting verification</h3>
+          <p>Olrig Bank will check the bank account. Your booking remains confirmed while this is completed.</p>
+        </div>
+        <div class="pricing-message" role="status"><strong>No further action is needed.</strong> The payment history will update after an administrator decides this report.</div>
+      </section>}
+
+      {canReportBalance && <section class="booking-drawer-section customer-booking-payment">
+        <div>
+          <p class="eyebrow">Remaining balance</p>
+          <h3>Send {money(offer.balanceDuePence, offer.currency)} by manual bank transfer</h3>
+          <p>You may pay now. The deadline is <strong>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'the date agreed with Olrig Bank'}</strong>.</p>
+          <p>Your booking remains confirmed while the transfer is reported and verified.</p>
+        </div>
+        <div class="customer-booking-payment-options">
+          <article class="customer-booking-payment-option is-recommended">
+            <span class="customer-booking-payment-badge">Available for first live bookings</span>
+            <h4>Manual bank transfer</h4>
+            <p>Use the bank details supplied by Olrig Bank and booking reference <code>{offer.bookingReference}</code>.</p>
+            <form method="post" class="customer-booking-decision-form">
+              <input type="hidden" name="action" value="report-bank-transfer" />
+              <label class="customer-booking-confirm-check">
+                <input type="checkbox" name="confirmTransfer" value="yes" required />
+                <span>I confirm that I have sent the remaining balance by bank transfer.</span>
+              </label>
+              <button class="customer-booking-submit customer-booking-accept" type="submit">Report balance sent</button>
+            </form>
+            <small>This creates a new report for verification. It does not alter confirmation.</small>
+          </article>
         </div>
       </section>}
 
