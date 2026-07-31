@@ -39,6 +39,7 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {
 }).format(new Date(`${value}T12:00:00Z`));
 
 const confirmed = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const cancelled = offer.bookingStatus === 'cancelled';
 const paymentPending = offer.bookingStatus === 'payment_pending';
 const paymentReported = offer.bookingStatus === 'payment_reported';
 const fullPaymentRequired = offer.balanceDuePence === 0;
@@ -49,11 +50,14 @@ const initialPaymentDueLabel = offer.depositDueAt
   : null;
 const requestPending = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
-const displayStatus = confirmed ? 'confirmed'
+const displayStatus = cancelled ? 'cancelled'
+  : confirmed ? 'confirmed'
   : paymentReported ? 'payment_reported'
     : paymentPending ? 'payment_pending'
       : requestPending ? 'pending' : offer.customerStatus;
-const statusHeading = confirmed
+const statusHeading = cancelled
+  ? 'Booking cancelled'
+  : confirmed
   ? 'Booking confirmed'
   : paymentReported
     ? 'Payment reported — awaiting verification'
@@ -70,7 +74,9 @@ const statusHeading = confirmed
               : offer.customerStatus === 'cancelled'
                 ? 'Booking cancelled'
                 : 'Booking offer ready';
-const statusMessage = confirmed
+const statusMessage = cancelled
+  ? 'This booking has been cancelled. The conversation remains available as the permanent record.'
+  : confirmed
   ? 'Your direct booking with Olrig Bank is confirmed. This private page remains the current booking record.'
   : paymentReported
     ? `You reported that the ${initialPaymentLabel} was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.`
@@ -122,7 +128,7 @@ const conversationError = messageError || responseError;
     notificationLabel="Also notify the Olrig Bank administrators by email"
     messageNotice={conversationNotice}
     messageError={conversationError}
-    reservationButtonLabel={confirmed ? 'Reservation' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
+    reservationButtonLabel={cancelled ? 'Booking record' : confirmed ? 'Reservation' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
   />
 
   {!adminPreview && <section class="customer-booking-card customer-booking-access-card">

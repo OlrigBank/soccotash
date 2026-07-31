@@ -378,7 +378,7 @@ export async function deleteProductionAcceptanceTestBooking(
     `DELETE FROM provisional_bookings
       WHERE public_id = $1::uuid
         AND guest_name LIKE 'Production Acceptance Test%'
-        AND status IN ('payment_pending', 'payment_reported', 'confirmed', 'approved')`,
+        AND status IN ('payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled')`,
     [reference],
   );
   return Boolean(result.rowCount);
@@ -739,13 +739,11 @@ const customerBookingSelect = `
          bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
          bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
          bo.subject,
-         COALESCE(
-           bo.customer_status,
-           CASE WHEN pb.status = 'declined' THEN 'declined'
-                WHEN pb.status = 'expired' THEN 'expired'
-                WHEN pb.status = 'cancelled' THEN 'cancelled'
-                ELSE 'request_pending' END
-         ) AS "customerStatus",
+         CASE WHEN pb.status = 'cancelled' THEN 'cancelled'
+              WHEN pb.status = 'declined' THEN 'declined'
+              WHEN pb.status = 'expired' THEN 'expired'
+              ELSE COALESCE(bo.customer_status, 'request_pending')
+         END AS "customerStatus",
          bo.sent_at AS "sentAt", bo.published_at AS "publishedAt",
          bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
          bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",

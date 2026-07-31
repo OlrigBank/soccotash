@@ -24,6 +24,9 @@ import {
 } from '../../../../lib/booking/messaging';
 import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/booking/offer-email';
 import { sendBookerMessageEmail } from '../../../../lib/booking/message-email';
+import { cancelBooking } from '../../../../lib/booking/cancellation-lifecycle';
+import { deliverBookingLifecycleEmail } from '../../../../lib/booking/lifecycle-email';
+import { listAllowedBookingTransitions } from '../../../../lib/booking/lifecycle';
 import { getEmailConfiguration } from '../../../../lib/email/sender';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
 
@@ -44,8 +47,10 @@ const canOffer = booking.status === 'pending' || booking.status === 'offered';
 const canDeleteNormally = booking.status === 'pending' || booking.status === 'offered';
 const isAcceptanceTestBooking = booking.name.startsWith('Production Acceptance Test');
 const canDeleteAcceptanceTest = isAcceptanceTestBooking
-  && ['payment_pending', 'payment_reported', 'confirmed', 'approved'].includes(booking.status);
+  && ['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled'].includes(booking.status);
 const canDelete = canDeleteNormally || canDeleteAcceptanceTest;
+const canCancel = listAllowedBookingTransitions(booking.status, 'administrator')
+  .some((transition) => transition.action === 'cancel_booking');
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 
@@ -150,6 +155,51 @@ if (Astro.request.method === 'POST') {
         notificationStatus,
       });
       return Astro.redirect(`/admin/bookings/${reference}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+    }
+  } else if (action === 'cancel-booking') {
+    const cancellationReason = cleanText(form.get('cancellationReason'), 1000);
+    if (!canCancel) {
+      error = `A booking with status “${booking.status}” cannot be cancelled.`;
+    } else if (form.get('confirmCancellation') !== 'yes') {
+      error = 'Confirm that this booking should be cancelled and its dates released.';
+    } else if (!cancellationReason) {
+      error = 'Enter the reason for cancelling the booking.';
+    } else {
+      const cancelled = await cancelBooking(reference, cancellationReason);
+      if (cancelled !== 'cancelled') {
+        error = cancelled === 'reason_required'
+          ? 'Enter the reason for cancelling the booking.'
+          : cancelled === 'not_found'
+            ? 'The booking could not be found.'
+            : 'The booking can no longer be cancelled from its current status.';
+      } else {
+        const manageUrl = booking.customerAccessToken
+          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+          : undefined;
+        const notification = await deliverBookingLifecycleEmail({
+          event: 'booking_cancelled',
+          booking,
+          propertyName,
+          manageUrl,
+          reason: cancellationReason,
+        });
+        await recordBookingActivity({
+          bookingReference: reference,
+          actor: 'system',
+          eventType: `booking_cancelled_email_${notification.status}`,
+          details: notification,
+        });
+        await audit(Astro.locals.adminUser!.id, 'booking.cancelled', {
+          bookingReference: reference,
+          previousStatus: booking.status,
+          newStatus: 'cancelled',
+          reason: cancellationReason,
+          notificationStatus: notification.status,
+        });
+        return Astro.redirect(
+          `/admin/bookings/${reference}/?cancelled=1&email=${notification.status}`,
+        );
+      }
     }
   } else if (action === 'delete-booking') {
     const confirmedReference = cleanText(form.get('confirmReference'), 36);
@@ -284,6 +334,8 @@ const contactSaved = Astro.url.searchParams.get('contact') === '1';
 const contactInvalid = Astro.url.searchParams.get('contact') === 'invalid';
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
+const cancelled = Astro.url.searchParams.get('cancelled') === '1';
+const lifecycleEmailStatus = Astro.url.searchParams.get('email');
 if (contactInvalid) error = 'Enter a valid Booker email address or leave it blank.';
 const notificationAvailable = Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
 const messages = await getBookingMessagesByReference(reference, 'administrator', { markRead: true });
@@ -292,7 +344,13 @@ const reservationVersion = reservationSnapshot
   ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}`
   : booking.status;
 let notice = '';
-if (messageSent) {
+if (cancelled) {
+  notice = lifecycleEmailStatus === 'sent'
+    ? 'The booking was cancelled, its dates were released, and the Booker was notified by email.'
+    : lifecycleEmailStatus === 'failed'
+      ? 'The booking was cancelled and its dates were released, but the Booker email notification failed.'
+      : 'The booking was cancelled and its dates were released. No Booker email notification was sent.';
+} else if (messageSent) {
   notice = messageEmailStatus === 'sent'
     ? `The message was sent and an email copy was sent to ${booking.email}.`
     : messageEmailStatus === 'failed'
@@ -455,6 +513,28 @@ if (messageSent) {
           </tr>)}
         </tbody></table></div>
       </section>}
+
+      <section class="admin-panel booking-delete-panel">
+        <div>
+          <p class="eyebrow">Booking lifecycle</p>
+          <h2>Cancel booking</h2>
+          <p>{canCancel
+            ? 'Cancel this booking, release its dates and notify the Booker. The booking record and conversation are retained.'
+            : `A booking with status “${booking.status}” cannot be cancelled.`}</p>
+        </div>
+        <form method="post" class="booking-delete-form">
+          <input type="hidden" name="action" value="cancel-booking" />
+          <label>
+            Reason shown to the Booker
+            <textarea name="cancellationReason" rows="4" maxlength="1000" required disabled={!canCancel}></textarea>
+          </label>
+          <label class="booking-delete-confirm">
+            <input type="checkbox" name="confirmCancellation" value="yes" required disabled={!canCancel} />
+            <span>I confirm that this booking must be cancelled and its dates released.</span>
+          </label>
+          <button class="admin-button admin-button--danger" type="submit" disabled={!canCancel}>Cancel booking</button>
+        </form>
+      </section>
 
       <section class="admin-panel booking-delete-panel">
         <div>
