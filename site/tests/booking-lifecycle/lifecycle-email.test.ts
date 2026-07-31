@@ -38,6 +38,9 @@ test('canonical lifecycle assigns each essential email to the correct recipient 
   assert.deepEqual(getLifecycleEmailTargets('payment_reported'), ['administrator']);
   assert.deepEqual(getLifecycleEmailTargets('payment_verified_booking_confirmed'), ['booker']);
   assert.deepEqual(getLifecycleEmailTargets('payment_report_rejected'), ['booker']);
+  assert.deepEqual(getLifecycleEmailTargets('balance_payment_reported'), ['administrator']);
+  assert.deepEqual(getLifecycleEmailTargets('balance_payment_verified'), ['booker']);
+  assert.deepEqual(getLifecycleEmailTargets('balance_payment_report_rejected'), ['booker']);
   assert.deepEqual(getLifecycleEmailTargets('booking_cancelled'), ['booker']);
 });
 
@@ -95,24 +98,89 @@ test('sends payment and cancellation emails to the declared administrator and Bo
       manageUrl: 'https://development.example/booking/manage/token/',
       reason: 'The property is unexpectedly unavailable.',
     });
+    const balanceReported = await deliverBookingLifecycleEmail({
+      event: 'balance_payment_reported', booking, propertyName: 'Olrig Bank',
+      adminUrl: 'https://development.example/admin/bookings/reference/payment/',
+      paymentStage: 'balance', paymentAmountPence: 150_000, paymentCurrency: 'GBP',
+    });
+    const balanceVerified = await deliverBookingLifecycleEmail({
+      event: 'balance_payment_verified', booking, propertyName: 'Olrig Bank',
+      manageUrl: 'https://development.example/booking/manage/token/',
+      paymentStage: 'balance', paymentAmountPence: 150_000, paymentCurrency: 'GBP',
+    });
+    const balanceRejected = await deliverBookingLifecycleEmail({
+      event: 'balance_payment_report_rejected', booking, propertyName: 'Olrig Bank',
+      manageUrl: 'https://development.example/booking/manage/token/', reason: 'Balance not visible.',
+      paymentStage: 'balance', paymentAmountPence: 150_000, paymentCurrency: 'GBP',
+    });
 
     assert.equal(paymentReported.status, 'sent');
     assert.equal(paymentVerified.status, 'sent');
     assert.equal(paymentRejected.status, 'sent');
     assert.equal(bookingCancelled.status, 'sent');
-    assert.equal(payloads.length, 4);
+    assert.equal(balanceReported.status, 'sent');
+    assert.equal(balanceVerified.status, 'sent');
+    assert.equal(balanceRejected.status, 'sent');
+    assert.equal(payloads.length, 7);
 
     assert.deepEqual(payloads[0].to, ['admin-one@example.com']);
     assert.deepEqual(payloads[0].bcc, ['admin-two@example.com']);
     assert.match(String(payloads[0].subject), /Payment reported/);
 
-    for (const payload of payloads.slice(1)) {
+    for (const payload of [payloads[1], payloads[2], payloads[3], payloads[5], payloads[6]]) {
       assert.deepEqual(payload.to, ['booker@example.com']);
       assert.equal(Object.hasOwn(payload, 'bcc'), false);
     }
     assert.match(String(payloads[1].subject), /booking is confirmed/);
     assert.match(String(payloads[2].text), /transfer reference did not match/);
     assert.match(String(payloads[3].text), /property is unexpectedly unavailable/);
+    assert.deepEqual(payloads[4].to, ['admin-one@example.com']);
+    assert.deepEqual(payloads[4].bcc, ['admin-two@example.com']);
+    assert.match(String(payloads[4].subject), /Balance reported/);
+    assert.deepEqual(payloads[5].to, ['booker@example.com']);
+    assert.match(String(payloads[5].subject), /fully paid/);
+    assert.deepEqual(payloads[6].to, ['booker@example.com']);
+    assert.match(String(payloads[6].text), /remains confirmed/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test('returns a failed balance notification outcome instead of throwing into the committed payment transition', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnvironment = {
+    EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+    BOOKING_EMAIL_FROM: process.env.BOOKING_EMAIL_FROM,
+    BOOKING_ADMIN_EMAIL: process.env.BOOKING_ADMIN_EMAIL,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+  };
+  process.env.EMAIL_PROVIDER = 'resend';
+  process.env.BOOKING_EMAIL_FROM = 'Olrig Bank <bookings@olrig-bank.com>';
+  process.env.BOOKING_ADMIN_EMAIL = 'admin@example.com';
+  process.env.RESEND_API_KEY = 'test-key';
+  globalThis.fetch = (async () => ({
+    ok: false,
+    status: 503,
+    text: async () => 'Provider unavailable',
+    json: async () => ({ message: 'Provider unavailable' }),
+  } as Response)) as typeof fetch;
+
+  try {
+    const outcome = await deliverBookingLifecycleEmail({
+      event: 'balance_payment_reported',
+      booking,
+      propertyName: 'Olrig Bank',
+      adminUrl: 'https://development.example/admin/bookings/reference/payment/',
+      paymentStage: 'balance',
+      paymentAmountPence: 150_000,
+      paymentCurrency: 'GBP',
+    });
+    assert.equal(outcome.status, 'failed');
+    if (outcome.status === 'failed') assert.match(outcome.error, /503|Provider unavailable/);
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(originalEnvironment)) {

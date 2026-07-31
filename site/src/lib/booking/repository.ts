@@ -294,6 +294,12 @@ export type ProvisionalBookingRequest = {
   balanceDuePence?: number;
   balanceDueOn?: string | null;
   paymentTermsSnapshot?: PaymentTermsSnapshot | null;
+  currentPaymentPublicId?: string | null;
+  currentPaymentStage?: 'deposit' | 'balance' | 'full_payment' | null;
+  currentPaymentStatus?: 'reported' | 'verified' | 'rejected' | 'cancelled' | null;
+  depositVerified?: boolean;
+  balanceVerified?: boolean;
+  fullPaymentVerified?: boolean;
   createdAt: string;
   latestOfferTotalPence: number | null;
   latestOfferCurrency: string | null;
@@ -309,6 +315,12 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
     depositDueAt: row.depositDueAt ? new Date(row.depositDueAt).toISOString() : null,
     balanceDuePence: Number(row.balanceDuePence || 0),
     balanceDueOn: row.balanceDueOn || null,
+    currentPaymentPublicId: row.currentPaymentPublicId || null,
+    currentPaymentStage: row.currentPaymentStage || null,
+    currentPaymentStatus: row.currentPaymentStatus || null,
+    depositVerified: Boolean(row.depositVerified),
+    balanceVerified: Boolean(row.balanceVerified),
+    fullPaymentVerified: Boolean(row.fullPaymentVerified),
     createdAt: new Date(row.createdAt).toISOString(),
     latestOfferSentAt: row.latestOfferSentAt ? new Date(row.latestOfferSentAt).toISOString() : null,
     unreadMessageCount: Number(row.unreadMessageCount || 0),
@@ -339,6 +351,9 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.deposit_pence AS "depositPence", pb.deposit_due_at AS "depositDueAt",
             pb.balance_due_pence AS "balanceDuePence", pb.balance_due_on::text AS "balanceDueOn",
             pb.payment_terms_snapshot AS "paymentTermsSnapshot", pb.created_at AS "createdAt",
+            payment_summary."currentPaymentPublicId", payment_summary."currentPaymentStage",
+            payment_summary."currentPaymentStatus", payment_summary."depositVerified",
+            payment_summary."balanceVerified", payment_summary."fullPaymentVerified",
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
             latest_offer.sent_at AS "latestOfferSentAt",
@@ -353,6 +368,18 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
           ORDER BY published_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           (ARRAY_AGG(bp.public_id::text ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentPublicId",
+           (ARRAY_AGG(bp.stage ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentStage",
+           (ARRAY_AGG(bp.status ORDER BY bp.reported_at DESC, bp.id DESC))[1] AS "currentPaymentStatus",
+           BOOL_OR(bp.stage = 'deposit' AND bp.status = 'verified') AS "depositVerified",
+           BOOL_OR(bp.stage = 'balance' AND bp.status = 'verified') AS "balanceVerified",
+           BOOL_OR(bp.stage = 'full_payment' AND bp.status = 'verified') AS "fullPaymentVerified"
+         FROM booking_payments bp WHERE bp.provisional_booking_id = pb.id
+       ) payment_summary ON TRUE
       WHERE pb.public_id = $1::uuid`,
     [reference],
   );

@@ -90,6 +90,13 @@ export async function cancelBooking(
       return 'transition_not_allowed';
     }
 
+    await client.query(
+      `UPDATE booking_payments
+          SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+        WHERE provisional_booking_id = $1 AND status = 'reported'`,
+      [row.id],
+    );
+
     await insertCancellationActivity(client, {
       bookingId: row.id,
       offerId: row.offer_id,
