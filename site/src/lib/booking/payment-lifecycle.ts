@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { getPool } from './db';
-import { insertBotBookingMessage } from './messaging';
-import { planPaymentTransition, type PaymentTransitionPlan } from './payment-transition';
+import { getPool } from './db.ts';
+import { insertBotBookingMessage } from './messaging.ts';
+import { planPaymentTransition, type PaymentTransitionPlan } from './payment-transition.ts';
 
 export type PaymentStage = 'deposit' | 'balance' | 'full_payment';
 export type PaymentRecordStatus = 'reported' | 'verified' | 'rejected' | 'cancelled';
