@@ -12,7 +12,7 @@ import {
   rejectReportedPayment,
   verifyReportedPayment,
 } from '../../../../../lib/booking/payment-lifecycle';
-import { deliverBookingLifecycleEmail } from '../../../../../lib/booking/lifecycle-email';
+import { deliverBookingLifecycleNotification } from '../../../../../lib/booking/lifecycle-notification';
 
 export const prerender = false;
 
@@ -47,7 +47,7 @@ if (Astro.request.method === 'POST') {
           ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
           : undefined;
         const balancePayment = reportedPayment.stage === 'balance';
-        const notification = await deliverBookingLifecycleEmail({
+        const notification = await deliverBookingLifecycleNotification({
           event: balancePayment ? 'balance_payment_verified' : 'payment_verified_booking_confirmed',
           booking,
           propertyName,
@@ -55,6 +55,7 @@ if (Astro.request.method === 'POST') {
           paymentStage: reportedPayment.stage,
           paymentAmountPence: reportedPayment.amountPence,
           paymentCurrency: reportedPayment.currency,
+          notificationSourceKey: `payment-verified:${paymentReference}`,
         });
         await recordBookingActivity({
           bookingReference: reference,
@@ -90,7 +91,7 @@ if (Astro.request.method === 'POST') {
           ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
           : undefined;
         const balancePayment = reportedPayment.stage === 'balance';
-        const notification = await deliverBookingLifecycleEmail({
+        const notification = await deliverBookingLifecycleNotification({
           event: balancePayment ? 'balance_payment_report_rejected' : 'payment_report_rejected',
           booking,
           propertyName,
@@ -99,6 +100,7 @@ if (Astro.request.method === 'POST') {
           paymentStage: reportedPayment.stage,
           paymentAmountPence: reportedPayment.amountPence,
           paymentCurrency: reportedPayment.currency,
+          notificationSourceKey: `payment-rejected:${paymentReference}`,
         });
         await recordBookingActivity({
           bookingReference: reference,
@@ -156,11 +158,11 @@ const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
 
   {result === 'verified' && <div class="pricing-message is-success" role="status">
     {resultStage === 'balance' ? 'The balance transfer was verified. The booking is confirmed and fully paid.' : 'The bank transfer was verified and the booking is now confirmed.'}
-    {emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? ' The Booker email notification failed; the confirmed booking and conversation were preserved.' : ' No Booker email notification was sent.'}
+    {emailResult === 'submitted' ? ' A WhatsApp notification was submitted.' : emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? ' The Booker notification failed; the confirmed booking and conversation were preserved.' : ' No Booker notification was sent.'}
   </div>}
   {result === 'rejected' && <div class="pricing-message is-success" role="status">
     {resultStage === 'balance' ? 'The balance report was rejected. The booking remains confirmed and the Booker can report the balance again.' : 'The payment report was rejected and the booking returned to payment required.'}
-    {emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? resultStage === 'balance' ? ' The Booker email notification failed; confirmation and payment history were preserved.' : ' The Booker email notification failed; the payment-required status and conversation were preserved.' : ' No Booker email notification was sent.'}
+    {emailResult === 'submitted' ? ' A WhatsApp notification was submitted.' : emailResult === 'sent' ? ' The Booker was notified by email.' : emailResult === 'failed' ? resultStage === 'balance' ? ' The Booker notification failed; confirmation and payment history were preserved.' : ' The Booker notification failed; the payment-required status and conversation were preserved.' : ' No Booker notification was sent.'}
   </div>}
   {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 

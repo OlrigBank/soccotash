@@ -73,6 +73,38 @@ services:
       - key: BOOKING_ACCESS_EXPIRY_DAYS_AFTER_DEPARTURE
         value: "90"
 
+      # Optional transactional WhatsApp delivery through Meta Cloud API.
+      # The feature remains in email/private-page fallback mode until all
+      # secrets and approved template names are deliberately configured.
+      - key: WHATSAPP_PROVIDER
+        value: meta
+
+      # Keep false until synthetic acceptance tests pass and a real send is
+      # explicitly authorised. This is an independent operational kill switch.
+      - key: WHATSAPP_DELIVERY_ENABLED
+        value: "false"
+
+      - key: WHATSAPP_GRAPH_API_VERSION
+        sync: false
+
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+
+      - key: WHATSAPP_TEMPLATE_BOOKING_UPDATE
+        sync: false
+
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: en_GB
+
       # Optional privacy-friendly visitor analytics. Leave the website ID unset
       # to disable tracking. Private booking tokens and query strings are never
       # sent to Umami.
