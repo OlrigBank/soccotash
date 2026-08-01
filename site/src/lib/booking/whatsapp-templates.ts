@@ -2,6 +2,7 @@ export const WHATSAPP_TEMPLATE_VERSION = 'v1';
 
 export const whatsappEventSummaries = {
   booking_request_received: 'Your booking request has been received.',
+  event_request_received: 'Your event enquiry has been received. It is not yet a confirmed reservation.',
   booking_offer_available: 'Your booking offer is ready to review.',
   payment_required: 'Payment details are ready on your private booking page.',
   offer_declined: 'Your booking offer has been declined. Your private booking page remains the record.',

@@ -19,6 +19,7 @@ import {
   type AdminCalendarEntry,
   type BookingBlock,
 } from './status-calendar';
+import { arrangementFromLegacyId } from './arrangements';
 
 export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
@@ -40,6 +41,11 @@ export async function expireElapsedBookingOffers(): Promise<number> {
         `UPDATE provisional_bookings
             SET status = 'expired'
           WHERE id = $1 AND status = 'offered'`,
+        [row.provisional_booking_id],
+      );
+      await client.query(
+        `UPDATE booking_resource_allocations SET allocation_state = 'released', updated_at = NOW()
+          WHERE provisional_booking_id = $1 AND allocation_state IN ('hold','offered')`,
         [row.provisional_booking_id],
       );
       await client.query(
@@ -83,10 +89,10 @@ export async function replaceImportedBlocks(propertyId: string, blocks: Imported
     await client.query("DELETE FROM booking_blocks WHERE property_id = $1 AND source = 'airbnb'", [propertyId]);
     for (const block of blocks) {
       await client.query(
-        `INSERT INTO booking_blocks (property_id, source, external_uid, starts_on, ends_on)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO booking_blocks (property_id, resource_id, source, external_uid, starts_on, ends_on)
+         VALUES ($1, CASE $1 WHEN 'main-house' THEN 'main-house' WHEN 'cottage' THEN 'cottage' END, $2, $3, $4, $5)
          ON CONFLICT (property_id, source, external_uid)
-         DO UPDATE SET starts_on = EXCLUDED.starts_on, ends_on = EXCLUDED.ends_on, updated_at = NOW()`,
+         DO UPDATE SET resource_id = EXCLUDED.resource_id, starts_on = EXCLUDED.starts_on, ends_on = EXCLUDED.ends_on, updated_at = NOW()`,
         [propertyId, block.source, block.externalUid, block.startsOn, block.endsOn],
       );
     }
@@ -126,10 +132,12 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
   const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+  const resourceIds = arrangementFromLegacyId(property.id)?.resources ?? [];
 
   return queryBookingBlocks(getPool(), {
     availabilityPropertyId: availabilityProperty.id,
     propertyIds: linkedPropertyIds,
+    resourceIds: [...resourceIds],
     from,
     to,
   });
@@ -169,6 +177,7 @@ export async function createProvisionalBooking(input: {
   const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
   if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
   const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+  const resourceIds = arrangementFromLegacyId(property.id)?.resources ?? [];
   const accessToken = crypto.randomBytes(32).toString('base64url');
 
   const client = await getPool().connect();
@@ -178,19 +187,21 @@ export async function createProvisionalBooking(input: {
     const conflict = await hasBookingDateConflict(client, {
       availabilityPropertyId: availabilityProperty.id,
       propertyIds: linkedPropertyIds,
+      resourceIds: [...resourceIds],
       arrival: input.arrival,
       departure: input.departure,
     });
     if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,
+       (property_id, property_ref, booking_kind, booking_arrangement_id, booking_title,
+        arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,
         whatsapp_consent_status, whatsapp_consent_at, whatsapp_consent_source, whatsapp_consent_version,
         whatsapp_consent_number_e164, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+       VALUES ($1,'olrig-bank',$27,$28,$29,$2,$3,$4,$5,$6,$7,$8,$9,$10,
         CASE WHEN $10 = 'active' THEN NOW() END, $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25,$26)
        RETURNING id::text, public_id::text AS reference`,
       [
@@ -213,8 +224,22 @@ export async function createProvisionalBooking(input: {
         input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
         input.pricingQuote ? new Date() : null,
         accessToken,
+        'stay',
+        arrangementFromLegacyId(input.propertyId)?.id ?? null,
+        arrangementFromLegacyId(input.propertyId)?.name ?? property.name,
       ],
     );
+    const arrangement = arrangementFromLegacyId(input.propertyId);
+    if (!arrangement) throw new Error(`Unknown booking arrangement: ${input.propertyId}`);
+    for (const resourceId of arrangement.resources) {
+      await client.query(
+        `INSERT INTO booking_resource_allocations
+           (provisional_booking_id, resource_id, start_at, end_at, allocation_state, purpose)
+         VALUES ($1,$2,($3::date + TIME '16:00') AT TIME ZONE 'Europe/London',
+                ($4::date + TIME '10:00') AT TIME ZONE 'Europe/London','hold','stay')`,
+        [result.rows[0].id, resourceId, input.arrival, input.departure],
+      );
+    }
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
        VALUES ($1, 'customer', 'booking_requested')`,
@@ -238,8 +263,9 @@ export async function createProvisionalBooking(input: {
     });
     await client.query('COMMIT');
     return { reference: result.rows[0].reference, accessToken };
-  } catch (error) {
+  } catch (error: any) {
     await client.query('ROLLBACK');
+    if (error?.code === '23P01') throw new Error('DATES_UNAVAILABLE');
     throw error;
   } finally {
     client.release();
@@ -250,6 +276,10 @@ export type BookingOfferLine = {
   label: string;
   detail: string;
   amountPence: number;
+  quantity?: number;
+  unitAmountPence?: number;
+  category?: string | null;
+  displayOrder?: number;
 };
 
 export type BookingOffer = {
@@ -281,6 +311,13 @@ export type ProvisionalBookingRequest = {
   reference: string;
   customerAccessToken?: string;
   propertyId: string;
+  bookingKind?: 'stay' | 'event';
+  bookingTitle?: string;
+  bookingArrangementId?: string | null;
+  eventSetupStartAt?: string | null;
+  eventStartAt?: string | null;
+  eventEndAt?: string | null;
+  eventClearingEndAt?: string | null;
   arrival: string;
   departure: string;
   guests: number;
@@ -365,7 +402,11 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   await expireElapsedBookingOffers();
   const result = await getPool().query(
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
-            pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+            pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId",
+            pb.booking_kind AS "bookingKind", COALESCE(pb.booking_title, pb.property_id) AS "bookingTitle",
+            pb.booking_arrangement_id AS "bookingArrangementId", pb.arrival::text, pb.departure::text,
+            ed.setup_start_at AS "eventSetupStartAt", ed.event_start_at AS "eventStartAt",
+            ed.event_end_at AS "eventEndAt", ed.clearing_end_at AS "eventClearingEndAt",
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
             pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
             pb.whatsapp_consent_status AS "whatsappConsentStatus",
@@ -392,6 +433,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             (SELECT COUNT(*)::int FROM booking_messages bm
               WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
        FROM provisional_bookings pb
+       LEFT JOIN event_details ed ON ed.provisional_booking_id = pb.id
        LEFT JOIN pricing_plans pp ON pp.id = pb.pricing_plan_id
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at
@@ -526,9 +568,34 @@ export async function createBookingOfferAttempt(input: {
   const result = await getPool().query(
     `INSERT INTO booking_offers
        (provisional_booking_id, admin_user_id, currency, line_items, total_pence,
-        offer_message, terms, valid_until, recipient_email, subject, access_token_hash, delivery_status)
+        offer_message, terms, valid_until, recipient_email, subject, access_token_hash, delivery_status,
+        event_snapshot, allocation_snapshot, payment_snapshot, terms_snapshot)
      SELECT pb.id, $2, $3, $4::jsonb, $5, $6, $7, $8::date, $9, $10, $11,
-            CASE WHEN $12::boolean THEN 'pending' ELSE 'not_requested' END
+            CASE WHEN $12::boolean THEN 'pending' ELSE 'not_requested' END,
+            CASE WHEN pb.booking_kind = 'event' THEN (
+              SELECT to_jsonb(ed) - 'provisional_booking_id' - 'original_submission' - 'working_details' - 'updated_at'
+              FROM event_details ed WHERE ed.provisional_booking_id = pb.id
+            ) END,
+            COALESCE((
+              SELECT jsonb_agg(jsonb_build_object(
+                'resourceId', bra.resource_id, 'resourceName', r.name,
+                'startAt', bra.start_at, 'endAt', bra.end_at, 'purpose', bra.purpose
+              ) ORDER BY bra.start_at, bra.resource_id)
+              FROM booking_resource_allocations bra JOIN resources r ON r.id = bra.resource_id
+              WHERE bra.provisional_booking_id = pb.id AND bra.allocation_state <> 'released'
+            ), '[]'::jsonb),
+            jsonb_build_object(
+              'pricingPlanId', COALESCE(pb.pricing_plan_id::text, (
+                SELECT pp.id::text FROM pricing_plans pp WHERE pp.property_id=pb.property_id AND pp.status='published' LIMIT 1
+              )),
+              'rules', COALESCE((SELECT jsonb_agg(jsonb_build_object('type',pr.type,'name',pr.name,'action',pr.action) ORDER BY pr.position)
+                FROM pricing_rules pr WHERE pr.plan_id=COALESCE(pb.pricing_plan_id,(
+                  SELECT pp.id FROM pricing_plans pp WHERE pp.property_id=pb.property_id AND pp.status='published' LIMIT 1
+                )) AND pr.type IN ('deposit_percentage','initial_payment_deadline','balance_payment_deadline') AND pr.enabled), '[]'::jsonb),
+              'activeMethods', jsonb_build_array('bank_transfer'),
+              'stubMethods', jsonb_build_array('gocardless','stripe')
+            ),
+            jsonb_build_object('terms', $7, 'validUntil', $8::date)
        FROM provisional_bookings pb
       WHERE pb.public_id = $1::uuid
         AND pb.status IN ('pending', 'offered')
@@ -562,7 +629,7 @@ export async function publishBookingOffer(input: {
     const selected = await client.query(
       `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
               COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
-              pb.status AS booking_status
+              pb.status AS booking_status, pb.booking_kind
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
          LEFT JOIN admin_users au ON au.id = bo.admin_user_id
@@ -575,6 +642,22 @@ export async function publishBookingOffer(input: {
     const bookingId = row.provisional_booking_id;
     if (!['pending', 'offered'].includes(row.booking_status)) {
       throw new Error('BOOKING_CANNOT_BE_OFFERED');
+    }
+    if (row.booking_kind === 'event') {
+      const allocations = await client.query(
+        `SELECT id FROM booking_resource_allocations
+          WHERE provisional_booking_id = $1
+            AND allocation_state IN ('hold', 'offered', 'accepted', 'confirmed')
+            AND (hold_expires_at IS NULL OR hold_expires_at > NOW())
+          FOR UPDATE`, [bookingId],
+      );
+      if (!allocations.rowCount) throw new Error('EVENT_ALLOCATIONS_REQUIRED');
+      await client.query(
+        `UPDATE booking_resource_allocations
+            SET allocation_state = 'offered', booking_offer_id = $2, hold_expires_at = NULL, updated_at = NOW()
+          WHERE provisional_booking_id = $1 AND allocation_state IN ('hold', 'offered')`,
+        [bookingId, input.offerId],
+      );
     }
 
     await client.query(
@@ -709,6 +792,11 @@ export type CustomerBookingOffer = {
   offerReference: string | null;
   bookingReference: string;
   propertyId: string;
+  bookingKind: 'stay' | 'event';
+  bookingTitle: string;
+  arrangementName: string | null;
+  eventDetails: Record<string, any> | null;
+  allocationSnapshot: Array<{ resourceId: string; resourceName: string; startAt: string; endAt: string }>;
   arrival: string;
   departure: string;
   guests: number;
@@ -761,6 +849,11 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     offerReference: row.offerReference == null ? null : String(row.offerReference),
     bookingReference: String(row.bookingReference),
     propertyId: row.propertyId,
+    bookingKind: row.bookingKind || 'stay',
+    bookingTitle: row.bookingTitle || row.propertyId,
+    arrangementName: row.arrangementName || null,
+    eventDetails: row.eventSnapshot || null,
+    allocationSnapshot: Array.isArray(row.allocationSnapshot) ? row.allocationSnapshot : [],
     arrival: row.arrival,
     departure: row.departure,
     guests: Number(row.guests),
@@ -804,6 +897,8 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
 const customerBookingSelect = `
   SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
+         pb.booking_kind AS "bookingKind", COALESCE(pb.booking_title, pb.property_id) AS "bookingTitle",
+         ba.name AS "arrangementName",
          pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
          pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
          pb.guest_telephone AS "guestTelephone", pb.guest_telephone_e164 AS "telephoneE164",
@@ -819,6 +914,11 @@ const customerBookingSelect = `
          pb.pricing_currency AS "recordedCurrency", pb.guest_total_pence AS "recordedTotalPence",
          pb.pricing_result AS "recordedPricingResult",
          bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
+         COALESCE(bo.event_snapshot, CASE WHEN pb.booking_kind = 'event' THEN (
+           SELECT to_jsonb(ed) - 'provisional_booking_id' - 'original_submission' - 'working_details' - 'updated_at'
+           FROM event_details ed WHERE ed.provisional_booking_id = pb.id
+         ) END) AS "eventSnapshot",
+         COALESCE(bo.allocation_snapshot, '[]'::jsonb) AS "allocationSnapshot",
          bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
          bo.subject,
          CASE WHEN pb.status = 'cancelled' THEN 'cancelled'
@@ -831,6 +931,7 @@ const customerBookingSelect = `
          bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
          bo.token_revoked_at AS "tokenRevokedAt"
     FROM provisional_bookings pb
+    LEFT JOIN booking_arrangements ba ON ba.id = pb.booking_arrangement_id
     LEFT JOIN LATERAL (
       SELECT candidate.*
         FROM booking_offers candidate
@@ -951,7 +1052,7 @@ export async function respondToCustomerBookingOffer(
        SELECT bo.id, bo.provisional_booking_id, bo.customer_status,
               bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
               bo.token_revoked_at,
-              pb.public_id::text AS booking_reference, pb.property_id,
+              pb.public_id::text AS booking_reference, pb.property_id, pb.booking_kind,
               pb.arrival::text, pb.departure::text, pb.status AS booking_status,
               bo.total_pence AS offer_total_pence,
               COALESCE(
@@ -1030,14 +1131,39 @@ export async function respondToCustomerBookingOffer(
     }
 
     if (response === 'accept') {
+      if (row.booking_kind === 'event') {
+        const conflicts = await client.query(
+          `SELECT 1
+             FROM booking_resource_allocations own
+             JOIN booking_resource_allocations other
+               ON other.resource_id = own.resource_id
+              AND other.provisional_booking_id <> own.provisional_booking_id
+              AND other.allocation_state IN ('hold','offered','accepted','confirmed')
+              AND other.start_at < own.end_at AND other.end_at > own.start_at
+            WHERE own.provisional_booking_id = $1
+              AND own.allocation_state = 'offered'
+            LIMIT 1`, [row.provisional_booking_id],
+        );
+        if (conflicts.rowCount) {
+          await client.query(
+            `INSERT INTO booking_activity (provisional_booking_id, booking_offer_id, actor, event_type)
+             VALUES ($1,$2,'customer','offer_acceptance_blocked_by_availability')`,
+            [row.provisional_booking_id, row.id],
+          );
+          await client.query('COMMIT');
+          return 'dates_unavailable';
+        }
+      }
       const property = getProperty(row.property_id);
       const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
       if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${row.property_id}`);
       const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+      const resourceIds = arrangementFromLegacyId(property.id)?.resources ?? [];
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
-      const conflict = await hasBookingDateConflict(client, {
+      const conflict = row.booking_kind === 'event' ? false : await hasBookingDateConflict(client, {
         availabilityPropertyId: availabilityProperty.id,
         propertyIds: linkedPropertyIds,
+        resourceIds: [...resourceIds],
         arrival: row.arrival,
         departure: row.departure,
         excludeBookingId: row.provisional_booking_id,
@@ -1082,6 +1208,12 @@ export async function respondToCustomerBookingOffer(
       await client.query(
         `UPDATE booking_offers SET customer_status = 'accepted', accepted_at = $2 WHERE id = $1`,
         [row.id, acceptedAt],
+      );
+      await client.query(
+        `UPDATE booking_resource_allocations
+            SET allocation_state = 'accepted', updated_at = NOW()
+          WHERE provisional_booking_id = $1 AND allocation_state = 'offered'`,
+        [row.provisional_booking_id],
       );
       await client.query(
         `UPDATE booking_offers
@@ -1132,6 +1264,11 @@ export async function respondToCustomerBookingOffer(
     );
     await client.query(
       `UPDATE provisional_bookings SET status = 'declined' WHERE id = $1`,
+      [row.provisional_booking_id],
+    );
+    await client.query(
+      `UPDATE booking_resource_allocations SET allocation_state = 'released', updated_at = NOW()
+        WHERE provisional_booking_id = $1 AND allocation_state <> 'released'`,
       [row.provisional_booking_id],
     );
     await client.query(

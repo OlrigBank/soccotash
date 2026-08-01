@@ -340,6 +340,11 @@ export async function verifyReportedPayment(
         await client.query('ROLLBACK');
         return 'transition_not_allowed';
       }
+      await client.query(
+        `UPDATE booking_resource_allocations SET allocation_state='confirmed', updated_at=NOW()
+          WHERE provisional_booking_id=$1 AND allocation_state IN ('accepted','offered','hold')`,
+        [row.id],
+      );
     }
 
     await insertActivity(client, {

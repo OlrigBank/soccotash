@@ -40,6 +40,7 @@ export async function hasBookingDateConflict(
   input: {
     availabilityPropertyId: string;
     propertyIds: string[];
+    resourceIds?: string[];
     arrival: string;
     departure: string;
     excludeBookingId?: string | null;
@@ -47,10 +48,17 @@ export async function hasBookingDateConflict(
 ): Promise<boolean> {
   const result = await database.query(
     `SELECT 1 FROM booking_blocks
-      WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
+      WHERE (property_id = $1 OR resource_id = ANY($7::text[])) AND starts_on < $3::date AND ends_on > $2::date
+     UNION ALL
+     SELECT 1 FROM booking_resource_allocations
+      WHERE resource_id = ANY($7::text[])
+        AND allocation_state IN ('hold','offered','accepted','confirmed')
+        AND start_at < ($3::date AT TIME ZONE 'Europe/London')
+        AND end_at > ($2::date AT TIME ZONE 'Europe/London')
      UNION ALL
      SELECT 1 FROM provisional_bookings
       WHERE property_id = ANY($4::text[])
+        AND NOT EXISTS (SELECT 1 FROM booking_resource_allocations bra WHERE bra.provisional_booking_id = provisional_bookings.id)
         AND status = ANY($5::text[])
         AND ($6::bigint IS NULL OR id <> $6::bigint)
         AND arrival < $3::date AND departure > $2::date
@@ -62,6 +70,7 @@ export async function hasBookingDateConflict(
       input.propertyIds,
       [...BLOCKING_BOOKING_STATUSES],
       input.excludeBookingId ?? null,
+      input.resourceIds ?? [],
     ],
   );
   return result.rows.length > 0;
@@ -72,6 +81,7 @@ export async function queryBookingBlocks(
   input: {
     availabilityPropertyId: string;
     propertyIds: string[];
+    resourceIds?: string[];
     from: string;
     to: string;
   },
@@ -79,12 +89,22 @@ export async function queryBookingBlocks(
   const result = await database.query(
     `SELECT starts_on::text AS "startsOn", ends_on::text AS "endsOn", source
        FROM booking_blocks
-      WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
+      WHERE (property_id = $1 OR resource_id = ANY($7::text[])) AND starts_on < $3::date AND ends_on > $2::date
+      UNION ALL
+     SELECT (start_at AT TIME ZONE 'Europe/London')::date::text AS "startsOn",
+            ((end_at AT TIME ZONE 'Europe/London')::date + CASE WHEN (end_at AT TIME ZONE 'Europe/London')::time > TIME '00:00' THEN 1 ELSE 0 END)::text AS "endsOn",
+            CASE WHEN allocation_state = 'confirmed' THEN 'direct' ELSE 'provisional' END AS source
+       FROM booking_resource_allocations
+      WHERE resource_id = ANY($7::text[])
+        AND allocation_state IN ('hold','offered','accepted','confirmed')
+        AND start_at < ($3::date AT TIME ZONE 'Europe/London')
+        AND end_at > ($2::date AT TIME ZONE 'Europe/London')
       UNION ALL
      SELECT arrival::text AS "startsOn", departure::text AS "endsOn",
             CASE WHEN status = ANY($5::text[]) THEN 'direct' ELSE 'provisional' END AS source
        FROM provisional_bookings
       WHERE property_id = ANY($4::text[])
+        AND NOT EXISTS (SELECT 1 FROM booking_resource_allocations bra WHERE bra.provisional_booking_id = provisional_bookings.id)
         AND status = ANY($6::text[])
         AND arrival < $3::date AND departure > $2::date
       ORDER BY "startsOn"`,
@@ -95,6 +115,7 @@ export async function queryBookingBlocks(
       input.propertyIds,
       [...DIRECT_BOOKING_STATUSES],
       [...BLOCKING_BOOKING_STATUSES],
+      input.resourceIds ?? [],
     ],
   );
   return result.rows;
@@ -127,7 +148,19 @@ export async function queryAdminCalendarEntries(
             pb.status AS "bookingStatus"
        FROM provisional_bookings pb
       WHERE pb.status = ANY($4::text[])
+        AND NOT EXISTS (SELECT 1 FROM booking_resource_allocations bra WHERE bra.provisional_booking_id = pb.id)
         AND pb.arrival < $2::date AND pb.departure > $1::date
+      UNION ALL
+     SELECT 'allocation-' || bra.id::text AS id,
+            bra.resource_id AS "propertyId",
+            (bra.start_at AT TIME ZONE 'Europe/London')::date::text AS "startsOn",
+            ((bra.end_at AT TIME ZONE 'Europe/London')::date + CASE WHEN (bra.end_at AT TIME ZONE 'Europe/London')::time > TIME '00:00' THEN 1 ELSE 0 END)::text AS "endsOn",
+            CASE WHEN bra.allocation_state = 'confirmed' THEN 'direct' ELSE 'provisional' END AS source,
+            pb.guest_name AS "guestName", pb.public_id::text AS "bookingReference", pb.status AS "bookingStatus"
+       FROM booking_resource_allocations bra JOIN provisional_bookings pb ON pb.id=bra.provisional_booking_id
+      WHERE bra.allocation_state IN ('hold','offered','accepted','confirmed')
+        AND bra.start_at < ($2::date AT TIME ZONE 'Europe/London')
+        AND bra.end_at > ($1::date AT TIME ZONE 'Europe/London')
       ORDER BY "startsOn", "propertyId", source`,
     [from, to, [...DIRECT_BOOKING_STATUSES], [...BLOCKING_BOOKING_STATUSES]],
   );
@@ -149,7 +182,9 @@ export async function queryProvisionalBookingRequestRows(
   includeInactive: boolean,
 ): Promise<Record<string, any>[]> {
   const result = await database.query(
-    `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+    `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId",
+            pb.booking_kind AS "bookingKind", COALESCE(pb.booking_title, pb.property_id) AS "bookingTitle",
+            pb.booking_arrangement_id AS "bookingArrangementId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email, pb.guest_telephone AS telephone,
             pb.guest_message AS message, pb.status, pb.pricing_currency AS "pricingCurrency",
             pb.guest_total_pence AS "guestTotalPence", pb.pricing_plan_version AS "pricingPlanVersion",
