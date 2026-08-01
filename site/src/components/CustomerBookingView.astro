@@ -59,6 +59,9 @@ const initialPaymentDueLabel = offer.depositDueAt
   ? new Date(offer.depositDueAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })
   : null;
 const requestPending = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
+const isEvent = offer.bookingKind === 'event';
+const eventDetails = offer.eventDetails || {};
+const eventDateTime = (value: unknown) => value ? new Date(String(value)).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/London' }) : 'Not specified';
 const isActive = allowResponse && offer.customerStatus === 'active' && offer.bookingStatus === 'offered';
 const displayStatus = cancelled ? 'cancelled'
   : confirmed ? 'confirmed'
@@ -78,7 +81,7 @@ const statusHeading = cancelled
     : paymentPending
       ? `${initialPaymentLabelTitle} required`
       : requestPending
-        ? 'Booking request received'
+        ? (isEvent ? 'Event enquiry received' : 'Booking request received')
         : offer.customerStatus === 'declined'
           ? 'Offer declined'
           : offer.customerStatus === 'expired'
@@ -101,7 +104,7 @@ const statusMessage = cancelled
     : paymentPending
       ? `You accepted the offer. Send the required ${initialPaymentLabel} by manual bank transfer; confirmation follows after Olrig Bank verifies receipt.`
       : requestPending
-        ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
+        ? (isEvent ? 'Your event enquiry is being reviewed. It does not reserve or block the requested areas until Olrig Bank deliberately places a hold.' : 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.')
         : offer.customerStatus === 'declined'
           ? 'You declined this offer. Continue the conversation if you would like to discuss another stay.'
           : offer.customerStatus === 'expired'
@@ -168,7 +171,7 @@ const conversationError = messageError || responseError;
     <header class="booking-reservation-drawer__header">
       <div>
         <p class="eyebrow">Reservation</p>
-        <h2>{propertyName}</h2>
+        <h2>{offer.bookingTitle || propertyName}</h2>
       </div>
       <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
     </header>
@@ -183,11 +186,19 @@ const conversationError = messageError || responseError;
       </section>
 
       <section class="booking-drawer-section">
-        <p class="eyebrow">Stay details</p>
+        <p class="eyebrow">{isEvent ? 'Event details' : 'Stay details'}</p>
         <dl class="customer-booking-details">
-          <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
-          <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
-          <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          {isEvent ? <>
+            <div><dt>Setup starts</dt><dd>{eventDateTime(eventDetails.setup_start_at || eventDetails.setupStartAt)}</dd></div>
+            <div><dt>Event</dt><dd>{eventDateTime(eventDetails.event_start_at || eventDetails.eventStartAt)} – {eventDateTime(eventDetails.event_end_at || eventDetails.eventEndAt)}</dd></div>
+            <div><dt>Clearing ends</dt><dd>{eventDateTime(eventDetails.clearing_end_at || eventDetails.clearingEndAt)}</dd></div>
+            <div><dt>Attendance</dt><dd>{Number(eventDetails.daytime_attendees ?? eventDetails.daytimeAttendees ?? 0)} daytime · {Number(eventDetails.overnight_guests ?? eventDetails.overnightGuests ?? 0)} overnight</dd></div>
+          </> : <>
+            <div><dt>Arrangement</dt><dd>{offer.arrangementName || propertyName}</dd></div>
+            <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
+            <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
+            <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          </>}
           <div><dt>Booker</dt><dd>{offer.guestName}</dd></div>
           <div><dt>Email</dt><dd>{offer.guestEmail || 'Not supplied — email is optional'}</dd></div>
           <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
@@ -197,6 +208,12 @@ const conversationError = messageError || responseError;
           {confirmed && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
         </dl>
       </section>
+
+      {isEvent && <section class="booking-drawer-section">
+        <p class="eyebrow">Included areas</p>
+        {offer.allocationSnapshot.length ? <ul>{offer.allocationSnapshot.map((allocation) => <li><strong>{allocation.resourceName}</strong> · {eventDateTime(allocation.startAt)} – {eventDateTime(allocation.endAt)}</li>)}</ul> : <p>No areas have yet been allocated. Requested areas remain subject to review.</p>}
+        {eventDetails.description && <><h3>Agreed event description</h3><p>{String(eventDetails.description)}</p></>}
+      </section>}
 
       {(paymentPending || paymentReported || confirmed || cancelled) && <section class="booking-drawer-section customer-booking-payment-history">
         <p class="eyebrow">Payment summary</p>

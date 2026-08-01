@@ -1,0 +1,89 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { isSameOrigin, audit } from '../../../../../lib/admin/auth';
+import { RESOURCES, isResourceId } from '../../../../../lib/booking/arrangements';
+import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
+import { getEventDetails, getBookingAllocations, replaceBlockingAllocations, releaseBookingAllocations, updateEventWorkingDetails } from '../../../../../lib/booking/events';
+export const prerender = false;
+const reference = String(Astro.params.reference || '');
+if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
+const booking = await getProvisionalBookingRequest(reference);
+if (!booking || booking.bookingKind !== 'event') return new Response('Event booking not found.', { status: 404 });
+let error = '';
+let notice = Astro.url.searchParams.get('saved') === 'details' ? 'Working event details saved. The original enquiry is unchanged.'
+  : Astro.url.searchParams.get('saved') === 'hold' ? 'Resource hold saved.'
+    : Astro.url.searchParams.get('saved') === 'released' ? 'Resource allocations released.' : '';
+const clean = (form: FormData, name: string, max=1000) => String(form.get(name) || '').trim().slice(0,max);
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  const form = await Astro.request.formData();
+  const action = clean(form, 'action', 30);
+  try {
+    if (action === 'save-details') {
+      await updateEventWorkingDetails(reference, {
+        eventName: clean(form,'eventName',160), description: clean(form,'description',5000),
+        setupStartAt: clean(form,'setupStartAt',40), eventStartAt: clean(form,'eventStartAt',40),
+        eventEndAt: clean(form,'eventEndAt',40), clearingEndAt: clean(form,'clearingEndAt',40),
+        daytimeAttendees: Number(form.get('daytimeAttendees')), overnightGuests: Number(form.get('overnightGuests')),
+        accommodationNotes: clean(form,'accommodationNotes'), cateringRequirements: clean(form,'cateringRequirements'),
+        parkingRequirements: clean(form,'parkingRequirements'), accessibilityRequirements: clean(form,'accessibilityRequirements'),
+        equipmentRequirements: clean(form,'equipmentRequirements'),
+      });
+      await audit(Astro.locals.adminUser!.id, 'booking.event_details_changed', { bookingReference: reference });
+      return Astro.redirect(`/admin/bookings/${reference}/event/?saved=details`);
+    }
+    if (action === 'release') {
+      await releaseBookingAllocations(reference);
+      await audit(Astro.locals.adminUser!.id, 'booking.allocations_released', { bookingReference: reference });
+      return Astro.redirect(`/admin/bookings/${reference}/event/?saved=released`);
+    }
+    if (action === 'save-hold') {
+      const resourceIds = form.getAll('resourceId').map(String).filter(isResourceId);
+      const holdExpiresAt = clean(form,'holdExpiresAt',40);
+      const allocations = resourceIds.map((resourceId) => ({
+        resourceId,
+        startAt: clean(form, `allocationStartAt:${resourceId}`, 40),
+        endAt: clean(form, `allocationEndAt:${resourceId}`, 40),
+      }));
+      await replaceBlockingAllocations({ reference, allocations, state:'hold', holdExpiresAt });
+      await audit(Astro.locals.adminUser!.id, 'booking.allocations_held', { bookingReference: reference, resourceIds, holdExpiresAt });
+      return Astro.redirect(`/admin/bookings/${reference}/event/?saved=hold`);
+    }
+  } catch (caught) {
+    error = caught instanceof Error && caught.message === 'RESOURCE_CONFLICT'
+      ? 'One or more selected resources already has a blocking allocation in this period.'
+      : caught instanceof Error && ['INVALID_EVENT_DETAILS','INVALID_ALLOCATION','INVALID_HOLD_EXPIRY','ALLOCATIONS_REQUIRED'].includes(caught.message)
+        ? 'Check the event times, attendance and required text.' : 'The event changes could not be saved.';
+  }
+}
+const event = await getEventDetails(reference);
+if (!event) return new Response('Event details not found.', { status: 404 });
+const allocations = await getBookingAllocations(reference);
+const localInput = (value: string) => value ? new Date(value).toLocaleString('sv-SE', { timeZone:'Europe/London' }).replace(' ','T').slice(0,16) : '';
+---
+<AdminLayout title={`Event · ${event.eventName}`}>
+  <header class="admin-page-header"><div><p class="eyebrow">Bespoke event</p><h1>{event.eventName}</h1><p>{booking.name} · requested {new Date(booking.createdAt).toLocaleString('en-GB')}</p></div><div class="pricing-header-actions"><a class="admin-button admin-button--secondary" href={`/admin/bookings/${reference}/`}>Conversation and offer</a></div></header>
+  {notice && <div class="pricing-message is-success" role="status">{notice}</div>}{error && <div class="pricing-message is-error" role="alert">{error}</div>}
+  <section class="admin-panel"><h2>Original enquiry</h2><p>This submission is preserved and is not changed by the working form.</p><pre>{JSON.stringify(event.originalSubmission, null, 2)}</pre></section>
+  <section class="admin-panel"><h2>Working event details</h2><form method="post" class="booking-form"><input type="hidden" name="action" value="save-details" />
+    <div class="booking-field"><label>Event name<input name="eventName" value={event.eventName} required /></label></div>
+    <div class="booking-field booking-field-wide"><label>Description<textarea name="description" rows="5" required>{event.description}</textarea></label></div>
+    <div class="booking-field"><label>Setup starts<input name="setupStartAt" type="datetime-local" value={localInput(event.setupStartAt)} required /></label></div>
+    <div class="booking-field"><label>Event starts<input name="eventStartAt" type="datetime-local" value={localInput(event.eventStartAt)} required /></label></div>
+    <div class="booking-field"><label>Event ends<input name="eventEndAt" type="datetime-local" value={localInput(event.eventEndAt)} required /></label></div>
+    <div class="booking-field"><label>Clearing ends<input name="clearingEndAt" type="datetime-local" value={localInput(event.clearingEndAt)} required /></label></div>
+    <div class="booking-field"><label>Daytime attendees<input name="daytimeAttendees" type="number" min="0" value={event.daytimeAttendees} required /></label></div>
+    <div class="booking-field"><label>Overnight guests<input name="overnightGuests" type="number" min="0" value={event.overnightGuests} required /></label></div>
+    {['accommodationNotes','cateringRequirements','parkingRequirements','accessibilityRequirements','equipmentRequirements'].map((name) => <div class="booking-field"><label>{name.replace(/([A-Z])/g,' $1')}<textarea name={name} rows="2">{String((event as any)[name] || '')}</textarea></label></div>)}
+    <div class="booking-field booking-field-wide"><button class="admin-button" type="submit">Save working details</button></div>
+  </form></section>
+  <section class="admin-panel"><h2>Resource allocations and provisional hold</h2><p>A raw enquiry does not block availability. Saving this form creates an explicit time-limited hold. Times are Olrig Bank local time.</p>
+    {allocations.length ? <ul>{allocations.map((allocation) => <li><strong>{allocation.resourceName}</strong> · {new Date(allocation.startAt).toLocaleString('en-GB',{timeZone:'Europe/London'})} – {new Date(allocation.endAt).toLocaleString('en-GB',{timeZone:'Europe/London'})} · {allocation.state}{allocation.holdExpiresAt ? ` until ${new Date(allocation.holdExpiresAt).toLocaleString('en-GB')}` : ''}</li>)}</ul> : <p>No resources are currently blocked.</p>}
+    <form method="post" class="booking-form"><input type="hidden" name="action" value="save-hold" />
+      <fieldset class="booking-field booking-field-wide"><legend>Resources and independent occupancy periods</legend>{RESOURCES.map((resource) => <div class="booking-form"><label class="booking-consent"><input name="resourceId" type="checkbox" value={resource.id} checked={event.requestedResourceIds.includes(resource.id)} /><span>{resource.name}</span></label><label>Starts<input name={`allocationStartAt:${resource.id}`} type="datetime-local" value={localInput(event.setupStartAt)} /></label><label>Ends<input name={`allocationEndAt:${resource.id}`} type="datetime-local" value={localInput(event.clearingEndAt)} /></label></div>)}</fieldset>
+      <div class="booking-field"><label>Hold expires<input name="holdExpiresAt" type="datetime-local" required /></label></div>
+      <div class="booking-field booking-field-wide"><button class="admin-button" type="submit">Check conflicts and place hold</button></div>
+    </form>
+    {allocations.length > 0 && <form method="post"><input type="hidden" name="action" value="release" /><button class="admin-button admin-button--secondary" type="submit">Release allocations</button></form>}
+  </section>
+</AdminLayout>

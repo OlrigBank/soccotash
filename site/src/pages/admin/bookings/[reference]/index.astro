@@ -33,6 +33,7 @@ import { getEmailConfiguration } from '../../../../lib/email/sender';
 import { deliverBookingNotification, getBookingNotificationHistory } from '../../../../lib/booking/notification-delivery';
 import { getWhatsAppConfiguration } from '../../../../lib/booking/whatsapp-provider';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
+import { getBookingAllocations } from '../../../../lib/booking/events';
 
 export const prerender = false;
 
@@ -49,7 +50,9 @@ const publicOrigin = configuredPublicOrigin || Astro.url.origin;
 const bookerManageUrl = booking.customerAccessToken
   ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
   : '';
-const canOffer = booking.status === 'pending' || booking.status === 'offered';
+const eventAllocations = booking.bookingKind === 'event' ? await getBookingAllocations(reference) : [];
+const eventNeedsAllocation = booking.bookingKind === 'event' && eventAllocations.length === 0;
+const canOffer = (booking.status === 'pending' || booking.status === 'offered') && !eventNeedsAllocation;
 const canDeleteNormally = booking.status === 'pending' || booking.status === 'offered';
 const isAcceptanceTestBooking = booking.name.startsWith('Production Acceptance Test');
 const canDeleteAcceptanceTest = isAcceptanceTestBooking
@@ -91,7 +94,7 @@ const initialLines = priorOffer?.lineItems.length
 const defaultValidity = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
 let formLines = initialLines;
-let offerMessage = priorOffer?.offerMessage ?? `Thank you for your booking request for ${propertyName}. We are pleased to make the following offer.`;
+let offerMessage = priorOffer?.offerMessage ?? `Thank you for your ${booking.bookingKind === 'event' ? 'event enquiry' : 'booking request'} for ${propertyName}. We are pleased to make the following offer.`;
 let terms = priorOffer?.terms ?? '';
 let validUntil = priorOffer?.validUntil ?? defaultValidity;
 let subject = priorOffer?.subject ?? defaultOfferSubject(booking, propertyName);
@@ -247,19 +250,26 @@ if (Astro.request.method === 'POST') {
   } else if (action === 'publish-offer') {
     const labels = form.getAll('lineLabel').map((value) => cleanText(value, 160));
     const details = form.getAll('lineDetail').map((value) => cleanText(value, 500));
-    const amounts = form.getAll('lineAmount').map((value) => poundsToPence(String(value)));
+    const quantities = form.getAll('lineQuantity').map((value) => Number(value));
+    const unitAmounts = form.getAll('lineUnitAmount').map((value) => poundsToPence(String(value)));
+    const categories = form.getAll('lineCategory').map((value) => cleanText(value, 80));
     const emailRequested = form.get('sendEmailCopy') === 'yes';
     offerMessage = cleanText(form.get('offerMessage'), 5000);
     terms = cleanText(form.get('terms'), 5000);
     validUntil = cleanText(form.get('validUntil'), 10);
     subject = cleanText(form.get('subject'), 300);
-    formLines = labels.map((label, index) => ({ label, detail: details[index] || '', amountPence: amounts[index] ?? 0 }));
+    formLines = labels.map((label, index) => ({
+      label, detail: details[index] || '', quantity: quantities[index], unitAmountPence: unitAmounts[index] ?? 0,
+      amountPence: Number.isInteger(quantities[index]) && unitAmounts[index] !== null ? quantities[index] * Number(unitAmounts[index]) : 0,
+      category: categories[index] || null, displayOrder: index,
+    }));
 
     if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
     else if (!subject) error = 'Enter an offer title or email subject.';
     else if (!formLines.length || formLines.length > 40) error = 'The offer must contain between 1 and 40 price lines.';
     else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
-    else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
+    else if (unitAmounts.some((amount) => amount === null)) error = 'Enter each unit amount in pounds with no more than two decimal places.';
+    else if (quantities.some((quantity) => !Number.isInteger(quantity) || quantity < 1 || quantity > 1000)) error = 'Each quantity must be a whole number from 1 to 1000.';
     else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
     else if (emailRequested && !whatsappNotificationAvailable && !booking.email) error = 'Add a Booker email address or obtain WhatsApp consent before requesting a notification.';
     else if (emailRequested && !whatsappNotificationAvailable && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
@@ -397,6 +407,7 @@ if (cancelled) {
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
     <div class="pricing-header-actions">
+      {booking.bookingKind === 'event' && <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/event/`}>Event details & resources</a>}
       <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>Preview Booker page</a>
       {bookerManageUrl && (
         <>
@@ -474,6 +485,7 @@ if (cancelled) {
         {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
       </section>
 
+      {eventNeedsAllocation && <section class="booking-drawer-section"><p class="eyebrow">Offer controls</p><h3>Allocate resources before publishing an event offer</h3><p>A raw event enquiry does not block availability. Add the agreed resources and periods, check conflicts, and place a hold first.</p><a class="admin-button" href={`/admin/bookings/${booking.reference}/event/`}>Set event resources</a></section>}
       {canOffer ? <section class="booking-drawer-section booking-offer-editor">
         <div class="booking-review-summary__heading">
           <div><p class="eyebrow">Offer controls</p><h3>Publish an offer</h3><p class="admin-panel-intro">The offer message becomes an administrator message in the conversation.</p></div>
@@ -487,7 +499,9 @@ if (cancelled) {
             {formLines.map((line) => <div class="booking-offer-line">
               <label>Line label<input type="text" name="lineLabel" value={line.label} maxlength="160" required /></label>
               <label>Explanation<input type="text" name="lineDetail" value={line.detail} maxlength="500" /></label>
-              <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value={(line.amountPence / 100).toFixed(2)} step="0.01" required /></label>
+              <label>Category<input type="text" name="lineCategory" value={line.category || ''} maxlength="80" placeholder="venue hire, accommodation, other" /></label>
+              <label>Quantity<input class="offer-line-quantity" type="number" name="lineQuantity" value={line.quantity || 1} min="1" max="1000" step="1" required /></label>
+              <label>Unit amount (£)<input class="offer-line-unit-amount" type="number" name="lineUnitAmount" value={((line.unitAmountPence ?? line.amountPence) / 100).toFixed(2)} step="0.01" required /></label>
               <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
             </div>)}
           </div>
@@ -507,7 +521,7 @@ if (cancelled) {
             <button class="admin-button" type="submit">Publish offer</button>
           </div>
         </form>
-      </section> : <section class="booking-drawer-section">
+      </section> : !eventNeedsAllocation && <section class="booking-drawer-section">
         <p class="eyebrow">Offer controls</p>
         <h3>{booking.status === 'confirmed' ? 'Confirmed direct booking' : 'Offer closed'}</h3>
         <p>{booking.status === 'confirmed' ? 'The Booker accepted the offer and the booking is confirmed.' : `A new offer cannot be published while the record has status “${booking.status}”.`}</p>
@@ -648,7 +662,9 @@ if (cancelled) {
   <div class="booking-offer-line">
     <label>Line label<input type="text" name="lineLabel" maxlength="160" required /></label>
     <label>Explanation<input type="text" name="lineDetail" maxlength="500" /></label>
-    <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value="0.00" step="0.01" required /></label>
+    <label>Category<input type="text" name="lineCategory" maxlength="80" placeholder="venue hire, accommodation, other" /></label>
+    <label>Quantity<input class="offer-line-quantity" type="number" name="lineQuantity" value="1" min="1" max="1000" step="1" required /></label>
+    <label>Unit amount (£)<input class="offer-line-unit-amount" type="number" name="lineUnitAmount" value="0.00" step="0.01" required /></label>
     <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
   </div>
 </template>
@@ -661,8 +677,13 @@ if (cancelled) {
   const formatter = new Intl.NumberFormat('en-GB', { style: 'currency', currency });
   function updateTotal() {
     if (!(lines instanceof HTMLElement) || !(total instanceof HTMLElement)) return;
-    const amount = Array.from(lines.querySelectorAll('.offer-line-amount')).reduce((sum, input) => {
-      return sum + (input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0);
+    const rows = Array.from(lines.querySelectorAll('.booking-offer-line'));
+    const amount = rows.reduce((sum, row) => {
+      const quantity = row.querySelector('.offer-line-quantity');
+      const unit = row.querySelector('.offer-line-unit-amount');
+      return sum + (quantity instanceof HTMLInputElement && unit instanceof HTMLInputElement
+        && Number.isFinite(quantity.valueAsNumber) && Number.isFinite(unit.valueAsNumber)
+        ? quantity.valueAsNumber * unit.valueAsNumber : 0);
     }, 0);
     total.textContent = formatter.format(amount);
   }

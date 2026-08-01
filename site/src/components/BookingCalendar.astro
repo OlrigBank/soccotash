@@ -5,7 +5,7 @@ const properties = getProperties();
 <section class="booking-panel" data-booking-calendar>
   <form class="booking-form" data-booking-form>
     <div class="booking-field booking-property-field">
-      <label for="property">Property</label>
+      <label for="property">Stay arrangement</label>
       <select id="property" name="propertyId" required>
         {properties.map((property) => (
           <option
@@ -14,7 +14,7 @@ const properties = getProperties();
             data-maximum-guests={property.maximumGuests}
             data-availability-note={property.availabilityNote || ''}
           >
-            {property.name}
+            {property.id === 'main-house' ? 'Stay in the Main House' : property.id === 'cottage' ? 'Stay in the Cottage' : 'Stay at Olrig Bank'}
           </option>
         ))}
       </select>
