@@ -143,8 +143,19 @@ test('status filtering, date blocking and calendar classification remain aligned
     assert.equal(activeList.some((booking) => booking.status === 'confirmed'), true);
 
     const completeList = await queryProvisionalBookingRequestRows(applicationPool, 100, true);
+    assert.equal(
+      completeList.some(
+        (booking) =>
+          booking.propertyId === 'bespoke-arrangement' && booking.status === 'pending',
+      ),
+      true,
+      'the explicit inactive view must include the pending bespoke request',
+    );
     assert.deepEqual(
-      completeList.map((booking) => booking.status).sort(),
+      completeList
+        .filter((booking) => booking.propertyId !== 'bespoke-arrangement')
+        .map((booking) => booking.status)
+        .sort(),
       statuses.sort(),
       'the explicit inactive view must restore declined and expired bookings',
     );
