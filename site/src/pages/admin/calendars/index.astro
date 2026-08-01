@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { getAvailabilityProperty, getProperties } from '../../../lib/booking/config';
+import { getAvailabilityProperties, getProperties } from '../../../lib/booking/config';
 import { getAdminCalendarEntries, type AdminCalendarEntry } from '../../../lib/booking/repository';
 export const prerender = false;
 
@@ -48,10 +48,14 @@ function entryLabel(entry: AdminCalendarEntry): string {
 const startMonth = monthStartFromQuery(Astro.url.searchParams.get('month'));
 const rangeEnd = addMonths(startMonth, 3);
 const allEntries = await getAdminCalendarEntries(isoDate(startMonth), isoDate(rangeEnd));
-const selectedAvailabilityId = selectedProperty === 'all' ? null : getAvailabilityProperty(selectedProperty)?.id;
+const selectedAvailabilityIds = selectedProperty === 'all'
+  ? new Set<string>()
+  : new Set(getAvailabilityProperties(selectedProperty).map((property) => property.id));
 const entries = selectedProperty === 'all'
   ? allEntries
-  : allEntries.filter((entry) => getAvailabilityProperty(entry.propertyId)?.id === selectedAvailabilityId);
+  : allEntries.filter((entry) =>
+      getAvailabilityProperties(entry.propertyId).some((property) => selectedAvailabilityIds.has(property.id)),
+    );
 const months = [startMonth, addMonths(startMonth, 1), addMonths(startMonth, 2)];
 const previousMonth = monthValue(addMonths(startMonth, -1));
 const nextMonth = monthValue(addMonths(startMonth, 1));
@@ -71,9 +75,9 @@ const today = new Date().toISOString().slice(0, 10);
   <section class="admin-panel admin-calendar-controls">
     <form method="get" class="admin-calendar-filter">
       <input type="hidden" name="month" value={monthValue(startMonth)} />
-      <label>Property
+      <label>Stay arrangement
         <select name="property">
-          <option value="all" selected={selectedProperty === 'all'}>All properties</option>
+          <option value="all" selected={selectedProperty === 'all'}>All arrangements</option>
           {properties.map((property) => <option value={property.id} selected={selectedProperty === property.id}>{property.name}</option>)}
         </select>
       </label>

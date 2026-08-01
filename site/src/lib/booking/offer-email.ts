@@ -26,16 +26,7 @@ function formatDate(value: string): string {
 }
 
 export function defaultOfferSubject(booking: ProvisionalBookingRequest, propertyName: string): string {
-  return booking.bookingKind === 'event'
-    ? `${booking.bookingTitle || propertyName} – tailored event offer`
-    : `${propertyName} booking offer – ${formatDate(booking.arrival)} to ${formatDate(booking.departure)}`;
-}
-
-function bookingPeriod(booking: ProvisionalBookingRequest): string {
-  if (booking.bookingKind !== 'event') return `${formatDate(booking.arrival)} to ${formatDate(booking.departure)}`;
-  const format = (value: string | null | undefined) => value
-    ? new Date(value).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/London' }) : 'to be agreed';
-  return `Setup ${format(booking.eventSetupStartAt)}; event ${format(booking.eventStartAt)} to ${format(booking.eventEndAt)}; clearing by ${format(booking.eventClearingEndAt)}`;
+  return `${propertyName} booking offer – ${formatDate(booking.arrival)} to ${formatDate(booking.departure)}`;
 }
 
 export async function sendBookingOfferEmail(input: {
@@ -59,9 +50,9 @@ export async function sendBookingOfferEmail(input: {
     '',
     input.offerMessage || `Thank you for your provisional booking request for ${input.propertyName}. We are pleased to make the following offer.`,
     '',
-    `${input.booking.bookingTitle || input.propertyName}`,
-    bookingPeriod(input.booking),
-    input.booking.bookingKind === 'event' ? '' : `${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? `, ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}`,
+    `${input.propertyName}`,
+    `${formatDate(input.booking.arrival)} to ${formatDate(input.booking.departure)}`,
+    `${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? `, ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}`,
     '',
     linesText,
     `Total offer: ${formatCurrency(input.totalPence, input.currency)}`,
@@ -94,9 +85,9 @@ export async function sendBookingOfferEmail(input: {
       <p style="margin-top:0;">Dear ${escapeHtml(input.booking.name)},</p>
       <p>${escapeHtml(input.offerMessage || `Thank you for your provisional booking request for ${input.propertyName}. We are pleased to make the following offer.`).replace(/\n/g, '<br>')}</p>
       <div style="background:#f5f6f1;border-radius:12px;padding:18px;margin:22px 0;">
-        <h2 style="margin:0 0 8px;font-size:22px;">${escapeHtml(input.booking.bookingTitle || input.propertyName)}</h2>
-        <p style="margin:0 0 4px;">${escapeHtml(bookingPeriod(input.booking))}</p>
-        ${input.booking.bookingKind === 'event' ? '' : `<p style="margin:0;">${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? ` · ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}</p>`}
+        <h2 style="margin:0 0 8px;font-size:22px;">${escapeHtml(input.propertyName)}</h2>
+        <p style="margin:0 0 4px;">${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}</p>
+        <p style="margin:0;">${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? ` · ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}</p>
       </div>
       <table style="width:100%;border-collapse:collapse;">${tableRows}
         <tr><td style="padding-top:14px;font-size:18px;"><strong>Total offer</strong></td><td style="padding:14px 0 0 20px;text-align:right;font-size:20px;white-space:nowrap;"><strong>${escapeHtml(formatCurrency(input.totalPence, input.currency))}</strong></td></tr>

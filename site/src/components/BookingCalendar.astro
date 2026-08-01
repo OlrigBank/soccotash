@@ -14,7 +14,7 @@ const properties = getProperties();
             data-maximum-guests={property.maximumGuests}
             data-availability-note={property.availabilityNote || ''}
           >
-            {property.id === 'main-house' ? 'Stay in the Main House' : property.id === 'cottage' ? 'Stay in the Cottage' : 'Stay at Olrig Bank'}
+            {property.name}
           </option>
         ))}
       </select>
@@ -30,7 +30,7 @@ const properties = getProperties();
       <p class="booking-calendar-message" role="status" aria-live="polite" data-calendar-message>
         Loading current availability…
       </p>
-      <div class="booking-calendar-months" data-calendar-months aria-label="Property availability"></div>
+      <div class="booking-calendar-months" data-calendar-months aria-label="Stay arrangement availability"></div>
       <div class="booking-calendar-legend" aria-label="Calendar legend">
         <span><i class="calendar-key calendar-key-available"></i>Available</span>
         <span><i class="calendar-key calendar-key-unavailable"></i>Unavailable</span>

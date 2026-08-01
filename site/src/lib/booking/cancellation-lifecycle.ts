@@ -96,12 +96,6 @@ export async function cancelBooking(
         WHERE provisional_booking_id = $1 AND status = 'reported'`,
       [row.id],
     );
-    await client.query(
-      `UPDATE booking_resource_allocations
-          SET allocation_state = 'released', updated_at = NOW()
-        WHERE provisional_booking_id = $1 AND allocation_state <> 'released'`,
-      [row.id],
-    );
 
     await insertCancellationActivity(client, {
       bookingId: row.id,
