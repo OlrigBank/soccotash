@@ -158,6 +158,9 @@ export async function createProvisionalBooking(input: {
   name: string;
   email: string;
   telephone?: string;
+  telephoneE164?: string | null;
+  whatsappConsentRequested?: boolean;
+  whatsappConsentVersion?: string | null;
   message?: string;
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<{ reference: string; accessToken: string }> {
@@ -181,15 +184,23 @@ export async function createProvisionalBooking(input: {
     if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_message,
+       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,
+        whatsapp_consent_status, whatsapp_consent_at, whatsapp_consent_source, whatsapp_consent_version,
+        whatsapp_consent_number_e164, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+        CASE WHEN $10 = 'active' THEN NOW() END, $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25,$26)
        RETURNING id::text, public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
-        input.telephone || null, input.message || null,
+        input.telephone || null, input.telephoneE164 || null,
+        input.whatsappConsentRequested ? 'active' : 'not_requested',
+        input.whatsappConsentRequested ? 'booking_form' : null,
+        input.whatsappConsentRequested ? input.whatsappConsentVersion || null : null,
+        input.whatsappConsentRequested ? input.telephoneE164 || null : null,
+        input.message || null,
         input.pricingQuote?.plan.id ?? null,
         input.pricingQuote?.plan.version ?? null,
         input.pricingQuote?.result.currency ?? null,
@@ -277,6 +288,13 @@ export type ProvisionalBookingRequest = {
   name: string;
   email: string;
   telephone: string | null;
+  telephoneE164: string | null;
+  whatsappConsentStatus: 'not_requested' | 'active' | 'withdrawn';
+  whatsappConsentAt: string | null;
+  whatsappConsentWithdrawnAt: string | null;
+  whatsappConsentSource: string | null;
+  whatsappConsentVersion: string | null;
+  whatsappConsentNumberE164: string | null;
   message: string | null;
   status: string;
   pricingPlanId?: string | null;
@@ -311,6 +329,13 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
   return {
     ...row,
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
+    telephoneE164: row.telephoneE164 || null,
+    whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
+    whatsappConsentAt: row.whatsappConsentAt ? new Date(row.whatsappConsentAt).toISOString() : null,
+    whatsappConsentWithdrawnAt: row.whatsappConsentWithdrawnAt ? new Date(row.whatsappConsentWithdrawnAt).toISOString() : null,
+    whatsappConsentSource: row.whatsappConsentSource || null,
+    whatsappConsentVersion: row.whatsappConsentVersion || null,
+    whatsappConsentNumberE164: row.whatsappConsentNumberE164 || null,
     depositPence: Number(row.depositPence || 0),
     depositDueAt: row.depositDueAt ? new Date(row.depositDueAt).toISOString() : null,
     balanceDuePence: Number(row.balanceDuePence || 0),
@@ -342,7 +367,14 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
             pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
-            pb.guest_telephone AS telephone, pb.guest_message AS message, pb.status,
+            pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
+            pb.whatsapp_consent_status AS "whatsappConsentStatus",
+            pb.whatsapp_consent_at AS "whatsappConsentAt",
+            pb.whatsapp_consent_withdrawn_at AS "whatsappConsentWithdrawnAt",
+            pb.whatsapp_consent_source AS "whatsappConsentSource",
+            pb.whatsapp_consent_version AS "whatsappConsentVersion",
+            pb.whatsapp_consent_number_e164 AS "whatsappConsentNumberE164",
+            pb.guest_message AS message, pb.status,
             pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
             pb.pricing_currency AS "pricingCurrency", pb.accommodation_pence AS "accommodationPence",
             pb.fees_pence AS "feesPence", pb.guest_total_pence AS "guestTotalPence",
@@ -391,6 +423,17 @@ export async function deleteProvisionalBookingRequest(reference: string): Promis
     `DELETE FROM provisional_bookings
       WHERE public_id = $1::uuid
         AND status IN ('pending', 'offered')`,
+    [reference],
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function withdrawProvisionalBookingWhatsAppConsent(reference: string, _source: 'booker' | 'administrator'): Promise<boolean> {
+  const result = await getPool().query(
+    `UPDATE provisional_bookings
+        SET whatsapp_consent_status = 'withdrawn', whatsapp_consent_withdrawn_at = NOW()
+      WHERE public_id = $1::uuid AND whatsapp_consent_status = 'active'
+      RETURNING id`,
     [reference],
   );
   return Boolean(result.rowCount);
@@ -673,6 +716,10 @@ export type CustomerBookingOffer = {
   guestName: string;
   guestEmail: string;
   guestTelephone: string | null;
+  telephoneE164: string | null;
+  whatsappConsentStatus: 'not_requested' | 'active' | 'withdrawn';
+  whatsappConsentAt: string | null;
+  whatsappConsentWithdrawnAt: string | null;
   guestMessage: string | null;
   bookingStatus: string;
   requestCreatedAt: string;
@@ -721,6 +768,10 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     guestName: row.guestName,
     guestEmail: row.guestEmail || '',
     guestTelephone: row.guestTelephone,
+    telephoneE164: row.telephoneE164 || null,
+    whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
+    whatsappConsentAt: row.whatsappConsentAt ? new Date(row.whatsappConsentAt).toISOString() : null,
+    whatsappConsentWithdrawnAt: row.whatsappConsentWithdrawnAt ? new Date(row.whatsappConsentWithdrawnAt).toISOString() : null,
     guestMessage: row.guestMessage,
     bookingStatus: row.bookingStatus,
     requestCreatedAt: new Date(row.requestCreatedAt).toISOString(),
@@ -755,7 +806,11 @@ const customerBookingSelect = `
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
          pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
          pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
-         pb.guest_telephone AS "guestTelephone", pb.guest_message AS "guestMessage",
+         pb.guest_telephone AS "guestTelephone", pb.guest_telephone_e164 AS "telephoneE164",
+         pb.whatsapp_consent_status AS "whatsappConsentStatus",
+         pb.whatsapp_consent_at AS "whatsappConsentAt",
+         pb.whatsapp_consent_withdrawn_at AS "whatsappConsentWithdrawnAt",
+         pb.guest_message AS "guestMessage",
          pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt",
          pb.payment_method AS "paymentMethod", pb.deposit_pence AS "depositPence",
          pb.deposit_due_at AS "depositDueAt", pb.balance_due_pence AS "balanceDuePence",

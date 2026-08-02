@@ -71,7 +71,14 @@ const properties = getProperties();
       </div>
       <div class="booking-field">
         <label for="guest-telephone">Booker telephone (optional)</label>
-        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" maxlength="80" />
+        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" aria-describedby="whatsapp-consent-help" />
+      </div>
+      <div class="booking-field booking-field-wide">
+        <label class="booking-consent" for="whatsapp-consent">
+          <input id="whatsapp-consent" name="whatsappConsent" type="checkbox" value="yes" />
+          <span>Yes, Olrig Bank may send transactional WhatsApp messages about this booking and its payments. I can withdraw consent at any time. Email or my private booking page will remain available.</span>
+        </label>
+        <p id="whatsapp-consent-help" class="booking-note">Optional. If selected, enter a telephone number with its country code (for example, +44).</p>
       </div>
       <div class="booking-field booking-field-wide">
         <label for="guest-message">Message to Olrig Bank (optional)</label>
@@ -109,6 +116,8 @@ const properties = getProperties();
   const calendarMessage = root?.querySelector<HTMLElement>('[data-calendar-message]');
   const previousButton = root?.querySelector<HTMLButtonElement>('[data-calendar-previous]');
   const nextButton = root?.querySelector<HTMLButtonElement>('[data-calendar-next]');
+  const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
+  const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
 
   const MONTHS_SHOWN = 2;
   const MAX_MONTH_OFFSET = 22;
@@ -162,6 +171,10 @@ const properties = getProperties();
 
   if (arrival) arrival.min = isoToday;
   if (departure) departure.min = isoToday;
+
+  whatsappConsent?.addEventListener('change', () => {
+    if (telephone) telephone.required = Boolean(whatsappConsent.checked);
+  });
 
   function selectedRules() {
     const option = propertySelect?.selectedOptions[0];
