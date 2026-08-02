@@ -504,7 +504,7 @@ if (arrangementAssigned) {
       {canOffer ? <section class="booking-drawer-section booking-offer-editor">
         <div class="booking-review-summary__heading">
           <div><p class="eyebrow">Offer controls</p><h3>Publish an offer</h3><p class="admin-panel-intro">The offer message becomes an administrator message in the conversation.</p></div>
-          <div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div>
+          <div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{priceToBeAgreed ? 'Not yet set' : money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div>
         </div>
         {!emailConfiguration.configured && <div class="pricing-message"><strong>Email delivery is not configured.</strong> The offer can still be published in the conversation. {emailConfiguration.problem}</div>}
         <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
@@ -692,7 +692,7 @@ if (arrangementAssigned) {
     const amountInputs = Array.from(lines.querySelectorAll('.offer-line-amount'));
     const validAmounts = amountInputs.every((input) => input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber));
     const amount = amountInputs.reduce((sum, input) => sum + (input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0), 0);
-    total.textContent = formatter.format(amount);
+    total.textContent = validAmounts ? formatter.format(amount) : 'Not yet set';
     if (publishButton instanceof HTMLButtonElement) publishButton.disabled = !validAmounts || amount <= 0;
   }
   function bindRemove(button: Element) {
