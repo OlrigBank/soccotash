@@ -10,6 +10,7 @@ export type PropertyConfig = {
   availabilityPropertyId?: string;
   availabilityPropertyIds?: string[];
   availabilityNote?: string;
+  administratorPriced?: boolean;
   minimumNights: number;
   maximumGuests: number;
   enabled: boolean;

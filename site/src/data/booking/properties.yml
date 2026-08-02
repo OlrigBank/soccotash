@@ -22,8 +22,9 @@ properties:
     maximumGuests: 12
     enabled: true
   - id: bespoke-arrangement
-    name: Bespoke arrangement
+    name: Bespoke stay
     listingSlug: event
+    administratorPriced: true
     availabilityPropertyIds:
       - main-house
       - cottage

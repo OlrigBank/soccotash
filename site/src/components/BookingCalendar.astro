@@ -193,7 +193,7 @@ const properties = getProperties();
     if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
     const availabilityNote = propertySelect?.selectedOptions[0]?.dataset.availabilityNote || '';
     if (rule) {
-      rule.textContent = `Minimum stay: ${minimumNights} nights. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
+      rule.textContent = `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
@@ -377,7 +377,8 @@ const properties = getProperties();
 
     const earliestDeparture = addDays(selectionStart, selectedRules().minimumNights);
     if (value < earliestDeparture) {
-      setCalendarMessage(`The minimum stay is ${selectedRules().minimumNights} nights. Choose ${dayFormatter.format(parseIso(earliestDeparture))} or later.`);
+      const minimumNights = selectedRules().minimumNights;
+      setCalendarMessage(`The minimum stay is ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Choose ${dayFormatter.format(parseIso(earliestDeparture))} or later.`);
       return;
     }
     if (rangeIsUnavailable(selectionStart, value)) {
@@ -511,14 +512,14 @@ const properties = getProperties();
     submitReview.hidden = false;
     submitReview.innerHTML = body.pricingAvailable
       ? `<span>Provisional cost to be recorded</span><strong>${money(body.guestTotalPence)}</strong><small>Requesting creates your private booking page. Save its address so you can return without relying on email.</small>`
-      : `<span>Price to be confirmed</span><strong>Booking request</strong><small>Requesting creates your private booking page. Jenna will add the confirmed offer there.</small>`;
+      : `<span>${body.administratorPriced ? 'Price to be agreed' : 'Price to be confirmed'}</span><strong>Booking request</strong><small>Requesting creates your private booking page. Jenna will add the confirmed offer there.</small>`;
   }
 
   function renderQuote(body: Record<string, any>): void {
     if (!quotePanel) return;
     quotePanel.hidden = false;
     if (!body.pricingAvailable) {
-      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">Provisional cost</p><h2>Price confirmation required</h2></div></div><p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
+      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">${body.administratorPriced ? 'Bespoke pricing' : 'Pricing'}</p><h2>${body.administratorPriced ? 'Price to be agreed' : 'Price confirmation required'}</h2></div></div><p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
       renderSubmitReview(body);
       return;
     }
@@ -540,7 +541,7 @@ const properties = getProperties();
     const earliestDeparture = start ? addDays(start, minimumNights) : '';
 
     if (!start || !end || end < earliestDeparture) {
-      status.textContent = `Choose a departure date at least ${minimumNights} nights after arrival.`;
+      status.textContent = `Choose a departure date at least ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'} after arrival.`;
       contact.hidden = true;
       clearReviewedQuote();
       return false;
