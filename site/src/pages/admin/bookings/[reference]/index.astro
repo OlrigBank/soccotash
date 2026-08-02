@@ -34,6 +34,7 @@ import { deliverBookingNotification, getBookingNotificationHistory } from '../..
 import { getWhatsAppConfiguration } from '../../../../lib/booking/whatsapp-provider';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
 import { validateOfferTotal } from '../../../../lib/booking/offer-price';
+import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../../../../lib/booking/admin-display';
 
 export const prerender = false;
 
@@ -346,6 +347,17 @@ if (Astro.request.method === 'POST') {
 
 const recordedLines = pricingLines(booking.pricingResult);
 const currency = booking.pricingCurrency || 'GBP';
+const acceptedOffer = offers.find((offer) => offer.customerStatus === 'accepted');
+const publishedOffer = offers.find((offer) => offer.customerStatus === 'active') ?? priorOffer;
+const priceDisplay = getAdminPriceDisplayState({
+  bookingStatus: booking.status,
+  hasRecordedPricing: recordedLines.length > 0,
+  hasPublishedOffer: Boolean(publishedOffer?.lineItems.length),
+  hasAcceptedOffer: Boolean(acceptedOffer?.lineItems.length),
+});
+const displayedOffer = priceDisplay.source === 'offer'
+  ? (acceptedOffer ?? publishedOffer)
+  : null;
 const showClosedOffers = Astro.url.searchParams.get('showClosedOffers') === '1';
 const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
@@ -390,7 +402,7 @@ if (arrangementAssigned) {
     : messageEmailStatus === 'failed'
       ? 'The message was added to the conversation, but the optional email copy failed.'
       : 'The message was added to the conversation.';
-} else if (published) {
+} else if (shouldShowOfferPublishedNotice(published, booking.status)) {
   notice = publishEmailStatus === 'submitted'
     ? 'The offer is published and a WhatsApp notification was submitted.'
     : publishEmailStatus === 'sent'
@@ -490,8 +502,11 @@ if (arrangementAssigned) {
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>{recordedLines.length ? 'Recorded provisional calculation' : 'Price to be agreed'}</h3>
-        {recordedLines.length ? <div class="booking-price-table"><table><tbody>
+        <h3>{priceDisplay.heading}</h3>
+        {displayedOffer ? <div class="booking-price-table"><table><tbody>
+          {displayedOffer.lineItems.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, displayedOffer.currency)}</td></tr>)}
+          <tr class="booking-price-total"><th>Total</th><th>{money(displayedOffer.totalPence, displayedOffer.currency)}</th></tr>
+        </tbody></table></div> : recordedLines.length ? <div class="booking-price-table"><table><tbody>
           {recordedLines.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, currency)}</td></tr>)}
           <tr class="booking-price-total"><th>Recorded provisional total</th><th>{money(booking.guestTotalPence ?? recordedLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</th></tr>
         </tbody></table></div> : <p class="muted">No price was submitted. Add the agreed price when preparing the offer.</p>}
