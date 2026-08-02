@@ -62,7 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
       (email.length > 0 && !/^\S+@\S+\.\S+$/.test(email))
     ) {
       return Response.json(
-        { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} nights.` },
+        { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} ${property.minimumNights === 1 ? 'night' : 'nights'}.` },
         { status: 400 },
       );
     }
@@ -77,7 +77,7 @@ export const POST: APIRoute = async ({ request }) => {
       channel: 'direct',
       cancellationPlan: 'flexible',
     };
-    const pricingQuote = await getPublishedPricingQuote(pricingInput);
+    const pricingQuote = property.administratorPriced ? null : await getPublishedPricingQuote(pricingInput);
     const reviewedPricing = input.reviewedPricing && typeof input.reviewedPricing === 'object'
       ? input.reviewedPricing as Record<string, unknown>
       : null;
@@ -96,8 +96,11 @@ export const POST: APIRoute = async ({ request }) => {
             : 'The published price is no longer available. Review the updated enquiry details and submit again.',
           quote: pricingQuote ? publicQuotePayload(pricingQuote) : {
             pricingAvailable: false,
+            administratorPriced: property.administratorPriced === true,
             eligible: true,
-            message: 'Jenna will confirm the price for this provisional request.',
+            message: property.administratorPriced
+              ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
+              : 'Jenna will confirm the price for this provisional request.',
           },
         }, { status: 409, headers: { 'cache-control': 'no-store' } });
       }

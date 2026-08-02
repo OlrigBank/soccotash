@@ -80,6 +80,14 @@ test('status filtering, date blocking and calendar classification remain aligned
         [`Status ${status}`, `${status}@example.invalid`, status, index],
       );
     }
+    await applicationPool.query(
+      `INSERT INTO provisional_bookings (
+         property_id, arrival, departure, guests, guest_name, guest_email, status
+       ) VALUES (
+         'bespoke-arrangement', CURRENT_DATE + 60, CURRENT_DATE + 63, 2,
+         'Bespoke calendar request', 'bespoke@example.invalid', 'pending'
+       )`,
+    );
 
     const from = new Date();
     from.setUTCDate(from.getUTCDate() + 59);
@@ -91,9 +99,14 @@ test('status filtering, date blocking and calendar classification remain aligned
     const calendarEntries = await queryAdminCalendarEntries(applicationPool, fromDate, toDate);
     const bookingEntries = calendarEntries.filter((entry) => entry.id.startsWith('booking-'));
     assert.deepEqual(
-      bookingEntries.map((entry) => entry.bookingStatus).sort(),
+      bookingEntries.filter((entry) => entry.propertyId !== 'bespoke-arrangement').map((entry) => entry.bookingStatus).sort(),
       [...BLOCKING_BOOKING_STATUSES].sort(),
-      'the Admin calendar must include every status that blocks dates and no released status',
+      'the Admin calendar must include every blocking status plus the informational bespoke request',
+    );
+    assert.equal(
+      bookingEntries.some((entry) => entry.propertyId === 'bespoke-arrangement' && entry.bookingStatus === 'pending' && entry.source === 'provisional'),
+      true,
+      'a pending bespoke request must appear as an informational provisional Admin-calendar entry',
     );
     assert.deepEqual(
       bookingEntries
@@ -130,8 +143,19 @@ test('status filtering, date blocking and calendar classification remain aligned
     assert.equal(activeList.some((booking) => booking.status === 'confirmed'), true);
 
     const completeList = await queryProvisionalBookingRequestRows(applicationPool, 100, true);
+    assert.equal(
+      completeList.some(
+        (booking) =>
+          booking.propertyId === 'bespoke-arrangement' && booking.status === 'pending',
+      ),
+      true,
+      'the explicit inactive view must include the pending bespoke request',
+    );
     assert.deepEqual(
-      completeList.map((booking) => booking.status).sort(),
+      completeList
+        .filter((booking) => booking.propertyId !== 'bespoke-arrangement')
+        .map((booking) => booking.status)
+        .sort(),
       statuses.sort(),
       'the explicit inactive view must restore declined and expired bookings',
     );

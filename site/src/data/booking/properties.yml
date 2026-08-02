@@ -21,3 +21,14 @@ properties:
     minimumNights: 2
     maximumGuests: 12
     enabled: true
+  - id: bespoke-arrangement
+    name: Bespoke stay
+    listingSlug: event
+    administratorPriced: true
+    availabilityPropertyIds:
+      - main-house
+      - cottage
+    availabilityNote: The dates must be available across Olrig Bank. Your request does not reserve them; Jenna will agree the accommodation and price with you.
+    minimumNights: 1
+    maximumGuests: 12
+    enabled: true

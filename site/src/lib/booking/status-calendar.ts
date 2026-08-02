@@ -126,7 +126,7 @@ export async function queryAdminCalendarEntries(
             pb.public_id::text AS "bookingReference",
             pb.status AS "bookingStatus"
        FROM provisional_bookings pb
-      WHERE pb.status = ANY($4::text[])
+      WHERE (pb.status = ANY($4::text[]) OR (pb.property_id = 'bespoke-arrangement' AND pb.status = 'pending'))
         AND pb.arrival < $2::date AND pb.departure > $1::date
       ORDER BY "startsOn", "propertyId", source`,
     [from, to, [...DIRECT_BOOKING_STATUSES], [...BLOCKING_BOOKING_STATUSES]],

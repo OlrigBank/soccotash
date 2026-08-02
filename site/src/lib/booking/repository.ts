@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty } from './config';
+import { getAvailabilityProperties, getAvailabilityProperty, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
@@ -123,16 +123,13 @@ export async function recordSyncError(propertyId: string, error: unknown): Promi
 export async function getBlocks(propertyId: string, from: string, to: string): Promise<BookingBlock[]> {
   await expireElapsedBookingOffers();
   const property = getProperty(propertyId);
-  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
-  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
-  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
-
-  return queryBookingBlocks(getPool(), {
-    availabilityPropertyId: availabilityProperty.id,
-    propertyIds: linkedPropertyIds,
-    from,
-    to,
-  });
+  const availabilityProperties = property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error(`Unknown booking property: ${propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
+  const blocks = (await Promise.all(availabilityProperties.map((availabilityProperty) => queryBookingBlocks(getPool(), {
+    availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds, from, to,
+  })))).flat();
+  return [...new Map(blocks.map((block) => [`${block.startsOn}|${block.endsOn}|${block.source}`, block])).values()];
 }
 
 export async function getAdminCalendarEntries(from: string, to: string): Promise<AdminCalendarEntry[]> {
@@ -166,21 +163,22 @@ export async function createProvisionalBooking(input: {
 }): Promise<{ reference: string; accessToken: string }> {
   await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
-  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
-  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
-  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+  const availabilityProperties = property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error(`Unknown booking property: ${input.propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
   const accessToken = crypto.randomBytes(32).toString('base64url');
 
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
-    const conflict = await hasBookingDateConflict(client, {
-      availabilityPropertyId: availabilityProperty.id,
-      propertyIds: linkedPropertyIds,
-      arrival: input.arrival,
-      departure: input.departure,
-    });
+    for (const availabilityProperty of availabilityProperties) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    }
+    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
+      arrival: input.arrival, departure: input.departure,
+    })));
+    const conflict = conflicts.some(Boolean);
     if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
@@ -232,7 +230,9 @@ export async function createProvisionalBooking(input: {
     }
     await insertBotBookingMessage(client, {
       bookingId: result.rows[0].id,
-      body: 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
+      body: input.propertyId === 'bespoke-arrangement'
+        ? 'Your bespoke stay request has been received. Jenna will review the dates and discuss the accommodation and price with you here.'
+        : 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
       audience: 'booker',
       sourceKey: `request-received:${result.rows[0].id}`,
     });
@@ -244,6 +244,56 @@ export async function createProvisionalBooking(input: {
   } finally {
     client.release();
   }
+}
+
+export async function assignBespokeBookingArrangement(reference: string, propertyId: string): Promise<'updated' | 'not_bespoke' | 'dates_unavailable' | 'not_found'> {
+  if (!['main-house', 'cottage', 'whole-property'].includes(propertyId)) throw new Error('INVALID_ARRANGEMENT');
+  const property = getProperty(propertyId);
+  const availabilityProperties = propertyId === 'whole-property'
+    ? ['main-house', 'cottage'].map((id) => getProperty(id)).filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    : property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error('INVALID_ARRANGEMENT');
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT id::text, property_id, arrival::text, departure::text, status
+         FROM provisional_bookings WHERE public_id = $1::uuid FOR UPDATE`, [reference],
+    );
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
+    const booking = selected.rows[0];
+    if (booking.property_id !== 'bespoke-arrangement' || booking.status !== 'pending') {
+      await client.query('ROLLBACK'); return 'not_bespoke';
+    }
+    const linkedPropertyIds = getPropertiesSharingAnyAvailability({ ...property, availabilityPropertyIds: availabilityProperties.map((candidate) => candidate.id) })
+      .map((candidate) => candidate.id);
+    for (const availabilityProperty of availabilityProperties) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    }
+    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
+      arrival: booking.arrival, departure: booking.departure, excludeBookingId: booking.id,
+    })));
+    const conflict = conflicts.some(Boolean);
+    if (conflict) { await client.query('ROLLBACK'); return 'dates_unavailable'; }
+    await client.query(`UPDATE provisional_bookings SET property_id = $2 WHERE id = $1`, [booking.id, propertyId]);
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, 'administrator', 'bespoke_arrangement_assigned', $2::jsonb)`,
+      [booking.id, JSON.stringify({ propertyId })],
+    );
+    await insertBotBookingMessage(client, {
+      bookingId: booking.id,
+      body: `The bespoke request has been agreed as a ${property.name}. Jenna can now prepare the tailored offer.`,
+      audience: 'both',
+      sourceKey: `bespoke-arrangement-assigned:${booking.id}`,
+    });
+    await client.query('COMMIT');
+    return 'updated';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }
 
 export type BookingOfferLine = {
