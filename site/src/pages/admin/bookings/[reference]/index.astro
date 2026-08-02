@@ -108,16 +108,25 @@ if (Astro.request.method === 'POST') {
 
   if (action === 'assign-bespoke-arrangement') {
     const assignedPropertyId = cleanText(form.get('assignedPropertyId'), 40);
-    const result = await assignBespokeBookingArrangement(reference, assignedPropertyId);
-    if (result === 'updated') {
-      await audit(Astro.locals.adminUser!.id, 'booking.bespoke_arrangement_assigned', {
-        bookingReference: reference, propertyId: assignedPropertyId,
-      });
-      return Astro.redirect(`/admin/bookings/${reference}/?arrangement=assigned`);
+    try {
+      const result = await assignBespokeBookingArrangement(reference, assignedPropertyId);
+      if (result === 'updated') {
+        await audit(Astro.locals.adminUser!.id, 'booking.bespoke_arrangement_assigned', {
+          bookingReference: reference, propertyId: assignedPropertyId,
+        });
+        return Astro.redirect(`/admin/bookings/${reference}/?arrangement=assigned`);
+      }
+      error = result === 'dates_unavailable'
+        ? 'Those dates are no longer available for the selected arrangement.'
+        : result === 'not_found'
+          ? 'The booking request could not be found.'
+          : 'This bespoke request can no longer be assigned from its current status.';
+    } catch (assignmentError) {
+      console.error('Bespoke stay assignment failed', assignmentError);
+      error = assignmentError instanceof Error && assignmentError.message === 'INVALID_ARRANGEMENT'
+        ? 'Choose Cottage, Main House or Olrig Bank before assigning the stay.'
+        : 'The arrangement could not be assigned. No change was saved; please try again.';
     }
-    error = result === 'dates_unavailable'
-      ? 'Those dates are no longer available for the selected arrangement.'
-      : 'This bespoke request can no longer be assigned from its current status.';
   } else if (action === 'withdraw-whatsapp-consent') {
     await withdrawProvisionalBookingWhatsAppConsent(reference, 'administrator');
     await audit(Astro.locals.adminUser!.id, 'booking.whatsapp_consent_withdrawn', { bookingReference: reference });
@@ -360,6 +369,7 @@ const showClosedOffers = Astro.url.searchParams.get('showClosedOffers') === '1';
 const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
+const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
 const contactInvalid = Astro.url.searchParams.get('contact') === 'invalid';
@@ -376,7 +386,9 @@ const reservationVersion = reservationSnapshot
   ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}`
   : booking.status;
 let notice = '';
-if (cancelled) {
+if (arrangementAssigned) {
+  notice = `${propertyName} was assigned successfully. The dates are now reserved provisionally and an offer can be prepared.`;
+} else if (cancelled) {
   notice = lifecycleEmailStatus === 'submitted'
     ? 'The booking was cancelled, its dates were released, and a WhatsApp notification was submitted.'
     : lifecycleEmailStatus === 'sent'
@@ -466,6 +478,7 @@ if (cancelled) {
           <input type="hidden" name="action" value="assign-bespoke-arrangement" />
           <label>Agreed stay arrangement
             <select name="assignedPropertyId" required>
+              <option value="" selected disabled>Choose an arrangement…</option>
               {getProperties().filter((property) => property.id !== 'bespoke-arrangement').map((property) => (
                 <option value={property.id}>{property.name}</option>
               ))}
@@ -492,11 +505,11 @@ if (cancelled) {
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>Recorded provisional calculation</h3>
+        <h3>{recordedLines.length ? 'Recorded provisional calculation' : 'Price to be agreed'}</h3>
         {recordedLines.length ? <div class="booking-price-table"><table><tbody>
           {recordedLines.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, currency)}</td></tr>)}
           <tr class="booking-price-total"><th>Recorded provisional total</th><th>{money(booking.guestTotalPence ?? recordedLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</th></tr>
-        </tbody></table></div> : <p class="muted">No published pricing calculation was recorded.</p>}
+        </tbody></table></div> : <p class="muted">No price was submitted. Add the agreed price when preparing the offer.</p>}
         {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
       </section>
 

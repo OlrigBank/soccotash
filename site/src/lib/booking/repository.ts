@@ -230,7 +230,9 @@ export async function createProvisionalBooking(input: {
     }
     await insertBotBookingMessage(client, {
       bookingId: result.rows[0].id,
-      body: 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
+      body: input.propertyId === 'bespoke-arrangement'
+        ? 'Your bespoke stay request has been received. Jenna will review the dates and discuss the accommodation and price with you here.'
+        : 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
       audience: 'booker',
       sourceKey: `request-received:${result.rows[0].id}`,
     });

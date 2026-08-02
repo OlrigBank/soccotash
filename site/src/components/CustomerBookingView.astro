@@ -101,7 +101,9 @@ const statusMessage = cancelled
     : paymentPending
       ? `You accepted the offer. Send the required ${initialPaymentLabel} by manual bank transfer; confirmation follows after Olrig Bank verifies receipt.`
       : requestPending
-        ? 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
+        ? offer.propertyId === 'bespoke-arrangement'
+          ? 'Jenna and the Olrig Bank team are reviewing your non-blocking request. Your dates have not been reserved.'
+          : 'Your dates are being held provisionally while Jenna and the Olrig Bank team review the request.'
         : offer.customerStatus === 'declined'
           ? 'You declined this offer. Continue the conversation if you would like to discuss another stay.'
           : offer.customerStatus === 'expired'
@@ -229,7 +231,7 @@ const conversationError = messageError || responseError;
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>{confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
+        <h3>{confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending && !offer.priceAvailable ? 'Price to be agreed' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
         {offer.priceAvailable ? <div class="customer-booking-price-table">
           {offer.lineItems.map((line) => <div class="customer-booking-price-line">
             <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
@@ -237,7 +239,7 @@ const conversationError = messageError || responseError;
           </div>)}
           <div class="customer-booking-price-line is-total"><strong>{requestPending ? 'Provisional total' : 'Total'}</strong><strong>{money(offer.totalPence, offer.currency)}</strong></div>
         </div> : <p>The price has not yet been confirmed. Olrig Bank will add it as part of the offer.</p>}
-        {requestPending && <p class="customer-booking-price-note">This calculation was recorded when the request was made and can be revised before an offer is published.</p>}
+        {requestPending && offer.priceAvailable && <p class="customer-booking-price-note">This calculation was recorded when the request was made and can be revised before an offer is published.</p>}
       </section>
 
       {offer.terms && <section class="booking-drawer-section customer-booking-copy">

@@ -13,6 +13,7 @@ const properties = getProperties();
             data-minimum-nights={property.minimumNights}
             data-maximum-guests={property.maximumGuests}
             data-availability-note={property.availabilityNote || ''}
+            data-administrator-priced={property.administratorPriced ? 'yes' : 'no'}
           >
             {property.name}
           </option>
@@ -593,9 +594,13 @@ const properties = getProperties();
       reviewedQuoteKey = pricingKey(data);
       reviewedQuote = quoteBody;
       renderQuote(quoteBody);
+      const administratorPriced = propertySelect?.selectedOptions[0]?.dataset.administratorPriced === 'yes';
+      const nextStep = administratorPriced
+        ? 'Complete your details to submit your request.'
+        : 'Review the price and complete your details.';
       status.textContent = body.refreshWarning
-        ? `The dates appear available. ${body.refreshWarning} Review the price and complete your details.`
-        : 'The dates currently appear available. Review the price and complete your details.';
+        ? `The dates appear available. ${body.refreshWarning} ${nextStep}`
+        : `The dates currently appear available. ${nextStep}`;
       contact.hidden = false;
       window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'available' });
       return true;
