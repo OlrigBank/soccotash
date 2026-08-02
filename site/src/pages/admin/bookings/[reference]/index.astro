@@ -5,7 +5,6 @@ import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import {
   createBookingOfferAttempt,
-  assignBespokeBookingArrangement,
   deleteProductionAcceptanceTestBooking,
   deleteProvisionalBookingRequest,
   getBookingActivity,
@@ -106,28 +105,7 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
-  if (action === 'assign-bespoke-arrangement') {
-    const assignedPropertyId = cleanText(form.get('assignedPropertyId'), 40);
-    try {
-      const result = await assignBespokeBookingArrangement(reference, assignedPropertyId);
-      if (result === 'updated') {
-        await audit(Astro.locals.adminUser!.id, 'booking.bespoke_arrangement_assigned', {
-          bookingReference: reference, propertyId: assignedPropertyId,
-        });
-        return Astro.redirect(`/admin/bookings/${reference}/?arrangement=assigned`);
-      }
-      error = result === 'dates_unavailable'
-        ? 'Those dates are no longer available for the selected arrangement.'
-        : result === 'not_found'
-          ? 'The booking request could not be found.'
-          : 'This bespoke request can no longer be assigned from its current status.';
-    } catch (assignmentError) {
-      console.error('Bespoke stay assignment failed', assignmentError);
-      error = assignmentError instanceof Error && assignmentError.message === 'INVALID_ARRANGEMENT'
-        ? 'Choose Cottage, Main House or Olrig Bank before assigning the stay.'
-        : 'The arrangement could not be assigned. No change was saved; please try again.';
-    }
-  } else if (action === 'withdraw-whatsapp-consent') {
+  if (action === 'withdraw-whatsapp-consent') {
     await withdrawProvisionalBookingWhatsAppConsent(reference, 'administrator');
     await audit(Astro.locals.adminUser!.id, 'booking.whatsapp_consent_withdrawn', { bookingReference: reference });
     return Astro.redirect(`/admin/bookings/${reference}/?consent=withdrawn`);
@@ -370,6 +348,7 @@ const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
 const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
+const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
 const contactInvalid = Astro.url.searchParams.get('contact') === 'invalid';
@@ -378,6 +357,10 @@ const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancelled = Astro.url.searchParams.get('cancelled') === '1';
 const lifecycleEmailStatus = Astro.url.searchParams.get('email');
 if (contactInvalid) error = 'Enter a valid Booker email address or leave it blank.';
+if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
+if (arrangementError === 'invalid') error = 'Choose Cottage, Main House or Olrig Bank before assigning the stay.';
+if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
+if (arrangementError === 'failed') error = 'The arrangement could not be assigned. No change was saved; please try again.';
 const notificationAvailable = whatsappNotificationAvailable || Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
 const messages = await getBookingMessagesByReference(reference, 'administrator', { markRead: true });
 const notificationHistory = booking.internalId ? await getBookingNotificationHistory(booking.internalId) : [];
@@ -474,8 +457,7 @@ if (arrangementAssigned) {
           <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
-        {isUnassignedBespoke && <form method="post" class="admin-form">
-          <input type="hidden" name="action" value="assign-bespoke-arrangement" />
+        {isUnassignedBespoke && <form method="post" action={`/admin/bookings/${reference}/arrangement/`} class="admin-form">
           <label>Agreed stay arrangement
             <select name="assignedPropertyId" required>
               <option value="" selected disabled>Choose an arrangement…</option>
