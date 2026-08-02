@@ -5,6 +5,7 @@ import { isIsoDate, nightsBetween } from '../../lib/booking/dates';
 import { createProvisionalBooking, getProvisionalBookingRequest } from '../../lib/booking/repository';
 import { deliverBookingNotification } from '../../lib/booking/notification-delivery';
 import { WHATSAPP_CONSENT_VERSION, validateWhatsAppConsent } from '../../lib/booking/whatsapp-phone';
+import { validateBookerContact, validBookerEmail } from '../../lib/booking/booking-contact';
 import { sendEmail } from '../../lib/email/sender';
 import { getPublishedPricingQuote, publicQuotePayload } from '../../lib/pricing/public';
 import type { PricingSimulationInput } from '../../lib/pricing/types';
@@ -31,8 +32,8 @@ export const POST: APIRoute = async ({ request }) => {
     const guests = Number(input.guests);
     const pets = Number(input.pets || 0);
     const name = cleanText(input.name, 120);
-    const email = cleanText(input.email, 254).toLowerCase();
-    const telephone = cleanText(input.telephone, 80);
+    const contact = validateBookerContact({ email: input.email, telephone: input.telephone });
+    const { email, telephone } = contact;
     const whatsappConsentRequested = input.whatsappConsent === 'yes' || input.whatsappConsent === true;
     const message = cleanText(input.message, 2000);
     let whatsappConsent: ReturnType<typeof validateWhatsAppConsent>;
@@ -59,7 +60,8 @@ export const POST: APIRoute = async ({ request }) => {
       pets < 0 ||
       pets > 10 ||
       name.length < 2 ||
-      (email.length > 0 && !/^\S+@\S+\.\S+$/.test(email))
+      (email.length > 0 && !validBookerEmail(email)) ||
+      !contact.valid
     ) {
       return Response.json(
         { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} ${property.minimumNights === 1 ? 'night' : 'nights'}.` },

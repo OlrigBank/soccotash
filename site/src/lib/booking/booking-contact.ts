@@ -1,4 +1,88 @@
 import { getPool } from './db.ts';
+import { normaliseWhatsAppTelephone } from './whatsapp-phone.ts';
+
+export const INACTIVE_BOOKING_STATUSES = ['declined', 'cancelled', 'expired'] as const;
+
+export function normaliseBookerEmail(value: unknown): string {
+  return String(value || '').trim().toLowerCase().slice(0, 254);
+}
+
+export function validBookerEmail(value: string): boolean {
+  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+export function validateBookerContact(input: { email?: unknown; telephone?: unknown }): {
+  email: string;
+  telephone: string;
+  telephoneE164: string | null;
+  valid: boolean;
+} {
+  const email = normaliseBookerEmail(input.email);
+  const telephone = String(input.telephone || '').trim().slice(0, 80);
+  const telephoneE164 = normaliseWhatsAppTelephone(telephone);
+  return {
+    email,
+    telephone,
+    telephoneE164,
+    valid: (email !== '' && validBookerEmail(email)) || telephoneE164 !== null,
+  };
+}
+
+export function isActiveBookingStatus(status: string): boolean {
+  return !INACTIVE_BOOKING_STATUSES.includes(status as typeof INACTIVE_BOOKING_STATUSES[number]);
+}
+
+export type BookerContactUpdateResult =
+  | { status: 'updated'; email: string; telephone: string | null; telephoneE164: string | null; whatsappConsentInvalidated: boolean }
+  | { status: 'not_found' | 'invalid_contact' | 'final_contact_required' };
+
+export async function updateProvisionalBookingContact(input: {
+  reference: string;
+  email: string;
+  telephone: string;
+}): Promise<BookerContactUpdateResult> {
+  const contact = validateBookerContact(input);
+  if ((contact.email && !validBookerEmail(contact.email)) || (contact.telephone && !contact.telephoneE164)) {
+    return { status: 'invalid_contact' };
+  }
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT status, guest_email, guest_telephone, guest_telephone_e164,
+              whatsapp_consent_status, whatsapp_consent_number_e164
+         FROM provisional_bookings WHERE public_id = $1::uuid FOR UPDATE`,
+      [input.reference],
+    );
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+    const previous = selected.rows[0];
+    if (!contact.valid && isActiveBookingStatus(String(previous.status))) {
+      await client.query('ROLLBACK');
+      return { status: 'final_contact_required' };
+    }
+    const telephoneChanged = (previous.guest_telephone_e164 || null) !== contact.telephoneE164;
+    const whatsappConsentInvalidated = telephoneChanged && previous.whatsapp_consent_status === 'active';
+    const updated = await client.query(
+      `UPDATE provisional_bookings SET
+         guest_email = $2, guest_telephone = $3, guest_telephone_e164 = $4,
+         whatsapp_consent_status = CASE WHEN $5 THEN 'withdrawn' ELSE whatsapp_consent_status END,
+         whatsapp_consent_withdrawn_at = CASE WHEN $5 THEN NOW() ELSE whatsapp_consent_withdrawn_at END,
+         whatsapp_consent_number_e164 = CASE WHEN $5 THEN NULL ELSE whatsapp_consent_number_e164 END
+       WHERE public_id = $1::uuid
+       RETURNING guest_email, guest_telephone, guest_telephone_e164`,
+      [input.reference, contact.email, contact.telephone || null, contact.telephoneE164, whatsappConsentInvalidated],
+    );
+    await client.query('COMMIT');
+    return {
+      status: 'updated', email: String(updated.rows[0].guest_email),
+      telephone: updated.rows[0].guest_telephone, telephoneE164: updated.rows[0].guest_telephone_e164,
+      whatsappConsentInvalidated,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
 
 export async function updateProvisionalBookingEmail(
   reference: string,

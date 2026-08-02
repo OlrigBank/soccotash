@@ -1,16 +1,9 @@
 import type { APIRoute } from 'astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
-import { updateProvisionalBookingEmail } from '../../../../../lib/booking/booking-contact';
+import { updateProvisionalBookingContact } from '../../../../../lib/booking/booking-contact';
 import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
-
-function validOptionalEmail(value: string): boolean {
-  return value === '' || (
-    value.length <= 254
-    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-  );
-}
 
 export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
   if (!isSameOrigin(request)) {
@@ -24,24 +17,26 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
 
   const form = await request.formData();
   const email = String(form.get('contactEmail') || '').trim().toLowerCase();
-  if (!validOptionalEmail(email)) {
-    return redirect(`/admin/bookings/${reference}/?contact=invalid`, 303);
-  }
+  const telephone = String(form.get('contactTelephone') || '').trim();
 
   const booking = await getProvisionalBookingRequest(reference);
   if (!booking) {
     return new Response('Booking request not found.', { status: 404 });
   }
 
-  const storedEmail = await updateProvisionalBookingEmail(reference, email);
-  if (storedEmail === null) {
+  const result = await updateProvisionalBookingContact({ reference, email, telephone });
+  if (result.status === 'not_found') {
     return new Response('Booking request not found.', { status: 404 });
   }
+  if (result.status !== 'updated') return redirect(`/admin/bookings/${reference}/?contact=${result.status}`, 303);
 
-  await audit(locals.adminUser!.id, 'booking.contact_email_updated', {
+  await audit(locals.adminUser!.id, 'booking.contact_updated', {
     bookingReference: reference,
     previousEmail: booking.email,
-    newEmail: storedEmail,
+    newEmail: result.email,
+    previousTelephone: booking.telephone,
+    newTelephone: result.telephone,
+    whatsappConsentInvalidated: result.whatsappConsentInvalidated,
   });
 
   return redirect(`/admin/bookings/${reference}/?contact=1`, 303);
