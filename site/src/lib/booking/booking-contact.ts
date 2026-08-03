@@ -2,6 +2,7 @@ import { getPool } from './db.ts';
 import { normaliseWhatsAppTelephone } from './whatsapp-phone.ts';
 
 export const INACTIVE_BOOKING_STATUSES = ['declined', 'cancelled', 'expired'] as const;
+export const BOOKER_CONTACT_REQUIRED_MESSAGE = 'Please provide an email address and/or a contact telephone number so that we can provide you with an offer.';
 
 export function normaliseBookerEmail(value: unknown): string {
   return String(value || '').trim().toLowerCase().slice(0, 254);
@@ -26,6 +27,13 @@ export function validateBookerContact(input: { email?: unknown; telephone?: unkn
     telephoneE164,
     valid: (email !== '' && validBookerEmail(email)) || telephoneE164 !== null,
   };
+}
+
+export function bookerContactSubmissionError(contact: ReturnType<typeof validateBookerContact>): string | null {
+  if (!contact.email && !contact.telephone) return BOOKER_CONTACT_REQUIRED_MESSAGE;
+  if (contact.email && !validBookerEmail(contact.email)) return 'Please provide a valid email address.';
+  if (contact.telephone && !contact.telephoneE164) return 'Please provide a valid contact telephone number, including the country code.';
+  return contact.valid ? null : BOOKER_CONTACT_REQUIRED_MESSAGE;
 }
 
 export function isActiveBookingStatus(status: string): boolean {
