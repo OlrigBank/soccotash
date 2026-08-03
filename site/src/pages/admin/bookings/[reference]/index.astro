@@ -369,6 +369,7 @@ const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assig
 const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactSaved = Astro.url.searchParams.get('contact') === '1';
+const contactTelephoneRemoved = Astro.url.searchParams.get('contact') === 'telephone_removed';
 const contactError = Astro.url.searchParams.get('contact');
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
@@ -414,6 +415,8 @@ if (arrangementAssigned) {
     : publishEmailStatus === 'failed'
       ? 'The offer is published, but the optional email copy could not be sent.'
       : 'The offer is published on the Booker booking page.';
+} else if (contactTelephoneRemoved) {
+  notice = 'The Booker telephone number was removed. The saved email address remains available.';
 } else if (contactSaved) {
   notice = 'The Booker contact details were updated.';
 }
@@ -495,12 +498,13 @@ if (arrangementAssigned) {
           <label>Booker telephone number
             <input type="tel" name="contactTelephone" value={contactTelephone} maxlength="80" autocomplete="off" />
           </label>
-          {booking.telephone && <label class="booking-delete-confirm">
-            <input type="checkbox" name="removeContactTelephone" value="yes" />
-            <span>Remove the saved telephone number</span>
-          </label>}
           <div class="booking-contact-form__actions">
             <button class="admin-button admin-button--secondary" type="submit">Save contact details</button>
+            {booking.telephone && (
+              <button class="admin-button admin-button--secondary" type="submit" name="removeContactTelephone" value="yes">
+                Remove the saved telephone number
+              </button>
+            )}
             <small>Active bookings must retain a valid email address or telephone number. Changing the telephone withdraws consent tied to the previous number.</small>
           </div>
         </form>
