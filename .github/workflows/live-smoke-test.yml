@@ -1,0 +1,54 @@
+name: Live soccotash smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Authorised non-production origin
+        required: true
+        default: https://soccotash.onrender.com
+        type: string
+  push:
+    branches:
+      - live-smoke-test
+
+permissions:
+  contents: read
+
+jobs:
+  replayable-smoke-test:
+    name: Record Chromium smoke-test playback
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_SMOKE_BASE_URL: ${{ inputs.base_url || 'https://soccotash.onrender.com' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Record live smoke tests
+        run: npm run test:live-smoke
+
+      - name: Upload playback report, traces and videos
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: live-smoke-playback-${{ github.run_number }}
+          path: |
+            playwright-report/live-smoke/
+            test-results/live-smoke/
+          if-no-files-found: error
+          retention-days: 14
