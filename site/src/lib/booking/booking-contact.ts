@@ -49,7 +49,7 @@ export function isActiveBookingStatus(status: string): boolean {
 }
 
 export type BookerContactUpdateResult =
-  | { status: 'updated'; email: string; telephone: string | null; telephoneE164: string | null; whatsappConsentInvalidated: boolean }
+  | { status: 'updated'; email: string; telephone: string | null; telephoneE164: string | null; whatsappConsentInvalidated: boolean; activityId: string }
   | { status: 'not_found' | 'invalid_contact' | 'final_contact_required' };
 
 export async function updateProvisionalBookingContact(input: {
@@ -88,10 +88,11 @@ export async function updateProvisionalBookingContact(input: {
        RETURNING id, guest_email, guest_telephone, guest_telephone_e164`,
       [input.reference, contact.email, contact.telephone || null, contact.telephoneE164, whatsappConsentInvalidated],
     );
-    await client.query(
+    const activity = await client.query(
       `INSERT INTO booking_activity
          (provisional_booking_id, actor, event_type, details)
-       VALUES ($1, 'administrator', 'booker_contact_updated', $2::jsonb)`,
+       VALUES ($1, 'administrator', 'booker_contact_updated', $2::jsonb)
+       RETURNING id::text`,
       [
         updated.rows[0].id,
         JSON.stringify({
@@ -103,11 +104,15 @@ export async function updateProvisionalBookingContact(input: {
         }),
       ],
     );
+    if (activity.rowCount !== 1 || !activity.rows[0]?.id) {
+      throw new Error('The Booker contact update audit entry was not recorded.');
+    }
     await client.query('COMMIT');
     return {
       status: 'updated', email: String(updated.rows[0].guest_email),
       telephone: updated.rows[0].guest_telephone, telephoneE164: updated.rows[0].guest_telephone_e164,
       whatsappConsentInvalidated,
+      activityId: String(activity.rows[0].id),
     };
   } catch (error) {
     await client.query('ROLLBACK');

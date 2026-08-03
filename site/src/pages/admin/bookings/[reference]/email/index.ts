@@ -48,5 +48,5 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
   });
 
   const contactStatus = adminContactUpdateStatus(removalRequested, result.telephone);
-  return redirect(`/admin/bookings/${reference}/?contact=${contactStatus}`, 303);
+  return redirect(`/admin/bookings/${reference}/?contact=${contactStatus}&contactActivity=${encodeURIComponent(result.activityId)}`, 303);
 };

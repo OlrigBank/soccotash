@@ -7,7 +7,7 @@ import { countPricingPlans } from '../../lib/pricing/repository';
 export const prerender = false;
 
 const featureBranch = 'agent/require-reachable-booker-contact';
-const featureIteration = 4;
+const featureIteration = 5;
 const featureCompareUrl = `https://github.com/OlrigBank/soccotash/compare/${featureBranch}`;
 
 const [listingCount, bookingCount, syncRows, pricingPlanCount] = await Promise.all([

@@ -62,10 +62,16 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
     const removed = await updateProvisionalBookingContact({
       reference, email: 'booker@example.com', telephone: '',
     });
-    assert.deepEqual(removed, {
+    assert.equal(removed.status, 'updated');
+    if (removed.status !== 'updated') assert.fail('Expected the telephone removal to succeed.');
+    assert.deepEqual({
+      status: removed.status, email: removed.email, telephone: removed.telephone,
+      telephoneE164: removed.telephoneE164, whatsappConsentInvalidated: removed.whatsappConsentInvalidated,
+    }, {
       status: 'updated', email: 'booker@example.com', telephone: null,
       telephoneE164: null, whatsappConsentInvalidated: false,
     });
+    assert.match(removed.activityId, /^\d+$/);
     const afterRemoval = await application.query(
       `SELECT guest_email, guest_telephone, guest_telephone_e164,
               whatsapp_consent_status, whatsapp_consent_number_e164
@@ -76,13 +82,14 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
       whatsapp_consent_status: 'withdrawn', whatsapp_consent_number_e164: null,
     });
     const activity = await application.query(
-      `SELECT actor, event_type, details
+      `SELECT ba.id::text, actor, event_type, details
          FROM booking_activity ba
          JOIN provisional_bookings pb ON pb.id = ba.provisional_booking_id
         WHERE pb.public_id = $1::uuid
         ORDER BY ba.id`, [reference],
     );
     assert.equal(activity.rowCount, 2);
+    assert.equal(activity.rows.some((row) => String(row.id) === removed.activityId), true);
     assert.equal(activity.rows[0].actor, 'administrator');
     assert.equal(activity.rows[0].event_type, 'booker_contact_updated');
     assert.deepEqual(activity.rows[0].details, {

@@ -368,15 +368,22 @@ const published = Astro.url.searchParams.get('published') === '1';
 const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
 const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
-const contactSaved = Astro.url.searchParams.get('contact') === '1';
-const contactTelephoneRemoved = Astro.url.searchParams.get('contact') === 'telephone_removed';
-const contactError = Astro.url.searchParams.get('contact');
+const contactStatus = Astro.url.searchParams.get('contact');
+const expectedContactActivityId = Astro.url.searchParams.get('contactActivity');
+const contactActivityConfirmed = Boolean(expectedContactActivityId)
+  && activity.some((event) => event.id === expectedContactActivityId && event.eventType === 'booker_contact_updated');
+const contactSaved = contactStatus === '1' && contactActivityConfirmed;
+const contactTelephoneRemoved = contactStatus === 'telephone_removed' && contactActivityConfirmed;
+const contactError = contactStatus;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancelled = Astro.url.searchParams.get('cancelled') === '1';
 const lifecycleEmailStatus = Astro.url.searchParams.get('email');
 if (contactError === 'invalid_contact') error = 'Enter a valid email address or telephone number.';
 if (contactError === 'final_contact_required') error = 'An active booking must retain at least one valid Booker contact method.';
+if ((contactStatus === '1' || contactStatus === 'telephone_removed') && !contactActivityConfirmed) {
+  error = 'The contact change could not be confirmed in Technical booking activity. No success has been reported.';
+}
 if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
 if (arrangementError === 'invalid') error = 'Choose Cottage, Main House or Olrig Bank before assigning the stay.';
 if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
