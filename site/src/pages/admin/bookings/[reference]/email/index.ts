@@ -17,9 +17,10 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
 
   const form = await request.formData();
   const email = String(form.get('contactEmail') || '').trim().toLowerCase();
+  const removalRequested = form.get('removeContactTelephone') === 'yes';
   const telephone = resolveAdminTelephoneUpdate(
     form.get('contactTelephone'),
-    form.get('removeContactTelephone') === 'yes',
+    removalRequested,
   );
 
   const booking = await getProvisionalBookingRequest(reference);
@@ -42,5 +43,6 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
     whatsappConsentInvalidated: result.whatsappConsentInvalidated,
   });
 
-  return redirect(`/admin/bookings/${reference}/?contact=1`, 303);
+  const contactStatus = removalRequested && result.telephone === null ? 'telephone_removed' : '1';
+  return redirect(`/admin/bookings/${reference}/?contact=${contactStatus}`, 303);
 };
