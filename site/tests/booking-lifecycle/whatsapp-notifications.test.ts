@@ -56,6 +56,29 @@ test('delivery statuses are monotonic and failures do not erase delivery evidenc
   assert.equal(nextDeliveryStatus('read', 'delivered'), 'read');
 });
 
+test('cancellation WhatsApp eligibility remains bound to consent for the current number', async () => {
+  const notificationDelivery = await import('../../src/lib/booking/notification-delivery.ts');
+  const hasActiveWhatsAppConsentForCurrentNumber = (
+    notificationDelivery as Record<string, unknown>
+  ).hasActiveWhatsAppConsentForCurrentNumber;
+  assert.equal(typeof hasActiveWhatsAppConsentForCurrentNumber, 'function');
+  if (typeof hasActiveWhatsAppConsentForCurrentNumber !== 'function') return;
+  const consent = {
+    whatsappConsentStatus: 'active',
+    telephoneE164: '+447700900123',
+    whatsappConsentNumberE164: '+447700900123',
+  } as const;
+  assert.equal(hasActiveWhatsAppConsentForCurrentNumber(consent), true);
+  assert.equal(hasActiveWhatsAppConsentForCurrentNumber({
+    ...consent,
+    telephoneE164: '+447700900456',
+  }), false);
+  assert.equal(hasActiveWhatsAppConsentForCurrentNumber({
+    ...consent,
+    whatsappConsentStatus: 'withdrawn',
+  }), false);
+});
+
 test('versioned templates contain only transactional booking parameters', () => {
   const template = getWhatsAppTemplate('payment_required');
   assert.match(template.version, /^v\d+$/);
