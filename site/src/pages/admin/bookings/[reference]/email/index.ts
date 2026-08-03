@@ -1,6 +1,10 @@
 import type { APIRoute } from 'astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
-import { resolveAdminTelephoneUpdate, updateProvisionalBookingContact } from '../../../../../lib/booking/booking-contact';
+import {
+  adminContactUpdateStatus,
+  resolveAdminTelephoneUpdate,
+  updateProvisionalBookingContact,
+} from '../../../../../lib/booking/booking-contact';
 import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
@@ -43,6 +47,6 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
     whatsappConsentInvalidated: result.whatsappConsentInvalidated,
   });
 
-  const contactStatus = removalRequested && result.telephone === null ? 'telephone_removed' : '1';
+  const contactStatus = adminContactUpdateStatus(removalRequested, result.telephone);
   return redirect(`/admin/bookings/${reference}/?contact=${contactStatus}`, 303);
 };
