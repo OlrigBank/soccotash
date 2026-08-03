@@ -14,6 +14,9 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   { type: 'length_discount', label: 'Length-of-stay discount', description: 'Discount bookings meeting a night threshold.', category: 'Stay rules' },
   { type: 'early_booking_discount', label: 'Early-booking discount', description: 'Discount bookings made far in advance.', category: 'Booking window' },
   { type: 'last_minute_discount', label: 'Last-minute discount', description: 'Discount stays booked close to arrival.', category: 'Booking window' },
+  { type: 'deposit_percentage', label: 'Deposit percentage', description: 'Set the initial-payment percentage for bookings accepted before the balance deadline.', category: 'Payment terms' },
+  { type: 'initial_payment_deadline', label: 'Initial-payment deadline', description: 'Set how many calendar days after acceptance the initial payment is due.', category: 'Payment terms' },
+  { type: 'balance_payment_deadline', label: 'Balance-payment deadline', description: 'Set how many calendar days before arrival the balance is due. Later acceptances require full payment.', category: 'Payment terms' },
   { type: 'extra_guest_charge', label: 'Extra-guest charge', description: 'Charge above the included guest count.', category: 'Fees' },
   { type: 'cleaning_fee', label: 'Cleaning fee', description: 'Fixed mandatory charge per booking unless included in a package.', category: 'Fees' },
   { type: 'pet_fee', label: 'Pet charge', description: 'Fixed fee per booking or per pet unless included in a package.', category: 'Fees' },
@@ -63,6 +66,12 @@ export function defaultRuleValues(type: PricingRuleType): {
       return { name, conditions: { minimumLeadDays: 180 }, action: { percentage: 10 }, priority: 45, stackable: false, stackingGroup: 'booking-window-discount' };
     case 'last_minute_discount':
       return { name, conditions: { maximumLeadDays: 14 }, action: { percentage: 12 }, priority: 45, stackable: false, stackingGroup: 'booking-window-discount' };
+    case 'deposit_percentage':
+      return { name, conditions: {}, action: { percentage: 25 }, priority: 100, stackable: false, stackingGroup: 'payment-terms' };
+    case 'initial_payment_deadline':
+      return { name, conditions: {}, action: { days: 7 }, priority: 100, stackable: false, stackingGroup: 'payment-terms' };
+    case 'balance_payment_deadline':
+      return { name, conditions: {}, action: { days: 42 }, priority: 100, stackable: false, stackingGroup: 'payment-terms' };
     case 'extra_guest_charge':
       return { name, conditions: {}, action: { includedGuests: 8, amountPence: 3000, perNight: true }, priority: 35, stackable: true, stackingGroup: 'occupancy-charge' };
     case 'cleaning_fee':

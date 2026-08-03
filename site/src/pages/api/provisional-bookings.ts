@@ -2,7 +2,11 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../lib/admin/auth';
 import { getProperty } from '../../lib/booking/config';
 import { isIsoDate, nightsBetween } from '../../lib/booking/dates';
-import { createProvisionalBooking } from '../../lib/booking/repository';
+import { createProvisionalBooking, getProvisionalBookingRequest } from '../../lib/booking/repository';
+import { deliverBookingNotification } from '../../lib/booking/notification-delivery';
+import { WHATSAPP_CONSENT_VERSION, validateWhatsAppConsent } from '../../lib/booking/whatsapp-phone';
+import { bookerContactSubmissionError, validateBookerContact } from '../../lib/booking/booking-contact';
+import { sendEmail } from '../../lib/email/sender';
 import { getPublishedPricingQuote, publicQuotePayload } from '../../lib/pricing/public';
 import type { PricingSimulationInput } from '../../lib/pricing/types';
 
@@ -28,9 +32,18 @@ export const POST: APIRoute = async ({ request }) => {
     const guests = Number(input.guests);
     const pets = Number(input.pets || 0);
     const name = cleanText(input.name, 120);
-    const email = cleanText(input.email, 254).toLowerCase();
-    const telephone = cleanText(input.telephone, 80);
+    const contact = validateBookerContact({ email: input.email, telephone: input.telephone });
+    const { email, telephone } = contact;
+    const contactError = bookerContactSubmissionError(contact);
+    if (contactError) return Response.json({ error: contactError }, { status: 400 });
+    const whatsappConsentRequested = input.whatsappConsent === 'yes' || input.whatsappConsent === true;
     const message = cleanText(input.message, 2000);
+    let whatsappConsent: ReturnType<typeof validateWhatsAppConsent>;
+    try {
+      whatsappConsent = validateWhatsAppConsent({ telephone, requested: whatsappConsentRequested });
+    } catch {
+      return Response.json({ error: 'Enter a valid telephone number, including the country code, to receive WhatsApp messages.' }, { status: 400 });
+    }
 
     if (!isIsoDate(arrival) || !isIsoDate(departure)) {
       return Response.json({ error: 'Please provide valid arrival and departure dates.' }, { status: 400 });
@@ -48,11 +61,10 @@ export const POST: APIRoute = async ({ request }) => {
       !Number.isInteger(pets) ||
       pets < 0 ||
       pets > 10 ||
-      name.length < 2 ||
-      (email.length > 0 && !/^\S+@\S+\.\S+$/.test(email))
+      name.length < 2
     ) {
       return Response.json(
-        { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} nights.` },
+        { error: `Please check the dates, guest number and contact details. The minimum stay is ${property.minimumNights} ${property.minimumNights === 1 ? 'night' : 'nights'}.` },
         { status: 400 },
       );
     }
@@ -67,7 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
       channel: 'direct',
       cancellationPlan: 'flexible',
     };
-    const pricingQuote = await getPublishedPricingQuote(pricingInput);
+    const pricingQuote = property.administratorPriced ? null : await getPublishedPricingQuote(pricingInput);
     const reviewedPricing = input.reviewedPricing && typeof input.reviewedPricing === 'object'
       ? input.reviewedPricing as Record<string, unknown>
       : null;
@@ -86,8 +98,11 @@ export const POST: APIRoute = async ({ request }) => {
             : 'The published price is no longer available. Review the updated enquiry details and submit again.',
           quote: pricingQuote ? publicQuotePayload(pricingQuote) : {
             pricingAvailable: false,
+            administratorPriced: property.administratorPriced === true,
             eligible: true,
-            message: 'Jenna will confirm the price for this provisional request.',
+            message: property.administratorPriced
+              ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
+              : 'Jenna will confirm the price for this provisional request.',
           },
         }, { status: 409, headers: { 'cache-control': 'no-store' } });
       }
@@ -109,9 +124,38 @@ export const POST: APIRoute = async ({ request }) => {
       name,
       email,
       telephone,
+      telephoneE164: whatsappConsent.telephoneE164,
+      whatsappConsentRequested,
+      whatsappConsentVersion: WHATSAPP_CONSENT_VERSION,
       message,
       pricingQuote,
     });
+    const saved = await getProvisionalBookingRequest(booking.reference);
+    if (saved) {
+      const origin = (process.env.BOOKING_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '');
+      const manageUrl = `${origin}/booking/manage/${booking.accessToken}/`;
+      try {
+        await deliverBookingNotification({
+          booking: saved,
+          eventType: 'booking_request_received',
+          sourceKey: `booking-request-received:${saved.reference}`,
+          target: 'booker',
+          propertyName: property.name,
+          manageUrl,
+          emailDelivery: saved.email ? async () => {
+            const sent = await sendEmail({
+              to: saved.email,
+              subject: `Your ${property.name} booking request`,
+              text: `Dear ${saved.name},\n\nYour booking request has been received. Updates will appear on your private booking page:\n${manageUrl}\n\nOlrig Bank`,
+              html: `<p>Dear ${saved.name.replace(/[&<>]/g, '')},</p><p>Your booking request has been received.</p><p><a href="${manageUrl}">Open your private booking page</a></p><p>Olrig Bank</p>`,
+            });
+            return { ...sent, recipient: saved.email };
+          } : undefined,
+        });
+      } catch {
+        console.error('Booking notification could not be recorded after request creation.');
+      }
+    }
     return Response.json({
       reference: booking.reference,
       status: 'pending',

@@ -27,13 +27,26 @@ const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit 
         {requests.map((request) => {
           const price = request.latestOfferTotalPence ?? request.guestTotalPence;
           const currency = request.latestOfferCurrency ?? request.pricingCurrency ?? 'GBP';
-          const source = request.latestOfferTotalPence !== null ? (request.status === 'confirmed' ? 'Confirmed direct booking' : request.status === 'payment_reported' ? 'Payment reported — verify before confirmation' : request.status === 'payment_pending' ? 'Accepted offer — payment due' : 'Latest offer') : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
-          const actionHref = request.status === 'payment_reported' ? `/admin/bookings/${request.reference}/payment/` : `/admin/bookings/${request.reference}/`;
-          const actionLabel = request.status === 'payment_reported' ? 'Verify payment' : request.unreadMessageCount > 0 ? 'Open messages' : request.status === 'confirmed' ? 'View' : 'Review';
+          const fullyPaid = Boolean(request.fullPaymentVerified || (request.depositVerified && request.balanceVerified));
+          const balanceReported = request.currentPaymentStatus === 'reported' && request.currentPaymentStage === 'balance';
+          const initialReported = request.currentPaymentStatus === 'reported' && request.currentPaymentStage !== 'balance';
+          const balanceState = request.balanceDueOn
+            ? request.balanceDueOn < new Date().toISOString().slice(0, 10) ? 'overdue' : request.balanceDueOn === new Date().toISOString().slice(0, 10) ? 'due today' : `due ${request.balanceDueOn}`
+            : 'due date not recorded';
+          const source = request.latestOfferTotalPence !== null ? (
+            fullyPaid ? 'Confirmed direct booking · fully paid'
+              : balanceReported ? 'Confirmed · balance verification required'
+                : request.status === 'confirmed' ? `Confirmed · ${money(request.balanceDuePence ?? 0, currency)} balance ${balanceState}`
+                  : initialReported ? 'Payment reported — verify before confirmation'
+                    : request.status === 'payment_pending' ? 'Accepted offer — payment due' : 'Latest offer'
+          ) : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
+          const paymentDecisionRequired = initialReported || balanceReported;
+          const actionHref = paymentDecisionRequired ? `/admin/bookings/${request.reference}/payment/` : `/admin/bookings/${request.reference}/`;
+          const actionLabel = balanceReported ? 'Verify balance' : initialReported ? 'Verify payment' : request.unreadMessageCount > 0 ? 'Open messages' : request.status === 'confirmed' ? 'View' : 'Review';
           return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']}>
-            <td>{price === null ? <span class="muted">Manual confirmation</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
+            <td>{price === null ? <span class="muted">Price to be agreed</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
             <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>
-            <td><strong>{request.name}</strong>{request.unreadMessageCount > 0 && <span class="booking-unread-badge">{request.unreadMessageCount} new</span>}<small><a href={`mailto:${request.email}`}>{request.email}</a>{request.telephone ? ` · ${request.telephone}` : ''}</small></td>
+            <td><strong>{request.name}</strong>{request.unreadMessageCount > 0 && <span class="booking-unread-badge">{request.unreadMessageCount} new</span>}{(request.email || request.telephone) && <small>{request.email && <a href={`mailto:${request.email}`}>{request.email}</a>}{request.email && request.telephone ? ' · ' : ''}{request.telephone || ''}</small>}</td>
             <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
             <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
             <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>

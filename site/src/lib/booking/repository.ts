@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
-import { getAvailabilityProperty, getPropertiesSharingAvailability, getProperty } from './config';
+import { getAvailabilityProperties, getAvailabilityProperty, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
+import type { PricingRule } from '../pricing/types';
 import { customerPricingLinesFromUnknown } from '../pricing/display';
+import { resolvePaymentTerms, type PaymentTermsSnapshot } from '../pricing/payment-terms';
 import {
   botMessageForActivity,
   insertAdministratorOfferMessage,
@@ -121,16 +123,13 @@ export async function recordSyncError(propertyId: string, error: unknown): Promi
 export async function getBlocks(propertyId: string, from: string, to: string): Promise<BookingBlock[]> {
   await expireElapsedBookingOffers();
   const property = getProperty(propertyId);
-  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
-  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${propertyId}`);
-  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
-
-  return queryBookingBlocks(getPool(), {
-    availabilityPropertyId: availabilityProperty.id,
-    propertyIds: linkedPropertyIds,
-    from,
-    to,
-  });
+  const availabilityProperties = property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error(`Unknown booking property: ${propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
+  const blocks = (await Promise.all(availabilityProperties.map((availabilityProperty) => queryBookingBlocks(getPool(), {
+    availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds, from, to,
+  })))).flat();
+  return [...new Map(blocks.map((block) => [`${block.startsOn}|${block.endsOn}|${block.source}`, block])).values()];
 }
 
 export async function getAdminCalendarEntries(from: string, to: string): Promise<AdminCalendarEntry[]> {
@@ -156,38 +155,50 @@ export async function createProvisionalBooking(input: {
   name: string;
   email: string;
   telephone?: string;
+  telephoneE164?: string | null;
+  whatsappConsentRequested?: boolean;
+  whatsappConsentVersion?: string | null;
   message?: string;
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<{ reference: string; accessToken: string }> {
   await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
-  const availabilityProperty = property ? getAvailabilityProperty(property) : undefined;
-  if (!property || !availabilityProperty) throw new Error(`Unknown booking property: ${input.propertyId}`);
-  const linkedPropertyIds = getPropertiesSharingAvailability(property).map((candidate) => candidate.id);
+  const availabilityProperties = property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error(`Unknown booking property: ${input.propertyId}`);
+  const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
   const accessToken = crypto.randomBytes(32).toString('base64url');
 
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
-    const conflict = await hasBookingDateConflict(client, {
-      availabilityPropertyId: availabilityProperty.id,
-      propertyIds: linkedPropertyIds,
-      arrival: input.arrival,
-      departure: input.departure,
-    });
+    for (const availabilityProperty of availabilityProperties) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    }
+    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
+      arrival: input.arrival, departure: input.departure,
+    })));
+    const conflict = conflicts.some(Boolean);
     if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_message,
+       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,
+        whatsapp_consent_status, whatsapp_consent_at, whatsapp_consent_source, whatsapp_consent_version,
+        whatsapp_consent_number_e164, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+        CASE WHEN $10 = 'active' THEN NOW() END, $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25,$26)
        RETURNING id::text, public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
-        input.telephone || null, input.message || null,
+        input.telephone || null, input.telephoneE164 || null,
+        input.whatsappConsentRequested ? 'active' : 'not_requested',
+        input.whatsappConsentRequested ? 'booking_form' : null,
+        input.whatsappConsentRequested ? input.whatsappConsentVersion || null : null,
+        input.whatsappConsentRequested ? input.telephoneE164 || null : null,
+        input.message || null,
         input.pricingQuote?.plan.id ?? null,
         input.pricingQuote?.plan.version ?? null,
         input.pricingQuote?.result.currency ?? null,
@@ -219,7 +230,9 @@ export async function createProvisionalBooking(input: {
     }
     await insertBotBookingMessage(client, {
       bookingId: result.rows[0].id,
-      body: 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
+      body: input.propertyId === 'bespoke-arrangement'
+        ? 'Your bespoke stay request has been received. Jenna will review the dates and discuss the accommodation and price with you here.'
+        : 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
       audience: 'booker',
       sourceKey: `request-received:${result.rows[0].id}`,
     });
@@ -231,6 +244,56 @@ export async function createProvisionalBooking(input: {
   } finally {
     client.release();
   }
+}
+
+export async function assignBespokeBookingArrangement(reference: string, propertyId: string): Promise<'updated' | 'not_bespoke' | 'dates_unavailable' | 'not_found'> {
+  if (!['main-house', 'cottage', 'whole-property'].includes(propertyId)) throw new Error('INVALID_ARRANGEMENT');
+  const property = getProperty(propertyId);
+  const availabilityProperties = propertyId === 'whole-property'
+    ? ['main-house', 'cottage'].map((id) => getProperty(id)).filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    : property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error('INVALID_ARRANGEMENT');
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT id::text, property_id, arrival::text, departure::text, status
+         FROM provisional_bookings WHERE public_id = $1::uuid FOR UPDATE`, [reference],
+    );
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
+    const booking = selected.rows[0];
+    if (booking.property_id !== 'bespoke-arrangement' || booking.status !== 'pending') {
+      await client.query('ROLLBACK'); return 'not_bespoke';
+    }
+    const linkedPropertyIds = getPropertiesSharingAnyAvailability({ ...property, availabilityPropertyIds: availabilityProperties.map((candidate) => candidate.id) })
+      .map((candidate) => candidate.id);
+    for (const availabilityProperty of availabilityProperties) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    }
+    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
+      arrival: booking.arrival, departure: booking.departure, excludeBookingId: booking.id,
+    })));
+    const conflict = conflicts.some(Boolean);
+    if (conflict) { await client.query('ROLLBACK'); return 'dates_unavailable'; }
+    await client.query(`UPDATE provisional_bookings SET property_id = $2 WHERE id = $1`, [booking.id, propertyId]);
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, 'administrator', 'bespoke_arrangement_assigned', $2::jsonb)`,
+      [booking.id, JSON.stringify({ propertyId })],
+    );
+    await insertBotBookingMessage(client, {
+      bookingId: booking.id,
+      body: `The bespoke request has been agreed as a ${property.name}. Jenna can now prepare the tailored offer.`,
+      audience: 'both',
+      sourceKey: `bespoke-arrangement-assigned:${booking.id}`,
+    });
+    await client.query('COMMIT');
+    return 'updated';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }
 
 export type BookingOfferLine = {
@@ -275,6 +338,13 @@ export type ProvisionalBookingRequest = {
   name: string;
   email: string;
   telephone: string | null;
+  telephoneE164: string | null;
+  whatsappConsentStatus: 'not_requested' | 'active' | 'withdrawn';
+  whatsappConsentAt: string | null;
+  whatsappConsentWithdrawnAt: string | null;
+  whatsappConsentSource: string | null;
+  whatsappConsentVersion: string | null;
+  whatsappConsentNumberE164: string | null;
   message: string | null;
   status: string;
   pricingPlanId?: string | null;
@@ -287,6 +357,17 @@ export type ProvisionalBookingRequest = {
   pricingInput?: Record<string, unknown> | null;
   pricingResult?: Record<string, unknown> | null;
   quotedAt: string | null;
+  depositPence?: number;
+  depositDueAt?: string | null;
+  balanceDuePence?: number;
+  balanceDueOn?: string | null;
+  paymentTermsSnapshot?: PaymentTermsSnapshot | null;
+  currentPaymentPublicId?: string | null;
+  currentPaymentStage?: 'deposit' | 'balance' | 'full_payment' | null;
+  currentPaymentStatus?: 'reported' | 'verified' | 'rejected' | 'cancelled' | null;
+  depositVerified?: boolean;
+  balanceVerified?: boolean;
+  fullPaymentVerified?: boolean;
   createdAt: string;
   latestOfferTotalPence: number | null;
   latestOfferCurrency: string | null;
@@ -298,6 +379,23 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
   return {
     ...row,
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
+    telephoneE164: row.telephoneE164 || null,
+    whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
+    whatsappConsentAt: row.whatsappConsentAt ? new Date(row.whatsappConsentAt).toISOString() : null,
+    whatsappConsentWithdrawnAt: row.whatsappConsentWithdrawnAt ? new Date(row.whatsappConsentWithdrawnAt).toISOString() : null,
+    whatsappConsentSource: row.whatsappConsentSource || null,
+    whatsappConsentVersion: row.whatsappConsentVersion || null,
+    whatsappConsentNumberE164: row.whatsappConsentNumberE164 || null,
+    depositPence: Number(row.depositPence || 0),
+    depositDueAt: row.depositDueAt ? new Date(row.depositDueAt).toISOString() : null,
+    balanceDuePence: Number(row.balanceDuePence || 0),
+    balanceDueOn: row.balanceDueOn || null,
+    currentPaymentPublicId: row.currentPaymentPublicId || null,
+    currentPaymentStage: row.currentPaymentStage || null,
+    currentPaymentStatus: row.currentPaymentStatus || null,
+    depositVerified: Boolean(row.depositVerified),
+    balanceVerified: Boolean(row.balanceVerified),
+    fullPaymentVerified: Boolean(row.fullPaymentVerified),
     createdAt: new Date(row.createdAt).toISOString(),
     latestOfferSentAt: row.latestOfferSentAt ? new Date(row.latestOfferSentAt).toISOString() : null,
     unreadMessageCount: Number(row.unreadMessageCount || 0),
@@ -319,12 +417,25 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
             pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
-            pb.guest_telephone AS telephone, pb.guest_message AS message, pb.status,
+            pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
+            pb.whatsapp_consent_status AS "whatsappConsentStatus",
+            pb.whatsapp_consent_at AS "whatsappConsentAt",
+            pb.whatsapp_consent_withdrawn_at AS "whatsappConsentWithdrawnAt",
+            pb.whatsapp_consent_source AS "whatsappConsentSource",
+            pb.whatsapp_consent_version AS "whatsappConsentVersion",
+            pb.whatsapp_consent_number_e164 AS "whatsappConsentNumberE164",
+            pb.guest_message AS message, pb.status,
             pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
             pb.pricing_currency AS "pricingCurrency", pb.accommodation_pence AS "accommodationPence",
             pb.fees_pence AS "feesPence", pb.guest_total_pence AS "guestTotalPence",
             pb.pricing_plan_version AS "pricingPlanVersion", pb.pricing_input AS "pricingInput",
-            pb.pricing_result AS "pricingResult", pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
+            pb.pricing_result AS "pricingResult", pb.quoted_at AS "quotedAt",
+            pb.deposit_pence AS "depositPence", pb.deposit_due_at AS "depositDueAt",
+            pb.balance_due_pence AS "balanceDuePence", pb.balance_due_on::text AS "balanceDueOn",
+            pb.payment_terms_snapshot AS "paymentTermsSnapshot", pb.created_at AS "createdAt",
+            payment_summary."currentPaymentPublicId", payment_summary."currentPaymentStage",
+            payment_summary."currentPaymentStatus", payment_summary."depositVerified",
+            payment_summary."balanceVerified", payment_summary."fullPaymentVerified",
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
             latest_offer.sent_at AS "latestOfferSentAt",
@@ -339,6 +450,18 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
           ORDER BY published_at DESC, id DESC
           LIMIT 1
        ) latest_offer ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           (ARRAY_AGG(bp.public_id::text ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentPublicId",
+           (ARRAY_AGG(bp.stage ORDER BY bp.reported_at DESC, bp.id DESC)
+             FILTER (WHERE bp.status = 'reported'))[1] AS "currentPaymentStage",
+           (ARRAY_AGG(bp.status ORDER BY bp.reported_at DESC, bp.id DESC))[1] AS "currentPaymentStatus",
+           BOOL_OR(bp.stage = 'deposit' AND bp.status = 'verified') AS "depositVerified",
+           BOOL_OR(bp.stage = 'balance' AND bp.status = 'verified') AS "balanceVerified",
+           BOOL_OR(bp.stage = 'full_payment' AND bp.status = 'verified') AS "fullPaymentVerified"
+         FROM booking_payments bp WHERE bp.provisional_booking_id = pb.id
+       ) payment_summary ON TRUE
       WHERE pb.public_id = $1::uuid`,
     [reference],
   );
@@ -355,6 +478,17 @@ export async function deleteProvisionalBookingRequest(reference: string): Promis
   return Boolean(result.rowCount);
 }
 
+export async function withdrawProvisionalBookingWhatsAppConsent(reference: string, _source: 'booker' | 'administrator'): Promise<boolean> {
+  const result = await getPool().query(
+    `UPDATE provisional_bookings
+        SET whatsapp_consent_status = 'withdrawn', whatsapp_consent_withdrawn_at = NOW()
+      WHERE public_id = $1::uuid AND whatsapp_consent_status = 'active'
+      RETURNING id`,
+    [reference],
+  );
+  return Boolean(result.rowCount);
+}
+
 export async function deleteProductionAcceptanceTestBooking(
   reference: string,
   confirmedReference: string,
@@ -364,7 +498,7 @@ export async function deleteProductionAcceptanceTestBooking(
     `DELETE FROM provisional_bookings
       WHERE public_id = $1::uuid
         AND guest_name LIKE 'Production Acceptance Test%'
-        AND status IN ('payment_pending', 'payment_reported', 'confirmed', 'approved')`,
+        AND status IN ('payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled')`,
     [reference],
   );
   return Boolean(result.rowCount);
@@ -478,7 +612,7 @@ export async function publishBookingOffer(input: {
     const selected = await client.query(
       `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
               COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
-              pb.status AS booking_status
+              pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
          LEFT JOIN admin_users au ON au.id = bo.admin_user_id
@@ -491,6 +625,9 @@ export async function publishBookingOffer(input: {
     const bookingId = row.provisional_booking_id;
     if (!['pending', 'offered'].includes(row.booking_status)) {
       throw new Error('BOOKING_CANNOT_BE_OFFERED');
+    }
+    if (!String(row.guest_email || '').trim() && !String(row.guest_telephone_e164 || '').trim()) {
+      throw new Error('BOOKER_CONTACT_REQUIRED');
     }
 
     await client.query(
@@ -632,6 +769,10 @@ export type CustomerBookingOffer = {
   guestName: string;
   guestEmail: string;
   guestTelephone: string | null;
+  telephoneE164: string | null;
+  whatsappConsentStatus: 'not_requested' | 'active' | 'withdrawn';
+  whatsappConsentAt: string | null;
+  whatsappConsentWithdrawnAt: string | null;
   guestMessage: string | null;
   bookingStatus: string;
   requestCreatedAt: string;
@@ -653,6 +794,7 @@ export type CustomerBookingOffer = {
   tokenRevokedAt: string | null;
   paymentMethod: 'gocardless' | 'stripe' | 'bank_transfer' | null;
   depositPence: number;
+  depositDueAt: string | null;
   balanceDuePence: number;
   balanceDueOn: string | null;
   paymentReportedAt: string | null;
@@ -679,6 +821,10 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     guestName: row.guestName,
     guestEmail: row.guestEmail || '',
     guestTelephone: row.guestTelephone,
+    telephoneE164: row.telephoneE164 || null,
+    whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
+    whatsappConsentAt: row.whatsappConsentAt ? new Date(row.whatsappConsentAt).toISOString() : null,
+    whatsappConsentWithdrawnAt: row.whatsappConsentWithdrawnAt ? new Date(row.whatsappConsentWithdrawnAt).toISOString() : null,
     guestMessage: row.guestMessage,
     bookingStatus: row.bookingStatus,
     requestCreatedAt: new Date(row.requestCreatedAt).toISOString(),
@@ -700,6 +846,7 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     tokenRevokedAt: row.tokenRevokedAt ? new Date(row.tokenRevokedAt).toISOString() : null,
     paymentMethod: row.paymentMethod || null,
     depositPence: Number(row.depositPence || 0),
+    depositDueAt: row.depositDueAt ? new Date(row.depositDueAt).toISOString() : null,
     balanceDuePence: Number(row.balanceDuePence || 0),
     balanceDueOn: row.balanceDueOn || null,
     paymentReportedAt: row.paymentReportedAt ? new Date(row.paymentReportedAt).toISOString() : null,
@@ -712,23 +859,26 @@ const customerBookingSelect = `
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
          pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
          pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
-         pb.guest_telephone AS "guestTelephone", pb.guest_message AS "guestMessage",
+         pb.guest_telephone AS "guestTelephone", pb.guest_telephone_e164 AS "telephoneE164",
+         pb.whatsapp_consent_status AS "whatsappConsentStatus",
+         pb.whatsapp_consent_at AS "whatsappConsentAt",
+         pb.whatsapp_consent_withdrawn_at AS "whatsappConsentWithdrawnAt",
+         pb.guest_message AS "guestMessage",
          pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt",
          pb.payment_method AS "paymentMethod", pb.deposit_pence AS "depositPence",
-         pb.balance_due_pence AS "balanceDuePence", pb.balance_due_on::text AS "balanceDueOn",
+         pb.deposit_due_at AS "depositDueAt", pb.balance_due_pence AS "balanceDuePence",
+         pb.balance_due_on::text AS "balanceDueOn",
          pb.payment_reported_at AS "paymentReportedAt", pb.payment_received_at AS "paymentReceivedAt",
          pb.pricing_currency AS "recordedCurrency", pb.guest_total_pence AS "recordedTotalPence",
          pb.pricing_result AS "recordedPricingResult",
          bo.currency, bo.line_items AS "lineItems", bo.total_pence AS "totalPence",
          bo.offer_message AS "offerMessage", bo.terms, bo.valid_until::text AS "validUntil",
          bo.subject,
-         COALESCE(
-           bo.customer_status,
-           CASE WHEN pb.status = 'declined' THEN 'declined'
-                WHEN pb.status = 'expired' THEN 'expired'
-                WHEN pb.status = 'cancelled' THEN 'cancelled'
-                ELSE 'request_pending' END
-         ) AS "customerStatus",
+         CASE WHEN pb.status = 'cancelled' THEN 'cancelled'
+              WHEN pb.status = 'declined' THEN 'declined'
+              WHEN pb.status = 'expired' THEN 'expired'
+              ELSE COALESCE(bo.customer_status, 'request_pending')
+         END AS "customerStatus",
          bo.sent_at AS "sentAt", bo.published_at AS "publishedAt",
          bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
          bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
@@ -855,7 +1005,15 @@ export async function respondToCustomerBookingOffer(
               bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
               bo.token_revoked_at,
               pb.public_id::text AS booking_reference, pb.property_id,
-              pb.arrival::text, pb.departure::text, pb.status AS booking_status
+              pb.arrival::text, pb.departure::text, pb.status AS booking_status,
+              bo.total_pence AS offer_total_pence,
+              COALESCE(
+                pb.pricing_plan_id,
+                (SELECT id
+                   FROM pricing_plans
+                  WHERE property_id = pb.property_id AND status = 'published'
+                  LIMIT 1)
+              ) AS payment_terms_plan_id
          FROM provisional_bookings pb
          JOIN resolved r ON r.id = pb.id
          JOIN booking_offers bo ON bo.id = (
@@ -948,9 +1106,35 @@ export async function respondToCustomerBookingOffer(
         return 'dates_unavailable';
       }
 
+      if (!row.payment_terms_plan_id) {
+        throw new Error('PAYMENT_TERMS_PRICING_PLAN_REQUIRED');
+      }
+      const paymentTermRows = await client.query(
+        `SELECT r.id::text, r.plan_id::text AS "planId",
+                r.rule_definition_id::text AS "ruleDefinitionId",
+                r.type, r.name, r.position, r.priority, r.enabled, r.stackable,
+                r.stacking_group AS "stackingGroup", r.conditions, r.action,
+                p.version AS "planVersion"
+           FROM pricing_rules r
+           JOIN pricing_plans p ON p.id = r.plan_id
+          WHERE r.plan_id = $1
+            AND r.type IN ('deposit_percentage', 'initial_payment_deadline', 'balance_payment_deadline')
+          ORDER BY r.position, r.priority DESC, r.id`,
+        [row.payment_terms_plan_id],
+      );
+      const acceptedAt = new Date();
+      const paymentTerms = resolvePaymentTerms({
+        rules: paymentTermRows.rows as PricingRule[],
+        pricingPlanId: String(row.payment_terms_plan_id),
+        pricingPlanVersion: Number(paymentTermRows.rows[0]?.planVersion),
+        totalPence: Number(row.offer_total_pence),
+        acceptedAt,
+        arrival: row.arrival,
+      });
+
       await client.query(
-        `UPDATE booking_offers SET customer_status = 'accepted', accepted_at = NOW() WHERE id = $1`,
-        [row.id],
+        `UPDATE booking_offers SET customer_status = 'accepted', accepted_at = $2 WHERE id = $1`,
+        [row.id, acceptedAt],
       );
       await client.query(
         `UPDATE booking_offers
@@ -961,14 +1145,20 @@ export async function respondToCustomerBookingOffer(
       await client.query(
         `UPDATE provisional_bookings
             SET status = 'payment_pending',
-                deposit_pence = GREATEST(1, ROUND(COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) *
-                  (COALESCE(NULLIF($3, ''), '25')::numeric / 100.0)))::integer,
-                balance_due_pence = GREATEST(0, COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) -
-                  GREATEST(1, ROUND(COALESCE((SELECT total_pence FROM booking_offers WHERE id = $2), guest_total_pence, 0) *
-                  (COALESCE(NULLIF($3, ''), '25')::numeric / 100.0)))::integer),
-                deposit_due_at = NOW() + INTERVAL '7 days'
+                deposit_pence = $2,
+                balance_due_pence = $3,
+                deposit_due_at = $4,
+                balance_due_on = $5,
+                payment_terms_snapshot = $6::jsonb
           WHERE id = $1`,
-        [row.provisional_booking_id, row.id, String(process.env.BOOKING_DEPOSIT_PERCENT || '25')],
+        [
+          row.provisional_booking_id,
+          paymentTerms.initialPaymentPence,
+          paymentTerms.balanceDuePence,
+          paymentTerms.initialPaymentDueAt,
+          paymentTerms.balanceDueOn,
+          JSON.stringify(paymentTerms),
+        ],
       );
       await client.query(
         `INSERT INTO booking_activity
@@ -979,7 +1169,9 @@ export async function respondToCustomerBookingOffer(
       await insertBotBookingMessage(client, {
         bookingId: row.provisional_booking_id,
         offerId: row.id,
-        body: 'The Booker accepted the offer. A deposit is now required before the booking is confirmed.',
+        body: paymentTerms.fullPaymentRequired
+          ? 'The Booker accepted the offer. Full payment is required before the booking is confirmed.'
+          : 'The Booker accepted the offer. The initial deposit is required before the booking is confirmed.',
         audience: 'administrator',
         sourceKey: `offer-accepted-payment-required:${row.id}`,
       });
@@ -1018,80 +1210,6 @@ export async function respondToCustomerBookingOffer(
   }
 }
 
-
-export type ManualTransferResult = 'confirmed' | 'paid_in_full' | 'already_paid' | 'payment_not_due' | 'not_found';
-
-export async function reportManualBankTransfer(token: string): Promise<ManualTransferResult> {
-  if (!validAccessToken(token)) return 'not_found';
-  const tokenHash = accessTokenHash(token);
-  const client = await getPool().connect();
-  try {
-    await client.query('BEGIN');
-    const selected = await client.query(
-      `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
-       )
-       SELECT pb.id, pb.status, pb.public_id::text AS booking_reference,
-              pb.balance_due_pence, pb.payment_received_at, bo.id AS offer_id
-         FROM provisional_bookings pb
-         JOIN resolved r ON r.id = pb.id
-         LEFT JOIN LATERAL (
-           SELECT id FROM booking_offers candidate
-            WHERE candidate.provisional_booking_id = pb.id
-              AND candidate.customer_status = 'accepted'
-            ORDER BY candidate.id DESC LIMIT 1
-         ) bo ON TRUE
-        FOR UPDATE OF pb`, [token, tokenHash]);
-    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
-    const row = selected.rows[0];
-    if ((row.status === 'confirmed' || row.status === 'approved') && Number(row.balance_due_pence || 0) <= 0) { await client.query('ROLLBACK'); return 'already_paid'; }
-    if (!['payment_pending', 'payment_reported', 'confirmed', 'approved'].includes(row.status)) { await client.query('ROLLBACK'); return 'payment_not_due'; }
-
-    const payingBalance = row.status === 'confirmed' || row.status === 'approved';
-    await client.query(
-      payingBalance
-        ? `UPDATE provisional_bookings
-              SET payment_method = 'bank_transfer', balance_due_pence = 0,
-                  payment_reported_at = NOW(), payment_received_at = NOW()
-            WHERE id = $1`
-        : `UPDATE provisional_bookings
-              SET status = 'confirmed', payment_method = 'bank_transfer',
-                  payment_reported_at = COALESCE(payment_reported_at, NOW()),
-                  payment_received_at = COALESCE(payment_received_at, NOW()),
-                  confirmed_at = COALESCE(confirmed_at, NOW())
-            WHERE id = $1`, [row.id]);
-    await client.query(
-      `INSERT INTO booking_activity
-         (provisional_booking_id, booking_offer_id, actor, event_type, details)
-       VALUES ($1, $2, 'customer', CASE WHEN $3 THEN 'manual_balance_transfer_reported' ELSE 'manual_bank_transfer_reported' END,
-               jsonb_build_object('confirmation_basis','booker_reported_sent','payment_stage',CASE WHEN $3 THEN 'balance' ELSE 'deposit' END))`, [row.id, row.offer_id, payingBalance]);
-    await insertBotBookingMessage(client, {
-      bookingId: row.id,
-      offerId: row.offer_id,
-      body: payingBalance
-        ? 'The Booker has reported that the remaining balance was sent by manual bank transfer. Administrators should verify the transfer against the bank account.'
-        : 'The Booker has reported that the deposit was sent by manual bank transfer. The booking status is now confirmed; administrators should verify the transfer against the bank account.',
-      audience: 'administrator',
-      sourceKey: `manual-transfer-admin:${row.id}:${payingBalance ? 'balance' : 'deposit'}`, 
-    });
-    await insertBotBookingMessage(client, {
-      bookingId: row.id,
-      offerId: row.offer_id,
-      body: payingBalance
-        ? 'Balance payment reported. You told us that the remaining balance was sent by bank transfer. Olrig Bank will verify it and contact you here if anything needs attention.'
-        : 'Booking confirmed. You reported that the deposit was sent by bank transfer. Olrig Bank will verify the transfer and contact you here if anything needs attention.',
-      audience: 'booker',
-      sourceKey: `manual-transfer-confirmed:${row.id}:${payingBalance ? 'balance' : 'deposit'}`, 
-    });
-    await client.query('COMMIT');
-    return payingBalance ? 'paid_in_full' : 'confirmed';
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally { client.release(); }
-}
 
 export async function recordBookingActivity(input: {
   bookingReference: string;

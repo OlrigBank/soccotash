@@ -50,12 +50,15 @@ export const POST: APIRoute = async ({ request }) => {
       channel: 'direct',
       cancellationPlan: 'flexible',
     };
-    const quote = await getPublishedPricingQuote(input);
+    const quote = property.administratorPriced ? null : await getPublishedPricingQuote(input);
     if (!quote) {
       return Response.json({
         pricingAvailable: false,
+        administratorPriced: property.administratorPriced === true,
         eligible: true,
-        message: 'No published online price is available for this listing. Jenna will confirm the price with the provisional request.',
+        message: property.administratorPriced
+          ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
+          : 'No published online price is available for this listing. Jenna will confirm the price with the provisional request.',
       }, { headers: { 'cache-control': 'no-store' } });
     }
     const payload = publicQuotePayload(quote);

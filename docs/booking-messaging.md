@@ -33,6 +33,15 @@ Email is optional and is not the booking record. A sender can select an email-co
 - Message delivery success or failure is stored against the message.
 - A failed email does not remove or roll back the conversation message.
 
+The essential payment and cancellation lifecycle notifications are automatic:
+
+- a reported manual bank transfer notifies the administrators;
+- payment verification and booking confirmation notify the Booker;
+- rejection of a payment report notifies the Booker and includes the administrator's reason;
+- cancellation notifies the Booker and includes the administrator's reason.
+
+The recipient type is taken from the canonical lifecycle rule. Delivery success, failure or a missing-recipient skip is recorded in technical booking activity. Email delivery happens after the status transaction commits, so a provider failure never reverses a valid payment or cancellation transition.
+
 ## Unread messages
 
 Each message stores separate Booker and administrator read timestamps. Opening or polling a conversation marks messages read for that viewer. The administrator bookings list shows the count of unread conversation items and offers an **Open messages** action.

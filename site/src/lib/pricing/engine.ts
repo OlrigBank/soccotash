@@ -18,6 +18,11 @@ const RESTRICTION_TYPES = new Set([
   'departure_day_restriction',
 ]);
 const FEE_TYPES = new Set(['cleaning_fee', 'pet_fee']);
+const PAYMENT_TERM_TYPES = new Set([
+  'deposit_percentage',
+  'initial_payment_deadline',
+  'balance_payment_deadline',
+]);
 
 function integer(value: unknown, fallback = 0): number {
   const parsed = Number(value);
@@ -127,6 +132,37 @@ export function findPricingConflicts(plan: PricingPlan): PricingConflict[] {
   const bases = rules.filter((rule) => rule.type === 'default_nightly_price');
   if (bases.length > 1) {
     conflicts.push(conflict('multiple_default_prices', 'error', `More than one default nightly price is enabled: ${bases.map((rule) => rule.name).join(', ')}.`, bases));
+  }
+
+  for (const type of PAYMENT_TERM_TYPES) {
+    const matching = rules.filter((rule) => rule.type === type);
+    if (!matching.length) {
+      conflicts.push(conflict(
+        `missing_${type}`,
+        'error',
+        `The pricing plan requires one enabled ${type.replaceAll('_', ' ')} rule.`,
+        [],
+      ));
+    } else if (matching.length > 1) {
+      conflicts.push(conflict(
+        `multiple_${type}`,
+        'error',
+        `More than one ${type.replaceAll('_', ' ')} rule is enabled: ${matching.map((rule) => rule.name).join(', ')}.`,
+        matching,
+      ));
+    }
+  }
+
+  const depositRule = rules.find((rule) => rule.type === 'deposit_percentage');
+  if (depositRule && (decimal(depositRule.action.percentage) <= 0 || decimal(depositRule.action.percentage) > 100)) {
+    conflicts.push(conflict('invalid_deposit_percentage', 'error', 'The deposit percentage must be greater than 0% and no more than 100%.', [depositRule]));
+  }
+
+  for (const type of ['initial_payment_deadline', 'balance_payment_deadline'] as const) {
+    const deadlineRule = rules.find((rule) => rule.type === type);
+    if (deadlineRule && (!Number.isInteger(Number(deadlineRule.action.days)) || Number(deadlineRule.action.days) < 0 || Number(deadlineRule.action.days) > 3650)) {
+      conflicts.push(conflict(`invalid_${type}`, 'error', `${deadlineRule.name} must contain a whole number from 0 to 3650 days.`, [deadlineRule]));
+    }
   }
 
   for (const [left, right] of pairs(rules.filter((rule) => rule.type === 'date_override'))) {
@@ -243,6 +279,9 @@ export function simulatePricing(plan: PricingPlan, input: PricingSimulationInput
   for (const rule of rules.filter((candidate) => !candidate.enabled)) {
     explanations.push(explanation(rule, false, 'rule is switched off'));
   }
+  for (const rule of rules.filter((candidate) => candidate.enabled && PAYMENT_TERM_TYPES.has(candidate.type))) {
+    explanations.push(explanation(rule, false, 'used to calculate payment amounts and deadlines when an offer is accepted'));
+  }
 
   for (const rule of rules.filter((candidate) => candidate.enabled && RESTRICTION_TYPES.has(candidate.type))) {
     const failure = commonConditionFailure(rule, input, nights, leadDays);
@@ -292,7 +331,7 @@ export function simulatePricing(plan: PricingPlan, input: PricingSimulationInput
   }
 
   for (const rule of rules) {
-    if (!rule.enabled || RESTRICTION_TYPES.has(rule.type) || FEE_TYPES.has(rule.type) || rule.type === 'price_floor' || rule.type === 'channel_commission') continue;
+    if (!rule.enabled || RESTRICTION_TYPES.has(rule.type) || PAYMENT_TERM_TYPES.has(rule.type) || FEE_TYPES.has(rule.type) || rule.type === 'price_floor' || rule.type === 'channel_commission') continue;
 
     const datePerNight = rule.type === 'seasonal_adjustment' || rule.type === 'date_override';
     const failure = commonConditionFailure(rule, input, nights, leadDays, !datePerNight);

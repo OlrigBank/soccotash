@@ -189,7 +189,7 @@ const nextJulyDeparture = `${new Date().getUTCFullYear() + 1}-07-12`;
     const ruleAction = {};
     const numericFields = new Set([
       'priority', 'conditions.minimumNights', 'conditions.maximumNights', 'conditions.minimumLeadDays', 'conditions.maximumLeadDays',
-      'action.percentage', 'action.nights', 'action.includedGuests',
+      'action.percentage', 'action.nights', 'action.includedGuests', 'action.days',
     ]);
     for (const [key, value] of data.entries()) {
       if (key === 'name' || key === 'priority' || key === 'enabled' || key === 'stackable' || key === 'stackingGroup') continue;

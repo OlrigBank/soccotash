@@ -15,6 +15,7 @@ import {
   markBookingOfferSent,
   publishBookingOffer,
   recordBookingActivity,
+  withdrawProvisionalBookingWhatsAppConsent,
   type BookingOfferLine,
 } from '../../../../lib/booking/repository';
 import {
@@ -24,8 +25,17 @@ import {
 } from '../../../../lib/booking/messaging';
 import { defaultOfferSubject, sendBookingOfferEmail } from '../../../../lib/booking/offer-email';
 import { sendBookerMessageEmail } from '../../../../lib/booking/message-email';
+import { cancelBooking } from '../../../../lib/booking/cancellation-lifecycle';
+import { deliverBookingLifecycleNotification } from '../../../../lib/booking/lifecycle-notification';
+import { getBookingPaymentHistory } from '../../../../lib/booking/payment-lifecycle';
+import { listAllowedBookingTransitions } from '../../../../lib/booking/lifecycle';
 import { getEmailConfiguration } from '../../../../lib/email/sender';
+import { deliverBookingNotification, getBookingNotificationHistory } from '../../../../lib/booking/notification-delivery';
+import { getWhatsAppConfiguration } from '../../../../lib/booking/whatsapp-provider';
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
+import { validateOfferTotal } from '../../../../lib/booking/offer-price';
+import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../../../../lib/booking/admin-display';
+import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
 
 export const prerender = false;
 
@@ -35,17 +45,22 @@ let booking = await getProvisionalBookingRequest(reference);
 if (!booking) return new Response('Booking request not found.', { status: 404 });
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
 const emailConfiguration = getEmailConfiguration();
+const whatsappConfiguration = getWhatsAppConfiguration();
+const whatsappNotificationAvailable = booking.whatsappConsentStatus === 'active' && whatsappConfiguration.configured;
 const configuredPublicOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
 const publicOrigin = configuredPublicOrigin || Astro.url.origin;
 const bookerManageUrl = booking.customerAccessToken
   ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
   : '';
-const canOffer = booking.status === 'pending' || booking.status === 'offered';
+const isUnassignedBespoke = booking.propertyId === 'bespoke-arrangement';
+const canOffer = (booking.status === 'pending' || booking.status === 'offered') && !isUnassignedBespoke;
 const canDeleteNormally = booking.status === 'pending' || booking.status === 'offered';
 const isAcceptanceTestBooking = booking.name.startsWith('Production Acceptance Test');
 const canDeleteAcceptanceTest = isAcceptanceTestBooking
-  && ['payment_pending', 'payment_reported', 'confirmed', 'approved'].includes(booking.status);
+  && ['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled'].includes(booking.status);
 const canDelete = canDeleteNormally || canDeleteAcceptanceTest;
+const canCancel = listAllowedBookingTransitions(booking.status, 'administrator')
+  .some((transition) => transition.action === 'cancel_booking');
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 
@@ -70,11 +85,14 @@ function pricingLines(value: Record<string, unknown> | null | undefined): Bookin
 
 let offers = await getBookingOffers(reference);
 let activity = await getBookingActivity(reference);
+let payments = await getBookingPaymentHistory(reference);
 const priorOffer = offers.find((offer) => offer.customerStatus === 'active' || offer.customerStatus === 'accepted') ?? offers[0];
+const recordedPricingLines = pricingLines(booking.pricingResult);
+const priceToBeAgreed = Astro.request.method !== 'POST' && !priorOffer?.lineItems.length && !recordedPricingLines.length && booking.guestTotalPence === null;
 const initialLines = priorOffer?.lineItems.length
   ? priorOffer.lineItems
-  : pricingLines(booking.pricingResult).length
-    ? pricingLines(booking.pricingResult)
+  : recordedPricingLines.length
+    ? recordedPricingLines
     : [{ label: 'Accommodation and charges', detail: 'Price agreed during administrative review.', amountPence: booking.guestTotalPence ?? 0 }];
 const defaultValidity = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
@@ -84,6 +102,7 @@ let terms = priorOffer?.terms ?? '';
 let validUntil = priorOffer?.validUntil ?? defaultValidity;
 let subject = priorOffer?.subject ?? defaultOfferSubject(booking, propertyName);
 let contactEmail = booking.email;
+let contactTelephone = booking.telephone || '';
 let error = '';
 let messageError = '';
 
@@ -92,10 +111,14 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
-  if (action === 'send-message') {
+  if (action === 'withdraw-whatsapp-consent') {
+    await withdrawProvisionalBookingWhatsAppConsent(reference, 'administrator');
+    await audit(Astro.locals.adminUser!.id, 'booking.whatsapp_consent_withdrawn', { bookingReference: reference });
+    return Astro.redirect(`/admin/bookings/${reference}/?consent=withdrawn`);
+  } else if (action === 'send-message') {
     const body = cleanText(form.get('messageBody'), 5000);
     const notificationRequested = form.get('sendMessageEmail') === 'yes';
-    const notificationAvailable = Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
+    const notificationAvailable = whatsappNotificationAvailable || Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
     if (!body) {
       messageError = 'Write a message before sending.';
     } else {
@@ -108,24 +131,27 @@ if (Astro.request.method === 'POST') {
         notificationRequested: shouldNotify,
         notificationRecipient: shouldNotify ? booking.email : null,
       });
-      let notificationStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
+      let notificationStatus: 'submitted' | 'sent' | 'failed' | 'skipped' = 'skipped';
       if (shouldNotify) {
         try {
           if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
+          const notificationBooking = booking;
           const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
-          const sent = await sendBookerMessageEmail({
-            booking,
-            propertyName,
-            senderName: Astro.locals.adminUser!.displayName || 'Jenna',
-            body,
-            manageUrl,
+          const delivery = await deliverBookingNotification({
+            booking: notificationBooking, propertyName, manageUrl, target: 'booker', eventType: 'booking_message_available',
+            sourceKey: `administrator-message:${message.publicId}`,
+            emailDelivery: booking.email ? async () => {
+              const sent = await sendBookerMessageEmail({
+                booking: notificationBooking, propertyName, senderName: Astro.locals.adminUser!.displayName || 'Jenna', body, manageUrl,
+              });
+              return { ...sent, recipient: notificationBooking.email };
+            } : undefined,
           });
-          notificationStatus = 'sent';
+          notificationStatus = delivery.status === 'submitted' ? 'submitted' : delivery.status === 'sent' ? 'sent' : delivery.status === 'failed' ? 'failed' : 'skipped';
           await markBookingMessageNotification({
             messageId: message.id,
-            status: 'sent',
-            recipient: booking.email,
-            messageIdFromProvider: sent.messageId,
+            status: notificationStatus === 'submitted' ? 'sent' : notificationStatus,
+            recipient: delivery.channel === 'whatsapp' ? booking.telephoneE164 || undefined : booking.email,
           });
         } catch (sendError) {
           notificationStatus = 'failed';
@@ -150,6 +176,52 @@ if (Astro.request.method === 'POST') {
         notificationStatus,
       });
       return Astro.redirect(`/admin/bookings/${reference}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+    }
+  } else if (action === 'cancel-booking') {
+    const cancellationReason = cleanText(form.get('cancellationReason'), 1000);
+    if (!canCancel) {
+      error = `A booking with status “${booking.status}” cannot be cancelled.`;
+    } else if (form.get('confirmCancellation') !== 'yes') {
+      error = 'Confirm that this booking should be cancelled and its dates released.';
+    } else if (!cancellationReason) {
+      error = 'Enter the reason for cancelling the booking.';
+    } else {
+      const cancelled = await cancelBooking(reference, cancellationReason);
+      if (cancelled !== 'cancelled') {
+        error = cancelled === 'reason_required'
+          ? 'Enter the reason for cancelling the booking.'
+          : cancelled === 'not_found'
+            ? 'The booking could not be found.'
+            : 'The booking can no longer be cancelled from its current status.';
+      } else {
+        const manageUrl = booking.customerAccessToken
+          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+          : undefined;
+        const notification = await deliverBookingLifecycleNotification({
+          event: 'booking_cancelled',
+          booking,
+          propertyName,
+          manageUrl,
+          reason: cancellationReason,
+          notificationSourceKey: `booking-cancelled:${reference}`,
+        });
+        await recordBookingActivity({
+          bookingReference: reference,
+          actor: 'system',
+          eventType: `booking_cancelled_email_${notification.status}`,
+          details: notification,
+        });
+        await audit(Astro.locals.adminUser!.id, 'booking.cancelled', {
+          bookingReference: reference,
+          previousStatus: booking.status,
+          newStatus: 'cancelled',
+          reason: cancellationReason,
+          notificationStatus: notification.status,
+        });
+        return Astro.redirect(
+          `/admin/bookings/${reference}/?cancelled=1&email=${notification.status}`,
+        );
+      }
     }
   } else if (action === 'delete-booking') {
     const confirmedReference = cleanText(form.get('confirmReference'), 36);
@@ -189,19 +261,20 @@ if (Astro.request.method === 'POST') {
     validUntil = cleanText(form.get('validUntil'), 10);
     subject = cleanText(form.get('subject'), 300);
     formLines = labels.map((label, index) => ({ label, detail: details[index] || '', amountPence: amounts[index] ?? 0 }));
+    const offerPriceError = validateOfferTotal(amounts);
 
     if (!canOffer) error = `A request with status “${booking.status}” cannot be offered.`;
     else if (!subject) error = 'Enter an offer title or email subject.';
     else if (!formLines.length || formLines.length > 40) error = 'The offer must contain between 1 and 40 price lines.';
     else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
-    else if (amounts.some((amount) => amount === null)) error = 'Enter each amount in pounds with no more than two decimal places.';
+    else if (offerPriceError) error = offerPriceError;
     else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
-    else if (emailRequested && !booking.email) error = 'Add a Booker email address before requesting an email copy.';
-    else if (emailRequested && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
-    else if (emailRequested && !emailConfiguration.configured) error = emailConfiguration.problem || 'Email delivery is not configured.';
+    else if (!booking.email && !booking.telephoneE164) error = 'Add a valid Booker email address or telephone number before publishing the first offer.';
+    else if (emailRequested && !whatsappNotificationAvailable && !booking.email) error = 'Add a Booker email address or obtain WhatsApp consent before requesting a notification.';
+    else if (emailRequested && !whatsappNotificationAvailable && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
+    else if (emailRequested && !whatsappNotificationAvailable && !emailConfiguration.configured) error = emailConfiguration.problem || 'Notification delivery is not configured.';
 
     const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
-    if (!error && totalPence < 0) error = 'The bottom-line offer price cannot be negative.';
 
     if (!error) {
       const attempt = await createBookingOfferAttempt({
@@ -231,27 +304,28 @@ if (Astro.request.method === 'POST') {
 
       try {
         if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
+        const notificationBooking = booking;
         const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
-        const delivery = await sendBookingOfferEmail({
-          booking,
-          propertyName,
-          currency: booking.pricingCurrency || 'GBP',
-          lineItems: formLines,
-          totalPence,
-          offerMessage,
-          terms,
-          validUntil: validUntil || null,
-          subject,
-          manageUrl,
+        const delivery = await deliverBookingNotification({
+          booking: notificationBooking, propertyName, manageUrl, target: 'booker', eventType: 'booking_offer_available',
+          sourceKey: `booking-offer:${attempt.publicId}`,
+          emailDelivery: booking.email ? async () => {
+            const sent = await sendBookingOfferEmail({
+              booking: notificationBooking, propertyName, currency: notificationBooking.pricingCurrency || 'GBP', lineItems: formLines,
+              totalPence, offerMessage, terms, validUntil: validUntil || null, subject, manageUrl,
+            });
+            return { ...sent, recipient: notificationBooking.email };
+          } : undefined,
         });
-        await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: delivery.messageId });
-        await audit(Astro.locals.adminUser!.id, 'booking.offer_email_sent', {
+        if (delivery.status !== 'sent' && delivery.status !== 'submitted') throw new Error(delivery.reason || 'Notification delivery failed.');
+        await markBookingOfferSent({ offerId: attempt.id, reference, deliveryMessageId: null });
+        await audit(Astro.locals.adminUser!.id, 'booking.offer_notification_submitted', {
           bookingReference: reference,
           offerReference: attempt.publicId,
-          recipient: booking.email,
-          provider: delivery.provider,
+          channel: delivery.channel,
+          status: delivery.status,
         });
-        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=sent`);
+        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=${delivery.status}`);
       } catch (sendError) {
         await markBookingOfferFailed(attempt.id, sendError);
         await audit(Astro.locals.adminUser!.id, 'booking.offer_email_failed', {
@@ -269,43 +343,85 @@ if (Astro.request.method === 'POST') {
 
   booking = (await getProvisionalBookingRequest(reference)) ?? booking;
   contactEmail = booking.email;
+  contactTelephone = booking.telephone || '';
   offers = await getBookingOffers(reference);
   activity = await getBookingActivity(reference);
+  payments = await getBookingPaymentHistory(reference);
 }
 
 const recordedLines = pricingLines(booking.pricingResult);
 const currency = booking.pricingCurrency || 'GBP';
+const acceptedOffer = offers.find((offer) => offer.customerStatus === 'accepted');
+const publishedOffer = offers.find((offer) => offer.customerStatus === 'active') ?? priorOffer;
+const priceDisplay = getAdminPriceDisplayState({
+  bookingStatus: booking.status,
+  hasRecordedPricing: recordedLines.length > 0,
+  hasPublishedOffer: Boolean(publishedOffer?.lineItems.length),
+  hasAcceptedOffer: Boolean(acceptedOffer?.lineItems.length),
+});
+const displayedOffer = priceDisplay.source === 'offer'
+  ? (acceptedOffer ?? publishedOffer)
+  : null;
 const showClosedOffers = Astro.url.searchParams.get('showClosedOffers') === '1';
 const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer.customerStatus !== 'declined' && offer.customerStatus !== 'expired');
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
+const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
+const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
-const contactSaved = Astro.url.searchParams.get('contact') === '1';
-const contactInvalid = Astro.url.searchParams.get('contact') === 'invalid';
+const contactStatus = Astro.url.searchParams.get('contact');
+const expectedContactActivityId = Astro.url.searchParams.get('contactActivity');
+const contactActivityConfirmed = Boolean(expectedContactActivityId)
+  && activity.some((event) => event.id === expectedContactActivityId && event.eventType === 'booker_contact_updated');
+const contactSaved = contactStatus === '1' && contactActivityConfirmed;
+const contactTelephoneRemoved = contactStatus === 'telephone_removed' && contactActivityConfirmed;
+const contactError = adminContactUpdateErrorMessage(contactStatus, contactActivityConfirmed);
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
-if (contactInvalid) error = 'Enter a valid Booker email address or leave it blank.';
-const notificationAvailable = Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
+const cancelled = Astro.url.searchParams.get('cancelled') === '1';
+const lifecycleEmailStatus = Astro.url.searchParams.get('email');
+if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
+if (arrangementError === 'invalid') error = 'Choose Cottage, Main House or Olrig Bank before assigning the stay.';
+if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
+if (arrangementError === 'failed') error = 'The arrangement could not be assigned. No change was saved; please try again.';
+const notificationAvailable = whatsappNotificationAvailable || Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
 const messages = await getBookingMessagesByReference(reference, 'administrator', { markRead: true });
+const notificationHistory = booking.internalId ? await getBookingNotificationHistory(booking.internalId) : [];
 const reservationSnapshot = await getCustomerBookingPageByReference(reference);
 const reservationVersion = reservationSnapshot
   ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}`
   : booking.status;
 let notice = '';
-if (messageSent) {
-  notice = messageEmailStatus === 'sent'
+if (arrangementAssigned) {
+  notice = `${propertyName} was assigned successfully. The dates are now reserved provisionally and an offer can be prepared.`;
+} else if (cancelled) {
+  notice = lifecycleEmailStatus === 'submitted'
+    ? 'The booking was cancelled, its dates were released, and a WhatsApp notification was submitted.'
+    : lifecycleEmailStatus === 'sent'
+    ? 'The booking was cancelled, its dates were released, and the Booker was notified by email.'
+    : lifecycleEmailStatus === 'failed'
+      ? 'The booking was cancelled and its dates were released, but the Booker email notification failed.'
+      : 'The booking was cancelled and its dates were released. No Booker email notification was sent.';
+} else if (messageSent) {
+  notice = messageEmailStatus === 'submitted'
+    ? 'The message was added to the conversation and a WhatsApp notification was submitted.'
+    : messageEmailStatus === 'sent'
     ? `The message was sent and an email copy was sent to ${booking.email}.`
     : messageEmailStatus === 'failed'
       ? 'The message was added to the conversation, but the optional email copy failed.'
       : 'The message was added to the conversation.';
-} else if (published) {
-  notice = publishEmailStatus === 'sent'
+} else if (shouldShowOfferPublishedNotice(published, booking.status)) {
+  notice = publishEmailStatus === 'submitted'
+    ? 'The offer is published and a WhatsApp notification was submitted.'
+    : publishEmailStatus === 'sent'
     ? `The offer is published and an email copy was sent to ${booking.email}.`
     : publishEmailStatus === 'failed'
       ? 'The offer is published, but the optional email copy could not be sent.'
       : 'The offer is published on the Booker booking page.';
+} else if (contactTelephoneRemoved) {
+  notice = 'The Booker telephone number was removed. The saved email address remains available.';
 } else if (contactSaved) {
-  notice = booking.email ? `The Booker email address was updated to ${booking.email}.` : 'The Booker email address was cleared. Email remains optional.';
+  notice = 'The Booker contact details were updated.';
 }
 ---
 <AdminLayout title={`Messages · ${booking.name}`}>
@@ -336,14 +452,14 @@ if (messageSent) {
     bookingStatus={booking.status}
     reservationVersion={reservationVersion}
     notificationAvailable={notificationAvailable}
-    notificationLabel={`Also email a copy${booking.email ? ` to ${booking.email}` : ''}`}
+    notificationLabel={whatsappNotificationAvailable ? 'Also send a WhatsApp booking notification' : `Also email a copy${booking.email ? ` to ${booking.email}` : ''}`}
     messageNotice={notice}
     messageError={messageError}
     reservationButtonLabel="Reservation"
   />
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
     <header class="booking-reservation-drawer__header">
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
       <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
@@ -362,34 +478,67 @@ if (messageSent) {
           <div><dt>Reference</dt><dd><code>{booking.reference}</code></dd></div>
           <div><dt>Booker</dt><dd><strong>{booking.name}</strong></dd></div>
           <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
+          <div><dt>WhatsApp</dt><dd><span class={`status-badge status-${booking.whatsappConsentStatus}`}>{booking.whatsappConsentStatus.replaceAll('_', ' ')}</span></dd></div>
           <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
+        {isUnassignedBespoke && <form method="post" action={`/admin/bookings/${reference}/arrangement/`} class="admin-form">
+          <label>Agreed stay arrangement
+            <select name="assignedPropertyId" required>
+              <option value="" selected disabled>Choose an arrangement…</option>
+              {getProperties().filter((property) => property.id !== 'bespoke-arrangement').map((property) => (
+                <option value={property.id}>{property.name}</option>
+              ))}
+            </select>
+          </label>
+          <button class="admin-button" type="submit">Assign arrangement</button>
+          <small>This checks availability again and must be completed before an offer can be published.</small>
+        </form>}
         <form method="post" action={`/admin/bookings/${reference}/email/`} class="admin-form booking-contact-form">
+          {contactError && <div class="pricing-message is-error" role="alert" data-booker-contact-error>{contactError}</div>}
           <label>Booker email address
             <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="off" />
           </label>
+          <label>Booker telephone number
+            <input type="tel" name="contactTelephone" value={contactTelephone} maxlength="80" autocomplete="off" />
+          </label>
           <div class="booking-contact-form__actions">
-            <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
-            <small>Used only for optional email copies and notifications.</small>
+            <button class="admin-button admin-button--secondary" type="submit">Save contact details</button>
+            {booking.telephone && (
+              <button class="admin-button admin-button--secondary" type="submit" name="removeContactTelephone" value="yes">
+                Remove the saved telephone number
+              </button>
+            )}
+            <small>Active bookings must retain a valid email address or telephone number. Changing the telephone withdraws consent tied to the previous number.</small>
           </div>
         </form>
+        {booking.whatsappConsentStatus === 'active' && <form method="post" class="admin-form">
+          <input type="hidden" name="action" value="withdraw-whatsapp-consent" />
+          <button class="admin-button admin-button--secondary" type="submit">Withdraw WhatsApp consent</button>
+          <small>Use this only at the Bookerâ€™s request. The withdrawal is immediate.</small>
+        </form>}
       </section>
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>Recorded provisional calculation</h3>
-        {recordedLines.length ? <div class="booking-price-table"><table><tbody>
+        <h3>{priceDisplay.heading}</h3>
+        {displayedOffer ? <div class="booking-price-table"><table><tbody>
+          {displayedOffer.lineItems.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, displayedOffer.currency)}</td></tr>)}
+          <tr class="booking-price-total"><th>Total</th><th>{money(displayedOffer.totalPence, displayedOffer.currency)}</th></tr>
+        </tbody></table></div> : recordedLines.length ? <div class="booking-price-table"><table><tbody>
           {recordedLines.map((line) => <tr><td><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</td><td>{money(line.amountPence, currency)}</td></tr>)}
           <tr class="booking-price-total"><th>Recorded provisional total</th><th>{money(booking.guestTotalPence ?? recordedLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</th></tr>
-        </tbody></table></div> : <p class="muted">No published pricing calculation was recorded.</p>}
+        </tbody></table></div> : <p class="muted">No price was submitted. Add the agreed price when preparing the offer.</p>}
         {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
       </section>
 
+      {isUnassignedBespoke && <section class="booking-drawer-section">
+        <div class="pricing-message"><strong>Choose the agreed stay arrangement first.</strong> Pricing and an offer can be prepared after Main House, Cottage or Olrig Bank has been assigned.</div>
+      </section>}
       {canOffer ? <section class="booking-drawer-section booking-offer-editor">
         <div class="booking-review-summary__heading">
           <div><p class="eyebrow">Offer controls</p><h3>Publish an offer</h3><p class="admin-panel-intro">The offer message becomes an administrator message in the conversation.</p></div>
-          <div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div>
+          <div class="booking-offer-total"><span>Bottom-line price</span><strong id="offer-total">{priceToBeAgreed ? 'Not yet set' : money(formLines.reduce((sum, line) => sum + line.amountPence, 0), currency)}</strong></div>
         </div>
         {!emailConfiguration.configured && <div class="pricing-message"><strong>Email delivery is not configured.</strong> The offer can still be published in the conversation. {emailConfiguration.problem}</div>}
         <form method="post" class="admin-form booking-offer-form" id="booking-offer-form" data-currency={currency}>
@@ -399,7 +548,7 @@ if (messageSent) {
             {formLines.map((line) => <div class="booking-offer-line">
               <label>Line label<input type="text" name="lineLabel" value={line.label} maxlength="160" required /></label>
               <label>Explanation<input type="text" name="lineDetail" value={line.detail} maxlength="500" /></label>
-              <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value={(line.amountPence / 100).toFixed(2)} step="0.01" required /></label>
+              <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value={priceToBeAgreed ? '' : (line.amountPence / 100).toFixed(2)} step="0.01" required /></label>
               <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
             </div>)}
           </div>
@@ -412,11 +561,11 @@ if (messageSent) {
               <strong>Publish in the Booker conversation</strong>
               <small>The offer and response controls become available immediately.</small>
               <label class="booking-email-copy-option">
-                <input type="checkbox" name="sendEmailCopy" value="yes" disabled={!booking.email || !emailConfiguration.configured} />
-                <span>Also email a copy{booking.email ? ` to ${booking.email}` : ' (no email address supplied)'}</span>
+                <input type="checkbox" name="sendEmailCopy" value="yes" disabled={!whatsappNotificationAvailable && (!booking.email || !emailConfiguration.configured)} />
+                <span>{whatsappNotificationAvailable ? 'Send a WhatsApp notification (email is used only if WhatsApp cannot be submitted)' : `Also email a copy${booking.email ? ` to ${booking.email}` : ' (no email address supplied)'}`}</span>
               </label>
             </div>
-            <button class="admin-button" type="submit">Publish offer</button>
+            <button class="admin-button" id="publish-offer" type="submit">Publish offer</button>
           </div>
         </form>
       </section> : <section class="booking-drawer-section">
@@ -443,6 +592,36 @@ if (messageSent) {
         </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
       </section>}
 
+      <section class="admin-panel">
+        <p class="eyebrow">Notification audit</p>
+        <h2>Delivery history</h2>
+        <p class="admin-panel-intro">Provider submission and receipt statuses are recorded separately from the booking conversation.</p>
+        {notificationHistory.length ? <div class="admin-table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Channel</th><th>Recipient</th><th>Status</th></tr></thead><tbody>
+          {notificationHistory.map((delivery) => <tr>
+            <td>{new Date(delivery.createdAt).toLocaleString('en-GB')}</td>
+            <td>{delivery.eventType.replaceAll('_', ' ')}</td>
+            <td>{delivery.channel}</td>
+            <td>{delivery.recipientMasked || <span class="muted">â€”</span>}</td>
+            <td><span class={`status-badge status-${delivery.status}`}>{delivery.status}</span></td>
+          </tr>)}
+        </tbody></table></div> : <p class="muted">No notification delivery attempts are recorded.</p>}
+      </section>
+
+      <section class="admin-panel">
+        <p class="eyebrow">Permanent financial record</p>
+        <h2>Payment history</h2>
+        <p class="admin-panel-intro">Payment reports and decisions are retained separately from the conversation and technical audit activity.</p>
+        {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Reported</th><th>Stage</th><th>Amount</th><th>Method</th><th>Status and decision</th></tr></thead><tbody>
+          {payments.map((payment) => <tr>
+            <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}<small><code>{payment.publicId}</code></small></td>
+            <td>{payment.stage.replaceAll('_', ' ')}</td>
+            <td>{money(payment.amountPence, payment.currency)}</td>
+            <td>Manual bank transfer</td>
+            <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
+          </tr>)}
+        </tbody></table></div> : <p class="muted">No payment has been reported.</p>}
+      </section>
+
       {activity.length > 0 && <section class="admin-panel">
         <h2>Technical booking activity</h2>
         <p class="admin-panel-intro">Technical and audit events remain separate from the Booker conversation.</p>
@@ -455,6 +634,28 @@ if (messageSent) {
           </tr>)}
         </tbody></table></div>
       </section>}
+
+      <section class="admin-panel booking-delete-panel">
+        <div>
+          <p class="eyebrow">Booking lifecycle</p>
+          <h2>Cancel booking</h2>
+          <p>{canCancel
+            ? 'Cancel this booking, release its dates and notify the Booker. The booking record and conversation are retained.'
+            : `A booking with status “${booking.status}” cannot be cancelled.`}</p>
+        </div>
+        <form method="post" class="booking-delete-form">
+          <input type="hidden" name="action" value="cancel-booking" />
+          <label>
+            Reason shown to the Booker
+            <textarea name="cancellationReason" rows="4" maxlength="1000" required disabled={!canCancel}></textarea>
+          </label>
+          <label class="booking-delete-confirm">
+            <input type="checkbox" name="confirmCancellation" value="yes" required disabled={!canCancel} />
+            <span>I confirm that this booking must be cancelled and its dates released.</span>
+          </label>
+          <button class="admin-button admin-button--danger" type="submit" disabled={!canCancel}>Cancel booking</button>
+        </form>
+      </section>
 
       <section class="admin-panel booking-delete-panel">
         <div>
@@ -508,7 +709,7 @@ if (messageSent) {
   <div class="booking-offer-line">
     <label>Line label<input type="text" name="lineLabel" maxlength="160" required /></label>
     <label>Explanation<input type="text" name="lineDetail" maxlength="500" /></label>
-    <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" value="0.00" step="0.01" required /></label>
+    <label>Amount (£)<input class="offer-line-amount" type="number" name="lineAmount" step="0.01" required /></label>
     <button class="admin-button admin-button--secondary booking-remove-line" type="button">Remove</button>
   </div>
 </template>
@@ -517,14 +718,16 @@ if (messageSent) {
   const template = document.querySelector('#offer-line-template');
   const total = document.querySelector('#offer-total');
   const form = document.querySelector('#booking-offer-form');
+  const publishButton = document.querySelector('#publish-offer');
   const currency = form instanceof HTMLFormElement ? form.dataset.currency || 'GBP' : 'GBP';
   const formatter = new Intl.NumberFormat('en-GB', { style: 'currency', currency });
   function updateTotal() {
     if (!(lines instanceof HTMLElement) || !(total instanceof HTMLElement)) return;
-    const amount = Array.from(lines.querySelectorAll('.offer-line-amount')).reduce((sum, input) => {
-      return sum + (input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0);
-    }, 0);
-    total.textContent = formatter.format(amount);
+    const amountInputs = Array.from(lines.querySelectorAll('.offer-line-amount'));
+    const validAmounts = amountInputs.every((input) => input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber));
+    const amount = amountInputs.reduce((sum, input) => sum + (input instanceof HTMLInputElement && Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0), 0);
+    total.textContent = validAmounts ? formatter.format(amount) : 'Not yet set';
+    if (publishButton instanceof HTMLButtonElement) publishButton.disabled = !validAmounts || amount <= 0;
   }
   function bindRemove(button: Element) {
     button.addEventListener('click', () => {
@@ -536,6 +739,7 @@ if (messageSent) {
   }
   document.querySelectorAll('.booking-remove-line').forEach((button) => bindRemove(button));
   lines?.addEventListener('input', updateTotal);
+  updateTotal();
   document.querySelector('[data-confirm-delete]')?.addEventListener('submit', (event) => {
     if (!window.confirm('Permanently delete this booking request, conversation and offer history?')) event.preventDefault();
   });

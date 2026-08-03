@@ -19,6 +19,33 @@ test('cancelled is terminal and legacy statuses are never new transition targets
   assert.equal(BOOKING_TRANSITION_RULES.some((rule) => rule.to === 'offer_accepted' || rule.to === 'approved'), false);
 });
 
+test('every active booking state supports controlled cancellation by either authorised actor', () => {
+  const activeStatuses = [
+    'pending',
+    'offered',
+    'offer_accepted',
+    'payment_pending',
+    'payment_reported',
+    'confirmed',
+    'approved',
+  ];
+
+  for (const from of activeStatuses) {
+    for (const actor of ['administrator', 'booker']) {
+      const cancellation = BOOKING_TRANSITION_RULES.find((rule) => (
+        rule.from === from
+        && rule.action === 'cancel_booking'
+        && rule.actor === actor
+      ));
+      assert.ok(cancellation, `${actor} cancellation should be defined from ${from}`);
+      assert.equal(cancellation.to, 'cancelled');
+      assert.equal(cancellation.calendarEffect, 'release');
+      assert.deepEqual(cancellation.requirements, ['confirmation', 'reason']);
+      assert.equal(cancellation.activityEvent, 'booking_cancelled');
+    }
+  }
+});
+
 test('payment reporting never confirms a booking without administrator verification', () => {
   const reportRule = BOOKING_TRANSITION_RULES.find((rule) => rule.action === 'report_payment');
   assert.ok(reportRule);

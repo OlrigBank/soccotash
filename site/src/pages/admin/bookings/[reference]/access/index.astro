@@ -1,4 +1,5 @@
 ---
+import crypto from 'node:crypto';
 import AdminLayout from '../../../../../layouts/AdminLayout.astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
 import {
@@ -9,6 +10,8 @@ import {
 import { BOOKING_ACCESS_EXPIRY_ENV } from '../../../../../lib/booking/booking-access-policy';
 import { getProperties } from '../../../../../lib/booking/config';
 import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
+import { deliverBookingNotification } from '../../../../../lib/booking/notification-delivery';
+import { sendEmail } from '../../../../../lib/email/sender';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
@@ -48,7 +51,30 @@ if (Astro.request.method === 'POST') {
       });
       if (!rotated) return new Response('Booking request not found.', { status: 404 });
       generatedAccessUrl = new URL(`/booking/manage/${rotated.token}/`, publicOrigin).toString();
-      notice = 'A replacement Booker link was generated and every older private link was invalidated.';
+      const notificationBooking = booking;
+      const sourceHash = crypto.createHash('sha256').update(rotated.token).digest('hex').slice(0, 24);
+      const notification = await deliverBookingNotification({
+        booking: notificationBooking,
+        propertyName,
+        manageUrl: generatedAccessUrl,
+        target: 'booker',
+        eventType: 'secure_link_changed',
+        sourceKey: `secure-link-changed:${reference}:${sourceHash}`,
+        emailDelivery: notificationBooking.email ? async () => {
+          const sent = await sendEmail({
+            to: notificationBooking.email,
+            subject: `Replacement link for your ${propertyName} booking`,
+            text: `Dear ${notificationBooking.name},\n\nYour previous private booking links no longer work. Use this replacement link:\n${generatedAccessUrl}\n\nOlrig Bank`,
+            html: `<p>Dear ${notificationBooking.name.replace(/[&<>]/g, '')},</p><p>Your previous private booking links no longer work.</p><p><a href="${generatedAccessUrl}">Open the replacement booking page</a></p><p>Olrig Bank</p>`,
+          });
+          return { ...sent, recipient: notificationBooking.email };
+        } : undefined,
+      });
+      notice = notification.status === 'submitted'
+        ? 'A replacement Booker link was generated, every older private link was invalidated, and a WhatsApp notification was submitted.'
+        : notification.status === 'sent'
+          ? 'A replacement Booker link was generated, every older private link was invalidated, and an email notification was sent.'
+          : 'A replacement Booker link was generated and every older private link was invalidated. No notification was delivered.';
       await audit(Astro.locals.adminUser!.id, 'booking.access_rotated', {
         bookingReference: reference,
         reason: reason || null,

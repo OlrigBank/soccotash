@@ -70,5 +70,20 @@ test('listAllowedBookingTransitions supports UI and processing discovery', () =>
     listAllowedBookingTransitions('payment_reported', 'administrator').map((entry) => entry.action).sort(),
     ['cancel_booking', 'reject_payment_report', 'verify_payment'],
   );
+  assert.deepEqual(
+    listAllowedBookingTransitions('confirmed', 'administrator').map((entry) => entry.action).sort(),
+    ['cancel_booking', 'reject_balance_payment_report', 'verify_balance_payment'],
+  );
   assert.deepEqual(listAllowedBookingTransitions('cancelled'), []);
+});
+
+test('Booker cancellation is separate from declining an offer', () => {
+  assert.deepEqual(
+    listAllowedBookingTransitions('offered', 'booker').map((entry) => entry.action).sort(),
+    ['accept_offer', 'cancel_booking', 'decline_offer'],
+  );
+  assert.deepEqual(
+    listAllowedBookingTransitions('confirmed', 'booker').map((entry) => entry.action).sort(),
+    ['cancel_booking', 'report_balance_payment'],
+  );
 });

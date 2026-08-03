@@ -8,9 +8,14 @@ import {
   getProvisionalBookingRequest,
   recordBookingActivity,
   respondToCustomerBookingOffer,
+  withdrawProvisionalBookingWhatsAppConsent,
   type CustomerOfferResponseResult,
 } from '../../../../lib/booking/repository';
-import { reportManualBankTransfer } from '../../../../lib/booking/payment-lifecycle';
+import {
+  getBookingPaymentHistory,
+  reportManualBankTransfer,
+} from '../../../../lib/booking/payment-lifecycle';
+import { deliverBookingLifecycleNotification } from '../../../../lib/booking/lifecycle-notification';
 import {
   getBookingPaymentNotice,
   isCurrentPaymentReportResult,
@@ -25,6 +30,9 @@ import {
   sendManagementOfferResponseEmail,
 } from '../../../../lib/booking/offer-email';
 import { sendAdministratorMessageEmail } from '../../../../lib/booking/message-email';
+import { deliverBookingNotification } from '../../../../lib/booking/notification-delivery';
+import { cancelBookingByBookerToken } from '../../../../lib/booking/cancellation-lifecycle';
+import { validateCancellationInput } from '../../../../lib/booking/cancellation-display';
 import {
   getBookingManagementRecipients,
   getEmailConfiguration,
@@ -60,7 +68,54 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
-  if (action === 'send-message') {
+  if (action === 'withdraw-whatsapp-consent') {
+    await withdrawProvisionalBookingWhatsAppConsent(offer.bookingReference, 'booker');
+    await recordBookingActivity({
+      bookingReference: offer.bookingReference,
+      actor: 'customer',
+      eventType: 'whatsapp_consent_withdrawn',
+    });
+    return Astro.redirect(`/booking/manage/${token}/?consent=withdrawn`);
+  } else if (action === 'cancel-booking') {
+    const cancellation = validateCancellationInput({
+      confirmed: form.get('confirmCancellation') === 'yes',
+      reason: String(form.get('cancellationReason') || ''),
+    });
+    if (!cancellation.accepted) {
+      responseError = cancellation.code === 'confirmation_required'
+        ? 'Confirm that this booking should be cancelled and its dates released.'
+        : 'Enter the reason for cancelling the booking.';
+    } else {
+      const booking = await getProvisionalBookingRequest(offer.bookingReference);
+      if (!booking) return new Response('Booking not found.', { status: 404 });
+      const cancelled = await cancelBookingByBookerToken(token, cancellation.reason);
+      if (cancelled !== 'cancelled') {
+        responseError = cancelled === 'reason_required'
+          ? 'Enter the reason for cancelling the booking.'
+          : cancelled === 'not_found'
+            ? 'The booking could not be found.'
+            : 'The booking can no longer be cancelled from its current status.';
+      } else {
+        const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
+        const notification = await deliverBookingLifecycleNotification({
+          event: 'booking_cancelled_by_booker',
+          booking,
+          propertyName,
+          adminUrl,
+          reason: cancellation.reason,
+          notificationSourceKey: `booking-cancelled-by-booker:${offer.bookingReference}`,
+        });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: `booking_cancelled_by_booker_email_${notification.status}`,
+          details: notification,
+        });
+        return Astro.redirect(`/booking/manage/${token}/?cancelled=1&email=${notification.status}`);
+      }
+    }
+  } else if (action === 'send-message') {
     const body = String(form.get('messageBody') || '').trim().slice(0, 5000);
     const notificationRequested = form.get('sendMessageEmail') === 'yes';
     if (!body) {
@@ -79,19 +134,20 @@ if (Astro.request.method === 'POST') {
         if (!booking) return new Response('Booking not found.', { status: 404 });
         try {
           const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
-          const sent = await sendAdministratorMessageEmail({ booking, propertyName, body, adminUrl });
-          if (sent) {
-            notificationStatus = 'sent';
-            await markBookingMessageNotification({
-              messageId: message.id,
-              status: 'sent',
-              recipient: sent.primaryRecipient,
-              messageIdFromProvider: sent.result.messageId,
-            });
-          } else {
-            notificationStatus = 'skipped';
-            await markBookingMessageNotification({ messageId: message.id, status: 'skipped' });
-          }
+          const delivery = await deliverBookingNotification({
+            booking, propertyName, target: 'administrator', eventType: 'booker_message_received',
+            sourceKey: `booker-message:${message.publicId}:administrator`,
+            emailDelivery: async () => {
+              const sent = await sendAdministratorMessageEmail({ booking, propertyName, body, adminUrl });
+              return sent ? { ...sent.result, recipient: sent.primaryRecipient } : null;
+            },
+          });
+          notificationStatus = delivery.status === 'sent' ? 'sent' : delivery.status === 'failed' ? 'failed' : 'skipped';
+          await markBookingMessageNotification({
+            messageId: message.id,
+            status: notificationStatus,
+            recipient: delivery.channel === 'email' ? managementRecipients[0] : null,
+          });
         } catch (error) {
           notificationStatus = 'failed';
           await markBookingMessageNotification({
@@ -115,7 +171,39 @@ if (Astro.request.method === 'POST') {
       responseError = 'Please tick the confirmation box before reporting the transfer.';
     } else {
       const transferResult = await reportManualBankTransfer(token);
-      if (transferResult === 'payment_reported' || transferResult === 'already_reported') {
+      if (transferResult === 'payment_reported') {
+        const booking = await getProvisionalBookingRequest(offer.bookingReference);
+        if (!booking) return new Response('Booking not found.', { status: 404 });
+        const adminUrl = new URL(
+          `/admin/bookings/${offer.bookingReference}/payment/`,
+          publicOrigin,
+        ).toString();
+        const paymentStage = booking.currentPaymentStage || (booking.balanceDuePence ? 'deposit' : 'full_payment');
+        const paymentAmountPence = paymentStage === 'balance'
+          ? Number(booking.balanceDuePence || 0)
+          : Number(booking.depositPence || 0);
+        const notification = await deliverBookingLifecycleNotification({
+          event: paymentStage === 'balance' ? 'balance_payment_reported' : 'payment_reported',
+          booking,
+          propertyName,
+          adminUrl,
+          paymentStage,
+          paymentAmountPence,
+          paymentCurrency: booking.latestOfferCurrency || booking.pricingCurrency || 'GBP',
+          notificationSourceKey: `payment-reported:${booking.currentPaymentPublicId || booking.reference}:${paymentStage}`,
+        });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: `payment_reported_email_${notification.status}`,
+          details: notification,
+        });
+        return Astro.redirect(
+          `/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
+        );
+      }
+      if (transferResult === 'already_reported') {
         return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'
@@ -141,35 +229,26 @@ if (Astro.request.method === 'POST') {
         offer = await getCustomerBookingPage(token, false);
         if (!offer) return new Response('Booking not found.', { status: 404 });
         const response = responseResult;
-        let customerEmailStatus: 'sent' | 'failed' | 'skipped' = offer.guestEmail ? 'failed' : 'skipped';
-
-        if (offer.guestEmail) {
-          try {
-            const sent = await sendCustomerOfferResponseEmail({ offer, propertyName, response, manageUrl });
-            customerEmailStatus = 'sent';
-            await recordBookingActivity({
-              bookingReference: offer.bookingReference,
-              offerId: offer.offerId,
-              actor: 'system',
-              eventType: 'customer_response_email_sent',
-              details: { response, provider: sent.provider, messageId: sent.messageId },
-            });
-          } catch (error) {
-            await recordBookingActivity({
-              bookingReference: offer.bookingReference,
-              offerId: offer.offerId,
-              actor: 'system',
-              eventType: 'customer_response_email_failed',
-              details: { response, error: error instanceof Error ? error.message : String(error) },
-            });
-          }
-        } else {
+        let customerEmailStatus: 'submitted' | 'sent' | 'failed' | 'skipped' = 'skipped';
+        const booking = await getProvisionalBookingRequest(offer.bookingReference);
+        if (booking) {
+          const responseOffer = offer;
+          const delivery = await deliverBookingNotification({
+            booking, propertyName, manageUrl, target: 'booker',
+            eventType: response === 'accepted' ? 'payment_required' : 'offer_declined',
+            sourceKey: `offer-response:${offer.offerId || offer.bookingReference}:${response}:booker`,
+            emailDelivery: responseOffer.guestEmail ? async () => {
+              const sent = await sendCustomerOfferResponseEmail({ offer: responseOffer, propertyName, response, manageUrl });
+              return { ...sent, recipient: responseOffer.guestEmail };
+            } : undefined,
+          });
+          customerEmailStatus = delivery.status === 'submitted' ? 'submitted' : delivery.status === 'sent' ? 'sent' : delivery.status === 'failed' ? 'failed' : 'skipped';
           await recordBookingActivity({
             bookingReference: offer.bookingReference,
             offerId: offer.offerId,
             actor: 'system',
-            eventType: 'customer_response_email_skipped',
-            details: { response, reason: 'No Booker email supplied.' },
+            eventType: `customer_response_notification_${customerEmailStatus}`,
+            details: { response, channel: delivery.channel, status: delivery.status },
           });
         }
 
@@ -213,14 +292,22 @@ if (Astro.request.method === 'POST') {
 }
 
 const responseNotice = Astro.url.searchParams.get('response');
+const payments = await getBookingPaymentHistory(offer.bookingReference);
+const currentReportedPayment = payments.find((payment) => payment.status === 'reported') || null;
 const paymentStatus = Astro.url.searchParams.get('payment');
-const paymentReportResultCurrent = isCurrentPaymentReportResult(paymentStatus, offer.bookingStatus);
-const paymentNotice = getBookingPaymentNotice(paymentStatus, offer.bookingStatus);
-const emailParam = Astro.url.searchParams.get('email');
+const paymentReportResultCurrent = isCurrentPaymentReportResult(paymentStatus, offer.bookingStatus)
+  || (paymentStatus === 'bank-transfer-reported' && currentReportedPayment?.stage === 'balance');
+const paymentNotice = paymentStatus === 'bank-transfer-reported' && currentReportedPayment?.stage === 'balance'
+  ? 'Your remaining-balance transfer was reported. Your booking remains confirmed while Olrig Bank verifies it.'
+  : getBookingPaymentNotice(paymentStatus, offer.bookingStatus);
+const emailParam = Astro.url.searchParams.get('paymentEmail') || Astro.url.searchParams.get('email');
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
-const messageNotice = messageSent
+const cancellationRecorded = Astro.url.searchParams.get('cancelled') === '1';
+const messageNotice = cancellationRecorded
+  ? 'Your cancellation has been recorded. The dates have been released, and the booking record remains available here.'
+  : messageSent
   ? messageEmailStatus === 'sent'
     ? 'Your message was added to the conversation and the Olrig Bank administrators were notified by email.'
     : messageEmailStatus === 'failed'
@@ -228,11 +315,12 @@ const messageNotice = messageSent
       : 'Your message was added to the conversation.'
   : '';
 const confirmedBooking = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const cancelledBooking = offer.bookingStatus === 'cancelled';
 const pendingBooking = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const conversationMessages = await getBookingMessagesByToken(token, 'booker', { markRead: true });
 ---
 <BaseLayout
-  title={`${confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
+  title={`${cancelledBooking ? 'Cancelled booking' : confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
   description="Manage your Olrig Bank booking and conversation."
   showSidebar={false}
   robots="noindex,nofollow,noarchive"
@@ -249,7 +337,23 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     emailStatus={emailStatus}
     allowResponse={true}
     messageNotificationAvailable={messageNotificationAvailable}
+    payments={payments}
   />
+  <section class="booking-panel" aria-labelledby="whatsapp-preferences-heading">
+    <h2 id="whatsapp-preferences-heading">WhatsApp preferences</h2>
+    {offer.whatsappConsentStatus === 'active' ? (
+      <>
+        <p>Transactional WhatsApp notifications are enabled for this booking. Your private booking page remains the authoritative record.</p>
+        <form method="post">
+          <input type="hidden" name="action" value="withdraw-whatsapp-consent" />
+          <button class="button button--secondary" type="submit">Stop WhatsApp notifications</button>
+        </form>
+      </>
+    ) : (
+      <p>WhatsApp notifications are {offer.whatsappConsentStatus === 'withdrawn' ? 'withdrawn' : 'not enabled'} for this booking. Email and this private page remain available.</p>
+    )}
+    {Astro.url.searchParams.get('consent') === 'withdrawn' && <p role="status">WhatsApp consent has been withdrawn. No further WhatsApp notifications will be submitted for this booking.</p>}
+  </section>
 </BaseLayout>
 
 <script is:inline define:vars={{ responseNotice, paymentReportResultCurrent, messageSent, confirmedBooking, propertyId: offer.propertyId }}>
