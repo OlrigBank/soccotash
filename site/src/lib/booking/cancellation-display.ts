@@ -3,7 +3,18 @@ export type CancellationDisplayState = {
   paymentHeading: string;
   paymentState: string;
   priceHeading: string;
+  totalLabel: string;
 };
+
+export function hasAcceptedOfferEvidence(input: {
+  acceptedAt: string | null;
+  customerStatus: string;
+  bookingStatus: string;
+}): boolean {
+  return Boolean(input.acceptedAt)
+    || input.customerStatus === 'accepted'
+    || ['payment_pending', 'payment_reported', 'confirmed', 'approved'].includes(input.bookingStatus);
+}
 
 export function getCancellationDisplayState(input: {
   cancelled: boolean;
@@ -16,6 +27,7 @@ export function getCancellationDisplayState(input: {
       paymentHeading: 'Payment history at cancellation',
       paymentState: 'Payment record retained',
       priceHeading: 'Price at cancellation',
+      totalLabel: input.acceptedOffer ? 'Accepted total' : 'Recorded provisional total',
     };
   }
 
@@ -24,6 +36,7 @@ export function getCancellationDisplayState(input: {
     paymentHeading: input.fullyPaid ? 'Booking confirmed and fully paid' : 'Accepted payment plan',
     paymentState: input.fullyPaid ? 'Paid' : 'Payment plan active',
     priceHeading: input.acceptedOffer ? 'Accepted offer' : 'Current offer',
+    totalLabel: input.acceptedOffer ? 'Accepted total' : 'Total',
   };
 }
 

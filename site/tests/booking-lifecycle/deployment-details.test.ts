@@ -12,5 +12,5 @@ test('the admin dashboard identifies the PR 46 acceptance deployment', () => {
     adminDashboardSource,
     /const featureBranch = 'agent\/cancellation-lifecycle-acc-test';/,
   );
-  assert.match(adminDashboardSource, /const featureIteration = 3;/);
+  assert.match(adminDashboardSource, /const featureIteration = 4;/);
 });

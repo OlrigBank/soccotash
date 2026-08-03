@@ -3,7 +3,7 @@ import BookingConversation from './BookingConversation.astro';
 import type { BookingMessage } from '../lib/booking/messaging';
 import type { CustomerBookingOffer } from '../lib/booking/repository';
 import type { BookingPayment } from '../lib/booking/payment-lifecycle';
-import { getCancellationDisplayState } from '../lib/booking/cancellation-display';
+import { getCancellationDisplayState, hasAcceptedOfferEvidence } from '../lib/booking/cancellation-display';
 import { listAllowedBookingTransitions } from '../lib/booking/lifecycle';
 
 interface Props {
@@ -53,10 +53,15 @@ const balanceVerified = payments.some((payment) => payment.stage === 'balance' &
 const fullPaymentVerified = payments.some((payment) => payment.stage === 'full_payment' && payment.status === 'verified');
 const balanceReported = confirmed && openPayment?.stage === 'balance';
 const fullyPaid = fullPaymentVerified || (offer.balanceDuePence > 0 && depositVerified && balanceVerified);
+const acceptedOffer = hasAcceptedOfferEvidence({
+  acceptedAt: offer.acceptedAt,
+  customerStatus: offer.customerStatus,
+  bookingStatus: offer.bookingStatus,
+});
 const cancellationDisplay = getCancellationDisplayState({
   cancelled,
   fullyPaid,
-  acceptedOffer: offer.customerStatus === 'accepted' || ['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled'].includes(offer.bookingStatus),
+  acceptedOffer,
 });
 const canCancel = allowResponse && !adminPreview && listAllowedBookingTransitions(offer.bookingStatus, 'booker')
   .some((transition) => transition.action === 'cancel_booking');
@@ -213,7 +218,7 @@ const conversationError = messageError || responseError;
         <p class="eyebrow">Payment summary</p>
         <h3>{cancelled ? cancellationDisplay.paymentHeading : fullyPaid ? 'Booking confirmed and fully paid' : 'Accepted payment plan'}</h3>
         <dl class="customer-booking-details">
-          <div><dt>Accepted total</dt><dd>{money(offer.totalPence, offer.currency)}</dd></div>
+          <div><dt>{cancelled ? cancellationDisplay.totalLabel : 'Accepted total'}</dt><dd>{money(offer.totalPence, offer.currency)}</dd></div>
           <div><dt>{fullPaymentRequired ? 'Full payment' : 'Deposit'}</dt><dd>{money(offer.depositPence, offer.currency)}</dd></div>
           {!fullPaymentRequired && <div><dt>Remaining balance</dt><dd>{money(offer.balanceDuePence, offer.currency)}</dd></div>}
           {!fullPaymentRequired && <div><dt>Balance deadline</dt><dd>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'Date agreed with Olrig Bank'}</dd></div>}

@@ -15,6 +15,36 @@ test('cancelled presentation takes precedence over confirmation and offer wordin
     paymentHeading: 'Payment history at cancellation',
     paymentState: 'Payment record retained',
     priceHeading: 'Price at cancellation',
+    totalLabel: 'Accepted total',
+  });
+});
+
+test('a request cancelled before offer acceptance retains provisional price wording', async () => {
+  const { getCancellationDisplayState, hasAcceptedOfferEvidence } = await import(
+    '../../src/lib/booking/cancellation-display.ts'
+  );
+
+  assert.equal(hasAcceptedOfferEvidence({
+    acceptedAt: null,
+    customerStatus: 'cancelled',
+    bookingStatus: 'cancelled',
+  }), false);
+  assert.equal(hasAcceptedOfferEvidence({
+    acceptedAt: '2026-08-03T12:00:00.000Z',
+    customerStatus: 'cancelled',
+    bookingStatus: 'cancelled',
+  }), true);
+
+  assert.deepEqual(getCancellationDisplayState({
+    cancelled: true,
+    fullyPaid: false,
+    acceptedOffer: false,
+  }), {
+    statusHeading: 'Booking cancelled',
+    paymentHeading: 'Payment history at cancellation',
+    paymentState: 'Payment record retained',
+    priceHeading: 'Price at cancellation',
+    totalLabel: 'Recorded provisional total',
   });
 });
 
