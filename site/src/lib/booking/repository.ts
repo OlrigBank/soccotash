@@ -612,7 +612,7 @@ export async function publishBookingOffer(input: {
     const selected = await client.query(
       `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
               COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
-              pb.status AS booking_status
+              pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
          LEFT JOIN admin_users au ON au.id = bo.admin_user_id
@@ -625,6 +625,9 @@ export async function publishBookingOffer(input: {
     const bookingId = row.provisional_booking_id;
     if (!['pending', 'offered'].includes(row.booking_status)) {
       throw new Error('BOOKING_CANNOT_BE_OFFERED');
+    }
+    if (!String(row.guest_email || '').trim() && !String(row.guest_telephone_e164 || '').trim()) {
+      throw new Error('BOOKER_CONTACT_REQUIRED');
     }
 
     await client.query(

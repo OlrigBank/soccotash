@@ -35,6 +35,7 @@ import { getWhatsAppConfiguration } from '../../../../lib/booking/whatsapp-provi
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
 import { validateOfferTotal } from '../../../../lib/booking/offer-price';
 import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../../../../lib/booking/admin-display';
+import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
 
 export const prerender = false;
 
@@ -101,6 +102,7 @@ let terms = priorOffer?.terms ?? '';
 let validUntil = priorOffer?.validUntil ?? defaultValidity;
 let subject = priorOffer?.subject ?? defaultOfferSubject(booking, propertyName);
 let contactEmail = booking.email;
+let contactTelephone = booking.telephone || '';
 let error = '';
 let messageError = '';
 
@@ -267,6 +269,7 @@ if (Astro.request.method === 'POST') {
     else if (formLines.some((line) => !line.label)) error = 'Every price line needs a label.';
     else if (offerPriceError) error = offerPriceError;
     else if (validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) error = 'Enter a valid offer expiry date.';
+    else if (!booking.email && !booking.telephoneE164) error = 'Add a valid Booker email address or telephone number before publishing the first offer.';
     else if (emailRequested && !whatsappNotificationAvailable && !booking.email) error = 'Add a Booker email address or obtain WhatsApp consent before requesting a notification.';
     else if (emailRequested && !whatsappNotificationAvailable && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
     else if (emailRequested && !whatsappNotificationAvailable && !emailConfiguration.configured) error = emailConfiguration.problem || 'Notification delivery is not configured.';
@@ -340,6 +343,7 @@ if (Astro.request.method === 'POST') {
 
   booking = (await getProvisionalBookingRequest(reference)) ?? booking;
   contactEmail = booking.email;
+  contactTelephone = booking.telephone || '';
   offers = await getBookingOffers(reference);
   activity = await getBookingActivity(reference);
   payments = await getBookingPaymentHistory(reference);
@@ -365,13 +369,17 @@ const published = Astro.url.searchParams.get('published') === '1';
 const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
 const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
-const contactSaved = Astro.url.searchParams.get('contact') === '1';
-const contactInvalid = Astro.url.searchParams.get('contact') === 'invalid';
+const contactStatus = Astro.url.searchParams.get('contact');
+const expectedContactActivityId = Astro.url.searchParams.get('contactActivity');
+const contactActivityConfirmed = Boolean(expectedContactActivityId)
+  && activity.some((event) => event.id === expectedContactActivityId && event.eventType === 'booker_contact_updated');
+const contactSaved = contactStatus === '1' && contactActivityConfirmed;
+const contactTelephoneRemoved = contactStatus === 'telephone_removed' && contactActivityConfirmed;
+const contactError = adminContactUpdateErrorMessage(contactStatus, contactActivityConfirmed);
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancelled = Astro.url.searchParams.get('cancelled') === '1';
 const lifecycleEmailStatus = Astro.url.searchParams.get('email');
-if (contactInvalid) error = 'Enter a valid Booker email address or leave it blank.';
 if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
 if (arrangementError === 'invalid') error = 'Choose Cottage, Main House or Olrig Bank before assigning the stay.';
 if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
@@ -410,8 +418,10 @@ if (arrangementAssigned) {
     : publishEmailStatus === 'failed'
       ? 'The offer is published, but the optional email copy could not be sent.'
       : 'The offer is published on the Booker booking page.';
+} else if (contactTelephoneRemoved) {
+  notice = 'The Booker telephone number was removed. The saved email address remains available.';
 } else if (contactSaved) {
-  notice = booking.email ? `The Booker email address was updated to ${booking.email}.` : 'The Booker email address was cleared. Email remains optional.';
+  notice = 'The Booker contact details were updated.';
 }
 ---
 <AdminLayout title={`Messages · ${booking.name}`}>
@@ -449,7 +459,7 @@ if (arrangementAssigned) {
   />
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
     <header class="booking-reservation-drawer__header">
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
       <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
@@ -485,12 +495,21 @@ if (arrangementAssigned) {
           <small>This checks availability again and must be completed before an offer can be published.</small>
         </form>}
         <form method="post" action={`/admin/bookings/${reference}/email/`} class="admin-form booking-contact-form">
+          {contactError && <div class="pricing-message is-error" role="alert" data-booker-contact-error>{contactError}</div>}
           <label>Booker email address
             <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="off" />
           </label>
+          <label>Booker telephone number
+            <input type="tel" name="contactTelephone" value={contactTelephone} maxlength="80" autocomplete="off" />
+          </label>
           <div class="booking-contact-form__actions">
-            <button class="admin-button admin-button--secondary" type="submit">Save email address</button>
-            <small>Used only for optional email copies and notifications.</small>
+            <button class="admin-button admin-button--secondary" type="submit">Save contact details</button>
+            {booking.telephone && (
+              <button class="admin-button admin-button--secondary" type="submit" name="removeContactTelephone" value="yes">
+                Remove the saved telephone number
+              </button>
+            )}
+            <small>Active bookings must retain a valid email address or telephone number. Changing the telephone withdraws consent tied to the previous number.</small>
           </div>
         </form>
         {booking.whatsappConsentStatus === 'active' && <form method="post" class="admin-form">
