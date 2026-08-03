@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
+import { registerHooks } from 'node:module';
 import test from 'node:test';
 import pg from 'pg';
 
@@ -112,6 +113,20 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
        ) RETURNING public_id::text`,
     );
     const routeReference = String(routeBooking.rows[0].public_id);
+    registerHooks({
+      resolve(specifier, context, nextResolve) {
+        try {
+          return nextResolve(specifier, context);
+        } catch (error) {
+          if (!specifier.startsWith('.') || /\.[a-z0-9]+$/i.test(specifier)) throw error;
+          try {
+            return nextResolve(`${specifier}.ts`, context);
+          } catch {
+            return nextResolve(`${specifier}/index.ts`, context);
+          }
+        }
+      },
+    });
     const { POST: updateContactRoute } = await import(
       '../../src/pages/admin/bookings/[reference]/email/index.ts'
     );
