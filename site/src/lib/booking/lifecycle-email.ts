@@ -18,7 +18,8 @@ export type BookingLifecycleEmailEvent =
   | 'balance_payment_reported'
   | 'balance_payment_verified'
   | 'balance_payment_report_rejected'
-  | 'booking_cancelled';
+  | 'booking_cancelled'
+  | 'booking_cancelled_by_booker';
 
 export type BookingLifecycleEmailOutcome =
   | {
@@ -95,6 +96,14 @@ function paymentDetails(input: BookingLifecycleEmailInput): {
 }
 
 export function getLifecycleEmailTargets(event: BookingLifecycleEmailEvent): NotificationTarget[] {
+  if (event === 'booking_cancelled' || event === 'booking_cancelled_by_booker') {
+    const actor = event === 'booking_cancelled_by_booker' ? 'booker' : 'administrator';
+    return [...new Set(
+      BOOKING_TRANSITION_RULES
+        .filter((rule) => rule.action === 'cancel_booking' && rule.actor === actor)
+        .flatMap((rule) => rule.emailNotificationTargets),
+    )];
+  }
   return [...new Set(
     BOOKING_TRANSITION_RULES
       .filter((rule) => rule.activityEvent === event)
@@ -263,6 +272,29 @@ function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
           'View booking record',
         ),
       };
+    }
+    case 'booking_cancelled_by_booker': {
+      const reason = String(input.reason || '').trim();
+      if (!reason) throw new Error('BOOKING_CANCELLATION_REASON_REQUIRED');
+      if (!input.adminUrl) throw new Error('ADMIN_BOOKING_URL_REQUIRED');
+      const subject = `Booking cancelled by Booker: ${input.booking.name} · ${input.propertyName}`;
+      const text = [
+        `${input.booking.name} has cancelled this booking.`,
+        '',
+        `Reason: ${reason}`,
+        '',
+        ...bookingSummary(input),
+        '',
+        `Review the booking record: ${input.adminUrl}`,
+      ].join('\n');
+      const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;color:#17323a;">
+        <h1>Booking cancelled by Booker</h1>
+        <p><strong>${escapeHtml(input.booking.name)}</strong> has cancelled this booking.</p>
+        <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+        ${bookingSummaryHtml(input)}
+        <p><a href="${escapeHtml(input.adminUrl)}">Review the booking record</a></p>
+      </body></html>`;
+      return { to: '', subject, text, html };
     }
   }
 }

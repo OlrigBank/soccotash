@@ -33,6 +33,17 @@ export function nextDeliveryStatus(current: NotificationDeliveryStatus, incoming
   return progress[incoming] > progress[current] ? incoming : current;
 }
 
+export function hasActiveWhatsAppConsentForCurrentNumber(
+  booking: Pick<
+    ProvisionalBookingRequest,
+    'whatsappConsentStatus' | 'telephoneE164' | 'whatsappConsentNumberE164'
+  >,
+): boolean {
+  return booking.whatsappConsentStatus === 'active'
+    && Boolean(booking.telephoneE164)
+    && booking.whatsappConsentNumberE164 === booking.telephoneE164;
+}
+
 function safeContext(value: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!value) return {};
   const denied = /token|secret|telephone|phone|email|url|reason/i;
@@ -202,9 +213,7 @@ export async function deliverBookingNotification(input: {
 
   if (input.target !== 'booker') return deliverEmailFallback({ eventId, sourceKey: input.sourceKey, emailDelivery: input.emailDelivery });
 
-  const consentActive = input.booking.whatsappConsentStatus === 'active'
-    && Boolean(input.booking.telephoneE164)
-    && input.booking.whatsappConsentNumberE164 === input.booking.telephoneE164;
+  const consentActive = hasActiveWhatsAppConsentForCurrentNumber(input.booking);
   const configuration = getWhatsAppConfiguration();
   const priorWhatsApp = await existingDelivery(`${input.sourceKey}:whatsapp`);
   if (priorWhatsApp) return { channel: priorWhatsApp.channel, status: priorWhatsApp.status, fallbackUsed: false };

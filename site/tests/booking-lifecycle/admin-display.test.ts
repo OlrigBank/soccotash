@@ -26,4 +26,7 @@ test('the administrator price display follows the accepted offer through payment
   assert.deepEqual(getAdminPriceDisplayState({
     bookingStatus: 'confirmed', hasRecordedPricing: false, hasPublishedOffer: true, hasAcceptedOffer: true,
   }), { heading: 'Confirmed price', source: 'offer' });
+  assert.deepEqual(getAdminPriceDisplayState({
+    bookingStatus: 'cancelled', hasRecordedPricing: false, hasPublishedOffer: true, hasAcceptedOffer: true,
+  }), { heading: 'Price at cancellation', source: 'offer' });
 });

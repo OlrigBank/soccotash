@@ -49,6 +49,10 @@ test('canonical lifecycle assigns each essential email to the correct recipient 
   assert.deepEqual(getLifecycleEmailTargets('balance_payment_verified'), ['booker']);
   assert.deepEqual(getLifecycleEmailTargets('balance_payment_report_rejected'), ['booker']);
   assert.deepEqual(getLifecycleEmailTargets('booking_cancelled'), ['booker']);
+  assert.deepEqual(
+    getLifecycleEmailTargets('booking_cancelled_by_booker' as never),
+    ['administrator'],
+  );
 });
 
 test('sends payment and cancellation emails to the declared administrator and Booker recipients', async () => {
