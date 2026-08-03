@@ -3,6 +3,8 @@ import BookingConversation from './BookingConversation.astro';
 import type { BookingMessage } from '../lib/booking/messaging';
 import type { CustomerBookingOffer } from '../lib/booking/repository';
 import type { BookingPayment } from '../lib/booking/payment-lifecycle';
+import { getCancellationDisplayState } from '../lib/booking/cancellation-display';
+import { listAllowedBookingTransitions } from '../lib/booking/lifecycle';
 
 interface Props {
   offer: CustomerBookingOffer;
@@ -51,6 +53,13 @@ const balanceVerified = payments.some((payment) => payment.stage === 'balance' &
 const fullPaymentVerified = payments.some((payment) => payment.stage === 'full_payment' && payment.status === 'verified');
 const balanceReported = confirmed && openPayment?.stage === 'balance';
 const fullyPaid = fullPaymentVerified || (offer.balanceDuePence > 0 && depositVerified && balanceVerified);
+const cancellationDisplay = getCancellationDisplayState({
+  cancelled,
+  fullyPaid,
+  acceptedOffer: offer.customerStatus === 'accepted' || ['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled'].includes(offer.bookingStatus),
+});
+const canCancel = allowResponse && !adminPreview && listAllowedBookingTransitions(offer.bookingStatus, 'booker')
+  .some((transition) => transition.action === 'cancel_booking');
 const canReportBalance = allowResponse && confirmed && offer.balanceDuePence > 0 && depositVerified && !balanceVerified && !openPayment && !cancelled;
 const fullPaymentRequired = offer.balanceDuePence === 0;
 const initialPaymentLabel = fullPaymentRequired ? 'full payment' : 'deposit';
@@ -66,7 +75,7 @@ const displayStatus = cancelled ? 'cancelled'
     : paymentPending ? 'payment_pending'
       : requestPending ? 'pending' : offer.customerStatus;
 const statusHeading = cancelled
-  ? 'Booking cancelled'
+  ? cancellationDisplay.statusHeading
   : fullyPaid
   ? 'Booking confirmed and fully paid'
   : balanceReported
@@ -195,27 +204,27 @@ const conversationError = messageError || responseError;
           <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
           <div><dt>Reference</dt><dd><code>{offer.bookingReference}</code></dd></div>
           <div><dt>Requested</dt><dd>{new Date(offer.requestCreatedAt).toLocaleString('en-GB')}</dd></div>
-          {!confirmed && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
-          {confirmed && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
+          {!confirmed && !cancelled && offer.validUntil && <div><dt>Offer valid through</dt><dd>{dateLabel(offer.validUntil)}</dd></div>}
+          {(confirmed || cancelled) && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
         </dl>
       </section>
 
       {(paymentPending || paymentReported || confirmed || cancelled) && <section class="booking-drawer-section customer-booking-payment-history">
         <p class="eyebrow">Payment summary</p>
-        <h3>{fullyPaid ? 'Booking confirmed and fully paid' : 'Accepted payment plan'}</h3>
+        <h3>{cancelled ? cancellationDisplay.paymentHeading : fullyPaid ? 'Booking confirmed and fully paid' : 'Accepted payment plan'}</h3>
         <dl class="customer-booking-details">
           <div><dt>Accepted total</dt><dd>{money(offer.totalPence, offer.currency)}</dd></div>
           <div><dt>{fullPaymentRequired ? 'Full payment' : 'Deposit'}</dt><dd>{money(offer.depositPence, offer.currency)}</dd></div>
           {!fullPaymentRequired && <div><dt>Remaining balance</dt><dd>{money(offer.balanceDuePence, offer.currency)}</dd></div>}
           {!fullPaymentRequired && <div><dt>Balance deadline</dt><dd>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'Date agreed with Olrig Bank'}</dd></div>}
-          {!fullPaymentRequired && !balanceVerified && <div><dt>Balance state</dt><dd>{balanceReported
+          {!cancelled && !fullPaymentRequired && !balanceVerified && <div><dt>Balance state</dt><dd>{balanceReported
             ? 'Reported — awaiting verification'
             : offer.balanceDueOn && offer.balanceDueOn < new Date().toISOString().slice(0, 10)
               ? 'Overdue'
               : offer.balanceDueOn === new Date().toISOString().slice(0, 10)
                 ? 'Due today'
                 : 'Upcoming'}</dd></div>}
-          {fullyPaid && <div><dt>Payment state</dt><dd>Paid</dd></div>}
+          {(fullyPaid || cancelled) && <div><dt>Payment state</dt><dd>{cancelled ? cancellationDisplay.paymentState : 'Paid'}</dd></div>}
         </dl>
 
         <h3>Payment history</h3>
@@ -231,7 +240,7 @@ const conversationError = messageError || responseError;
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Price breakdown</p>
-        <h3>{confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending && !offer.priceAvailable ? 'Price to be agreed' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
+        <h3>{cancelled ? cancellationDisplay.priceHeading : confirmed ? 'Confirmed price' : paymentReported || paymentPending ? 'Accepted offer' : requestPending && !offer.priceAvailable ? 'Price to be agreed' : requestPending ? 'Recorded provisional cost' : 'Current offer'}</h3>
         {offer.priceAvailable ? <div class="customer-booking-price-table">
           {offer.lineItems.map((line) => <div class="customer-booking-price-line">
             <div><strong>{line.label}</strong>{line.detail && <small>{line.detail}</small>}</div>
@@ -358,6 +367,26 @@ const conversationError = messageError || responseError;
             <button class="customer-booking-submit customer-booking-decline" type="submit">Decline booking offer</button>
           </form>
         </div>
+      </section>}
+
+      {canCancel && <section class="booking-drawer-section customer-booking-response">
+        <div>
+          <p class="eyebrow">Cancel booking</p>
+          <h3>Cancel this booking and release its dates</h3>
+          <p>This is separate from declining an offer. The booking, payment history and conversation will remain available as a permanent record.</p>
+        </div>
+        <form method="post" class="customer-booking-decision-form is-decline">
+          <input type="hidden" name="action" value="cancel-booking" />
+          <label class="booking-field">
+            <span>Reason for cancellation</span>
+            <textarea name="cancellationReason" rows="4" maxlength="1000" required></textarea>
+          </label>
+          <label class="customer-booking-confirm-check">
+            <input type="checkbox" name="confirmCancellation" value="yes" required />
+            <span>I confirm that I want to cancel this booking and release its dates.</span>
+          </label>
+          <button class="customer-booking-submit customer-booking-decline" type="submit">Cancel booking</button>
+        </form>
       </section>}
 
       <p class="customer-booking-help">Use the conversation as the primary contact method for questions, changes and later amendment requests.</p>

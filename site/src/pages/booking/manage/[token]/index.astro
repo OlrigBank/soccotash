@@ -31,6 +31,8 @@ import {
 } from '../../../../lib/booking/offer-email';
 import { sendAdministratorMessageEmail } from '../../../../lib/booking/message-email';
 import { deliverBookingNotification } from '../../../../lib/booking/notification-delivery';
+import { cancelBookingByBookerToken } from '../../../../lib/booking/cancellation-lifecycle';
+import { validateCancellationInput } from '../../../../lib/booking/cancellation-display';
 import {
   getBookingManagementRecipients,
   getEmailConfiguration,
@@ -74,6 +76,45 @@ if (Astro.request.method === 'POST') {
       eventType: 'whatsapp_consent_withdrawn',
     });
     return Astro.redirect(`/booking/manage/${token}/?consent=withdrawn`);
+  } else if (action === 'cancel-booking') {
+    const cancellation = validateCancellationInput({
+      confirmed: form.get('confirmCancellation') === 'yes',
+      reason: String(form.get('cancellationReason') || ''),
+    });
+    if (!cancellation.accepted) {
+      responseError = cancellation.code === 'confirmation_required'
+        ? 'Confirm that this booking should be cancelled and its dates released.'
+        : 'Enter the reason for cancelling the booking.';
+    } else {
+      const booking = await getProvisionalBookingRequest(offer.bookingReference);
+      if (!booking) return new Response('Booking not found.', { status: 404 });
+      const cancelled = await cancelBookingByBookerToken(token, cancellation.reason);
+      if (cancelled !== 'cancelled') {
+        responseError = cancelled === 'reason_required'
+          ? 'Enter the reason for cancelling the booking.'
+          : cancelled === 'not_found'
+            ? 'The booking could not be found.'
+            : 'The booking can no longer be cancelled from its current status.';
+      } else {
+        const adminUrl = new URL(`/admin/bookings/${offer.bookingReference}/`, publicOrigin).toString();
+        const notification = await deliverBookingLifecycleNotification({
+          event: 'booking_cancelled_by_booker',
+          booking,
+          propertyName,
+          adminUrl,
+          reason: cancellation.reason,
+          notificationSourceKey: `booking-cancelled-by-booker:${offer.bookingReference}`,
+        });
+        await recordBookingActivity({
+          bookingReference: offer.bookingReference,
+          offerId: offer.offerId,
+          actor: 'system',
+          eventType: `booking_cancelled_by_booker_email_${notification.status}`,
+          details: notification,
+        });
+        return Astro.redirect(`/booking/manage/${token}/?cancelled=1&email=${notification.status}`);
+      }
+    }
   } else if (action === 'send-message') {
     const body = String(form.get('messageBody') || '').trim().slice(0, 5000);
     const notificationRequested = form.get('sendMessageEmail') === 'yes';
@@ -263,7 +304,10 @@ const emailParam = Astro.url.searchParams.get('paymentEmail') || Astro.url.searc
 const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ? 'sent' : emailParam === 'skipped' ? 'skipped' : null;
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
-const messageNotice = messageSent
+const cancellationRecorded = Astro.url.searchParams.get('cancelled') === '1';
+const messageNotice = cancellationRecorded
+  ? 'Your cancellation has been recorded. The dates have been released, and the booking record remains available here.'
+  : messageSent
   ? messageEmailStatus === 'sent'
     ? 'Your message was added to the conversation and the Olrig Bank administrators were notified by email.'
     : messageEmailStatus === 'failed'
@@ -271,11 +315,12 @@ const messageNotice = messageSent
       : 'Your message was added to the conversation.'
   : '';
 const confirmedBooking = offer.bookingStatus === 'confirmed' || offer.bookingStatus === 'approved';
+const cancelledBooking = offer.bookingStatus === 'cancelled';
 const pendingBooking = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const conversationMessages = await getBookingMessagesByToken(token, 'booker', { markRead: true });
 ---
 <BaseLayout
-  title={`${confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
+  title={`${cancelledBooking ? 'Cancelled booking' : confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
   description="Manage your Olrig Bank booking and conversation."
   showSidebar={false}
   robots="noindex,nofollow,noarchive"

@@ -1,9 +1,9 @@
 export type AdminPriceDisplayState = {
-  heading: 'Price to be agreed' | 'Recorded provisional calculation' | 'Published offer' | 'Accepted offer' | 'Confirmed price';
+  heading: 'Price to be agreed' | 'Recorded provisional calculation' | 'Published offer' | 'Accepted offer' | 'Confirmed price' | 'Price at cancellation';
   source: 'recorded' | 'offer' | 'none';
 };
 
-const ACCEPTED_PRICE_STATUSES = new Set(['payment_pending', 'payment_reported', 'confirmed', 'approved']);
+const ACCEPTED_PRICE_STATUSES = new Set(['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled']);
 
 export function shouldShowOfferPublishedNotice(published: boolean, bookingStatus: string): boolean {
   return published && bookingStatus === 'offered';
@@ -17,9 +17,11 @@ export function getAdminPriceDisplayState(input: {
 }): AdminPriceDisplayState {
   if (input.hasAcceptedOffer && ACCEPTED_PRICE_STATUSES.has(input.bookingStatus)) {
     return {
-      heading: input.bookingStatus === 'confirmed' || input.bookingStatus === 'approved'
-        ? 'Confirmed price'
-        : 'Accepted offer',
+      heading: input.bookingStatus === 'cancelled'
+        ? 'Price at cancellation'
+        : input.bookingStatus === 'confirmed' || input.bookingStatus === 'approved'
+          ? 'Confirmed price'
+          : 'Accepted offer',
       source: 'offer',
     };
   }

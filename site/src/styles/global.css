@@ -2172,6 +2172,11 @@ main {
   line-height: 1.45;
 }
 
+.customer-booking-decision-form > .booking-field {
+  width: 100%;
+  margin-bottom: 0.85rem;
+}
+
 .customer-booking-confirm-check {
   display: flex;
   align-items: flex-start;

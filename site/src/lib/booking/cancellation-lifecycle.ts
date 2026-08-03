@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { getPool } from './db.ts';
 import { assertBookingTransitionAllowed } from './lifecycle.ts';
 import { insertBotBookingMessage } from './messaging.ts';
+import { resolveBookingAccessCredential } from './booking-access.ts';
 
 export type CancelBookingResult =
   | 'cancelled'
@@ -16,15 +17,17 @@ async function insertCancellationActivity(
     offerId?: string | number | null;
     reason: string;
     lifecycleRule: string;
+    actor: 'administrator' | 'customer';
   },
 ): Promise<void> {
   await client.query(
     `INSERT INTO booking_activity
        (provisional_booking_id, booking_offer_id, actor, event_type, details)
-     VALUES ($1, $2, 'administrator', 'booking_cancelled', $3::jsonb)`,
+     VALUES ($1, $2, $3, 'booking_cancelled', $4::jsonb)`,
     [
       input.bookingId,
       input.offerId || null,
+      input.actor,
       JSON.stringify({
         reason: input.reason,
         lifecycleRule: input.lifecycleRule,
@@ -33,9 +36,10 @@ async function insertCancellationActivity(
   );
 }
 
-export async function cancelBooking(
+async function cancelBookingForActor(
   reference: string,
   reasonInput: string,
+  actor: 'administrator' | 'booker',
 ): Promise<CancelBookingResult> {
   if (!/^[0-9a-f-]{36}$/i.test(reference)) return 'not_found';
   const reason = reasonInput.trim().slice(0, 1000);
@@ -70,7 +74,7 @@ export async function cancelBooking(
       decision = assertBookingTransitionAllowed({
         status: row.status,
         action: 'cancel_booking',
-        actor: 'administrator',
+        actor,
       });
     } catch {
       await client.query('ROLLBACK');
@@ -102,11 +106,14 @@ export async function cancelBooking(
       offerId: row.offer_id,
       reason,
       lifecycleRule: decision.rule.id,
+      actor: actor === 'booker' ? 'customer' : 'administrator',
     });
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
-      body: `Olrig Bank cancelled this booking. Reason: ${reason} The conversation remains available as the permanent record.`,
+      body: actor === 'booker'
+        ? `The Booker cancelled this booking. Reason: ${reason} The conversation remains available as the permanent record.`
+        : `Olrig Bank cancelled this booking. Reason: ${reason} The conversation remains available as the permanent record.`,
       audience: 'both',
       sourceKey: `booking-cancelled:${row.id}`,
     });
@@ -118,4 +125,20 @@ export async function cancelBooking(
   } finally {
     client.release();
   }
+}
+
+export async function cancelBooking(
+  reference: string,
+  reasonInput: string,
+): Promise<CancelBookingResult> {
+  return cancelBookingForActor(reference, reasonInput, 'administrator');
+}
+
+export async function cancelBookingByBookerToken(
+  token: string,
+  reasonInput: string,
+): Promise<CancelBookingResult> {
+  const access = await resolveBookingAccessCredential(token);
+  if (!access.allowed) return 'not_found';
+  return cancelBookingForActor(access.reference, reasonInput, 'booker');
 }
