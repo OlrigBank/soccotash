@@ -3,6 +3,19 @@ import { normaliseWhatsAppTelephone } from './whatsapp-phone.ts';
 
 export const INACTIVE_BOOKING_STATUSES = ['declined', 'cancelled', 'expired'] as const;
 export const BOOKER_CONTACT_REQUIRED_MESSAGE = 'Please provide an email address and/or a contact telephone number so that we can provide you with an offer.';
+export const ADMIN_FINAL_CONTACT_REQUIRED_MESSAGE = 'An active booking must retain at least one valid Booker contact method.';
+
+export function adminContactUpdateErrorMessage(
+  status: string | null,
+  activityConfirmed: boolean,
+): string {
+  if (status === 'invalid_contact') return 'Enter a valid email address or telephone number.';
+  if (status === 'final_contact_required') return ADMIN_FINAL_CONTACT_REQUIRED_MESSAGE;
+  if ((status === '1' || status === 'telephone_removed') && !activityConfirmed) {
+    return 'The contact change could not be confirmed in Technical booking activity. No success has been reported.';
+  }
+  return '';
+}
 
 export function logBookerContactUpdate(
   traceId: string,
@@ -90,6 +103,7 @@ export async function updateProvisionalBookingContact(input: {
     const previous = selected.rows[0];
     if (!contact.valid && isActiveBookingStatus(String(previous.status))) {
       await client.query('ROLLBACK');
+      trace('helper.final_contact_rejected');
       return { status: 'final_contact_required' };
     }
     const telephoneChanged = (previous.guest_telephone_e164 || null) !== contact.telephoneE164;
