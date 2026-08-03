@@ -6,6 +6,10 @@ import { countPricingPlans } from '../../lib/pricing/repository';
 
 export const prerender = false;
 
+const featureBranch = 'agent/require-reachable-booker-contact';
+const featureIteration = 3;
+const featureCompareUrl = `https://github.com/OlrigBank/soccotash/compare/${featureBranch}`;
+
 const [listingCount, bookingCount, syncRows, pricingPlanCount] = await Promise.all([
   Promise.resolve(3),
   getPool().query("SELECT count(*)::int AS count FROM provisional_bookings WHERE status = 'pending'"),
@@ -23,6 +27,12 @@ const [listingCount, bookingCount, syncRows, pricingPlanCount] = await Promise.a
       <p>Operational overview for Olrig Bank.</p>
     </div>
   </header>
+
+  <p class="admin-panel-intro">
+    Deployment:
+    <a href={featureCompareUrl} target="_blank" rel="noopener noreferrer">{featureBranch}</a>
+    · iteration: {featureIteration}
+  </p>
 
   <section class="admin-card-grid" aria-label="Administration sections">
     <a class="admin-summary-card" href="/admin/content/">
