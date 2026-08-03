@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   BOOKER_CONTACT_REQUIRED_MESSAGE,
+  adminContactUpdateStatus,
   bookerContactSubmissionError,
   isActiveBookingStatus,
   resolveAdminTelephoneUpdate,
@@ -51,6 +52,12 @@ test('gives focused public-submission feedback for missing or malformed contact 
 test('administrator can explicitly remove a saved telephone number', () => {
   assert.equal(resolveAdminTelephoneUpdate('07700 900123', false), '07700 900123');
   assert.equal(resolveAdminTelephoneUpdate('07700 900123', true), '');
+});
+
+test('administrator removal is confirmed only after the stored telephone is null', () => {
+  assert.equal(adminContactUpdateStatus(true, null), 'telephone_removed');
+  assert.equal(adminContactUpdateStatus(true, '+447700900123'), '1');
+  assert.equal(adminContactUpdateStatus(false, null), '1');
 });
 
 test('legacy terminal bookings are inactive but lifecycle bookings retain contact', () => {
