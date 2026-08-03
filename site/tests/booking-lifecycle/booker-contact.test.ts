@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  ADMIN_FINAL_CONTACT_REQUIRED_MESSAGE,
   BOOKER_CONTACT_REQUIRED_MESSAGE,
+  adminContactUpdateErrorMessage,
   adminContactUpdateStatus,
   bookerContactSubmissionError,
   isActiveBookingStatus,
@@ -63,4 +65,22 @@ test('administrator removal is confirmed only after the stored telephone is null
 test('legacy terminal bookings are inactive but lifecycle bookings retain contact', () => {
   for (const status of ['declined', 'cancelled', 'expired']) assert.equal(isActiveBookingStatus(status), false);
   for (const status of ['pending', 'offered', 'payment_pending', 'payment_reported', 'confirmed']) assert.equal(isActiveBookingStatus(status), true);
+});
+
+
+test('administrator receives focused feedback when a final contact removal is rejected', () => {
+  assert.equal(
+    adminContactUpdateErrorMessage('final_contact_required', false),
+    ADMIN_FINAL_CONTACT_REQUIRED_MESSAGE,
+  );
+  assert.equal(
+    ADMIN_FINAL_CONTACT_REQUIRED_MESSAGE,
+    'An active booking must retain at least one valid Booker contact method.',
+  );
+  assert.equal(adminContactUpdateErrorMessage('invalid_contact', false), 'Enter a valid email address or telephone number.');
+  assert.equal(adminContactUpdateErrorMessage('1', true), '');
+  assert.equal(
+    adminContactUpdateErrorMessage('1', false),
+    'The contact change could not be confirmed in Technical booking activity. No success has been reported.',
+  );
 });
