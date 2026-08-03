@@ -217,6 +217,76 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
       },
     });
 
+    const rejectionTraceEvents: Array<Record<string, unknown>> = [];
+    console.info = (...args: unknown[]) => {
+      if (args[0] === '[booker-contact-update]' && typeof args[1] === 'string') {
+        rejectionTraceEvents.push(JSON.parse(args[1]));
+        return;
+      }
+      originalConsoleInfo(...args);
+    };
+
+    let rejectedResponse: Response;
+    try {
+      const request = new Request(
+        `http://localhost/admin/bookings/${routeReference}/email/`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            origin: 'http://localhost',
+            'sec-fetch-site': 'same-origin',
+          },
+          body: new URLSearchParams({
+            contactEmail: '',
+            contactTelephone: '',
+          }),
+        },
+      );
+      rejectedResponse = await updateContactRoute({
+        params: { reference: routeReference },
+        request,
+        locals: { adminUser: { id: null } },
+        redirect: (location: string, status = 302) => new Response(null, {
+          status,
+          headers: { location },
+        }),
+      } as never);
+    } finally {
+      console.info = originalConsoleInfo;
+    }
+
+    assert.equal(rejectedResponse.status, 303);
+    const rejectedLocation = rejectedResponse.headers.get('location');
+    assert.ok(rejectedLocation);
+    const rejectedRedirect = new URL(rejectedLocation, 'http://localhost');
+    assert.equal(rejectedRedirect.searchParams.get('contact'), 'final_contact_required');
+    assert.equal(rejectedRedirect.searchParams.has('contactActivity'), false);
+    assert.deepEqual(rejectionTraceEvents.map((event) => event.stage), [
+      'route.received',
+      'route.booking_loaded',
+      'helper.started',
+      'helper.transaction_started',
+      'helper.booking_locked',
+      'helper.final_contact_rejected',
+      'route.helper_returned',
+      'route.rejected',
+    ]);
+
+    const afterRejectedRoute = await application.query(
+      `SELECT pb.guest_email, pb.guest_telephone, count(ba.id)::int AS activity_count
+         FROM provisional_bookings pb
+         LEFT JOIN booking_activity ba ON ba.provisional_booking_id = pb.id
+        WHERE pb.public_id = $1::uuid
+        GROUP BY pb.id`,
+      [routeReference],
+    );
+    assert.deepEqual(afterRejectedRoute.rows[0], {
+      guest_email: 'route-after@example.com',
+      guest_telephone: null,
+      activity_count: 1,
+    });
+
     await application.query(`UPDATE provisional_bookings SET status = 'cancelled' WHERE public_id = $1::uuid`, [reference]);
     assert.equal((await updateProvisionalBookingContact({ reference, email: '', telephone: '' })).status, 'updated');
   } finally {
