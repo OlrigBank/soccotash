@@ -85,8 +85,23 @@ export async function updateProvisionalBookingContact(input: {
          whatsapp_consent_withdrawn_at = CASE WHEN $5 THEN NOW() ELSE whatsapp_consent_withdrawn_at END,
          whatsapp_consent_number_e164 = CASE WHEN $5 THEN NULL ELSE whatsapp_consent_number_e164 END
        WHERE public_id = $1::uuid
-       RETURNING guest_email, guest_telephone, guest_telephone_e164`,
+       RETURNING id, guest_email, guest_telephone, guest_telephone_e164`,
       [input.reference, contact.email, contact.telephone || null, contact.telephoneE164, whatsappConsentInvalidated],
+    );
+    await client.query(
+      `INSERT INTO booking_activity
+         (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, 'administrator', 'booker_contact_updated', $2::jsonb)`,
+      [
+        updated.rows[0].id,
+        JSON.stringify({
+          previousEmail: String(previous.guest_email || ''),
+          newEmail: String(updated.rows[0].guest_email || ''),
+          previousTelephone: previous.guest_telephone || null,
+          newTelephone: updated.rows[0].guest_telephone || null,
+          whatsappConsentInvalidated,
+        }),
+      ],
     );
     await client.query('COMMIT');
     return {
