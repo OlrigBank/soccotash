@@ -46,7 +46,10 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
   if (result.status === 'not_found') {
     return new Response('Booking request not found.', { status: 404 });
   }
-  if (result.status !== 'updated') return redirect(`/admin/bookings/${reference}/?contact=${result.status}`, 303);
+  if (result.status !== 'updated') {
+    logBookerContactUpdate(traceId, 'route.rejected', reference, { status: result.status });
+    return redirect(`/admin/bookings/${reference}/?contact=${result.status}`, 303);
+  }
 
   await audit(locals.adminUser!.id, 'booking.contact_updated', {
     bookingReference: reference,
