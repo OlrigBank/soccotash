@@ -4,6 +4,15 @@ import { normaliseWhatsAppTelephone } from './whatsapp-phone.ts';
 export const INACTIVE_BOOKING_STATUSES = ['declined', 'cancelled', 'expired'] as const;
 export const BOOKER_CONTACT_REQUIRED_MESSAGE = 'Please provide an email address and/or a contact telephone number so that we can provide you with an offer.';
 
+export function logBookerContactUpdate(
+  traceId: string,
+  stage: string,
+  reference: string,
+  details: Record<string, unknown> = {},
+): void {
+  console.info('[booker-contact-update]', JSON.stringify({ traceId, stage, reference, ...details }));
+}
+
 export function normaliseBookerEmail(value: unknown): string {
   return String(value || '').trim().toLowerCase().slice(0, 254);
 }
@@ -56,7 +65,12 @@ export async function updateProvisionalBookingContact(input: {
   reference: string;
   email: string;
   telephone: string;
+  traceId?: string;
 }): Promise<BookerContactUpdateResult> {
+  const trace = (stage: string, details: Record<string, unknown> = {}) => {
+    if (input.traceId) logBookerContactUpdate(input.traceId, stage, input.reference, details);
+  };
+  trace('helper.started');
   const contact = validateBookerContact(input);
   if ((contact.email && !validBookerEmail(contact.email)) || (contact.telephone && !contact.telephoneE164)) {
     return { status: 'invalid_contact' };
@@ -64,6 +78,7 @@ export async function updateProvisionalBookingContact(input: {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    trace('helper.transaction_started');
     const selected = await client.query(
       `SELECT status, guest_email, guest_telephone, guest_telephone_e164,
               whatsapp_consent_status, whatsapp_consent_number_e164
@@ -71,6 +86,7 @@ export async function updateProvisionalBookingContact(input: {
       [input.reference],
     );
     if (!selected.rowCount) { await client.query('ROLLBACK'); return { status: 'not_found' }; }
+    trace('helper.booking_locked');
     const previous = selected.rows[0];
     if (!contact.valid && isActiveBookingStatus(String(previous.status))) {
       await client.query('ROLLBACK');
@@ -88,6 +104,7 @@ export async function updateProvisionalBookingContact(input: {
        RETURNING id, guest_email, guest_telephone, guest_telephone_e164`,
       [input.reference, contact.email, contact.telephone || null, contact.telephoneE164, whatsappConsentInvalidated],
     );
+    trace('helper.booking_updated');
     const activity = await client.query(
       `INSERT INTO booking_activity
          (provisional_booking_id, actor, event_type, details)
@@ -107,7 +124,9 @@ export async function updateProvisionalBookingContact(input: {
     if (activity.rowCount !== 1 || !activity.rows[0]?.id) {
       throw new Error('The Booker contact update audit entry was not recorded.');
     }
+    trace('helper.activity_inserted', { activityId: String(activity.rows[0].id) });
     await client.query('COMMIT');
+    trace('helper.transaction_committed', { activityId: String(activity.rows[0].id) });
     return {
       status: 'updated', email: String(updated.rows[0].guest_email),
       telephone: updated.rows[0].guest_telephone, telephoneE164: updated.rows[0].guest_telephone_e164,
@@ -116,6 +135,9 @@ export async function updateProvisionalBookingContact(input: {
     };
   } catch (error) {
     await client.query('ROLLBACK');
+    trace('helper.transaction_rolled_back', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     throw error;
   } finally { client.release(); }
 }

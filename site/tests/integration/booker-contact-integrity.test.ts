@@ -103,6 +103,105 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
       whatsappConsentInvalidated: false,
     });
 
+    const routeBooking = await application.query(
+      `INSERT INTO provisional_bookings (
+         property_id, arrival, departure, guests, guest_name, guest_email, status
+       ) VALUES (
+         'main-house', CURRENT_DATE + 50, CURRENT_DATE + 53, 2,
+         'Contact route test', 'route-before@example.com', 'pending'
+       ) RETURNING public_id::text`,
+    );
+    const routeReference = String(routeBooking.rows[0].public_id);
+    const { POST: updateContactRoute } = await import(
+      '../../src/pages/admin/bookings/[reference]/email/index.ts'
+    );
+    const traceEvents: Array<Record<string, unknown>> = [];
+    const originalConsoleInfo = console.info;
+    console.info = (...args: unknown[]) => {
+      if (args[0] === '[booker-contact-update]' && typeof args[1] === 'string') {
+        traceEvents.push(JSON.parse(args[1]));
+        return;
+      }
+      originalConsoleInfo(...args);
+    };
+
+    let routeResponse: Response;
+    try {
+      const request = new Request(
+        `http://localhost/admin/bookings/${routeReference}/email/`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            origin: 'http://localhost',
+            'sec-fetch-site': 'same-origin',
+          },
+          body: new URLSearchParams({
+            contactEmail: 'route-after@example.com',
+            contactTelephone: '',
+          }),
+        },
+      );
+      routeResponse = await updateContactRoute({
+        params: { reference: routeReference },
+        request,
+        locals: { adminUser: { id: null } },
+        redirect: (location: string, status = 302) => new Response(null, {
+          status,
+          headers: { location },
+        }),
+      } as never);
+    } finally {
+      console.info = originalConsoleInfo;
+    }
+
+    assert.equal(routeResponse.status, 303);
+    const location = routeResponse.headers.get('location');
+    assert.ok(location);
+    const redirected = new URL(location, 'http://localhost');
+    assert.equal(redirected.searchParams.get('contact'), '1');
+    const routeActivityId = redirected.searchParams.get('contactActivity');
+    assert.match(String(routeActivityId), /^\d+$/);
+
+    assert.equal(new Set(traceEvents.map((event) => event.traceId)).size, 1);
+    assert.equal(traceEvents.every((event) => event.reference === routeReference), true);
+    assert.deepEqual(traceEvents.map((event) => event.stage), [
+      'route.received',
+      'route.booking_loaded',
+      'helper.started',
+      'helper.transaction_started',
+      'helper.booking_locked',
+      'helper.booking_updated',
+      'helper.activity_inserted',
+      'helper.transaction_committed',
+      'route.helper_returned',
+      'route.security_audit_recorded',
+      'route.redirected',
+    ]);
+
+    const routeStored = await application.query(
+      `SELECT pb.guest_email, ba.id::text AS activity_id, ba.actor, ba.event_type, ba.details
+         FROM provisional_bookings pb
+         JOIN booking_activity ba ON ba.provisional_booking_id = pb.id
+        WHERE pb.public_id = $1::uuid
+        ORDER BY ba.id`,
+      [routeReference],
+    );
+    assert.equal(routeStored.rowCount, 1);
+    assert.deepEqual(routeStored.rows[0], {
+      guest_email: 'route-after@example.com',
+      activity_id: routeActivityId,
+      actor: 'administrator',
+      event_type: 'booker_contact_updated',
+      details: {
+        previousEmail: 'route-before@example.com',
+        newEmail: 'route-after@example.com',
+        previousTelephone: null,
+        newTelephone: null,
+        whatsappConsentInvalidated: false,
+      },
+    });
+
     await application.query(`UPDATE provisional_bookings SET status = 'cancelled' WHERE public_id = $1::uuid`, [reference]);
     assert.equal((await updateProvisionalBookingContact({ reference, email: '', telephone: '' })).status, 'updated');
   } finally {

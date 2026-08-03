@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { APIRoute } from 'astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
 import {
   adminContactUpdateStatus,
+  logBookerContactUpdate,
   resolveAdminTelephoneUpdate,
   updateProvisionalBookingContact,
 } from '../../../../../lib/booking/booking-contact';
@@ -19,6 +21,9 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
     return new Response('Booking request not found.', { status: 404 });
   }
 
+  const traceId = randomUUID();
+  logBookerContactUpdate(traceId, 'route.received', reference);
+
   const form = await request.formData();
   const email = String(form.get('contactEmail') || '').trim().toLowerCase();
   const removalRequested = form.get('removeContactTelephone') === 'yes';
@@ -31,8 +36,13 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
   if (!booking) {
     return new Response('Booking request not found.', { status: 404 });
   }
+  logBookerContactUpdate(traceId, 'route.booking_loaded', reference);
 
-  const result = await updateProvisionalBookingContact({ reference, email, telephone });
+  const result = await updateProvisionalBookingContact({ reference, email, telephone, traceId });
+  logBookerContactUpdate(traceId, 'route.helper_returned', reference, {
+    status: result.status,
+    activityId: result.status === 'updated' ? result.activityId : null,
+  });
   if (result.status === 'not_found') {
     return new Response('Booking request not found.', { status: 404 });
   }
@@ -46,7 +56,14 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
     newTelephone: result.telephone,
     whatsappConsentInvalidated: result.whatsappConsentInvalidated,
   });
+  logBookerContactUpdate(traceId, 'route.security_audit_recorded', reference, {
+    activityId: result.activityId,
+  });
 
   const contactStatus = adminContactUpdateStatus(removalRequested, result.telephone);
+  logBookerContactUpdate(traceId, 'route.redirected', reference, {
+    activityId: result.activityId,
+    contactStatus,
+  });
   return redirect(`/admin/bookings/${reference}/?contact=${contactStatus}&contactActivity=${encodeURIComponent(result.activityId)}`, 303);
 };
