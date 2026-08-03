@@ -40,6 +40,10 @@ export function resolveAdminTelephoneUpdate(value: FormDataEntryValue | null, re
   return removeRequested ? '' : String(value || '').trim();
 }
 
+export function adminContactUpdateStatus(removeRequested: boolean, telephone: string | null): '1' | 'telephone_removed' {
+  return removeRequested && telephone === null ? 'telephone_removed' : '1';
+}
+
 export function isActiveBookingStatus(status: string): boolean {
   return !INACTIVE_BOOKING_STATUSES.includes(status as typeof INACTIVE_BOOKING_STATUSES[number]);
 }
