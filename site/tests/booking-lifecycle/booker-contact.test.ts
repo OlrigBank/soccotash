@@ -4,6 +4,7 @@ import {
   BOOKER_CONTACT_REQUIRED_MESSAGE,
   bookerContactSubmissionError,
   isActiveBookingStatus,
+  resolveAdminTelephoneUpdate,
   validateBookerContact,
 } from '../../src/lib/booking/booking-contact.ts';
 
@@ -45,6 +46,11 @@ test('gives focused public-submission feedback for missing or malformed contact 
     bookerContactSubmissionError(validateBookerContact({ email: 'booker@example.com', telephone: '' })),
     null,
   );
+});
+
+test('administrator can explicitly remove a saved telephone number', () => {
+  assert.equal(resolveAdminTelephoneUpdate('07700 900123', false), '07700 900123');
+  assert.equal(resolveAdminTelephoneUpdate('07700 900123', true), '');
 });
 
 test('legacy terminal bookings are inactive but lifecycle bookings retain contact', () => {

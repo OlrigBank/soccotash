@@ -36,6 +36,10 @@ export function bookerContactSubmissionError(contact: ReturnType<typeof validate
   return contact.valid ? null : BOOKER_CONTACT_REQUIRED_MESSAGE;
 }
 
+export function resolveAdminTelephoneUpdate(value: FormDataEntryValue | null, removeRequested: boolean): string {
+  return removeRequested ? '' : String(value || '').trim();
+}
+
 export function isActiveBookingStatus(status: string): boolean {
   return !INACTIVE_BOOKING_STATUSES.includes(status as typeof INACTIVE_BOOKING_STATUSES[number]);
 }

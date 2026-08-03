@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { audit, isSameOrigin } from '../../../../../lib/admin/auth';
-import { updateProvisionalBookingContact } from '../../../../../lib/booking/booking-contact';
+import { resolveAdminTelephoneUpdate, updateProvisionalBookingContact } from '../../../../../lib/booking/booking-contact';
 import { getProvisionalBookingRequest } from '../../../../../lib/booking/repository';
 
 export const prerender = false;
@@ -17,7 +17,10 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
 
   const form = await request.formData();
   const email = String(form.get('contactEmail') || '').trim().toLowerCase();
-  const telephone = String(form.get('contactTelephone') || '').trim();
+  const telephone = resolveAdminTelephoneUpdate(
+    form.get('contactTelephone'),
+    form.get('removeContactTelephone') === 'yes',
+  );
 
   const booking = await getProvisionalBookingRequest(reference);
   if (!booking) {

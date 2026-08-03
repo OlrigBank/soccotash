@@ -59,6 +59,23 @@ test('contact updates retain reachability and invalidate number-bound WhatsApp c
       whatsapp_consent_status: 'withdrawn', whatsapp_consent_number_e164: null, withdrawn: true,
     });
 
+    const removed = await updateProvisionalBookingContact({
+      reference, email: 'booker@example.com', telephone: '',
+    });
+    assert.deepEqual(removed, {
+      status: 'updated', email: 'booker@example.com', telephone: null,
+      telephoneE164: null, whatsappConsentInvalidated: false,
+    });
+    const afterRemoval = await application.query(
+      `SELECT guest_email, guest_telephone, guest_telephone_e164,
+              whatsapp_consent_status, whatsapp_consent_number_e164
+         FROM provisional_bookings WHERE public_id = $1::uuid`, [reference],
+    );
+    assert.deepEqual(afterRemoval.rows[0], {
+      guest_email: 'booker@example.com', guest_telephone: null, guest_telephone_e164: null,
+      whatsapp_consent_status: 'withdrawn', whatsapp_consent_number_e164: null,
+    });
+
     await application.query(`UPDATE provisional_bookings SET status = 'cancelled' WHERE public_id = $1::uuid`, [reference]);
     assert.equal((await updateProvisionalBookingContact({ reference, email: '', telephone: '' })).status, 'updated');
   } finally {
