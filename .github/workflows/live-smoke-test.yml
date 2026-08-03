@@ -44,7 +44,7 @@ jobs:
 
       - name: Upload playback report, traces and videos
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: live-smoke-playback-${{ github.run_number }}
           path: |
