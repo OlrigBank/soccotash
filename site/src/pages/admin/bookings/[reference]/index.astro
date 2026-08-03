@@ -35,6 +35,7 @@ import { getWhatsAppConfiguration } from '../../../../lib/booking/whatsapp-provi
 import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display';
 import { validateOfferTotal } from '../../../../lib/booking/offer-price';
 import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../../../../lib/booking/admin-display';
+import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
 
 export const prerender = false;
 
@@ -374,16 +375,11 @@ const contactActivityConfirmed = Boolean(expectedContactActivityId)
   && activity.some((event) => event.id === expectedContactActivityId && event.eventType === 'booker_contact_updated');
 const contactSaved = contactStatus === '1' && contactActivityConfirmed;
 const contactTelephoneRemoved = contactStatus === 'telephone_removed' && contactActivityConfirmed;
-const contactError = contactStatus;
+const contactError = adminContactUpdateErrorMessage(contactStatus, contactActivityConfirmed);
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancelled = Astro.url.searchParams.get('cancelled') === '1';
 const lifecycleEmailStatus = Astro.url.searchParams.get('email');
-if (contactError === 'invalid_contact') error = 'Enter a valid email address or telephone number.';
-if (contactError === 'final_contact_required') error = 'An active booking must retain at least one valid Booker contact method.';
-if ((contactStatus === '1' || contactStatus === 'telephone_removed') && !contactActivityConfirmed) {
-  error = 'The contact change could not be confirmed in Technical booking activity. No success has been reported.';
-}
 if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
 if (arrangementError === 'invalid') error = 'Choose Cottage, Main House or Olrig Bank before assigning the stay.';
 if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
@@ -463,7 +459,7 @@ if (arrangementAssigned) {
   />
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
     <header class="booking-reservation-drawer__header">
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
       <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
@@ -499,6 +495,7 @@ if (arrangementAssigned) {
           <small>This checks availability again and must be completed before an offer can be published.</small>
         </form>}
         <form method="post" action={`/admin/bookings/${reference}/email/`} class="admin-form booking-contact-form">
+          {contactError && <div class="pricing-message is-error" role="alert" data-booker-contact-error>{contactError}</div>}
           <label>Booker email address
             <input type="email" name="contactEmail" value={contactEmail} maxlength="254" autocomplete="off" />
           </label>
