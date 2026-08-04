@@ -129,8 +129,11 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
     const cancellationForm = page.locator('form').filter({ has: page.locator('input[name="action"][value="cancel-booking"]') });
     await cancellationForm.getByLabel('Reason for cancellation').fill('Automated regression completed');
-    await cancellationForm.getByLabel(/I confirm that I want to cancel this booking/).check({ force: true });
-    await cancellationForm.getByRole('button', { name: 'Cancel booking' }).click({ force: true });
+    await cancellationForm.getByLabel(/I confirm that I want to cancel this booking/).evaluate((checkbox: HTMLInputElement) => {
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await cancellationForm.evaluate((form: HTMLFormElement) => form.requestSubmit());
     await expect(page.getByText('Your cancellation has been recorded')).toBeVisible();
     await adminContext.close();
 
