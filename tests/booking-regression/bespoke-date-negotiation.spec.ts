@@ -7,6 +7,7 @@ const ARRIVAL = '2099-08-15';
 const DEPARTURE = '2099-08-16';
 const EMAIL = 'playwright-bespoke-regression@example.test';
 const BLOCK_UID_PREFIX = 'playwright-bespoke-regression';
+const PRICING_PLAN_NAME = 'Playwright booking regression payment terms';
 const ADMIN_EMAIL = process.env.BOOKING_REGRESSION_ADMIN_EMAIL || 'playwright-admin@example.test';
 const ADMIN_PASSWORD = process.env.BOOKING_REGRESSION_ADMIN_PASSWORD || 'playwright-admin-password';
 
@@ -27,6 +28,7 @@ async function cleanRegressionData() {
       );
       await client.query(`DELETE FROM provisional_bookings WHERE guest_email = $1`, [EMAIL]);
       await client.query(`DELETE FROM booking_blocks WHERE external_uid LIKE $1`, [`${BLOCK_UID_PREFIX}:%`]);
+      await client.query(`DELETE FROM pricing_plans WHERE name = $1`, [PRICING_PLAN_NAME]);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -39,6 +41,20 @@ test.describe('bespoke blocked-date negotiation', () => {
   test.beforeEach(async () => {
     await cleanRegressionData();
     await withDatabase(async (client) => {
+      const plan = await client.query(
+        `INSERT INTO pricing_plans (property_id, name, status, currency, version, published_at)
+         VALUES ('whole-property', $1, 'published', 'GBP', 1, NOW()) RETURNING id`,
+        [PRICING_PLAN_NAME],
+      );
+      await client.query(
+        `INSERT INTO pricing_rules
+           (plan_id, type, name, position, priority, enabled, stackable, stacking_group, conditions, action)
+         VALUES
+           ($1, 'deposit_percentage', 'Regression deposit', 10, 100, TRUE, FALSE, 'payment-terms', '{}', '{"percentage":25}'),
+           ($1, 'initial_payment_deadline', 'Regression initial deadline', 20, 100, TRUE, FALSE, 'payment-terms', '{}', '{"days":7}'),
+           ($1, 'balance_payment_deadline', 'Regression balance deadline', 30, 100, TRUE, FALSE, 'payment-terms', '{}', '{"days":42}')`,
+        [plan.rows[0].id],
+      );
       for (const propertyId of ['main-house', 'cottage']) {
         await client.query(
           `INSERT INTO booking_blocks (property_id, source, external_uid, starts_on, ends_on)
