@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getAvailabilityProperties, getAvailabilityProperty, getProperties, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
-import { isIsoDate } from './dates';
+import { isIsoDate, nightsBetween } from './dates';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
@@ -150,6 +150,7 @@ export async function setCalendarAvailabilityOverride(input: {
   date: string;
   reason?: string;
   adminUserId: string;
+  bookingReference?: string | null;
 }): Promise<void> {
   if (!isAvailabilityResource(input.propertyId) || !isIsoDate(input.date)) throw new Error('INVALID_OVERRIDE');
   const reason = input.reason?.trim() || null;
@@ -159,13 +160,15 @@ export async function setCalendarAvailabilityOverride(input: {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.propertyId]);
     await client.query(
-      `INSERT INTO calendar_availability_overrides (property_id, available_on, reason, created_by)
-       VALUES ($1, $2::date, $3, $4::bigint)
+      `INSERT INTO calendar_availability_overrides
+         (property_id, available_on, reason, created_by, provisional_booking_id)
+       VALUES ($1, $2::date, $3, $4::bigint,
+         (SELECT id FROM provisional_bookings WHERE public_id = $5::uuid))
        ON CONFLICT (property_id, available_on) DO UPDATE SET
          reason = EXCLUDED.reason,
          created_by = EXCLUDED.created_by,
          created_at = NOW()`,
-      [input.propertyId, input.date, reason, input.adminUserId],
+      [input.propertyId, input.date, reason, input.adminUserId, input.bookingReference || null],
     );
     await client.query('COMMIT');
   } catch (error) {
@@ -335,10 +338,14 @@ export async function assignBespokeBookingArrangement(reference: string, propert
     const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
       availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
       arrival: booking.arrival, departure: booking.departure, excludeBookingId: booking.id,
+      applyAvailabilityOverrides: true,
     })));
     const conflict = conflicts.some(Boolean);
     if (conflict) { await client.query('ROLLBACK'); return 'dates_unavailable'; }
-    await client.query(`UPDATE provisional_bookings SET property_id = $2 WHERE id = $1`, [booking.id, propertyId]);
+    await client.query(
+      `UPDATE provisional_bookings SET property_id = $2, originated_as_bespoke = TRUE WHERE id = $1`,
+      [booking.id, propertyId],
+    );
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
        VALUES ($1, 'administrator', 'bespoke_arrangement_assigned', $2::jsonb)`,
@@ -356,6 +363,158 @@ export async function assignBespokeBookingArrangement(reference: string, propert
     await client.query('ROLLBACK');
     throw error;
   } finally { client.release(); }
+}
+
+export async function suggestBespokeBookingDates(
+  reference: string,
+  arrival: string,
+  departure: string,
+): Promise<'updated' | 'not_bespoke' | 'dates_unavailable' | 'duration_mismatch' | 'not_found'> {
+  if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) throw new Error('INVALID_DATES');
+  const property = getProperty('bespoke-arrangement');
+  const availabilityProperties = property ? getAvailabilityProperties(property) : [];
+  if (!property || !availabilityProperties.length) throw new Error('INVALID_DATES');
+  const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT id::text, property_id, arrival::text, departure::text, status
+         FROM provisional_bookings WHERE public_id = $1::uuid FOR UPDATE`,
+      [reference],
+    );
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
+    const booking = selected.rows[0];
+    if (booking.property_id !== 'bespoke-arrangement' || booking.status !== 'pending') {
+      await client.query('ROLLBACK'); return 'not_bespoke';
+    }
+    if (nightsBetween(arrival, departure) !== nightsBetween(booking.arrival, booking.departure)) {
+      await client.query('ROLLBACK'); return 'duration_mismatch';
+    }
+    for (const availabilityProperty of availabilityProperties) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    }
+    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+      availabilityPropertyId: availabilityProperty.id,
+      propertyIds: linkedPropertyIds,
+      arrival,
+      departure,
+      excludeBookingId: booking.id,
+      applyAvailabilityOverrides: true,
+    })));
+    if (conflicts.some(Boolean)) { await client.query('ROLLBACK'); return 'dates_unavailable'; }
+    await client.query(
+      `UPDATE provisional_bookings
+          SET bespoke_suggested_arrival = $2::date,
+              bespoke_suggested_departure = $3::date,
+              bespoke_suggestion_created_at = NOW()
+        WHERE id = $1`,
+      [booking.id, arrival, departure],
+    );
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, 'administrator', 'bespoke_dates_suggested', $2::jsonb)`,
+      [booking.id, JSON.stringify({
+        requestedArrival: booking.arrival,
+        requestedDeparture: booking.departure,
+        arrival,
+        departure,
+      })],
+    );
+    await insertBotBookingMessage(client, {
+      bookingId: booking.id,
+      body: `Olrig Bank suggested an alternative stay from ${arrival} through ${departure}. Please accept these dates or choose to keep your original request.`,
+      audience: 'booker',
+      sourceKey: `bespoke-dates-suggested:${booking.id}:${arrival}:${departure}:${Date.now()}`,
+    });
+    await client.query('COMMIT');
+    return 'updated';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function respondToBespokeDateSuggestion(
+  token: string,
+  decision: 'accept' | 'change' | 'keep_original',
+  changedDates?: { arrival: string; departure: string },
+): Promise<'accepted' | 'changed' | 'original_retained' | 'invalid_dates' | 'no_suggestion' | 'not_bespoke' | 'not_found'> {
+  if (!validAccessToken(token)) return 'not_found';
+  if (decision === 'change' && (
+    !changedDates
+    || !isIsoDate(changedDates.arrival)
+    || !isIsoDate(changedDates.departure)
+    || changedDates.departure <= changedDates.arrival
+    || nightsBetween(changedDates.arrival, changedDates.departure) > 365
+  )) return 'invalid_dates';
+  const tokenHash = accessTokenHash(token);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `WITH resolved AS (
+         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
+         UNION
+         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       )
+       SELECT pb.id::text, pb.property_id, pb.status,
+              pb.original_arrival::text, pb.original_departure::text,
+              pb.bespoke_suggested_arrival::text, pb.bespoke_suggested_departure::text
+         FROM provisional_bookings pb JOIN resolved r ON r.id = pb.id
+        FOR UPDATE`,
+      [token, tokenHash],
+    );
+    if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
+    const booking = selected.rows[0];
+    if (booking.property_id !== 'bespoke-arrangement' || booking.status !== 'pending') {
+      await client.query('ROLLBACK'); return 'not_bespoke';
+    }
+    if (!booking.bespoke_suggested_arrival || !booking.bespoke_suggested_departure) {
+      await client.query('ROLLBACK'); return 'no_suggestion';
+    }
+    const arrival = decision === 'accept'
+      ? booking.bespoke_suggested_arrival
+      : decision === 'change' ? changedDates!.arrival : booking.original_arrival;
+    const departure = decision === 'accept'
+      ? booking.bespoke_suggested_departure
+      : decision === 'change' ? changedDates!.departure : booking.original_departure;
+    await client.query(
+      `UPDATE provisional_bookings
+          SET arrival = $2::date, departure = $3::date,
+              bespoke_suggested_arrival = NULL, bespoke_suggested_departure = NULL,
+              bespoke_suggestion_created_at = NULL
+        WHERE id = $1`,
+      [booking.id, arrival, departure],
+    );
+    const eventType = decision === 'accept'
+      ? 'bespoke_suggested_dates_accepted'
+      : decision === 'change' ? 'bespoke_dates_changed_by_booker' : 'bespoke_original_dates_retained';
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, 'customer', $2, $3::jsonb)`,
+      [booking.id, eventType, JSON.stringify({ arrival, departure })],
+    );
+    await insertBotBookingMessage(client, {
+      bookingId: booking.id,
+      body: decision === 'accept'
+        ? `The Booker accepted the suggested stay from ${arrival} through ${departure}. The request is ready for administrator review.`
+        : decision === 'change'
+          ? `The Booker changed the requested stay to ${arrival} through ${departure}. This is a revised request for administrator review, not an accepted offer.`
+        : `The Booker chose to keep the original requested stay from ${arrival} through ${departure}. The request is back with Olrig Bank for another date review.`,
+      audience: 'administrator',
+      sourceKey: `${eventType}:${booking.id}:${Date.now()}`,
+    });
+    await client.query('COMMIT');
+    return decision === 'accept' ? 'accepted' : decision === 'change' ? 'changed' : 'original_retained';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type BookingOfferLine = {
@@ -395,6 +554,10 @@ export type ProvisionalBookingRequest = {
   propertyId: string;
   arrival: string;
   departure: string;
+  originalArrival?: string;
+  originalDeparture?: string;
+  bespokeSuggestedArrival?: string | null;
+  bespokeSuggestedDeparture?: string | null;
   guests: number;
   pets: number;
   name: string;
@@ -478,6 +641,9 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   const result = await getPool().query(
     `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
             pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+            pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
+            pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
+            pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
             pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
             pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
             pb.whatsapp_consent_status AS "whatsappConsentStatus",
@@ -826,6 +992,10 @@ export type CustomerBookingOffer = {
   propertyId: string;
   arrival: string;
   departure: string;
+  originalArrival: string;
+  originalDeparture: string;
+  bespokeSuggestedArrival: string | null;
+  bespokeSuggestedDeparture: string | null;
   guests: number;
   pets: number;
   guestName: string;
@@ -878,6 +1048,10 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     propertyId: row.propertyId,
     arrival: row.arrival,
     departure: row.departure,
+    originalArrival: row.originalArrival,
+    originalDeparture: row.originalDeparture,
+    bespokeSuggestedArrival: row.bespokeSuggestedArrival || null,
+    bespokeSuggestedDeparture: row.bespokeSuggestedDeparture || null,
     guests: Number(row.guests),
     pets: Number(row.pets || 0),
     guestName: row.guestName,
@@ -920,6 +1094,9 @@ const customerBookingSelect = `
   SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
          pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
+         pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
+         pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
+         pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
          pb.guest_name AS "guestName", pb.guest_email AS "guestEmail",
          pb.guest_telephone AS "guestTelephone", pb.guest_telephone_e164 AS "telephoneE164",
          pb.whatsapp_consent_status AS "whatsappConsentStatus",
@@ -1068,6 +1245,7 @@ export async function respondToCustomerBookingOffer(
               bo.token_revoked_at,
               pb.public_id::text AS booking_reference, pb.property_id,
               pb.arrival::text, pb.departure::text, pb.status AS booking_status,
+              pb.originated_as_bespoke,
               bo.total_pence AS offer_total_pence,
               COALESCE(
                 pb.pricing_plan_id,
@@ -1156,6 +1334,7 @@ export async function respondToCustomerBookingOffer(
         arrival: row.arrival,
         departure: row.departure,
         excludeBookingId: row.provisional_booking_id,
+        applyAvailabilityOverrides: Boolean(row.originated_as_bespoke),
       });
       if (conflict) {
         await client.query(

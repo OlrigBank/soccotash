@@ -102,3 +102,25 @@ Validation completed:
 - `npm --prefix site run build`;
 - `npm --prefix site run test:booking-lifecycle` (17 tests); and
 - `npm --prefix site run test:booking-integration` against PostgreSQL through Docker Compose (6 tests).
+
+## Admin calendar review handoff
+
+The unassigned Bespoke Stay panel in the Reservation drawer links to a booking-aware Admin calendar centred on the requested arrival month. The calendar carries the booking reference through filtering, month navigation and availability-override actions.
+
+In booking-review mode the calendar:
+
+- highlights the Booker's requested stay;
+- shows its fixed duration, party size and requested dates;
+- calculates and highlights the closest fully open future stay with the same duration within the three-month view;
+- offers other fully open arrival dates while keeping the departure the same number of nights later;
+- retains the existing per-resource controls for opening blocked nights;
+- provides a return button that makes no booking change; and
+- lets the administrator suggest selected dates and return directly to the open Reservation drawer.
+
+Date suggestions are restricted to pending, unassigned Bespoke requests. The server locks the booking and both underlying availability resources, requires the original stay duration to be preserved, and checks the selected range with Bespoke availability overrides applied. A successful suggestion records `bespoke_dates_suggested` technical activity, adds an Olrig Bot message to the conversation and writes the `booking.bespoke_dates_suggested` administrator audit event.
+
+The first arrival and departure submitted by the Booker are retained separately and are not overwritten by an administrator suggestion. The Booker sees the proposed stay on their private booking page and can agree to it, submit different dates of their own, keep the original dates, or cancel the request. Each non-cancellation response updates the pending request, creates an unread administrator-facing conversation event, and leaves the conversation open. It does not publish or accept an offer and cannot start a payment transition. Admin can therefore return to the calendar and repeat the date-review loop before continuing through the separate, existing arrangement and offer flow.
+
+The request retains explicit Bespoke provenance after Admin assigns Main House, Cottage or Olrig Bank. That provenance ensures the final offer-acceptance availability check honours Bespoke-only overrides without allowing an ordinary booking to use them.
+
+Overrides created while reviewing a particular Bespoke request retain ownership of that request. Cancelling the request or later booking removes only those request-owned overrides; unrelated overrides that existed before the request are preserved, returning calendar availability to its prior state.

@@ -7,6 +7,7 @@ import {
   getCustomerBookingPage,
   getProvisionalBookingRequest,
   recordBookingActivity,
+  respondToBespokeDateSuggestion,
   respondToCustomerBookingOffer,
   withdrawProvisionalBookingWhatsAppConsent,
   type CustomerOfferResponseResult,
@@ -76,6 +77,30 @@ if (Astro.request.method === 'POST') {
       eventType: 'whatsapp_consent_withdrawn',
     });
     return Astro.redirect(`/booking/manage/${token}/?consent=withdrawn`);
+  } else if (action === 'respond-bespoke-dates') {
+    const decision = String(form.get('dateDecision') || '');
+    if (decision !== 'accept' && decision !== 'change' && decision !== 'keep_original') {
+      responseError = 'Choose how you want to revise this request.';
+    } else {
+      const changedDates = decision === 'change' ? {
+        arrival: String(form.get('changedArrival') || ''),
+        departure: String(form.get('changedDeparture') || ''),
+      } : undefined;
+      const today = new Date().toISOString().slice(0, 10);
+      if (changedDates && changedDates.arrival < today) {
+        responseError = 'Choose an arrival date that is today or later.';
+      } else {
+        const result = await respondToBespokeDateSuggestion(token, decision, changedDates);
+        if (result === 'accepted' || result === 'changed' || result === 'original_retained') {
+        return Astro.redirect(`/booking/manage/${token}/?dates=${result}`);
+        }
+        responseError = result === 'invalid_dates'
+          ? 'Enter valid arrival and departure dates for a stay of no more than 365 nights.'
+          : result === 'no_suggestion'
+            ? 'That date suggestion has already been answered. Refresh the page to see the current request.'
+            : 'The date suggestion can no longer be answered from this booking.';
+      }
+    }
   } else if (action === 'cancel-booking') {
     const cancellation = validateCancellationInput({
       confirmed: form.get('confirmCancellation') === 'yes',
@@ -305,8 +330,15 @@ const emailStatus = emailParam === 'failed' ? 'failed' : emailParam === 'sent' ?
 const messageSent = Astro.url.searchParams.get('message') === 'sent';
 const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancellationRecorded = Astro.url.searchParams.get('cancelled') === '1';
+const dateDecision = Astro.url.searchParams.get('dates');
 const messageNotice = cancellationRecorded
   ? 'Your cancellation has been recorded. The dates have been released, and the booking record remains available here.'
+  : dateDecision === 'accepted'
+    ? 'Your agreement to the suggested dates was sent to Olrig Bank as a revised request. This is not a booking offer or confirmation.'
+    : dateDecision === 'changed'
+      ? 'Your replacement dates were sent to Olrig Bank for review. The request and conversation remain open.'
+    : dateDecision === 'original_retained'
+      ? 'Your original dates were kept and your decision was sent to Olrig Bank for another review.'
   : messageSent
   ? messageEmailStatus === 'sent'
     ? 'Your message was added to the conversation and the Olrig Bank administrators were notified by email.'

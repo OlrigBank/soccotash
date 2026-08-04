@@ -14,6 +14,8 @@ function returnLocation(form: FormData, result: string): string {
   const params = new URLSearchParams({ result });
   if (/^\d{4}-\d{2}$/.test(month)) params.set('month', month);
   if (property === 'all' || /^[a-z0-9-]+$/.test(property)) params.set('property', property);
+  const bookingReference = String(form.get('bookingReference') || '');
+  if (/^[0-9a-f-]{36}$/i.test(bookingReference)) params.set('booking', bookingReference);
   return `/admin/calendars/?${params}`;
 }
 
@@ -27,6 +29,8 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const propertyId = String(form.get('propertyId') || '').trim();
   const date = String(form.get('date') || '').trim();
   const reason = String(form.get('reason') || '').trim();
+  const bookingReferenceInput = String(form.get('bookingReference') || '');
+  const bookingReference = /^[0-9a-f-]{36}$/i.test(bookingReferenceInput) ? bookingReferenceInput : null;
 
   if (!isIsoDate(date) || !propertyId || !['create', 'remove'].includes(action)) {
     return redirect(returnLocation(form, 'invalid'), 303);
@@ -42,11 +46,13 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
         date,
         reason,
         adminUserId: locals.adminUser!.id,
+        bookingReference,
       });
       await audit(locals.adminUser!.id, 'calendar.availability_override_created', {
         propertyId,
         date,
         reason: reason || null,
+        bookingReference,
       });
       return redirect(returnLocation(form, 'unblocked'), 303);
     }
