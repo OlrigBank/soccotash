@@ -51,7 +51,7 @@ test.describe('bespoke blocked-date negotiation', () => {
 
   test.afterEach(async () => { await cleanRegressionData(); });
 
-  test('restores blocked dates after a negotiated bespoke offer is cancelled', async ({ page }) => {
+  test('restores blocked dates after a negotiated bespoke offer is cancelled', async ({ browser, page }) => {
     await page.goto('/book/');
     await page.getByRole('combobox', { name: 'Stay arrangement' }).selectOption('bespoke-arrangement');
     await page.getByLabel('Arrival').fill(ARRIVAL);
@@ -65,43 +65,45 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
     const bookerUrl = page.url();
 
-    await page.goto('/admin/login/');
-    await page.getByLabel('Email address').fill(ADMIN_EMAIL);
-    await page.getByLabel('Password').fill(ADMIN_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await page.goto('/admin/bookings/');
-    const bookingRow = page.getByRole('row').filter({ hasText: 'Playwright Bespoke Regression' });
+    const adminContext = await browser.newContext({ locale: 'en-GB', timezoneId: 'Europe/London' });
+    const adminPage = await adminContext.newPage();
+    await adminPage.goto('/admin/login/');
+    await adminPage.getByLabel('Email address').fill(ADMIN_EMAIL);
+    await adminPage.getByLabel('Password').fill(ADMIN_PASSWORD);
+    await adminPage.getByRole('button', { name: 'Sign in' }).click();
+    await adminPage.goto('/admin/bookings/');
+    const bookingRow = adminPage.getByRole('row').filter({ hasText: 'Playwright Bespoke Regression' });
     await bookingRow.getByRole('link', { name: /Review|Open/ }).first().click();
-    const reference = new URL(page.url()).pathname.split('/').filter(Boolean).at(-1)!;
+    const reference = new URL(adminPage.url()).pathname.split('/').filter(Boolean).at(-1)!;
 
-    await page.getByRole('button', { name: 'Reservation' }).click();
-    await page.getByRole('link', { name: 'Review requested dates in calendar' }).click();
-    await expect(page.getByText(`Requested: ${ARRIVAL} to ${DEPARTURE}`)).toBeVisible();
-    await page.getByRole('button', { name: 'Suggest dates and return to booking' }).click();
-    await expect(page.getByText("Awaiting the Booker's date decision")).toBeVisible();
+    await adminPage.getByRole('button', { name: 'Reservation' }).click();
+    await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
+    await expect(adminPage.getByText(`Requested: ${ARRIVAL} to ${DEPARTURE}`)).toBeVisible();
+    await adminPage.getByRole('button', { name: 'Suggest dates and return to booking' }).click();
+    await expect(adminPage.getByText("Awaiting the Booker's date decision")).toBeVisible();
 
-    await page.goto(bookerUrl);
+    await page.reload();
     await page.getByRole('button', { name: 'Reservation' }).click();
     await expect(page.getByRole('heading', { name: 'Olrig Bank has suggested a change to your request' })).toBeVisible();
     await page.getByRole('button', { name: 'Keep my original dates' }).click();
     await expect(page.getByText('Your original dates were kept')).toBeVisible();
 
-    await page.goto(`/admin/bookings/${reference}/?reservation=open`);
-    await page.getByRole('link', { name: 'Review requested dates in calendar' }).click();
+    await adminPage.goto(`/admin/bookings/${reference}/?reservation=open`);
+    await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
     for (const property of ['Main House', 'Cottage']) {
-      const reason = page.getByLabel(`Reason for allowing bespoke stays at ${property} on ${ARRIVAL}`);
+      const reason = adminPage.getByLabel(`Reason for allowing bespoke stays at ${property} on ${ARRIVAL}`);
       await reason.fill('Automated regression: honour the requested blocked night');
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByRole('button', { name: `Allow bespoke · ${property}` }).click();
-      await expect(page.getByRole('button', { name: `Restore ${property}` })).toBeVisible();
+      adminPage.once('dialog', (dialog) => dialog.accept());
+      await adminPage.getByRole('button', { name: `Allow bespoke · ${property}` }).click();
+      await expect(adminPage.getByRole('button', { name: `Restore ${property}` })).toBeVisible();
     }
 
-    await page.getByRole('link', { name: 'Return to booking without changes' }).click();
-    await page.getByLabel('Agreed stay arrangement').selectOption('olrig-bank');
-    await page.getByRole('button', { name: 'Assign arrangement' }).click();
-    await page.getByLabel('Amount (£)').fill('100.00');
-    await page.getByRole('button', { name: 'Publish offer' }).click();
-    await expect(page.getByText(/offer.*published/i)).toBeVisible();
+    await adminPage.getByRole('link', { name: 'Return to booking without changes' }).click();
+    await adminPage.getByLabel('Agreed stay arrangement').selectOption('olrig-bank');
+    await adminPage.getByRole('button', { name: 'Assign arrangement' }).click();
+    await adminPage.getByLabel('Amount (£)').fill('100.00');
+    await adminPage.getByRole('button', { name: 'Publish offer' }).click();
+    await expect(adminPage.getByText(/offer.*published/i)).toBeVisible();
 
     await page.goto(bookerUrl);
     await page.getByRole('button', { name: 'Reservation' }).click();
@@ -112,6 +114,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel(/I confirm that I want to cancel this booking/).check();
     await page.getByRole('button', { name: 'Cancel booking' }).click();
     await expect(page.getByText('Your cancellation has been recorded')).toBeVisible();
+    await adminContext.close();
 
     const state = await withDatabase(async (client) => {
       const booking = await client.query(`SELECT status FROM provisional_bookings WHERE public_id = $1`, [reference]);
