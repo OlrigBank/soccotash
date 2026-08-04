@@ -150,27 +150,44 @@ export async function setCalendarAvailabilityOverride(input: {
   date: string;
   reason?: string;
   adminUserId: string;
-  bookingReference?: string | null;
-}): Promise<void> {
+  bookingReference: string;
+}): Promise<'created' | 'existing' | 'invalid_booking_context'> {
   if (!isAvailabilityResource(input.propertyId) || !isIsoDate(input.date)) throw new Error('INVALID_OVERRIDE');
+  if (!/^[0-9a-f-]{36}$/i.test(input.bookingReference)) return 'invalid_booking_context';
   const reason = input.reason?.trim() || null;
   if (reason && reason.length > 500) throw new Error('INVALID_OVERRIDE');
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT id, property_id, arrival::text, departure::text, status
+         FROM provisional_bookings
+        WHERE public_id = $1::uuid
+        FOR UPDATE`,
+      [input.bookingReference],
+    );
+    const booking = selected.rows[0];
+    const bespokeAvailabilityIds = getAvailabilityProperties('bespoke-arrangement').map((property) => property.id);
+    if (!booking
+      || booking.property_id !== 'bespoke-arrangement'
+      || booking.status !== 'pending'
+      || input.date < booking.arrival
+      || input.date >= booking.departure
+      || !bespokeAvailabilityIds.includes(input.propertyId)) {
+      await client.query('ROLLBACK');
+      return 'invalid_booking_context';
+    }
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.propertyId]);
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO calendar_availability_overrides
          (property_id, available_on, reason, created_by, provisional_booking_id)
-       VALUES ($1, $2::date, $3, $4::bigint,
-         (SELECT id FROM provisional_bookings WHERE public_id = $5::uuid))
-       ON CONFLICT (property_id, available_on) DO UPDATE SET
-         reason = EXCLUDED.reason,
-         created_by = EXCLUDED.created_by,
-         created_at = NOW()`,
-      [input.propertyId, input.date, reason, input.adminUserId, input.bookingReference || null],
+       VALUES ($1, $2::date, $3, $4::bigint, $5)
+       ON CONFLICT (property_id, available_on) DO NOTHING
+       RETURNING id`,
+      [input.propertyId, input.date, reason, input.adminUserId, booking.id],
     );
     await client.query('COMMIT');
+    return inserted.rowCount ? 'created' : 'existing';
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

@@ -19,6 +19,8 @@ test('calendar override mutation is protected, confirmed and audited', async () 
   assert.match(route, /removeCalendarAvailabilityOverride/);
   assert.match(route, /calendar\.availability_override_created/);
   assert.match(route, /calendar\.availability_override_removed/);
+  assert.match(route, /review-required/,
+    'override creation must require a valid booking review context');
 });
 
 test('the Admin calendar explains that overrides preserve underlying entries', async () => {
@@ -32,6 +34,8 @@ test('the Admin calendar explains that overrides preserve underlying entries', a
   assert.match(page, /without deleting the underlying booking or imported block/);
   assert.match(page, /Available for bespoke stays/);
   assert.match(page, /Restore \{availabilityName\}/);
+  assert.match(page, /if \(!bespokeBooking \|\| !inRequestedStay\) return null/,
+    'creation controls must render only on requested nights during a Bespoke review');
 });
 
 test('Bespoke requests start a conversation without consulting availability', async () => {
@@ -85,6 +89,10 @@ test('the Bespoke Reservation panel hands date review to the contextual calendar
   assert.match(repository, /duration_mismatch/);
   assert.match(repository, /bespoke_dates_suggested/);
   assert.match(repository, /bespoke-dates-suggested:/);
+  assert.match(repository, /input\.date < booking\.arrival/);
+  assert.match(repository, /input\.date >= booking\.departure/);
+  assert.match(repository, /ON CONFLICT \(property_id, available_on\) DO NOTHING/,
+    'a request must not take ownership of or rewrite a pre-existing override');
   assert.match(repository, /applyAvailabilityOverrides: Boolean\(row\.originated_as_bespoke\)/,
     'an assigned Bespoke request must retain override-aware acceptance checks');
 });

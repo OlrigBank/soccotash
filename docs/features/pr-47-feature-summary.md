@@ -91,7 +91,7 @@ Implemented on `agent/unblocking-dates-in-calendar`:
 - Bespoke quote and booking creation accept valid preferred dates without consulting availability, while standard arrangements continue to enforce it;
 - block ranges are split around overridden nights while adjacent blocked nights retain their existing boundaries;
 - the Admin calendar continues to show underlying Airbnb, manual and booking entries and adds a highlighted availability-override entry;
-- administrators can unblock or restore an affected night directly from the calendar, with an explicit destructive-impact confirmation and an optional reason;
+- administrators can unblock an affected night only from a pending Bespoke request review, with an explicit destructive-impact confirmation and an optional reason; existing overrides can still be restored from the ordinary calendar;
 - pending Bespoke requests remain informational and do not add blocks to Main House or Cottage availability;
 - override creation and removal use the same per-property advisory lock as booking creation and write administrator audit events; and
 - Airbnb synchronisation continues to replace only imported `booking_blocks`, leaving overrides intact.
@@ -124,3 +124,44 @@ The first arrival and departure submitted by the Booker are retained separately 
 The request retains explicit Bespoke provenance after Admin assigns Main House, Cottage or Olrig Bank. That provenance ensures the final offer-acceptance availability check honours Bespoke-only overrides without allowing an ordinary booking to use them.
 
 Overrides created while reviewing a particular Bespoke request retain ownership of that request. Cancelling the request or later booking removes only those request-owned overrides; unrelated overrides that existed before the request are preserved, returning calendar availability to its prior state.
+
+The ordinary Admin calendar is informational for creating Bespoke availability: it shows underlying blocks and existing overrides but does not show “Allow bespoke” controls or reason inputs. Those creation controls appear only when Admin arrives from a valid pending, unassigned Bespoke request and only on blocked nights within that request. The same constraints are enforced transactionally by the mutation repository, so a crafted request cannot open unrelated dates or attach an existing override to another booking.
+
+## Final implementation notes
+
+The completed workflow uses three follow-on migrations:
+
+- `019_bespoke_date_dialog.sql` retains the Booker's first requested dates and stores an outstanding Admin date suggestion separately;
+- `020_bespoke_request_provenance.sql` records that a request originated as Bespoke even after its final accommodation arrangement is assigned; and
+- `021_booking_owned_availability_overrides.sql` associates newly created request-review overrides with the booking that required them.
+
+The final lifecycle is:
+
+1. A Booker can submit a pending Bespoke request for valid dates without an availability check. The request does not block inventory and is not an offer.
+2. Admin opens the request-aware calendar centred on the requested arrival. Override controls exist only for blocked resource nights inside that request.
+3. Admin can open the requested dates, do nothing when they are already open, or suggest an already-open alternative with the same duration.
+4. A date suggestion returns the still-pending request to the Booker. The Booker can agree, submit different dates, retain the first dates, or cancel.
+5. Once dates and accommodation are agreed, Admin assigns Main House, Cottage or Olrig Bank and uses the existing, separate offer flow.
+6. Offer acceptance honours request-owned Bespoke overrides because Bespoke provenance survives arrangement assignment.
+7. Cancelling the request or booking transactionally removes its owned overrides and restores the previous calendar state. Pre-existing or unrelated overrides remain untouched.
+
+## Regression exercise completed
+
+The workflow was exercised interactively against local PostgreSQL and Chromium using a one-night request for 15–16 August 2026, four guests and no pets. The requested night was blocked on both underlying resources. The exercise verified that:
+
+- ordinary calendar browsing rendered no override-creation forms or reason inputs;
+- request review rendered exactly Main House and Cottage creation controls on 15 August and none outside the requested stay;
+- both created overrides retained the request as owner while every underlying block remained visible;
+- the original dates became available for the Bespoke request and could be assigned to Olrig Bank;
+- a tailored offer could be published on the requested dates;
+- cancelling the offer-stage booking removed both owned overrides;
+- no August override remained after cancellation; and
+- the original Main House and Cottage Airbnb blocks became authoritative again.
+
+Direct mutation checks also confirmed that the server returns `review-required` when override creation is attempted without a booking context or outside the referenced request's date range.
+
+The interactive browser actions from this development session are not stored as a permanent test. Their recorded scenario and assertions should be implemented later as a headed Playwright regression test on the branch that already contains the project's Playwright infrastructure.
+
+## Merge readiness
+
+The feature is intended to merge into `development`. Before handoff the branch was checked with Astro type analysis, the booking-lifecycle contract suite, a production build and `git diff --check`. The only remaining local worktree changes outside this feature are the pre-existing `buildit.bash`, `compose.yaml` and untracked `doAll.bash`; they are intentionally excluded from PR-47 commits.

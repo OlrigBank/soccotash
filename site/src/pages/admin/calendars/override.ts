@@ -41,13 +41,18 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
 
   try {
     if (action === 'create') {
-      await setCalendarAvailabilityOverride({
+      if (!bookingReference) return redirect(returnLocation(form, 'review-required'), 303);
+      const result = await setCalendarAvailabilityOverride({
         propertyId,
         date,
         reason,
         adminUserId: locals.adminUser!.id,
         bookingReference,
       });
+      if (result === 'invalid_booking_context') {
+        return redirect(returnLocation(form, 'review-required'), 303);
+      }
+      if (result === 'existing') return redirect(returnLocation(form, 'already-unblocked'), 303);
       await audit(locals.adminUser!.id, 'calendar.availability_override_created', {
         propertyId,
         date,

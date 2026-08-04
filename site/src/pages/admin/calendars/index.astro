@@ -84,8 +84,12 @@ const resultMessage = result === 'unblocked'
   ? 'The selected night is now available for bespoke stay requests despite any underlying calendar entries.'
   : result === 'restored'
     ? 'The availability override was removed. Underlying calendar entries block the night again.'
-    : result === 'confirmation-required'
-      ? 'Explicit confirmation is required before a blocked night can be made available.'
+      : result === 'confirmation-required'
+        ? 'Explicit confirmation is required before a blocked night can be made available.'
+      : result === 'review-required'
+        ? 'Bespoke availability can only be opened while reviewing a pending Bespoke request, and only for nights in that request.'
+      : result === 'already-unblocked'
+        ? 'That night already has a Bespoke availability override. The existing override was left unchanged.'
       : result === 'invalid'
         ? 'The availability override request was invalid.'
         : result === 'failed'
@@ -103,7 +107,7 @@ const resultMessage = result === 'unblocked'
                   : result === 'date-update-failed'
                     ? 'The alternative dates could not be suggested.'
             : '';
-const resultTone = ['unblocked', 'restored'].includes(result || '') ? 'success' : 'error';
+const resultTone = ['unblocked', 'restored', 'already-unblocked'].includes(result || '') ? 'success' : 'error';
 
 const bespokeAvailabilityIds = getAvailabilityProperties('bespoke-arrangement').map((property) => property.id);
 function entryAffectsAvailability(entry: AdminCalendarEntry, availabilityId: string): boolean {
@@ -148,7 +152,7 @@ if (bespokeBooking && requestedNights > 0) {
       <p class="eyebrow">Bespoke stay date review</p>
       <h2>{bespokeBooking.name}</h2>
       <p>Requested: <strong>{bespokeBooking.arrival} to {bespokeBooking.departure}</strong> · {requestedNights} night{requestedNights === 1 ? '' : 's'} · {bespokeBooking.guests} guest{bespokeBooking.guests === 1 ? '' : 's'}{bespokeBooking.pets ? ` · ${bespokeBooking.pets} pet${bespokeBooking.pets === 1 ? '' : 's'}` : ''}</p>
-      <p>If the requested dates are open, no calendar change is needed. For blocked dates, use the existing night controls below. You may also select another open arrival; the departure remains the same number of nights later.</p>
+      <p>If the requested dates are open, no calendar change is needed. “Allow bespoke” controls appear only on blocked nights within this request. Alternative stays shown here are already open and keep the same duration.</p>
       {nearestOpenArrival
         ? <p>Nearest open same-length stay: <strong>{nearestOpenArrival} to {addDays(nearestOpenArrival, requestedNights)}</strong>.</p>
         : <p>No fully open same-length stay was found in this three-month view.</p>}
@@ -247,6 +251,7 @@ if (bespokeBooking && requestedNights > 0) {
                     <button type="submit" class="admin-calendar-override-action is-restore" title={`Restore bespoke-stay blocking for ${availabilityName}`}>Restore {availabilityName}</button>
                   </form>;
                 }
+                if (!bespokeBooking || !inRequestedStay) return null;
                 return <form
                   method="post"
                   action="/admin/calendars/override/"
@@ -258,7 +263,7 @@ if (bespokeBooking && requestedNights > 0) {
                   <input type="hidden" name="date" value={value} />
                   <input type="hidden" name="month" value={monthValue(startMonth)} />
                   <input type="hidden" name="selectedProperty" value={selectedProperty} />
-                  {bespokeBooking && <input type="hidden" name="bookingReference" value={bespokeBooking.reference} />}
+                  <input type="hidden" name="bookingReference" value={bespokeBooking.reference} />
                   <input type="hidden" name="confirmed" value="yes" />
                   <input name="reason" maxlength="500" aria-label={`Reason for allowing bespoke stays at ${availabilityName} on ${value}`} placeholder="Reason (optional)" />
                   <button type="submit" class="admin-calendar-override-action">Allow bespoke · {availabilityName}</button>
