@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { getAvailabilityProperties, getAvailabilityProperty, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
+import { getAvailabilityProperties, getAvailabilityProperty, getProperties, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
+import { isIsoDate } from './dates';
 import { getPool } from './db';
 import type { ImportedBlock } from './ical';
 import type { PublishedPricingQuote } from '../pricing/types';
@@ -128,6 +129,7 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
   const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
   const blocks = (await Promise.all(availabilityProperties.map((availabilityProperty) => queryBookingBlocks(getPool(), {
     availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds, from, to,
+    applyAvailabilityOverrides: property.id === 'bespoke-arrangement',
   })))).flat();
   return [...new Map(blocks.map((block) => [`${block.startsOn}|${block.endsOn}|${block.source}`, block])).values()];
 }
@@ -135,6 +137,64 @@ export async function getBlocks(propertyId: string, from: string, to: string): P
 export async function getAdminCalendarEntries(from: string, to: string): Promise<AdminCalendarEntry[]> {
   await expireElapsedBookingOffers();
   return queryAdminCalendarEntries(getPool(), from, to);
+}
+
+function isAvailabilityResource(propertyId: string): boolean {
+  return getProperties().some((property) =>
+    getAvailabilityProperties(property).some((availabilityProperty) => availabilityProperty.id === propertyId),
+  );
+}
+
+export async function setCalendarAvailabilityOverride(input: {
+  propertyId: string;
+  date: string;
+  reason?: string;
+  adminUserId: string;
+}): Promise<void> {
+  if (!isAvailabilityResource(input.propertyId) || !isIsoDate(input.date)) throw new Error('INVALID_OVERRIDE');
+  const reason = input.reason?.trim() || null;
+  if (reason && reason.length > 500) throw new Error('INVALID_OVERRIDE');
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [input.propertyId]);
+    await client.query(
+      `INSERT INTO calendar_availability_overrides (property_id, available_on, reason, created_by)
+       VALUES ($1, $2::date, $3, $4::bigint)
+       ON CONFLICT (property_id, available_on) DO UPDATE SET
+         reason = EXCLUDED.reason,
+         created_by = EXCLUDED.created_by,
+         created_at = NOW()`,
+      [input.propertyId, input.date, reason, input.adminUserId],
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function removeCalendarAvailabilityOverride(propertyId: string, date: string): Promise<boolean> {
+  if (!isAvailabilityResource(propertyId) || !isIsoDate(date)) throw new Error('INVALID_OVERRIDE');
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [propertyId]);
+    const result = await client.query(
+      `DELETE FROM calendar_availability_overrides
+        WHERE property_id = $1 AND available_on = $2::date`,
+      [propertyId, date],
+    );
+    await client.query('COMMIT');
+    return Boolean(result.rowCount);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function isCalendarStale(propertyId: string, minutes = 30): Promise<boolean> {
@@ -171,15 +231,17 @@ export async function createProvisionalBooking(input: {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    for (const availabilityProperty of availabilityProperties) {
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+    if (property.id !== 'bespoke-arrangement') {
+      for (const availabilityProperty of availabilityProperties) {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
+      }
+      const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
+        availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
+        arrival: input.arrival, departure: input.departure,
+      })));
+      const conflict = conflicts.some(Boolean);
+      if (conflict) throw new Error('DATES_UNAVAILABLE');
     }
-    const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
-      availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
-      arrival: input.arrival, departure: input.departure,
-    })));
-    const conflict = conflicts.some(Boolean);
-    if (conflict) throw new Error('DATES_UNAVAILABLE');
     const result = await client.query(
       `INSERT INTO provisional_bookings
        (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,

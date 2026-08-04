@@ -39,6 +39,7 @@ function entriesOnDay(entries: AdminCalendarEntry[], value: string): AdminCalend
 }
 function entryLabel(entry: AdminCalendarEntry): string {
   const propertyName = propertyNames.get(entry.propertyId) ?? entry.propertyId;
+  if (entry.source === 'override') return `Available for bespoke stays · ${propertyName}${entry.reason ? ` · ${entry.reason}` : ''}`;
   if (entry.source === 'direct') return `Direct · ${propertyName} · ${entry.guestName || 'Booker'}`;
   if (entry.source === 'provisional' && entry.propertyId === 'bespoke-arrangement') return `Non-blocking request · ${propertyName} · ${entry.guestName || 'Booker'}`;
   if (entry.source === 'provisional') return `Provisional · ${propertyName} · ${entry.guestName || 'Booker'}`;
@@ -63,6 +64,21 @@ const nextMonth = monthValue(addMonths(startMonth, 1));
 const propertyQuery = selectedProperty === 'all' ? '' : `&property=${encodeURIComponent(selectedProperty)}`;
 const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const today = new Date().toISOString().slice(0, 10);
+const result = Astro.url.searchParams.get('result');
+const resultMessage = result === 'unblocked'
+  ? 'The selected night is now available for bespoke stay requests despite any underlying calendar entries.'
+  : result === 'restored'
+    ? 'The availability override was removed. Underlying calendar entries block the night again.'
+    : result === 'confirmation-required'
+      ? 'Explicit confirmation is required before a blocked night can be made available.'
+      : result === 'invalid'
+        ? 'The availability override request was invalid.'
+        : result === 'failed'
+          ? 'The availability override could not be changed.'
+          : result === 'not-found'
+            ? 'That availability override no longer exists.'
+            : '';
+const resultTone = ['unblocked', 'restored'].includes(result || '') ? 'success' : 'error';
 ---
 <AdminLayout title="Calendars">
   <header class="admin-page-header">
@@ -70,8 +86,11 @@ const today = new Date().toISOString().slice(0, 10);
       <p class="eyebrow">Administration</p>
       <h1>Calendars</h1>
       <p>Imported Airbnb blocks, provisional requests and confirmed direct bookings are shown together.</p>
+      <p><strong>Bespoke-stay overrides take precedence over every calendar entry without deleting the underlying booking or imported block. Standard stay arrangements remain blocked.</strong></p>
     </div>
   </header>
+
+  {resultMessage && <div class={`admin-alert admin-alert--${resultTone}`} role="status">{resultMessage}</div>}
 
   <section class="admin-panel admin-calendar-controls">
     <form method="get" class="admin-calendar-filter">
@@ -96,6 +115,7 @@ const today = new Date().toISOString().slice(0, 10);
     <span><i class="admin-calendar-key is-provisional"></i>Provisional request or offer</span>
     <span><i class="admin-calendar-key is-airbnb"></i>Airbnb unavailable</span>
     <span><i class="admin-calendar-key is-external"></i>Other unavailable block</span>
+    <span><i class="admin-calendar-key is-override"></i>Available for bespoke stays</span>
   </div>
 
   <div class="admin-calendar-stack">
@@ -115,7 +135,16 @@ const today = new Date().toISOString().slice(0, 10);
             const day = index + 1;
             const value = dayValue(year, monthIndex, day);
             const dayEntries = entriesOnDay(entries, value);
-            return <div class:list={['admin-calendar-day', { 'is-today': value === today, 'has-events': dayEntries.length > 0 }]}>
+            const overrides = dayEntries.filter((entry) => entry.source === 'override');
+            const blockers = dayEntries.filter((entry) =>
+              entry.source !== 'override'
+              && !(entry.propertyId === 'bespoke-arrangement' && entry.source === 'provisional'),
+            );
+            const affectedAvailabilityIds = [...new Set([
+              ...blockers.flatMap((entry) => getAvailabilityProperties(entry.propertyId).map((property) => property.id)),
+              ...overrides.map((entry) => entry.propertyId),
+            ])];
+            return <div class:list={['admin-calendar-day', { 'is-today': value === today, 'has-events': dayEntries.length > 0, 'has-override': overrides.length > 0 }]}>
               <span class="admin-calendar-day-number">{day}</span>
               <div class="admin-calendar-events">
                 {dayEntries.map((entry) => {
@@ -130,6 +159,35 @@ const today = new Date().toISOString().slice(0, 10);
                   return <span class={className} title={label}>{label}</span>;
                 })}
               </div>
+              {affectedAvailabilityIds.map((availabilityId) => {
+                const override = overrides.find((entry) => entry.propertyId === availabilityId);
+                const availabilityName = propertyNames.get(availabilityId) ?? availabilityId;
+                if (override) {
+                  return <form method="post" action="/admin/calendars/override/" class="admin-calendar-override-form">
+                    <input type="hidden" name="action" value="remove" />
+                    <input type="hidden" name="propertyId" value={availabilityId} />
+                    <input type="hidden" name="date" value={value} />
+                    <input type="hidden" name="month" value={monthValue(startMonth)} />
+                    <input type="hidden" name="selectedProperty" value={selectedProperty} />
+                    <button type="submit" class="admin-calendar-override-action is-restore" title={`Restore bespoke-stay blocking for ${availabilityName}`}>Restore {availabilityName}</button>
+                  </form>;
+                }
+                return <form
+                  method="post"
+                  action="/admin/calendars/override/"
+                  class="admin-calendar-override-form"
+                  onsubmit="return window.confirm('Make this night available for bespoke stay requests even if it overlaps an Airbnb reservation, provisional request, or confirmed booking? Standard stays will remain blocked.')"
+                >
+                  <input type="hidden" name="action" value="create" />
+                  <input type="hidden" name="propertyId" value={availabilityId} />
+                  <input type="hidden" name="date" value={value} />
+                  <input type="hidden" name="month" value={monthValue(startMonth)} />
+                  <input type="hidden" name="selectedProperty" value={selectedProperty} />
+                  <input type="hidden" name="confirmed" value="yes" />
+                  <input name="reason" maxlength="500" aria-label={`Reason for allowing bespoke stays at ${availabilityName} on ${value}`} placeholder="Reason (optional)" />
+                  <button type="submit" class="admin-calendar-override-action">Allow bespoke · {availabilityName}</button>
+                </form>;
+              })}
             </div>;
           })}
         </div>

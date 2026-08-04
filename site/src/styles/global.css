@@ -2327,6 +2327,7 @@ main {
 .admin-calendar-key.is-provisional { background: #e4edf8; }
 .admin-calendar-key.is-airbnb { background: #f2e2d9; }
 .admin-calendar-key.is-external { background: #ecebe7; }
+.admin-calendar-key.is-override { background: #fff3b8; border-color: #9a7412; }
 .admin-calendar-stack {
   display: grid;
   gap: 1rem;
@@ -2369,6 +2370,7 @@ main {
 .admin-calendar-spacer { background: #f7f7f4; }
 .admin-calendar-day.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
 .admin-calendar-day.has-events { background: #fcfcfa; }
+.admin-calendar-day.has-override { background: #fffdf2; box-shadow: inset 0 0 0 2px #d0a72d; }
 .admin-calendar-day-number {
   display: block;
   margin-bottom: 0.35rem;
@@ -2404,6 +2406,36 @@ a.admin-calendar-event:focus-visible {
 .admin-calendar-event.is-provisional { background: #e4edf8; color: #244f78; }
 .admin-calendar-event.is-airbnb { background: #f2e2d9; color: #75462f; }
 .admin-calendar-event.is-external { background: #ecebe7; color: #555b56; }
+.admin-calendar-event.is-override { background: #fff3b8; color: #684e08; border-color: #d0a72d; white-space: normal; }
+.admin-calendar-override-form {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+}
+.admin-calendar-override-form input {
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.65rem;
+}
+.admin-calendar-override-action {
+  width: 100%;
+  padding: 0.28rem 0.35rem;
+  border: 1px solid #9a7412;
+  border-radius: 0.35rem;
+  background: #fff8d8;
+  color: #684e08;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.admin-calendar-override-action:hover,
+.admin-calendar-override-action:focus-visible { background: #fff0a8; }
+.admin-calendar-override-action.is-restore {
+  border-color: #75504a;
+  background: #f8e7e3;
+  color: #693b34;
+}
 @media (max-width: 900px) {
   .admin-calendar-controls { align-items: stretch; flex-direction: column; }
   .admin-calendar-day,

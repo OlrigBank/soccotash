@@ -29,10 +29,11 @@ export type AdminCalendarEntry = {
   propertyId: string;
   startsOn: string;
   endsOn: string;
-  source: 'airbnb' | 'external' | 'provisional' | 'direct';
+  source: 'airbnb' | 'external' | 'provisional' | 'direct' | 'override';
   guestName: string | null;
   bookingReference: string | null;
   bookingStatus: string | null;
+  reason: string | null;
 };
 
 export async function hasBookingDateConflict(
@@ -43,17 +44,45 @@ export async function hasBookingDateConflict(
     arrival: string;
     departure: string;
     excludeBookingId?: string | null;
+    applyAvailabilityOverrides?: boolean;
   },
 ): Promise<boolean> {
   const result = await database.query(
-    `SELECT 1 FROM booking_blocks
+    `SELECT 1 FROM booking_blocks block
       WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
+        AND EXISTS (
+          SELECT 1
+            FROM generate_series(
+              GREATEST(block.starts_on, $2::date),
+              LEAST(block.ends_on, $3::date) - 1,
+              INTERVAL '1 day'
+            ) AS blocked_night(value)
+           WHERE (NOT $7::boolean OR NOT EXISTS (
+             SELECT 1 FROM calendar_availability_overrides override
+              WHERE override.property_id = $1
+                AND override.available_on = blocked_night.value::date
+           ))
+        )
      UNION ALL
-     SELECT 1 FROM provisional_bookings
+     SELECT 1 FROM provisional_bookings booking
       WHERE property_id = ANY($4::text[])
         AND status = ANY($5::text[])
+        AND NOT (booking.property_id = 'bespoke-arrangement' AND booking.status = 'pending')
         AND ($6::bigint IS NULL OR id <> $6::bigint)
         AND arrival < $3::date AND departure > $2::date
+        AND EXISTS (
+          SELECT 1
+            FROM generate_series(
+              GREATEST(booking.arrival, $2::date),
+              LEAST(booking.departure, $3::date) - 1,
+              INTERVAL '1 day'
+            ) AS blocked_night(value)
+           WHERE (NOT $7::boolean OR NOT EXISTS (
+             SELECT 1 FROM calendar_availability_overrides override
+              WHERE override.property_id = $1
+                AND override.available_on = blocked_night.value::date
+           ))
+        )
      LIMIT 1`,
     [
       input.availabilityPropertyId,
@@ -62,6 +91,7 @@ export async function hasBookingDateConflict(
       input.propertyIds,
       [...BLOCKING_BOOKING_STATUSES],
       input.excludeBookingId ?? null,
+      input.applyAvailabilityOverrides ?? false,
     ],
   );
   return result.rows.length > 0;
@@ -74,19 +104,49 @@ export async function queryBookingBlocks(
     propertyIds: string[];
     from: string;
     to: string;
+    applyAvailabilityOverrides?: boolean;
   },
 ): Promise<BookingBlock[]> {
   const result = await database.query(
-    `SELECT starts_on::text AS "startsOn", ends_on::text AS "endsOn", source
-       FROM booking_blocks
-      WHERE property_id = $1 AND starts_on < $3::date AND ends_on > $2::date
-      UNION ALL
-     SELECT arrival::text AS "startsOn", departure::text AS "endsOn",
-            CASE WHEN status = ANY($5::text[]) THEN 'direct' ELSE 'provisional' END AS source
-       FROM provisional_bookings
-      WHERE property_id = ANY($4::text[])
-        AND status = ANY($6::text[])
-        AND arrival < $3::date AND departure > $2::date
+    `WITH raw_blocks AS (
+       SELECT 'block-' || block.id::text AS block_key,
+              block.starts_on, block.ends_on, block.source
+         FROM booking_blocks block
+        WHERE block.property_id = $1
+          AND block.starts_on < $3::date AND block.ends_on > $2::date
+       UNION ALL
+       SELECT 'booking-' || booking.id::text AS block_key,
+              booking.arrival AS starts_on,
+              booking.departure AS ends_on,
+              CASE WHEN booking.status = ANY($5::text[]) THEN 'direct' ELSE 'provisional' END AS source
+         FROM provisional_bookings booking
+        WHERE booking.property_id = ANY($4::text[])
+          AND booking.status = ANY($6::text[])
+          AND NOT (booking.property_id = 'bespoke-arrangement' AND booking.status = 'pending')
+          AND booking.arrival < $3::date AND booking.departure > $2::date
+     ), unblocked_nights_removed AS (
+       SELECT raw.block_key, raw.source, blocked_night.value::date AS blocked_on
+         FROM raw_blocks raw
+         CROSS JOIN LATERAL generate_series(
+           GREATEST(raw.starts_on, $2::date),
+           LEAST(raw.ends_on, $3::date) - 1,
+           INTERVAL '1 day'
+         ) AS blocked_night(value)
+        WHERE (NOT $7::boolean OR NOT EXISTS (
+          SELECT 1 FROM calendar_availability_overrides override
+           WHERE override.property_id = $1
+             AND override.available_on = blocked_night.value::date
+        ))
+     ), contiguous_nights AS (
+       SELECT block_key, source, blocked_on,
+              blocked_on - ROW_NUMBER() OVER (PARTITION BY block_key ORDER BY blocked_on)::int AS island
+         FROM unblocked_nights_removed
+     )
+     SELECT MIN(blocked_on)::text AS "startsOn",
+            (MAX(blocked_on) + 1)::text AS "endsOn",
+            source
+       FROM contiguous_nights
+      GROUP BY block_key, source, island
       ORDER BY "startsOn"`,
     [
       input.availabilityPropertyId,
@@ -95,6 +155,7 @@ export async function queryBookingBlocks(
       input.propertyIds,
       [...DIRECT_BOOKING_STATUSES],
       [...BLOCKING_BOOKING_STATUSES],
+      input.applyAvailabilityOverrides ?? false,
     ],
   );
   return result.rows;
@@ -113,7 +174,8 @@ export async function queryAdminCalendarEntries(
             CASE WHEN bb.source = 'airbnb' THEN 'airbnb' ELSE 'external' END AS source,
             NULL::text AS "guestName",
             NULL::text AS "bookingReference",
-            NULL::text AS "bookingStatus"
+            NULL::text AS "bookingStatus",
+            NULL::text AS reason
        FROM booking_blocks bb
       WHERE bb.starts_on < $2::date AND bb.ends_on > $1::date
       UNION ALL
@@ -124,10 +186,23 @@ export async function queryAdminCalendarEntries(
             CASE WHEN pb.status = ANY($3::text[]) THEN 'direct' ELSE 'provisional' END AS source,
             pb.guest_name AS "guestName",
             pb.public_id::text AS "bookingReference",
-            pb.status AS "bookingStatus"
+            pb.status AS "bookingStatus",
+            NULL::text AS reason
        FROM provisional_bookings pb
       WHERE (pb.status = ANY($4::text[]) OR (pb.property_id = 'bespoke-arrangement' AND pb.status = 'pending'))
         AND pb.arrival < $2::date AND pb.departure > $1::date
+      UNION ALL
+     SELECT 'override-' || override.id::text AS id,
+            override.property_id AS "propertyId",
+            override.available_on::text AS "startsOn",
+            (override.available_on + 1)::text AS "endsOn",
+            'override'::text AS source,
+            NULL::text AS "guestName",
+            NULL::text AS "bookingReference",
+            NULL::text AS "bookingStatus",
+            override.reason
+       FROM calendar_availability_overrides override
+      WHERE override.available_on >= $1::date AND override.available_on < $2::date
       ORDER BY "startsOn", "propertyId", source`,
     [from, to, [...DIRECT_BOOKING_STATUSES], [...BLOCKING_BOOKING_STATUSES]],
   );
@@ -140,6 +215,7 @@ export async function queryAdminCalendarEntries(
     guestName: row.guestName,
     bookingReference: row.bookingReference,
     bookingStatus: row.bookingStatus,
+    reason: row.reason,
   }));
 }
 
