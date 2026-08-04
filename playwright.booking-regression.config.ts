@@ -26,6 +26,8 @@ export default defineConfig({
   ],
   use: {
     baseURL: target.origin,
+    actionTimeout: 15_000,
+    navigationTimeout: 20_000,
     locale: 'en-GB',
     timezoneId: 'Europe/London',
     trace: { mode: 'on', screenshots: true, snapshots: true, sources: true },
