@@ -17,6 +17,6 @@ export const GET: APIRoute = async ({ params, url }) => {
     messages,
     latestMessageId: messages.at(-1)?.id || url.searchParams.get('after') || '0',
     bookingStatus: booking.bookingStatus,
-    reservationVersion: `${booking.bookingStatus}:${booking.customerStatus}:${booking.offerId || ''}:${booking.publishedAt || ''}`,
+    reservationVersion: `${booking.bookingStatus}:${booking.customerStatus}:${booking.offerId || ''}:${booking.publishedAt || ''}:${booking.arrival}:${booking.departure}:${booking.bespokeSuggestedArrival || ''}`,
   }, { headers: { 'cache-control': 'no-store, private' } });
 };

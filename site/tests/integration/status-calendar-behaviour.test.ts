@@ -125,11 +125,22 @@ test('status filtering, date blocking and calendar classification remain aligned
     });
     assert.equal(blocks.length, BLOCKING_BOOKING_STATUSES.length);
     assert.equal(blocks.filter((block) => block.source === 'direct').length, 2);
+    const blocksIncludingBespokeRequests = await queryBookingBlocks(applicationPool, {
+      availabilityPropertyId: 'olrig-bank',
+      propertyIds: ['olrig-bank', 'bespoke-arrangement'],
+      from: fromDate,
+      to: toDate,
+    });
+    assert.equal(
+      blocksIncludingBespokeRequests.length,
+      BLOCKING_BOOKING_STATUSES.length,
+      'a pending Bespoke request must not add a block to shared availability',
+    );
 
     assert.equal(
       await hasBookingDateConflict(applicationPool, {
         availabilityPropertyId: 'olrig-bank',
-        propertyIds: ['olrig-bank'],
+        propertyIds: ['olrig-bank', 'bespoke-arrangement'],
         arrival: fromDate,
         departure: toDate,
       }),
@@ -160,20 +171,141 @@ test('status filtering, date blocking and calendar classification remain aligned
       'the explicit inactive view must restore declined and expired bookings',
     );
 
+    const overrideNight = new Date();
+    overrideNight.setUTCDate(overrideNight.getUTCDate() + 61);
+    const overrideDate = overrideNight.toISOString().slice(0, 10);
+    const followingNight = new Date(overrideNight);
+    followingNight.setUTCDate(followingNight.getUTCDate() + 1);
+    const followingDate = followingNight.toISOString().slice(0, 10);
+
     await applicationPool.query(
-      `DELETE FROM provisional_bookings
-        WHERE status = ANY($1::text[])`,
-      [[...BLOCKING_BOOKING_STATUSES]],
+      `INSERT INTO booking_blocks (property_id, source, external_uid, starts_on, ends_on)
+       VALUES ('olrig-bank', 'airbnb', 'override-test', CURRENT_DATE + 60, CURRENT_DATE + 63)`,
+    );
+    await applicationPool.query(
+      `INSERT INTO calendar_availability_overrides (property_id, available_on, reason)
+       VALUES ('olrig-bank', $1::date, 'Administrator verified availability')`,
+      [overrideDate],
+    );
+
+    assert.equal(
+      await hasBookingDateConflict(applicationPool, {
+        availabilityPropertyId: 'olrig-bank',
+        propertyIds: ['olrig-bank'],
+        arrival: overrideDate,
+        departure: followingDate,
+        applyAvailabilityOverrides: true,
+      }),
+      false,
+      'an administrator override must take precedence over Airbnb and every blocking booking status',
+    );
+    assert.equal(
+      await hasBookingDateConflict(applicationPool, {
+        availabilityPropertyId: 'olrig-bank',
+        propertyIds: ['olrig-bank'],
+        arrival: overrideDate,
+        departure: followingDate,
+        applyAvailabilityOverrides: false,
+      }),
+      true,
+      'the same override must not make an ordinary stay available',
     );
     assert.equal(
       await hasBookingDateConflict(applicationPool, {
         availabilityPropertyId: 'olrig-bank',
         propertyIds: ['olrig-bank'],
         arrival: fromDate,
+        departure: followingDate,
+        applyAvailabilityOverrides: true,
+      }),
+      true,
+      'an override must not make adjacent blocked nights available',
+    );
+
+    const overriddenBlocks = await queryBookingBlocks(applicationPool, {
+      availabilityPropertyId: 'olrig-bank',
+      propertyIds: ['olrig-bank'],
+      from: fromDate,
+      to: toDate,
+      applyAvailabilityOverrides: true,
+    });
+    assert.equal(
+      overriddenBlocks.some((block) => block.startsOn <= overrideDate && block.endsOn > overrideDate),
+      false,
+      'the public block result must exclude the overridden night',
+    );
+    assert.equal(
+      overriddenBlocks.some((block) => block.endsOn === overrideDate),
+      true,
+      'blocks before an override must retain their departure boundary',
+    );
+    assert.equal(
+      overriddenBlocks.some((block) => block.startsOn === followingDate),
+      true,
+      'blocks after an override must retain their arrival boundary',
+    );
+    const ordinaryStayBlocks = await queryBookingBlocks(applicationPool, {
+      availabilityPropertyId: 'olrig-bank',
+      propertyIds: ['olrig-bank'],
+      from: fromDate,
+      to: toDate,
+      applyAvailabilityOverrides: false,
+    });
+    assert.equal(
+      ordinaryStayBlocks.some((block) => block.startsOn <= overrideDate && block.endsOn > overrideDate),
+      true,
+      'ordinary stay calendars must continue to return the underlying block',
+    );
+
+    const overriddenCalendar = await queryAdminCalendarEntries(applicationPool, fromDate, toDate);
+    assert.equal(
+      overriddenCalendar.some((entry) => entry.source === 'override'
+        && entry.propertyId === 'olrig-bank'
+        && entry.startsOn === overrideDate
+        && entry.reason === 'Administrator verified availability'),
+      true,
+      'the Admin calendar must display the override and its reason',
+    );
+    assert.equal(
+      overriddenCalendar.some((entry) => entry.source === 'direct' && entry.startsOn <= overrideDate && entry.endsOn > overrideDate),
+      true,
+      'the Admin calendar must preserve underlying confirmed booking evidence',
+    );
+
+    await applicationPool.query(
+      `DELETE FROM calendar_availability_overrides
+        WHERE property_id = 'olrig-bank' AND available_on = $1::date`,
+      [overrideDate],
+    );
+    assert.equal(
+      await hasBookingDateConflict(applicationPool, {
+        availabilityPropertyId: 'olrig-bank',
+        propertyIds: ['olrig-bank'],
+        arrival: overrideDate,
+        departure: followingDate,
+      }),
+      true,
+      'removing an override must restore the underlying block',
+    );
+
+    await applicationPool.query(
+      `DELETE FROM provisional_bookings
+        WHERE status = ANY($1::text[])
+          AND property_id <> 'bespoke-arrangement'`,
+      [[...BLOCKING_BOOKING_STATUSES]],
+    );
+    await applicationPool.query(
+      `DELETE FROM booking_blocks WHERE external_uid = 'override-test'`,
+    );
+    assert.equal(
+      await hasBookingDateConflict(applicationPool, {
+        availabilityPropertyId: 'olrig-bank',
+        propertyIds: ['olrig-bank', 'bespoke-arrangement'],
+        arrival: fromDate,
         departure: toDate,
       }),
       false,
-      'declined, cancelled and expired records must not block released dates',
+      'inactive records and pending Bespoke conversations must not block released dates',
     );
   } finally {
     if (applicationPool) await applicationPool.end();

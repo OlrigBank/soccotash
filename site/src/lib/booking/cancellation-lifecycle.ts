@@ -101,6 +101,13 @@ async function cancelBookingForActor(
       [row.id],
     );
 
+    const restoredOverrides = await client.query(
+      `DELETE FROM calendar_availability_overrides
+        WHERE provisional_booking_id = $1
+      RETURNING property_id, available_on::text AS available_on`,
+      [row.id],
+    );
+
     await insertCancellationActivity(client, {
       bookingId: row.id,
       offerId: row.offer_id,
@@ -108,12 +115,20 @@ async function cancelBookingForActor(
       lifecycleRule: decision.rule.id,
       actor: actor === 'booker' ? 'customer' : 'administrator',
     });
+    if (restoredOverrides.rowCount) {
+      await client.query(
+        `INSERT INTO booking_activity
+           (provisional_booking_id, booking_offer_id, actor, event_type, details)
+         VALUES ($1, $2, 'system', 'booking_availability_overrides_restored', $3::jsonb)`,
+        [row.id, row.offer_id, JSON.stringify({ overrides: restoredOverrides.rows })],
+      );
+    }
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
       body: actor === 'booker'
-        ? `The Booker cancelled this booking. Reason: ${reason} The conversation remains available as the permanent record.`
-        : `Olrig Bank cancelled this booking. Reason: ${reason} The conversation remains available as the permanent record.`,
+        ? `The Booker cancelled this booking. Reason: ${reason}${restoredOverrides.rowCount ? ' Request-specific calendar overrides were removed.' : ''} The conversation remains available as the permanent record.`
+        : `Olrig Bank cancelled this booking. Reason: ${reason}${restoredOverrides.rowCount ? ' Request-specific calendar overrides were removed.' : ''} The conversation remains available as the permanent record.`,
       audience: 'both',
       sourceKey: `booking-cancelled:${row.id}`,
     });
