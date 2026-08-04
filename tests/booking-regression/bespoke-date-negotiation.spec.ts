@@ -99,7 +99,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     }
 
     await adminPage.getByRole('link', { name: 'Return to booking without changes' }).click();
-    await adminPage.getByLabel('Agreed stay arrangement').selectOption('olrig-bank');
+    await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank' });
     await adminPage.getByRole('button', { name: 'Assign arrangement' }).click();
     await adminPage.getByLabel('Amount (£)').fill('100.00');
     await adminPage.getByRole('button', { name: 'Publish offer' }).click();
