@@ -367,6 +367,8 @@ const visibleOffers = showClosedOffers ? offers : offers.filter((offer) => offer
 const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
 const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
+const datesSuggested = Astro.url.searchParams.get('dates') === 'suggested';
+const reservationOpen = Astro.url.searchParams.get('reservation') === 'open';
 const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactStatus = Astro.url.searchParams.get('contact');
@@ -389,11 +391,13 @@ const messages = await getBookingMessagesByReference(reference, 'administrator',
 const notificationHistory = booking.internalId ? await getBookingNotificationHistory(booking.internalId) : [];
 const reservationSnapshot = await getCustomerBookingPageByReference(reference);
 const reservationVersion = reservationSnapshot
-  ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}`
+  ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}:${reservationSnapshot.arrival}:${reservationSnapshot.departure}:${reservationSnapshot.bespokeSuggestedArrival || ''}`
   : booking.status;
 let notice = '';
 if (arrangementAssigned) {
   notice = `${propertyName} was assigned successfully. The dates are now reserved provisionally and an offer can be prepared.`;
+} else if (datesSuggested) {
+  notice = 'The alternative Bespoke stay dates were sent to the Booker. Their original request remains unchanged until they respond.';
 } else if (cancelled) {
   notice = lifecycleEmailStatus === 'submitted'
     ? 'The booking was cancelled, its dates were released, and a WhatsApp notification was submitted.'
@@ -459,7 +463,7 @@ if (arrangementAssigned) {
   />
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError || reservationOpen ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
     <header class="booking-reservation-drawer__header">
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
       <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
@@ -482,6 +486,16 @@ if (arrangementAssigned) {
           <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
+        {isUnassignedBespoke && booking.bespokeSuggestedArrival && booking.bespokeSuggestedDeparture && <div class="pricing-message" role="status">
+          <strong>Awaiting the Booker's date decision</strong>
+          <p>Suggested: {dateLabel(booking.bespokeSuggestedArrival)} to {dateLabel(booking.bespokeSuggestedDeparture)}. The original request remains {dateLabel(booking.originalArrival || booking.arrival)} to {dateLabel(booking.originalDeparture || booking.departure)}.</p>
+        </div>}
+        {isUnassignedBespoke && <div class="admin-form">
+          <a class="admin-button admin-button--secondary" href={`/admin/calendars/?month=${booking.arrival.slice(0, 7)}&property=bespoke-arrangement&booking=${reference}`}>
+            Review requested dates in calendar
+          </a>
+          <small>Compare the requested stay with current blocks, open dates where appropriate, or choose the nearest available stay of the same length.</small>
+        </div>}
         {isUnassignedBespoke && <form method="post" action={`/admin/bookings/${reference}/arrangement/`} class="admin-form">
           <label>Agreed stay arrangement
             <select name="assignedPropertyId" required>

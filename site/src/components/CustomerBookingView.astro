@@ -156,7 +156,7 @@ const conversationError = messageError || responseError;
     intro={adminPreview ? 'This is how the continuing booking conversation appears to the Booker.' : 'Reply here to Jenna and the Olrig Bank team. New messages are checked automatically.'}
     pollingUrl={pollingUrl}
     bookingStatus={offer.bookingStatus}
-    reservationVersion={`${offer.bookingStatus}:${offer.customerStatus}:${offer.offerId || ''}:${offer.publishedAt || ''}`}
+    reservationVersion={`${offer.bookingStatus}:${offer.customerStatus}:${offer.offerId || ''}:${offer.publishedAt || ''}:${offer.arrival}:${offer.departure}:${offer.bespokeSuggestedArrival || ''}`}
     canCompose={!adminPreview}
     notificationAvailable={messageNotificationAvailable}
     notificationLabel="Also notify the Olrig Bank administrators by email"
@@ -213,6 +213,32 @@ const conversationError = messageError || responseError;
           {(confirmed || cancelled) && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
         </dl>
       </section>
+
+      {requestPending && offer.propertyId === 'bespoke-arrangement' && offer.bespokeSuggestedArrival && offer.bespokeSuggestedDeparture && <section class="booking-drawer-section customer-booking-date-proposal">
+        <p class="eyebrow">Alternative dates suggested</p>
+        <h3>Olrig Bank has suggested a change to your request</h3>
+        <p><strong>{dateLabel(offer.bespokeSuggestedArrival)} to {dateLabel(offer.bespokeSuggestedDeparture)}</strong></p>
+        <p>Your first requested dates remain <strong>{dateLabel(offer.originalArrival)} to {dateLabel(offer.originalDeparture)}</strong>. This is still a pending request, not a booking offer. You can agree to the suggestion, send different dates of your own, retain the first dates, or cancel below.</p>
+        {!adminPreview && <div class="customer-booking-date-proposal__actions">
+          <form method="post">
+            <input type="hidden" name="action" value="respond-bespoke-dates" />
+            <input type="hidden" name="dateDecision" value="accept" />
+            <button class="customer-booking-submit customer-booking-accept" type="submit">Agree to suggested dates</button>
+          </form>
+          <form method="post" class="customer-booking-date-change-form">
+            <input type="hidden" name="action" value="respond-bespoke-dates" />
+            <input type="hidden" name="dateDecision" value="change" />
+            <label>My arrival date<input type="date" name="changedArrival" min={new Date().toISOString().slice(0, 10)} value={offer.originalArrival} required /></label>
+            <label>My departure date<input type="date" name="changedDeparture" min={new Date().toISOString().slice(0, 10)} value={offer.originalDeparture} required /></label>
+            <button class="customer-booking-submit" type="submit">Send my revised dates</button>
+          </form>
+          <form method="post">
+            <input type="hidden" name="action" value="respond-bespoke-dates" />
+            <input type="hidden" name="dateDecision" value="keep_original" />
+            <button class="customer-booking-submit" type="submit">Keep my original dates</button>
+          </form>
+        </div>}
+      </section>}
 
       {(paymentPending || paymentReported || confirmed || cancelled) && <section class="booking-drawer-section customer-booking-payment-history">
         <p class="eyebrow">Payment summary</p>
@@ -376,9 +402,11 @@ const conversationError = messageError || responseError;
 
       {canCancel && <section class="booking-drawer-section customer-booking-response">
         <div>
-          <p class="eyebrow">Cancel booking</p>
-          <h3>Cancel this booking and release its dates</h3>
-          <p>This is separate from declining an offer. The booking, payment history and conversation will remain available as a permanent record.</p>
+          <p class="eyebrow">{requestPending ? 'Cancel request' : 'Cancel booking'}</p>
+          <h3>{requestPending ? 'Cancel this pending request' : 'Cancel this booking and release its dates'}</h3>
+          <p>{requestPending
+            ? 'This closes the request without treating the date discussion as an offer. The conversation remains available as a permanent record.'
+            : 'This is separate from declining an offer. The booking, payment history and conversation will remain available as a permanent record.'}</p>
         </div>
         <form method="post" class="customer-booking-decision-form is-decline">
           <input type="hidden" name="action" value="cancel-booking" />
@@ -388,9 +416,9 @@ const conversationError = messageError || responseError;
           </label>
           <label class="customer-booking-confirm-check">
             <input type="checkbox" name="confirmCancellation" value="yes" required />
-            <span>I confirm that I want to cancel this booking and release its dates.</span>
+            <span>I confirm that I want to cancel this {requestPending ? 'request' : 'booking and release its dates'}.</span>
           </label>
-          <button class="customer-booking-submit customer-booking-decline" type="submit">Cancel booking</button>
+          <button class="customer-booking-submit customer-booking-decline" type="submit">Cancel {requestPending ? 'request' : 'booking'}</button>
         </form>
       </section>}
 
