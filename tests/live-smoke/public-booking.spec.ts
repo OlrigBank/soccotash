@@ -56,12 +56,16 @@ test.describe('soccotash public live smoke tests', () => {
     await arrangement.selectOption({ label: 'Bespoke stay' });
     await expect(arrangement.locator('option:checked')).toHaveText('Bespoke stay');
     await expect(page.getByText(/Minimum stay: 1 night\./)).toBeVisible();
-    await expect(
-      page.locator('button[aria-label$=", available"]:not([disabled])').first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-calendar-picker]')).toBeHidden();
+    await expect(page.getByLabel('Arrival')).toBeEditable();
+    await expect(page.getByLabel('Departure')).toBeEditable();
 
     await arrangement.selectOption({ label: 'Main House' });
     await expect(page.getByText(/Minimum stay: 2 nights\./)).toBeVisible();
+    await expect(page.locator('[data-calendar-picker]')).toBeVisible();
+    await expect(
+      page.locator('button[aria-label$=", available"]:not([disabled])').first(),
+    ).toBeVisible({ timeout: 20_000 });
 
     await nextMonths.click();
     await expect
