@@ -104,7 +104,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await adminPage.getByRole('button', { name: 'Reservation' }).click();
     await adminPage.getByLabel('Amount (£)').fill('100.00');
     await adminPage.getByRole('button', { name: 'Publish offer' }).click();
-    await expect(adminPage.getByText(/offer.*published/i)).toBeVisible();
+    await expect(adminPage.getByRole('status').filter({ hasText: 'The offer is published on the Booker booking page.' })).toBeVisible();
 
     await page.goto(bookerUrl);
     await page.locator('[data-open-reservation-drawer]').click();
