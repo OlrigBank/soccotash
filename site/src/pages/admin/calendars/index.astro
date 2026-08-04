@@ -1,7 +1,8 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getAvailabilityProperties, getProperties } from '../../../lib/booking/config';
-import { getAdminCalendarEntries, type AdminCalendarEntry } from '../../../lib/booking/repository';
+import { nightsBetween } from '../../../lib/booking/dates';
+import { getAdminCalendarEntries, getProvisionalBookingRequest, type AdminCalendarEntry } from '../../../lib/booking/repository';
 export const prerender = false;
 
 const properties = getProperties();
@@ -34,11 +35,17 @@ function dayValue(year: number, month: number, day: number): string {
 function daysInMonth(value: Date): number {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0)).getUTCDate();
 }
+function addDays(value: string, count: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + count);
+  return date.toISOString().slice(0, 10);
+}
 function entriesOnDay(entries: AdminCalendarEntry[], value: string): AdminCalendarEntry[] {
   return entries.filter((entry) => entry.startsOn <= value && entry.endsOn > value);
 }
 function entryLabel(entry: AdminCalendarEntry): string {
   const propertyName = propertyNames.get(entry.propertyId) ?? entry.propertyId;
+  if (entry.source === 'override') return `Available for bespoke stays · ${propertyName}${entry.reason ? ` · ${entry.reason}` : ''}`;
   if (entry.source === 'direct') return `Direct · ${propertyName} · ${entry.guestName || 'Booker'}`;
   if (entry.source === 'provisional' && entry.propertyId === 'bespoke-arrangement') return `Non-blocking request · ${propertyName} · ${entry.guestName || 'Booker'}`;
   if (entry.source === 'provisional') return `Provisional · ${propertyName} · ${entry.guestName || 'Booker'}`;
@@ -48,6 +55,14 @@ function entryLabel(entry: AdminCalendarEntry): string {
 
 const startMonth = monthStartFromQuery(Astro.url.searchParams.get('month'));
 const rangeEnd = addMonths(startMonth, 3);
+const requestedBookingReference = Astro.url.searchParams.get('booking') || '';
+const calendarBooking = /^[0-9a-f-]{36}$/i.test(requestedBookingReference)
+  ? await getProvisionalBookingRequest(requestedBookingReference)
+  : null;
+const bespokeBooking = calendarBooking?.propertyId === 'bespoke-arrangement' && calendarBooking.status === 'pending'
+  ? calendarBooking
+  : null;
+const requestedNights = bespokeBooking ? nightsBetween(bespokeBooking.arrival, bespokeBooking.departure) : 0;
 const allEntries = await getAdminCalendarEntries(isoDate(startMonth), isoDate(rangeEnd));
 const selectedAvailabilityIds = selectedProperty === 'all'
   ? new Set<string>()
@@ -60,9 +75,65 @@ const entries = selectedProperty === 'all'
 const months = [startMonth, addMonths(startMonth, 1), addMonths(startMonth, 2)];
 const previousMonth = monthValue(addMonths(startMonth, -1));
 const nextMonth = monthValue(addMonths(startMonth, 1));
-const propertyQuery = selectedProperty === 'all' ? '' : `&property=${encodeURIComponent(selectedProperty)}`;
+const bookingQuery = bespokeBooking ? `&booking=${encodeURIComponent(bespokeBooking.reference)}` : '';
+const propertyQuery = `${selectedProperty === 'all' ? '' : `&property=${encodeURIComponent(selectedProperty)}`}${bookingQuery}`;
 const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const today = new Date().toISOString().slice(0, 10);
+const result = Astro.url.searchParams.get('result');
+const resultMessage = result === 'unblocked'
+  ? 'The selected night is now available for bespoke stay requests despite any underlying calendar entries.'
+  : result === 'restored'
+    ? 'The availability override was removed. Underlying calendar entries block the night again.'
+      : result === 'confirmation-required'
+        ? 'Explicit confirmation is required before a blocked night can be made available.'
+      : result === 'review-required'
+        ? 'Bespoke availability can only be opened while reviewing a pending Bespoke request, and only for nights in that request.'
+      : result === 'already-unblocked'
+        ? 'That night already has a Bespoke availability override. The existing override was left unchanged.'
+      : result === 'invalid'
+        ? 'The availability override request was invalid.'
+        : result === 'failed'
+          ? 'The availability override could not be changed.'
+          : result === 'not-found'
+            ? 'That availability override no longer exists.'
+            : result === 'dates-unavailable'
+              ? 'The selected stay still crosses one or more blocked nights. Open every affected resource night or choose another stay.'
+              : result === 'duration-mismatch'
+                ? 'Alternative dates must preserve the original requested stay length.'
+              : result === 'invalid-dates'
+                ? 'Choose a valid future stay with the same requested duration.'
+                : result === 'booking-stale'
+                  ? 'This request can no longer receive a Bespoke date suggestion.'
+                  : result === 'date-update-failed'
+                    ? 'The alternative dates could not be suggested.'
+            : '';
+const resultTone = ['unblocked', 'restored', 'already-unblocked'].includes(result || '') ? 'success' : 'error';
+
+const bespokeAvailabilityIds = getAvailabilityProperties('bespoke-arrangement').map((property) => property.id);
+function entryAffectsAvailability(entry: AdminCalendarEntry, availabilityId: string): boolean {
+  return entry.source !== 'override'
+    && !(entry.propertyId === 'bespoke-arrangement' && entry.source === 'provisional')
+    && getAvailabilityProperties(entry.propertyId).some((property) => property.id === availabilityId);
+}
+function nightIsOpen(value: string): boolean {
+  const dayEntries = entriesOnDay(allEntries, value);
+  return bespokeAvailabilityIds.every((availabilityId) => {
+    const blocked = dayEntries.some((entry) => entryAffectsAvailability(entry, availabilityId));
+    const overridden = dayEntries.some((entry) => entry.source === 'override' && entry.propertyId === availabilityId);
+    return !blocked || overridden;
+  });
+}
+function rangeIsOpen(arrival: string, nights: number): boolean {
+  if (!nights || addDays(arrival, nights) > isoDate(rangeEnd)) return false;
+  return Array.from({ length: nights }, (_, index) => addDays(arrival, index)).every(nightIsOpen);
+}
+let nearestOpenArrival: string | null = null;
+if (bespokeBooking && requestedNights > 0) {
+  const firstCandidate = bespokeBooking.arrival > today ? bespokeBooking.arrival : today;
+  for (let candidate = firstCandidate; addDays(candidate, requestedNights) <= isoDate(rangeEnd); candidate = addDays(candidate, 1)) {
+    if (rangeIsOpen(candidate, requestedNights)) { nearestOpenArrival = candidate; break; }
+  }
+}
 ---
 <AdminLayout title="Calendars">
   <header class="admin-page-header">
@@ -70,12 +141,34 @@ const today = new Date().toISOString().slice(0, 10);
       <p class="eyebrow">Administration</p>
       <h1>Calendars</h1>
       <p>Imported Airbnb blocks, provisional requests and confirmed direct bookings are shown together.</p>
+      <p><strong>Bespoke-stay overrides take precedence over every calendar entry without deleting the underlying booking or imported block. Standard stay arrangements remain blocked.</strong></p>
     </div>
   </header>
+
+  {resultMessage && <div class={`admin-alert admin-alert--${resultTone}`} role="status">{resultMessage}</div>}
+
+  {bespokeBooking && <section class="admin-panel admin-calendar-booking-context">
+    <div>
+      <p class="eyebrow">Bespoke stay date review</p>
+      <h2>{bespokeBooking.name}</h2>
+      <p>Requested: <strong>{bespokeBooking.arrival} to {bespokeBooking.departure}</strong> · {requestedNights} night{requestedNights === 1 ? '' : 's'} · {bespokeBooking.guests} guest{bespokeBooking.guests === 1 ? '' : 's'}{bespokeBooking.pets ? ` · ${bespokeBooking.pets} pet${bespokeBooking.pets === 1 ? '' : 's'}` : ''}</p>
+      <p>If the requested dates are open, no calendar change is needed. “Allow bespoke” controls appear only on blocked nights within this request. Alternative stays shown here are already open and keep the same duration.</p>
+      {nearestOpenArrival
+        ? <p>Nearest open same-length stay: <strong>{nearestOpenArrival} to {addDays(nearestOpenArrival, requestedNights)}</strong>.</p>
+        : <p>No fully open same-length stay was found in this three-month view.</p>}
+    </div>
+    <form method="post" action={`/admin/bookings/${bespokeBooking.reference}/dates/`} class="admin-calendar-date-choice" data-bespoke-date-form data-nights={requestedNights}>
+      <label>Selected arrival<input name="arrival" type="date" min={today} value={nearestOpenArrival || bespokeBooking.arrival} required /></label>
+      <label>Departure<input name="departure" type="date" value={addDays(nearestOpenArrival || bespokeBooking.arrival, requestedNights)} readonly required /></label>
+      <button class="admin-button" type="submit">Suggest dates and return to booking</button>
+    </form>
+    <a class="admin-button admin-button--secondary" href={`/admin/bookings/${bespokeBooking.reference}/?reservation=open`}>Return to booking without changes</a>
+  </section>}
 
   <section class="admin-panel admin-calendar-controls">
     <form method="get" class="admin-calendar-filter">
       <input type="hidden" name="month" value={monthValue(startMonth)} />
+      {bespokeBooking && <input type="hidden" name="booking" value={bespokeBooking.reference} />}
       <label>Stay arrangement
         <select name="property">
           <option value="all" selected={selectedProperty === 'all'}>All arrangements</option>
@@ -96,6 +189,7 @@ const today = new Date().toISOString().slice(0, 10);
     <span><i class="admin-calendar-key is-provisional"></i>Provisional request or offer</span>
     <span><i class="admin-calendar-key is-airbnb"></i>Airbnb unavailable</span>
     <span><i class="admin-calendar-key is-external"></i>Other unavailable block</span>
+    <span><i class="admin-calendar-key is-override"></i>Available for bespoke stays</span>
   </div>
 
   <div class="admin-calendar-stack">
@@ -115,7 +209,19 @@ const today = new Date().toISOString().slice(0, 10);
             const day = index + 1;
             const value = dayValue(year, monthIndex, day);
             const dayEntries = entriesOnDay(entries, value);
-            return <div class:list={['admin-calendar-day', { 'is-today': value === today, 'has-events': dayEntries.length > 0 }]}>
+            const overrides = dayEntries.filter((entry) => entry.source === 'override');
+            const blockers = dayEntries.filter((entry) =>
+              entry.source !== 'override'
+              && !(entry.propertyId === 'bespoke-arrangement' && entry.source === 'provisional'),
+            );
+            const affectedAvailabilityIds = [...new Set([
+              ...blockers.flatMap((entry) => getAvailabilityProperties(entry.propertyId).map((property) => property.id)),
+              ...overrides.map((entry) => entry.propertyId),
+            ])];
+            const inRequestedStay = Boolean(bespokeBooking && bespokeBooking.arrival <= value && value < bespokeBooking.departure);
+            const inNearestStay = Boolean(nearestOpenArrival && nearestOpenArrival <= value && value < addDays(nearestOpenArrival, requestedNights));
+            const selectableArrival = Boolean(bespokeBooking && value >= today && rangeIsOpen(value, requestedNights));
+            return <div class:list={['admin-calendar-day', { 'is-today': value === today, 'has-events': dayEntries.length > 0, 'has-override': overrides.length > 0, 'is-requested-stay': inRequestedStay, 'is-nearest-stay': inNearestStay }]}>
               <span class="admin-calendar-day-number">{day}</span>
               <div class="admin-calendar-events">
                 {dayEntries.map((entry) => {
@@ -130,6 +236,39 @@ const today = new Date().toISOString().slice(0, 10);
                   return <span class={className} title={label}>{label}</span>;
                 })}
               </div>
+              {selectableArrival && <button type="button" class="admin-calendar-select-stay" data-select-bespoke-arrival={value}>Select {requestedNights}-night stay</button>}
+              {affectedAvailabilityIds.map((availabilityId) => {
+                const override = overrides.find((entry) => entry.propertyId === availabilityId);
+                const availabilityName = propertyNames.get(availabilityId) ?? availabilityId;
+                if (override) {
+                  return <form method="post" action="/admin/calendars/override/" class="admin-calendar-override-form">
+                    <input type="hidden" name="action" value="remove" />
+                    <input type="hidden" name="propertyId" value={availabilityId} />
+                    <input type="hidden" name="date" value={value} />
+                    <input type="hidden" name="month" value={monthValue(startMonth)} />
+                    <input type="hidden" name="selectedProperty" value={selectedProperty} />
+                    {bespokeBooking && <input type="hidden" name="bookingReference" value={bespokeBooking.reference} />}
+                    <button type="submit" class="admin-calendar-override-action is-restore" title={`Restore bespoke-stay blocking for ${availabilityName}`}>Restore {availabilityName}</button>
+                  </form>;
+                }
+                if (!bespokeBooking || !inRequestedStay) return null;
+                return <form
+                  method="post"
+                  action="/admin/calendars/override/"
+                  class="admin-calendar-override-form"
+                  onsubmit="return window.confirm('Make this night available for bespoke stay requests even if it overlaps an Airbnb reservation, provisional request, or confirmed booking? Standard stays will remain blocked.')"
+                >
+                  <input type="hidden" name="action" value="create" />
+                  <input type="hidden" name="propertyId" value={availabilityId} />
+                  <input type="hidden" name="date" value={value} />
+                  <input type="hidden" name="month" value={monthValue(startMonth)} />
+                  <input type="hidden" name="selectedProperty" value={selectedProperty} />
+                  <input type="hidden" name="bookingReference" value={bespokeBooking.reference} />
+                  <input type="hidden" name="confirmed" value="yes" />
+                  <input name="reason" maxlength="500" aria-label={`Reason for allowing bespoke stays at ${availabilityName} on ${value}`} placeholder="Reason (optional)" />
+                  <button type="submit" class="admin-calendar-override-action">Allow bespoke · {availabilityName}</button>
+                </form>;
+              })}
             </div>;
           })}
         </div>
@@ -139,3 +278,25 @@ const today = new Date().toISOString().slice(0, 10);
 
   {!entries.length && <section class="admin-panel pricing-empty-page"><h2>No calendar entries in this period</h2><p>Choose another property or move to a different three-month period.</p></section>}
 </AdminLayout>
+
+<script>
+  const bespokeDateForm = document.querySelector<HTMLFormElement>('[data-bespoke-date-form]');
+  const bespokeArrival = bespokeDateForm?.querySelector<HTMLInputElement>('[name="arrival"]');
+  const bespokeDeparture = bespokeDateForm?.querySelector<HTMLInputElement>('[name="departure"]');
+  const bespokeNights = Number(bespokeDateForm?.dataset.nights || 0);
+  function departureFor(arrival: string): string {
+    const date = new Date(`${arrival}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + bespokeNights);
+    return date.toISOString().slice(0, 10);
+  }
+  function selectBespokeArrival(value: string): void {
+    if (!bespokeArrival || !bespokeDeparture || !value) return;
+    bespokeArrival.value = value;
+    bespokeDeparture.value = departureFor(value);
+    bespokeDateForm?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  bespokeArrival?.addEventListener('change', () => selectBespokeArrival(bespokeArrival.value));
+  document.querySelectorAll<HTMLButtonElement>('[data-select-bespoke-arrival]').forEach((button) => {
+    button.addEventListener('click', () => selectBespokeArrival(button.dataset.selectBespokeArrival || ''));
+  });
+</script>

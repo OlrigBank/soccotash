@@ -89,7 +89,7 @@ const properties = getProperties();
       <button class="button" type="submit" data-submit-booking>Request booking</button>
     </div>
   </form>
-  <p class="booking-note">
+  <p class="booking-note" data-booking-availability-note>
     Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.
   </p>
 </section>
@@ -114,11 +114,13 @@ const properties = getProperties();
   const guests = form?.querySelector<HTMLInputElement>('[name="guests"]');
   const quotePanel = root?.querySelector<HTMLElement>('[data-booking-quote]');
   const calendarMonths = root?.querySelector<HTMLElement>('[data-calendar-months]');
+  const calendarPicker = root?.querySelector<HTMLElement>('[data-calendar-picker]');
   const calendarMessage = root?.querySelector<HTMLElement>('[data-calendar-message]');
   const previousButton = root?.querySelector<HTMLButtonElement>('[data-calendar-previous]');
   const nextButton = root?.querySelector<HTMLButtonElement>('[data-calendar-next]');
   const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
   const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
+  const bookingAvailabilityNote = root?.querySelector<HTMLElement>('[data-booking-availability-note]');
 
   const MONTHS_SHOWN = 2;
   const MAX_MONTH_OFFSET = 22;
@@ -185,8 +187,13 @@ const properties = getProperties();
     };
   }
 
+  function isBespokeStay(): boolean {
+    return propertySelect?.value === 'bespoke-arrangement';
+  }
+
   function applyPropertyRules() {
     const { minimumNights, maximumGuests } = selectedRules();
+    const bespokeStay = isBespokeStay();
     if (guests) {
       guests.max = String(maximumGuests);
       if (Number(guests.value) > maximumGuests) guests.value = String(maximumGuests);
@@ -194,7 +201,16 @@ const properties = getProperties();
     if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
     const availabilityNote = propertySelect?.selectedOptions[0]?.dataset.availabilityNote || '';
     if (rule) {
-      rule.textContent = `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
+      rule.textContent = bespokeStay
+        ? `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}. Enter your preferred dates to start a conversation with Olrig Bank; current availability is not checked for this request.`
+        : `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
+    }
+    if (calendarPicker) calendarPicker.hidden = bespokeStay;
+    if (checkButton) checkButton.textContent = bespokeStay ? 'Continue with request' : 'Check availability';
+    if (bookingAvailabilityNote) {
+      bookingAvailabilityNote.textContent = bespokeStay
+        ? 'A Bespoke stay request starts a private conversation using your preferred dates, guests and pets. It does not reserve or block those dates; Jenna will confirm the accommodation, availability and price with you.'
+        : 'Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.';
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
@@ -325,6 +341,12 @@ const properties = getProperties();
   async function loadVisibleCalendar() {
     if (!propertySelect) return;
     const requestId = ++calendarRequest;
+    if (isBespokeStay()) {
+      visibleBlocks = [];
+      calendarLoading = false;
+      calendarFailed = false;
+      return;
+    }
     calendarLoading = true;
     calendarFailed = false;
     setCalendarMessage('Loading current availability…');
@@ -410,18 +432,22 @@ const properties = getProperties();
     applyPropertyRules();
 
     const focusDate = changed === 'departure' && end ? end : start;
-    if (focusDate && !monthIsVisible(focusDate)) {
+    if (!isBespokeStay() && focusDate && !monthIsVisible(focusDate)) {
       monthCursor = startOfMonth(focusDate);
       if (monthCursor < firstAllowedMonth) monthCursor = firstAllowedMonth;
       await loadVisibleCalendar();
-    } else {
+    } else if (!isBespokeStay()) {
       renderCalendar();
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
     if (status) status.textContent = start && end
-      ? 'Dates entered. Use Check availability to confirm them.'
-      : 'Choose dates to check availability.';
+      ? isBespokeStay()
+        ? 'Preferred dates entered. Continue to add your contact details.'
+        : 'Dates entered. Use Check availability to confirm them.'
+      : isBespokeStay()
+        ? 'Enter your preferred arrival and departure dates.'
+        : 'Choose dates to check availability.';
   }
 
   propertySelect?.addEventListener('change', () => {
@@ -548,30 +574,34 @@ const properties = getProperties();
       return false;
     }
 
-    status.textContent = 'Checking the latest calendar…';
+    const bespokeStay = propertyId === 'bespoke-arrangement';
+    status.textContent = bespokeStay ? 'Preparing your Bespoke stay request…' : 'Checking the latest calendar…';
     window.olrigAnalytics?.track('availability_started', { property: propertyId });
     contact.hidden = true;
     clearReviewedQuote();
     if (checkButton) checkButton.disabled = true;
 
     try {
-      const params = new URLSearchParams({
-        property: String(data.get('propertyId')),
-        from: start,
-        to: end,
-      });
-      const response = await fetch(`/api/availability/?${params}`);
-      const body = await readJson(response);
-      if (!response.ok) {
-        status.textContent = body.error || 'Availability could not be checked.';
-        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
-        return false;
-      }
-      if (Array.isArray(body.blocks) && body.blocks.length) {
-        status.textContent = 'Those dates are unavailable. Please choose different dates.';
-        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'unavailable' });
-        clearReviewedQuote();
-        return false;
+      let availabilityBody: Record<string, any> = {};
+      if (!bespokeStay) {
+        const params = new URLSearchParams({
+          property: String(data.get('propertyId')),
+          from: start,
+          to: end,
+        });
+        const response = await fetch(`/api/availability/?${params}`);
+        availabilityBody = await readJson(response);
+        if (!response.ok) {
+          status.textContent = availabilityBody.error || 'Availability could not be checked.';
+          window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
+          return false;
+        }
+        if (Array.isArray(availabilityBody.blocks) && availabilityBody.blocks.length) {
+          status.textContent = 'Those dates are unavailable. Please choose different dates.';
+          window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'unavailable' });
+          clearReviewedQuote();
+          return false;
+        }
       }
       const quoteResponse = await fetch('/api/quote/', {
         method: 'POST',
@@ -598,9 +628,11 @@ const properties = getProperties();
       const nextStep = administratorPriced
         ? 'Complete your details to submit your request.'
         : 'Review the price and complete your details.';
-      status.textContent = body.refreshWarning
-        ? `The dates appear available. ${body.refreshWarning} ${nextStep}`
-        : `The dates currently appear available. ${nextStep}`;
+      status.textContent = bespokeStay
+        ? 'Your preferred dates have been recorded without an availability check. Complete your details to start the conversation.'
+        : availabilityBody.refreshWarning
+          ? `The dates appear available. ${availabilityBody.refreshWarning} ${nextStep}`
+          : `The dates currently appear available. ${nextStep}`;
       contact.hidden = false;
       window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'available' });
       return true;

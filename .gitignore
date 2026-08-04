@@ -16,12 +16,18 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.codex/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright live smoke-test recordings and reports
+playwright-report/
+test-results/
+blob-report/
 # Local environment files and secrets
 .env
 .env.*

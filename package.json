@@ -11,11 +11,21 @@
     "generate:booking-lifecycle-docs": "npm --prefix site run generate:booking-lifecycle-docs",
     "check:booking-lifecycle-docs": "npm --prefix site run check:booking-lifecycle-docs",
     "test:booking-lifecycle": "npm --prefix site run test:booking-lifecycle",
+    "test:live-smoke": "playwright test --config=playwright.live-smoke.config.ts",
+    "test:live-smoke:headed": "playwright test --config=playwright.live-smoke.config.ts --headed",
+    "show:live-smoke-report": "playwright show-report playwright-report/live-smoke",
+    "test:booking-regression": "playwright test --config=playwright.booking-regression.config.ts",
+    "test:booking-regression:headed": "playwright test --config=playwright.booking-regression.config.ts --headed",
+    "show:booking-regression-report": "playwright show-report playwright-report/booking-regression",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f site",
     "docker:sync": "docker compose --profile tools run --rm calendar-sync",
     "docker:report": "docker compose --profile tools run --rm booking-report",
     "docker:backup": "./backup-db.bash"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "pg": "^8.22.0"
   }
 }

@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!Number.isInteger(guests) || guests < 1 || guests > property.maximumGuests || !Number.isInteger(pets) || pets < 0 || pets > 10) {
       return Response.json({ error: 'Please check the guest and pet numbers.' }, { status: 400 });
     }
-    if ((await getBlocks(propertyId, arrival, departure)).length) {
+    if (propertyId !== 'bespoke-arrangement' && (await getBlocks(propertyId, arrival, departure)).length) {
       return Response.json({ error: 'Those dates are unavailable.' }, { status: 409 });
     }
 
