@@ -83,7 +83,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(adminPage.getByText("Awaiting the Booker's date decision")).toBeVisible();
 
     await page.reload();
-    await page.getByRole('button', { name: 'Reservation' }).click();
+    await page.locator('[data-open-reservation-drawer]').click();
     await expect(page.getByRole('heading', { name: 'Olrig Bank has suggested a change to your request' })).toBeVisible();
     await page.getByRole('button', { name: 'Keep my original dates' }).click();
     await expect(page.getByText('Your original dates were kept')).toBeVisible();
@@ -106,7 +106,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(adminPage.getByText(/offer.*published/i)).toBeVisible();
 
     await page.goto(bookerUrl);
-    await page.getByRole('button', { name: 'Reservation' }).click();
+    await page.locator('[data-open-reservation-drawer]').click();
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
     await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
