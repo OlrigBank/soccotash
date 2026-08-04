@@ -127,9 +127,10 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
     await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
-    await page.getByLabel('Reason for cancellation').fill('Automated regression completed');
-    await page.getByLabel(/I confirm that I want to cancel this booking/).check();
-    await page.getByRole('button', { name: 'Cancel booking' }).click();
+    const cancellationForm = page.locator('form').filter({ has: page.locator('input[name="action"][value="cancel-booking"]') });
+    await cancellationForm.getByLabel('Reason for cancellation').fill('Automated regression completed');
+    await cancellationForm.getByLabel(/I confirm that I want to cancel this booking/).check({ force: true });
+    await cancellationForm.getByRole('button', { name: 'Cancel booking' }).click({ force: true });
     await expect(page.getByText('Your cancellation has been recorded')).toBeVisible();
     await adminContext.close();
 
