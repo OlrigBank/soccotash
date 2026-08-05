@@ -1,0 +1,7 @@
+---
+import type { AiProposalDiff,AiProposalRecord } from '../lib/planner/ai-proposals.ts';
+const {record,diff}=Astro.props as {record:AiProposalRecord;diff:AiProposalDiff};
+---
+<article><header class="hero"><p class="eyebrow">External AI proposal · review only</p><h1>{record.summary}</h1><p>Submitted {new Date(record.submittedAt).toLocaleString('en-GB')} from revision {record.sourceRevision}. Current comparison: {diff.stale?'outdated':'current'}.</p></header>{diff.stale&&<aside class="pricing-message is-error" role="alert">The plan has changed since this proposal was prepared. Review conflicts carefully.</aside>}
+{[['Added',diff.additions],['Changed',diff.changes],['Moved',diff.moves],['Removed',diff.removals]].map(([label,entries])=><section class="booking-panel"><h2>{label} ({(entries as any[]).length})</h2>{(entries as any[]).length===0?<p>None.</p>:<ul>{(entries as any[]).map(operation=><li><strong>{operation.item?.title??operation.before?.title}</strong>{operation.changes&&<pre>{JSON.stringify(operation.changes,null,2)}</pre>}{operation.targetDayId&&<p>Target day: {operation.targetDayId}</p>}</li>)}</ul>}</section>)}
+<section class="booking-panel"><h2>Conflicts ({diff.conflicts.length})</h2>{diff.conflicts.length===0?<p>None detected.</p>:<ul>{diff.conflicts.map(conflict=><li><strong>{conflict.reason}</strong> <code>{conflict.operation.op}</code></li>)}</ul>}</section><aside class="booking-panel"><strong>No changes have been applied.</strong><p>Approval and rejection controls are introduced in the next increment.</p></aside></article>
