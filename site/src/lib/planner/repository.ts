@@ -131,7 +131,7 @@ export async function createBookingLinkedPlan(
        VALUES ($1, 'owner', 'booker', $2, $3)`, [planInternalId, row.id, row.name],
     );
     await recordRevision(client, planInternalId, 1, input.actor, 'booking_plan_created',
-      `Created an empty holiday plan for booking ${bookingReference}.`, { bookingReference, initialState: 'empty' });
+      'Created an empty holiday plan.', { bookingReference, initialState: 'empty' });
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
        VALUES ($1, $2, 'holiday_plan_created', $3::jsonb)`,
@@ -461,7 +461,20 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
       WHERE d.holiday_plan_id = $1 GROUP BY d.id ORDER BY d.position`,
     [row.id],
   );
-  const revisionsResult = await database.query<any>('SELECT * FROM plan_revisions WHERE holiday_plan_id = $1 ORDER BY revision', [row.id]);
+  const revisionsResult = await database.query<any>(
+    `SELECT r.*,
+            COALESCE(au.display_name, participant.display_name, owner.display_name,
+              CASE r.actor_type WHEN 'external_ai' THEN 'External AI' ELSE 'Olrig Bank system' END) AS actor_display_name
+       FROM plan_revisions r
+       LEFT JOIN admin_users au ON au.id = r.admin_user_id
+       LEFT JOIN plan_participants participant ON participant.id = r.participant_id
+       LEFT JOIN LATERAL (
+         SELECT display_name FROM plan_participants
+          WHERE holiday_plan_id = r.holiday_plan_id AND role = 'owner'
+          LIMIT 1
+       ) owner ON r.actor_type = 'guest' AND r.participant_id IS NULL
+      WHERE r.holiday_plan_id = $1 ORDER BY r.revision`, [row.id],
+  );
   const days: PlanDay[] = daysResult.rows.map((dayRow: any) => ({
     id: String(dayRow.public_id), date: date(dayRow.day_date), title: dayRow.title,
     summary: dayRow.summary, position: dayRow.position,
@@ -471,6 +484,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
     revision: revisionRow.revision, actorType: revisionRow.actor_type,
     adminUserId: revisionRow.admin_user_id == null ? null : String(revisionRow.admin_user_id),
     participantId: revisionRow.participant_id == null ? null : String(revisionRow.participant_id),
+    actorDisplayName: revisionRow.actor_display_name,
     source: revisionRow.source, action: revisionRow.action, summary: revisionRow.summary,
     changes: revisionRow.changes, createdAt: iso(revisionRow.created_at),
   }));

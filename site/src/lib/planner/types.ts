@@ -38,6 +38,7 @@ export type PlanRevision = {
   actorType: 'administrator' | 'guest' | 'external_ai' | 'system';
   adminUserId: string | null;
   participantId: string | null;
+  actorDisplayName: string;
   source: 'admin' | 'guest' | 'external_ai_proposal' | 'system';
   action: string;
   summary: string;
