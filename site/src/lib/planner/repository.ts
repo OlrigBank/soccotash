@@ -7,7 +7,10 @@ import {
   PlannerError,
   optionalText,
   requireText,
+  validateDate,
   validateGuideSlug,
+  validatePublicId,
+  validateTime,
   type HolidayPlan,
   type PlanActor,
   type PlanDay,
@@ -57,7 +60,7 @@ async function lockPlan(
 ): Promise<{ internalId: string; revision: number }> {
   const result = await client.query<{ id: string | number; revision: number }>(
     'SELECT id, revision FROM holiday_plans WHERE public_id = $1::uuid FOR UPDATE',
-    [planId],
+    [validatePublicId(planId, 'Plan identifier')],
   );
   if (!result.rowCount) throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
   if (result.rows[0].revision !== expectedRevision) {
@@ -100,10 +103,12 @@ export async function createExamplePlan(
   const title = requireText(input.title, 'Plan title', 160, 3);
   const description = input.description?.trim() ?? '';
   if (description.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Plan description is too long.');
-  if ((input.startsOn == null) !== (input.endsOn == null)) {
+  const startsOn = validateDate(input.startsOn, 'Plan start date');
+  const endsOn = validateDate(input.endsOn, 'Plan end date');
+  if ((startsOn === null) !== (endsOn === null)) {
     throw new PlannerError('VALIDATION_ERROR', 'Plan start and end dates must be supplied together.');
   }
-  if (input.startsOn && input.endsOn && input.endsOn < input.startsOn) {
+  if (startsOn && endsOn && endsOn < startsOn) {
     throw new PlannerError('VALIDATION_ERROR', 'Plan end date cannot precede its start date.');
   }
   if (input.durationDays != null && (!Number.isInteger(input.durationDays) || input.durationDays < 1 || input.durationDays > 366)) {
@@ -119,7 +124,7 @@ export async function createExamplePlan(
           created_by_admin_user_id, updated_by_admin_user_id)
        VALUES ('example', $1, $2, $3::date, $4::date, $5, $6, $6)
        RETURNING id, public_id::text`,
-      [title, description, input.startsOn ?? null, input.endsOn ?? null, input.durationDays ?? null, input.actor.adminUserId],
+      [title, description, startsOn, endsOn, input.durationDays ?? null, input.actor.adminUserId],
     );
     await recordRevision(client, String(created.rows[0].id), 1, input.actor, 'plan_created', `Created example plan “${title}”.`, { title });
     await client.query('COMMIT');
@@ -141,6 +146,7 @@ export async function addPlanDay(
   const title = requireText(input.title, 'Day title', 160);
   const summary = input.summary?.trim() ?? '';
   if (summary.length > 3000) throw new PlannerError('VALIDATION_ERROR', 'Day summary is too long.');
+  const dayDate = validateDate(input.date, 'Plan day date');
   const client = await database.connect();
   try {
     await client.query('BEGIN');
@@ -151,7 +157,7 @@ export async function addPlanDay(
        VALUES ($1, $2::date, $3, $4,
          COALESCE((SELECT max(position) + 10 FROM plan_days WHERE holiday_plan_id = $1), 10), $5, $5)
        RETURNING public_id::text`,
-      [plan.internalId, input.date ?? null, title, summary, input.actor.adminUserId],
+      [plan.internalId, dayDate, title, summary, input.actor.adminUserId],
     );
     const revision = await finishMutation(client, plan.internalId, plan.revision, input.actor, 'day_added', `Added day “${title}”.`, { dayId: created.rows[0].public_id, title });
     await client.query('COMMIT');
@@ -191,7 +197,9 @@ export async function addPlanItem(
   const visibility = input.visibility ?? 'participants';
   if (!PLAN_ITEM_STATUSES.includes(status)) throw new PlannerError('VALIDATION_ERROR', 'Plan item status is invalid.');
   if (!PLAN_ITEM_VISIBILITIES.includes(visibility)) throw new PlannerError('VALIDATION_ERROR', 'Plan item visibility is invalid.');
-  if (input.startTime && input.endTime && input.endTime <= input.startTime) {
+  const startTime = validateTime(input.startTime, 'Item start time');
+  const endTime = validateTime(input.endTime, 'Item end time');
+  if (startTime && endTime && endTime <= startTime) {
     throw new PlannerError('VALIDATION_ERROR', 'Item end time must be after its start time.');
   }
   const client = await database.connect();
@@ -209,8 +217,8 @@ export async function addPlanItem(
          FROM plan_days d
         WHERE d.public_id = $1::uuid AND d.holiday_plan_id = $2
        RETURNING public_id::text`,
-      [input.dayId, plan.internalId, title, description, input.itemType, input.startTime ?? null,
-        input.endTime ?? null, optionalText(input.locationText, 'Location', 500),
+      [validatePublicId(input.dayId, 'Plan day identifier'), plan.internalId, title, description, input.itemType, startTime,
+        endTime, optionalText(input.locationText, 'Location', 500),
         validateGuideSlug(input.localGuideSlug), status,
         optionalText(input.reservationNote, 'Reservation note', 3000), visibility, input.actor.adminUserId],
     );
@@ -227,7 +235,7 @@ export async function addPlanItem(
 }
 
 export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query'> = getPool()): Promise<HolidayPlan | null> {
-  const plans = await database.query<any>('SELECT * FROM holiday_plans WHERE public_id = $1::uuid', [planId]);
+  const plans = await database.query<any>('SELECT * FROM holiday_plans WHERE public_id = $1::uuid', [validatePublicId(planId, 'Plan identifier')]);
   if (!plans.rowCount) return null;
   const row = plans.rows[0];
   const daysResult = await database.query<any>(

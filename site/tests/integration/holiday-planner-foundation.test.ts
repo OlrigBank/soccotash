@@ -137,6 +137,33 @@ test('persists structured plans and makes every mutation an atomic revision', as
     );
 
     await assert.rejects(
+      addPlanDay({
+        planId: created.id,
+        expectedRevision: 5,
+        title: 'Impossible date',
+        date: '2026-02-30',
+        actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    await assert.rejects(
+      addPlanItem({
+        planId: created.id,
+        dayId: firstDay.dayId,
+        expectedRevision: 5,
+        title: 'Invalid time',
+        itemType: 'activity',
+        startTime: '25:00',
+        actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    await assert.rejects(
+      getHolidayPlan('not-a-uuid', applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+
+    await assert.rejects(
       createExamplePlan({
         title: 'Must roll back',
         actor: { type: 'administrator', adminUserId: '999999999' },

@@ -101,3 +101,30 @@ export function validateGuideSlug(value: string | null | undefined): string | nu
   }
   return slug;
 }
+
+export function validatePublicId(value: string, field = 'Identifier'): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new PlannerError('VALIDATION_ERROR', `${field} is invalid.`);
+  }
+  return value;
+}
+
+export function validateDate(value: string | null | undefined, field: string): string | null {
+  if (value == null || value === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new PlannerError('VALIDATION_ERROR', `${field} must use YYYY-MM-DD format.`);
+  }
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new PlannerError('VALIDATION_ERROR', `${field} is not a real calendar date.`);
+  }
+  return value;
+}
+
+export function validateTime(value: string | null | undefined, field: string): string | null {
+  if (value == null || value === '') return null;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+    throw new PlannerError('VALIDATION_ERROR', `${field} must use 24-hour HH:MM format.`);
+  }
+  return value;
+}
