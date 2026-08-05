@@ -974,7 +974,7 @@ A possible breakdown is:
 ### Stage 3
 
 1. [Versioned restricted plan representation](../olrig-bank-planner-stage-3-pr-1-restricted-representation.md).
-2. Capability-token model and security controls.
+2. [Capability-token model and security controls](../olrig-bank-planner-stage-3-pr-2-capability-security.md).
 3. AI collaboration page and explicit instructions.
 4. QR code and link-management interface.
 5. Proposed-change schema and validation.

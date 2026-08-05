@@ -10,6 +10,7 @@ import {
   archiveExamplePlan,
   createExamplePlan,
   createBookingLinkedPlan,
+  createPlanAiCapability,
   createPlanShareLink,
   copyPublishedExampleIntoBookingPlan,
   duplicateExamplePlan,
@@ -22,6 +23,7 @@ import {
   listExamplePlans,
   listPublishedExamplePlans,
   listPlanShareLinks,
+  listPlanAiCapabilities,
   movePlanDay,
   movePlanItem,
   moderateGuideContribution,
@@ -30,6 +32,7 @@ import {
   removePlanDay,
   removePlanItem,
   revokePlanParticipant,
+  revokePlanAiCapability,
   revokePlanShareLink,
   setPlanItemGuideReference,
   updateExamplePlan,
@@ -44,6 +47,7 @@ import {
 import { PlannerError } from '../../src/lib/planner/types.ts';
 import { resolveParticipantCredential } from '../../src/lib/planner/participant-access.ts';
 import { resolvePlanShareCredential } from '../../src/lib/planner/share-access.ts';
+import { resolveAiCapabilityCredential } from '../../src/lib/planner/ai-capability-access.ts';
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
@@ -626,6 +630,45 @@ test('persists structured plans and makes every mutation an atomic revision', as
       planId: bookingPlan.id, shareId: share.shareId, expectedRevision: 22, actor: bookerActor,
     }, applicationPool), 23);
     assert.equal(await resolvePlanShareCredential(share.token, false, applicationPool), null);
+    await assert.rejects(
+      createPlanAiCapability({ planId: bookingPlan.id, expectedRevision: 23, expiresHours: 25, actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    await assert.rejects(
+      createPlanAiCapability({ planId: bookingPlan.id, expectedRevision: 23, expiresHours: 4,
+        actor: { type: 'booker', bookingId: '999999' } }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    const capability = await createPlanAiCapability({
+      planId: bookingPlan.id, expectedRevision: 23, expiresHours: 4, actor: bookerActor,
+    }, applicationPool);
+    assert.equal(capability.revision, 24);
+    assert.match(capability.token, /^[A-Za-z0-9_-]{43}$/);
+    const storedCapability = await applicationPool.query(
+      `SELECT token_hash, protocol_version, scopes, created_plan_revision,
+              expires_at > NOW() AS active
+         FROM plan_ai_capabilities WHERE public_id=$1::uuid`, [capability.capabilityId],
+    );
+    assert.equal(storedCapability.rows[0].token_hash, crypto.createHash('sha256').update(capability.token).digest('hex'));
+    assert.equal(storedCapability.rows[0].protocol_version, '1.0');
+    assert.deepEqual(storedCapability.rows[0].scopes, ['plan:read', 'proposal:submit']);
+    assert.equal(storedCapability.rows[0].created_plan_revision, 23);
+    assert.equal(storedCapability.rows[0].active, true);
+    const capabilityAccess = await resolveAiCapabilityCredential(capability.token, true, applicationPool);
+    assert.equal(capabilityAccess?.planId, bookingPlan.id);
+    assert.equal(capabilityAccess?.bookingId, bookingRow.id);
+    assert.deepEqual(capabilityAccess?.scopes, ['plan:read', 'proposal:submit']);
+    assert.equal((await listPlanAiCapabilities(bookingPlan.id, bookerActor, applicationPool)).length, 1);
+    assert.equal(await revokePlanAiCapability({
+      planId: bookingPlan.id, capabilityId: capability.capabilityId, expectedRevision: 24, actor: bookerActor,
+    }, applicationPool), 25);
+    assert.equal(await resolveAiCapabilityCredential(capability.token, false, applicationPool), null);
+    const revokedCapability = await applicationPool.query(
+      `SELECT token_hash IS NULL AS erased, revoked_at IS NOT NULL AS revoked,
+              last_accessed_at IS NOT NULL AS accessed
+         FROM plan_ai_capabilities WHERE public_id=$1::uuid`, [capability.capabilityId],
+    );
+    assert.deepEqual(revokedCapability.rows, [{ erased: true, revoked: true, accessed: true }]);
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
