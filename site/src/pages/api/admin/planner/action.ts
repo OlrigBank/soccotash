@@ -9,11 +9,13 @@ import {
   movePlanItem,
   removePlanDay,
   removePlanItem,
+  setPlanItemGuideReference,
   updateExamplePlan,
   updatePlanDay,
   updatePlanItem,
 } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 
 export const prerender = false;
 
@@ -77,13 +79,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
           direction: input.direction, actor,
         }) });
       case 'addItem': {
-        const result = await addPlanItem({ ...itemInput(input), planId:text(input.planId), dayId:text(input.dayId), expectedRevision:revision(input.expectedRevision), actor });
+        const slug=nullableText(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
+        const result = await addPlanItem({ ...itemInput(input), localGuideSlug:slug, planId:text(input.planId), dayId:text(input.dayId), expectedRevision:revision(input.expectedRevision), actor });
         return Response.json(result);
       }
       case 'updateItem':
         return Response.json({ revision: await updatePlanItem({ ...itemInput(input), planId:text(input.planId), itemId:text(input.itemId), expectedRevision:revision(input.expectedRevision), actor }) });
       case 'removeItem':
         return Response.json({ revision: await removePlanItem({ planId:text(input.planId), itemId:text(input.itemId), expectedRevision:revision(input.expectedRevision), actor }) });
+      case 'setGuideReference': {
+        const slug=nullableText(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
+        return Response.json({revision:await setPlanItemGuideReference({planId:text(input.planId),itemId:text(input.itemId),localGuideSlug:slug,expectedRevision:revision(input.expectedRevision),actor})});
+      }
       case 'moveItem':
         if (!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');
         return Response.json({ revision: await movePlanItem({ planId:text(input.planId), itemId:text(input.itemId), targetDayId:text(input.targetDayId), expectedRevision:revision(input.expectedRevision), position:text(input.position) as 'up'|'down'|'end', actor }) });
