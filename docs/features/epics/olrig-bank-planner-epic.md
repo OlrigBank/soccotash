@@ -963,7 +963,7 @@ A possible breakdown is:
 ### Stage 2
 
 1. [Booking-linked planner creation](../olrig-bank-planner-stage-2-pr-1-booking-plan-creation.md).
-2. Copy example plan into guest planner.
+2. [Copy example plan into guest planner](../olrig-bank-planner-stage-2-pr-2-copy-example-plan.md).
 3. Booker editing workflow.
 4. Participant roles and permissions.
 5. Activity history and concurrency handling.

@@ -26,4 +26,10 @@ test('booking-linked planner creation retains private booking authorization and 
   assert.match(adminPage, /isSameOrigin\(Astro\.request\)/, 'administrator creation must retain same-origin protection');
   assert.match(adminPage, /Astro\.locals\.adminUser!\.id/, 'administrator creation must retain authenticated attribution');
   assert.match(adminPage, /Create Booker holiday plan/, 'administrators need a booking-level creation entry point');
+  assert.match(repository, /copyPublishedExampleIntoBookingPlan/, 'example copying needs one transactional service boundary');
+  assert.match(repository, /publication_status = 'published'/, 'only published examples may be copied');
+  assert.match(repository, /visibility <> 'private'/, 'private example items must be excluded');
+  assert.match(repository, /'idea'.*NULL, 'participants'/, 'copied status and visibility must be reset without reservation notes');
+  assert.match(bookerPage, /Copy example into my plan/, 'Bookers need the copy action on their private page');
+  assert.match(adminPage, /Copy example into Booker plan/, 'administrators need the copy action at booking level');
 });

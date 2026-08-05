@@ -135,6 +135,98 @@ export async function createBookingLinkedPlan(
   }
 }
 
+export async function copyPublishedExampleIntoBookingPlan(
+  input: {
+    bookingReference: string;
+    sourcePlanId: string;
+    expectedRevision: number;
+    actor: PlannerRevisionActor;
+  },
+  database: Database = getPool(),
+): Promise<HolidayPlan> {
+  const bookingReference = validatePublicId(input.bookingReference, 'Booking reference');
+  const sourcePlanId = validatePublicId(input.sourcePlanId, 'Example plan identifier');
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    const target = await client.query<any>(
+      `SELECT p.id, p.public_id::text, p.revision, p.starts_on, p.duration_days, p.booking_id::text
+         FROM holiday_plans p
+         JOIN provisional_bookings b ON b.id = p.booking_id
+        WHERE b.public_id = $1::uuid AND p.plan_type = 'booking_linked'
+        FOR UPDATE OF p`, [bookingReference],
+    );
+    if (!target.rowCount) throw new PlannerError('NOT_FOUND', 'Booking holiday plan not found.');
+    const destination = target.rows[0];
+    if (input.actor.type === 'booker' && input.actor.bookingId !== destination.booking_id) {
+      throw new PlannerError('NOT_FOUND', 'Booking holiday plan not found.');
+    }
+    if (destination.revision !== input.expectedRevision) {
+      throw new PlannerError('STALE_REVISION', 'The holiday plan has changed. Reload it before copying.');
+    }
+    const existingDays = await client.query('SELECT 1 FROM plan_days WHERE holiday_plan_id = $1 LIMIT 1', [destination.id]);
+    if (existingDays.rowCount) throw new PlannerError('VALIDATION_ERROR', 'An example can only be copied into an empty holiday plan.');
+    const source = await client.query<any>(
+      `SELECT id, public_id::text, title, public_slug
+         FROM holiday_plans
+        WHERE public_id = $1::uuid AND plan_type = 'example' AND publication_status = 'published'
+          AND visibility = 'public' AND archived_at IS NULL
+        FOR SHARE`, [sourcePlanId],
+    );
+    if (!source.rowCount) throw new PlannerError('NOT_FOUND', 'Published example plan not found.');
+    const sourceDays = await client.query<any>(
+      'SELECT * FROM plan_days WHERE holiday_plan_id = $1 ORDER BY position', [source.rows[0].id],
+    );
+    if (sourceDays.rows.length > Number(destination.duration_days)) {
+      throw new PlannerError('VALIDATION_ERROR', 'This example has more days than the booked stay.');
+    }
+    for (let index = 0; index < sourceDays.rows.length; index += 1) {
+      const day = sourceDays.rows[index];
+      const copiedDay = await client.query<{ id: string | number }>(
+        `INSERT INTO plan_days
+           (holiday_plan_id, day_date, title, summary, position, created_by_admin_user_id, updated_by_admin_user_id)
+         VALUES ($1, $2::date + $3::int, $4, $5, $6, $7, $7) RETURNING id`,
+        [destination.id, destination.starts_on, index, day.title, day.summary, day.position,
+          input.actor.type === 'administrator' ? input.actor.adminUserId : null],
+      );
+      await client.query(
+        `INSERT INTO plan_items
+           (plan_day_id, title, description, item_type, start_time, end_time, location_text,
+            local_guide_slug, status, position, reservation_note, visibility,
+            created_by_admin_user_id, updated_by_admin_user_id)
+         SELECT $1, title, description, item_type, start_time, end_time, location_text,
+                local_guide_slug, 'idea', position, NULL, 'participants', $2, $2
+           FROM plan_items WHERE plan_day_id = $3 AND visibility <> 'private' ORDER BY position`,
+        [copiedDay.rows[0].id, input.actor.type === 'administrator' ? input.actor.adminUserId : null, day.id],
+      );
+    }
+    const revision = destination.revision + 1;
+    await client.query(
+      `UPDATE holiday_plans SET revision = $2, updated_by_admin_user_id = $3, updated_at = NOW()
+        WHERE id = $1`,
+      [destination.id, revision, input.actor.type === 'administrator' ? input.actor.adminUserId : null],
+    );
+    await recordRevision(client, String(destination.id), revision, input.actor, 'example_plan_copied',
+      `Copied published example plan “${source.rows[0].title}”.`,
+      { sourcePlanId, sourcePublicSlug: source.rows[0].public_slug, copiedDays: sourceDays.rows.length });
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, $2, 'holiday_plan_example_copied', $3::jsonb)`,
+      [destination.booking_id, input.actor.type === 'administrator' ? 'administrator' : 'customer',
+        JSON.stringify({ planId: destination.public_id, sourcePlanId, revision })],
+    );
+    await client.query('COMMIT');
+    const plan = await getHolidayPlan(destination.public_id, database);
+    if (!plan) throw new PlannerError('NOT_FOUND', 'Copied holiday plan could not be read.');
+    return plan;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function lockPlan(
   client: PoolClient,
   planId: string,
