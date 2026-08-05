@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
+import QRCode from 'qrcode';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveParticipantCredential } from '../../../../lib/planner/participant-access.ts';
 import {
-  addPlanDay, addPlanItem, getHolidayPlan, movePlanDay, movePlanItem, offerGuideContribution, removePlanDay,
-  removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
+  addPlanDay, addPlanItem, createPlanAiCapability, getHolidayPlan, movePlanDay, movePlanItem, offerGuideContribution, removePlanDay,
+  removePlanItem, revokePlanAiCapability, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
@@ -32,6 +33,8 @@ export const POST:APIRoute=async({params,request})=>{
       const slug=nullable(input.localGuideSlug);if(slug)await requirePlannerGuideEntry(slug);
       return Response.json(await addPlanItem({planId:plan.id,dayId:text(input.dayId),expectedRevision,title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),localGuideSlug:slug,status:'proposed',reservationNote:null,visibility:'participants',actor}));
     }
+    if(input.action==='createAiCapability'){const created=await createPlanAiCapability({planId:plan.id,expectedRevision,expiresHours:Number(input.expiresHours),actor});const url=new URL(`/planner/ai/${created.token}/`,request.url).toString();return Response.json({...created,url,qrDataUrl:await QRCode.toDataURL(url,{errorCorrectionLevel:'M',margin:2,width:320})})}
+    if(input.action==='revokeAiCapability')return Response.json({revision:await revokePlanAiCapability({planId:plan.id,capabilityId:text(input.capabilityId),expectedRevision,actor})});
     let result:Record<string,unknown>;
     switch(input.action){
       case'updatePlan':result={revision:await updateBookingLinkedPlan({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),actor})};break;
