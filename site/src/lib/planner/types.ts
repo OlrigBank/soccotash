@@ -94,6 +94,21 @@ export type HolidayPlanSummary = Omit<HolidayPlan, 'days' | 'revisions'> & {
   dayCount: number;
 };
 
+export type GuideContributionCandidate = {
+  id: string;
+  itemId: string | null;
+  submittedByParticipantId: string;
+  submittedByName: string;
+  offeredTitle: string;
+  offeredDescription: string;
+  offeredLocationText: string | null;
+  attributionPermitted: boolean;
+  attributionName: string | null;
+  status: 'pending' | 'withdrawn' | 'under_review' | 'accepted' | 'rejected';
+  consentedAt: string;
+  withdrawnAt: string | null;
+};
+
 export class PlannerError extends Error {
   readonly code: 'NOT_FOUND' | 'STALE_REVISION' | 'VALIDATION_ERROR';
 
