@@ -7,8 +7,14 @@ import pg from 'pg';
 import {
   addPlanDay,
   addPlanItem,
+  archiveExamplePlan,
   createExamplePlan,
   getHolidayPlan,
+  listExamplePlans,
+  movePlanDay,
+  removePlanDay,
+  updateExamplePlan,
+  updatePlanDay,
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
 
@@ -174,6 +180,60 @@ test('persists structured plans and makes every mutation an atomic revision', as
       `SELECT count(*)::int AS count FROM holiday_plans WHERE title = 'Must roll back'`,
     );
     assert.equal(rolledBack.rows[0].count, 0, 'a failed revision write must roll back plan creation');
+
+    assert.equal(await updateExamplePlan({
+      planId: created.id, expectedRevision: 5, title: 'Three better days around Kendal',
+      description: 'Updated by an administrator.', durationDays: 3, actor,
+    }, applicationPool), 6);
+    assert.equal(await updatePlanDay({
+      planId: created.id, dayId: firstDay.dayId, expectedRevision: 6,
+      title: 'Kendal day', summary: 'Updated summary', actor,
+    }, applicationPool), 7);
+    assert.equal(await movePlanDay({
+      planId: created.id, dayId: secondDay.dayId, expectedRevision: 7, direction: 'up', actor,
+    }, applicationPool), 8);
+    let administered = await getHolidayPlan(created.id, applicationPool);
+    assert.deepEqual(administered?.days.map((day) => day.id), [secondDay.dayId, firstDay.dayId]);
+    assert.equal(await removePlanDay({
+      planId: created.id, dayId: firstDay.dayId, expectedRevision: 8, actor,
+    }, applicationPool), 9);
+    assert.equal(await archiveExamplePlan({
+      planId: created.id, expectedRevision: 9, actor,
+    }, applicationPool), 10);
+    administered = await getHolidayPlan(created.id, applicationPool);
+    assert.ok(administered?.archivedAt);
+    assert.equal(administered?.publicationStatus, 'unpublished');
+    assert.equal(administered?.visibility, 'private');
+    assert.equal(administered?.revisions.at(-1)?.action, 'plan_archived');
+    const summaries = await listExamplePlans(applicationPool);
+    assert.equal(summaries.find((summary) => summary.id === created.id)?.dayCount, 1);
+    await assert.rejects(
+      addPlanDay({ planId: created.id, expectedRevision: 10, title: 'Archived day', actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+
+    const dated = await createExamplePlan({
+      title: 'Dated example', startsOn: '2026-09-12', endsOn: '2026-09-14', actor,
+    }, applicationPool);
+    await assert.rejects(
+      addPlanDay({ planId: dated.id, expectedRevision: 1, title: 'Missing date', actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    await assert.rejects(
+      addPlanDay({ planId: dated.id, expectedRevision: 1, title: 'Outside stay', date: '2026-09-15', actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    const datedDay = await addPlanDay({
+      planId: dated.id, expectedRevision: 1, title: 'Arrival day', date: '2026-09-12', actor,
+    }, applicationPool);
+    assert.equal(datedDay.revision, 2);
+    await assert.rejects(
+      updateExamplePlan({
+        planId: dated.id, expectedRevision: 2, title: 'Broken range',
+        startsOn: '2026-09-13', endsOn: '2026-09-14', actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
 
     await assert.rejects(
       applicationPool.query(

@@ -71,6 +71,10 @@ export type HolidayPlan = {
   revisions: PlanRevision[];
 };
 
+export type HolidayPlanSummary = Omit<HolidayPlan, 'days' | 'revisions'> & {
+  dayCount: number;
+};
+
 export class PlannerError extends Error {
   readonly code: 'NOT_FOUND' | 'STALE_REVISION' | 'VALIDATION_ERROR';
 

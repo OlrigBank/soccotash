@@ -1,0 +1,50 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getHolidayPlan } from '../../../lib/planner/repository.ts';
+import { PlannerError } from '../../../lib/planner/types.ts';
+
+export const prerender = false;
+let plan = null;
+try { plan = await getHolidayPlan(Astro.params.id ?? ''); } catch (error) { if (!(error instanceof PlannerError)) throw error; }
+if (!plan || plan.planType !== 'example') return Astro.redirect('/admin/planner/?result=not-found');
+const editable = !plan.archivedAt;
+const dated = plan.startsOn !== null;
+---
+<AdminLayout title={plan.title}>
+  <header class="admin-page-header"><div><p class="eyebrow"><a href="/admin/planner/">Holiday Planner</a></p><h1>{plan.title}</h1><p>Revision <strong data-revision>{plan.revision}</strong> · {plan.publicationStatus}{plan.archivedAt ? ' · archived' : ''}</p></div>{editable && <button id="archive-plan" class="admin-button admin-button--danger" type="button">Archive plan</button>}</header>
+  <div id="planner-message" class="admin-alert" role="status" aria-live="polite" hidden></div>
+  <section class="admin-panel"><h2>Plan details</h2>
+    <form id="plan-form" class="planner-form">
+      <label>Title<input name="title" value={plan.title} required minlength="3" maxlength="160" disabled={!editable} /></label>
+      <label class="planner-wide">Description<textarea name="description" maxlength="5000" rows="3" disabled={!editable}>{plan.description}</textarea></label>
+      <label>Duration in days<input name="durationDays" type="number" min="1" max="366" value={plan.durationDays ?? ''} disabled={!editable} /></label>
+      <fieldset class="planner-dates"><legend>Optional fixed dates</legend><label>Starts<input name="startsOn" type="date" value={plan.startsOn ?? ''} disabled={!editable || plan.days.length > 0} /></label><label>Ends<input name="endsOn" type="date" value={plan.endsOn ?? ''} disabled={!editable || plan.days.length > 0} /></label></fieldset>
+      {editable && <button class="admin-button" type="submit">Save plan details</button>}
+    </form>
+    {plan.days.length > 0 && <p class="planner-help">Plan dates are locked after days are added so existing days cannot silently change meaning.</p>}
+  </section>
+  <section class="planner-days" aria-labelledby="days-heading"><h2 id="days-heading">Days</h2>
+    {plan.days.map((day, index) => <article class="admin-panel planner-day" data-day-id={day.id}>
+      <div class="planner-day-heading"><h3>Day {index + 1}</h3>{editable && <div class="planner-move-controls" aria-label={`Move ${day.title}`}><button type="button" data-move="up" disabled={index === 0} aria-label={`Move ${day.title} up`}>↑</button><button type="button" data-move="down" disabled={index === plan.days.length - 1} aria-label={`Move ${day.title} down`}>↓</button></div>}</div>
+      <form class="planner-form day-form">
+        <label>Title<input name="title" value={day.title} required maxlength="160" disabled={!editable} /></label>
+        {dated && <label>Date<input name="date" type="date" min={plan.startsOn!} max={plan.endsOn!} value={day.date ?? ''} required disabled={!editable} /></label>}
+        <label class="planner-wide">Summary<textarea name="summary" maxlength="3000" rows="2" disabled={!editable}>{day.summary}</textarea></label>
+        {editable && <div class="planner-form-actions"><button class="admin-button" type="submit">Save day</button><button class="admin-button admin-button--danger" data-remove type="button">Remove day</button></div>}
+      </form>
+    </article>)}
+    {!plan.days.length && <p class="admin-panel">No days yet. Add the first day below.</p>}
+  </section>
+  {editable && <section class="admin-panel"><h2>Add day</h2><form id="add-day-form" class="planner-form"><label>Title<input name="title" required maxlength="160" /></label>{dated && <label>Date<input name="date" type="date" min={plan.startsOn!} max={plan.endsOn!} required /></label>}<label class="planner-wide">Summary<textarea name="summary" maxlength="3000" rows="2"></textarea></label><button class="admin-button" type="submit">Add day</button></form></section>}
+</AdminLayout>
+<script is:inline define:vars={{ planId: plan.id, initialRevision: plan.revision }}>
+  let revision = initialRevision;
+  const message = document.querySelector('#planner-message');
+  function show(text, error = false) { if (message instanceof HTMLElement) { message.hidden = false; message.textContent = text; message.className = `admin-alert ${error ? 'admin-alert--error' : 'admin-alert--success'}`; } }
+  async function action(payload) { const response = await fetch('/api/admin/planner/action/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...payload, planId, expectedRevision: revision }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || 'Planner action failed.'); revision = data.revision ?? revision; return data; }
+  function values(form) { return Object.fromEntries(new FormData(form)); }
+  document.querySelector('#plan-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; if (!(form instanceof HTMLFormElement)) return; try { await action({ action: 'updatePlan', ...values(form) }); show('Plan details saved.'); } catch (error) { show(error.message, true); } });
+  document.querySelector('#add-day-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; if (!(form instanceof HTMLFormElement)) return; try { await action({ action: 'addDay', ...values(form) }); window.location.reload(); } catch (error) { show(error.message, true); } });
+  document.querySelectorAll('.planner-day').forEach((card) => { const dayId = card.dataset.dayId; const form = card.querySelector('.day-form'); form?.addEventListener('submit', async (event) => { event.preventDefault(); if (!(form instanceof HTMLFormElement)) return; try { await action({ action: 'updateDay', dayId, ...values(form) }); show('Day saved.'); } catch (error) { show(error.message, true); } }); card.querySelector('[data-remove]')?.addEventListener('click', async () => { if (!confirm('Remove this day and its content?')) return; try { await action({ action: 'removeDay', dayId }); window.location.reload(); } catch (error) { show(error.message, true); } }); card.querySelectorAll('[data-move]').forEach((button) => button.addEventListener('click', async () => { try { await action({ action: 'moveDay', dayId, direction: button.dataset.move }); window.location.reload(); } catch (error) { show(error.message, true); } })); });
+  document.querySelector('#archive-plan')?.addEventListener('click', async () => { if (!confirm('Archive this plan? Its history will be retained.')) return; try { await action({ action: 'archivePlan' }); window.location.reload(); } catch (error) { show(error.message, true); } });
+</script>
