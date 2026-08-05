@@ -29,4 +29,7 @@ test('Admin Planner routes retain authentication, same-origin and accessible ord
   assert.match(detail, /Missing Local Guide entry:/, 'missing guide references need a visible non-destructive warning');
   assert.match(detail, /Custom item · potential future Local Guide candidate/, 'custom items should remain visibly distinct');
   assert.match(detail, /data-guide-filter/, 'administrators need a guide search control');
+  assert.match(detail, /Revision history/, 'administrators need visible plan history');
+  assert.match(detail, /Duplicate as draft/, 'complete plans need an explicit duplication control');
+  assert.match(api, /duplicateExamplePlan/, 'duplication must use the transactional planner service');
 });

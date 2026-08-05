@@ -5,6 +5,7 @@ import {
   addPlanItem,
   archiveExamplePlan,
   createExamplePlan,
+  duplicateExamplePlan,
   movePlanDay,
   movePlanItem,
   removePlanDay,
@@ -45,6 +46,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         });
         return Response.json({ plan });
       }
+      case 'duplicatePlan':
+        return Response.json({plan:await duplicateExamplePlan({planId:text(input.planId),actor})});
       case 'updatePlan':
         return Response.json({ revision: await updateExamplePlan({
           planId: text(input.planId), expectedRevision: revision(input.expectedRevision),
