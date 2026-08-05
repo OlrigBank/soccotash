@@ -15,6 +15,7 @@ import {
   movePlanItem,
   removePlanDay,
   removePlanItem,
+  setPlanItemGuideReference,
   updateExamplePlan,
   updatePlanDay,
   updatePlanItem,
@@ -245,9 +246,17 @@ test('persists structured plans and makes every mutation an atomic revision', as
     itemPlan = await getHolidayPlan(dated.id, applicationPool);
     assert.equal(itemPlan?.days[0].items.length, 0);
     assert.deepEqual(itemPlan?.revisions.slice(-4).map(entry=>entry.action), ['item_updated','item_moved','item_moved','item_removed']);
+    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideSlug: 'kendalcastle', expectedRevision: 9, actor }, applicationPool), 10);
+    itemPlan=await getHolidayPlan(dated.id,applicationPool);
+    assert.equal(itemPlan?.days[1].items[0].localGuideSlug,'kendalcastle');
+    assert.equal(itemPlan?.days[1].items[0].title,'Breakfast booking','linking guide content must preserve plan-specific text');
+    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideSlug: null, expectedRevision: 10, actor }, applicationPool), 11);
+    itemPlan=await getHolidayPlan(dated.id,applicationPool);
+    assert.equal(itemPlan?.days[1].items[0].localGuideSlug,null);
+    assert.equal(itemPlan?.days[1].items[0].title,'Breakfast booking','detaching must preserve plan-specific text');
     await assert.rejects(
       updateExamplePlan({
-        planId: dated.id, expectedRevision: 9, title: 'Broken range',
+        planId: dated.id, expectedRevision: 11, title: 'Broken range',
         startsOn: '2026-09-13', endsOn: '2026-09-14', actor,
       }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',

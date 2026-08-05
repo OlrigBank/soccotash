@@ -25,4 +25,8 @@ test('Admin Planner routes retain authentication, same-origin and accessible ord
   assert.match(detail, /data-item-move="down"/, 'items need an accessible move-down control');
   assert.match(detail, /Remove this item and discard its plan-specific content\?/, 'item removal must require explicit confirmation');
   assert.match(api, /updatePlanItem/, 'item changes must use the transactional planner service');
+  assert.match(api, /requirePlannerGuideEntry\(slug\)/, 'guide references must exist in the current content collection');
+  assert.match(detail, /Missing Local Guide entry:/, 'missing guide references need a visible non-destructive warning');
+  assert.match(detail, /Custom item · potential future Local Guide candidate/, 'custom items should remain visibly distinct');
+  assert.match(detail, /data-guide-filter/, 'administrators need a guide search control');
 });

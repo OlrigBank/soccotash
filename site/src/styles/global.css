@@ -2966,4 +2966,8 @@ body.has-booking-drawer { overflow: hidden; }
 .planner-item h4 { margin: 0; display: flex; align-items: center; gap: .5rem; }
 .planner-add-item { padding: .75rem; background: rgba(255,255,255,.45); }
 .planner-add-item summary { cursor: pointer; font-weight: 700; margin-bottom: .75rem; }
+.planner-guide-search { display:grid; gap:.4rem; max-width:32rem; margin-bottom:1rem; font-weight:700; }
+.planner-guide-reference { padding:.75rem; margin:.75rem 0; border-left:4px solid #4f7553; background:#f2f7ef; }
+.planner-guide-reference p { margin:.3rem 0; }
+.planner-guide-candidate { font-size:.9rem; color:#655d52; }
 @media (max-width: 700px) { .planner-form { grid-template-columns: minmax(0, 1fr); } .planner-wide { grid-column: auto; } .planner-dates { grid-template-columns: 1fr; } .planner-form-actions { align-items: stretch; } }

@@ -497,6 +497,15 @@ export async function removePlanItem(input:{planId:string;itemId:string;expected
   }); return result.revision;
 }
 
+export async function setPlanItemGuideReference(input:{planId:string;itemId:string;localGuideSlug:string|null;expectedRevision:number;actor:PlanActor},database:Database=getPool()):Promise<number>{
+  const slug=validateGuideSlug(input.localGuideSlug);
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const updated=await client.query(`UPDATE plan_items i SET local_guide_slug=$3,updated_by_admin_user_id=$4,updated_at=NOW() FROM plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2`,[validatePublicId(input.itemId,'Plan item identifier'),internalId,slug,input.actor.adminUserId]);
+    if(!updated.rowCount) throw new PlannerError('NOT_FOUND','Plan item not found.');
+    return {value:undefined,action:slug?'guide_reference_attached':'guide_reference_detached',summary:slug?`Linked plan item to Local Guide entry “${slug}”.`:'Detached Local Guide reference.',changes:{itemId:input.itemId,localGuideSlug:slug}};
+  });return result.revision;
+}
+
 export async function movePlanItem(input:{planId:string;itemId:string;targetDayId:string;expectedRevision:number;position:'up'|'down'|'end';actor:PlanActor},database:Database=getPool()):Promise<number>{
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
     const rows=await client.query<any>(`SELECT i.id,i.public_id::text,i.plan_day_id,i.position FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE d.holiday_plan_id=$1 ORDER BY i.plan_day_id,i.position FOR UPDATE OF i`,[internalId]);
