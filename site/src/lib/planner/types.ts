@@ -109,6 +109,19 @@ export type GuideContributionCandidate = {
   withdrawnAt: string | null;
 };
 
+export type GuideContributionModerationCandidate = GuideContributionCandidate & {
+  consentVersion: string;
+  consentStatement: string;
+  reviewedTitle: string | null;
+  reviewedDescription: string | null;
+  reviewedLocationText: string | null;
+  resultType: 'new_entry_draft' | 'suggested_update' | null;
+  resultGuideSlug: string | null;
+  moderationNotes: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+};
+
 export class PlannerError extends Error {
   readonly code: 'NOT_FOUND' | 'STALE_REVISION' | 'VALIDATION_ERROR';
 
