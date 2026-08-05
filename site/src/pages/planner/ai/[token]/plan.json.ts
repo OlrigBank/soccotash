@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { resolveAiCapabilityCredential } from '../../../../lib/planner/ai-capability-access.ts';
+import { authorizeAiCapabilityRequest } from '../../../../lib/planner/ai-capability-access.ts';
 import { createAiPlanRepresentationV1 } from '../../../../lib/planner/ai-representation.ts';
 import { getHolidayPlan } from '../../../../lib/planner/repository.ts';
 
@@ -12,7 +12,9 @@ const headers = {
 };
 
 export const GET: APIRoute = async ({ params }) => {
-  const access = await resolveAiCapabilityCredential(String(params.token || ''), true);
+  const authorization = await authorizeAiCapabilityRequest(String(params.token || ''), 'read');
+  if (authorization.rateLimited) return new Response(JSON.stringify({ error: 'AI collaboration rate limit exceeded.' }), { status: 429, headers: { ...headers, 'Retry-After': '900' } });
+  const access = authorization.access;
   if (!access) return new Response(JSON.stringify({ error: 'AI collaboration not found.' }), { status: 404, headers });
   const plan = await getHolidayPlan(access.planId);
   if (!plan) return new Response(JSON.stringify({ error: 'AI collaboration not found.' }), { status: 404, headers });
