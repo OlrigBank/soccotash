@@ -26,7 +26,7 @@ test('human collaboration is instruction-led, read-only and analytics-free', asy
   assert.match(page, /analytics=\{false\}/);
   assert.match(layout, /analytics && <Analytics/);
   assert.doesNotMatch(page, /<form|method=['"]post|fetch\(/i);
-  assert.match(page, /Proposal submission is not enabled/);
+  assert.match(page, /Submission stores a pending proposal only/);
   assert.match(instructions, /Never mark an activity as booked without explicit guest confirmation/);
   assert.match(instructions, /Changing the accommodation booking, contact details or payment information/);
   assert.match(instructions, /Inviting or removing participants/);
