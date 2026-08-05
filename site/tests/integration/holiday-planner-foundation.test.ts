@@ -47,7 +47,7 @@ import {
 import { PlannerError } from '../../src/lib/planner/types.ts';
 import { resolveParticipantCredential } from '../../src/lib/planner/participant-access.ts';
 import { resolvePlanShareCredential } from '../../src/lib/planner/share-access.ts';
-import { resolveAiCapabilityCredential } from '../../src/lib/planner/ai-capability-access.ts';
+import { authorizeAiCapabilityRequest, resolveAiCapabilityCredential } from '../../src/lib/planner/ai-capability-access.ts';
 import { acceptAiProposal, rejectAiProposal, storeAiProposal } from '../../src/lib/planner/ai-proposals.ts';
 
 const { Pool } = pg;
@@ -659,6 +659,19 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(capabilityAccess?.planId, bookingPlan.id);
     assert.equal(capabilityAccess?.bookingId, bookingRow.id);
     assert.deepEqual(capabilityAccess?.scopes, ['plan:read', 'proposal:submit']);
+    const authorisedRead = await authorizeAiCapabilityRequest(capability.token, 'read', applicationPool);
+    assert.equal(authorisedRead.access?.planId, bookingPlan.id);
+    assert.equal(authorisedRead.rateLimited, false);
+    await applicationPool.query(
+      `UPDATE plan_ai_capabilities SET read_window_started_at=NOW(),read_request_count=120 WHERE public_id=$1::uuid`,
+      [capability.capabilityId],
+    );
+    const limitedRead = await authorizeAiCapabilityRequest(capability.token, 'read', applicationPool);
+    assert.equal(limitedRead.access, null);
+    assert.equal(limitedRead.rateLimited, true);
+    assert.deepEqual((await applicationPool.query(
+      `SELECT outcome FROM plan_ai_access_events WHERE capability_id=$1 ORDER BY id`, [storedCapability.rows[0].id],
+    )).rows, [{ outcome: 'granted' }, { outcome: 'rate_limited' }]);
     assert.equal((await listPlanAiCapabilities(bookingPlan.id, bookerActor, applicationPool)).length, 1);
     assert.equal(await revokePlanAiCapability({
       planId: bookingPlan.id, capabilityId: capability.capabilityId, expectedRevision: 24, actor: bookerActor,

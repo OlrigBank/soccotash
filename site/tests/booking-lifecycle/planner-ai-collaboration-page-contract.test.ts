@@ -11,7 +11,7 @@ const layoutUrl = new URL('../../src/layouts/BaseLayout.astro', import.meta.url)
 test('collaboration views require the temporary AI capability and privacy headers', async () => {
   const [page, plan, schema] = await Promise.all([pageUrl, planUrl, schemaUrl].map(url => readFile(url, 'utf8')));
   for (const source of [page, plan, schema]) {
-    assert.match(source, /resolveAiCapabilityCredential/);
+    assert.match(source, /authorizeAiCapabilityRequest/);
     assert.match(source, /no-store/);
     assert.match(source, /no-referrer/);
     assert.match(source, /noindex/);
