@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://olrigbank.co.uk/schemas/olrig-holiday-plan/1.0.json",
+  "title": "Olrig Bank restricted holiday plan representation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "planId", "revision", "trip", "days"],
+  "properties": {
+    "format": { "const": "olrig-holiday-plan" },
+    "version": { "const": "1.0" },
+    "planId": { "type": "string", "format": "uuid" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "trip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "arrival", "departure", "base"],
+      "properties": {
+        "title": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "arrival": { "type": "string", "format": "date" },
+        "departure": { "type": "string", "format": "date" },
+        "base": { "const": "Olrig Bank, Kendal" }
+      }
+    },
+    "days": {
+      "type": "array",
+      "maxItems": 366,
+      "items": { "$ref": "#/$defs/day" }
+    }
+  },
+  "$defs": {
+    "nullableDate": { "type": ["string", "null"], "format": "date" },
+    "nullableTime": { "type": ["string", "null"], "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" },
+    "nullableText": { "type": ["string", "null"], "maxLength": 500 },
+    "localGuide": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["slug", "path"],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 200 },
+        "path": { "type": "string", "pattern": "^/local-guide/[a-z0-9]+(?:-[a-z0-9]+)*/$" }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "startTime", "endTime", "title", "status", "location", "notes", "localGuide"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "type": { "enum": ["activity", "journey", "meal", "reservation", "free_time", "other"] },
+        "startTime": { "$ref": "#/$defs/nullableTime" },
+        "endTime": { "$ref": "#/$defs/nullableTime" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "status": { "enum": ["idea", "proposed", "agreed", "booked", "completed", "cancelled"] },
+        "location": { "$ref": "#/$defs/nullableText" },
+        "notes": { "type": "string", "maxLength": 10000 },
+        "localGuide": { "$ref": "#/$defs/localGuide" }
+      }
+    },
+    "day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "date", "title", "summary", "items"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "date": { "$ref": "#/$defs/nullableDate" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "summary": { "type": "string", "maxLength": 3000 },
+        "items": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/item" } }
+      }
+    }
+  }
+}
