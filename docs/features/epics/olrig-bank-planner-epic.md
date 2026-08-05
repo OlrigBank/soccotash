@@ -968,7 +968,7 @@ A possible breakdown is:
 4. [Participant roles and permissions](../olrig-bank-planner-stage-2-pr-4-participant-roles.md).
 5. [Activity history and concurrency handling](../olrig-bank-planner-stage-2-pr-5-activity-concurrency.md).
 6. [Guest Local Guide contribution consent](../olrig-bank-planner-stage-2-pr-6-guide-contribution-consent.md).
-7. Administrator contribution moderation.
+7. [Administrator contribution moderation](../olrig-bank-planner-stage-2-pr-7-contribution-moderation.md).
 8. Guest-facing printable and shareable views.
 
 ### Stage 3

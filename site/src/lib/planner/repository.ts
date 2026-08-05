@@ -16,6 +16,7 @@ import {
   type HolidayPlan,
   type HolidayPlanSummary,
   type GuideContributionCandidate,
+  type GuideContributionModerationCandidate,
   type BookerPlanActor,
   type PlanActor,
   type PlannerRevisionActor,
@@ -821,6 +822,97 @@ export async function listGuideContributions(
     attributionPermitted: row.attribution_permitted, attributionName: row.attribution_name,
     status: row.status, consentedAt: iso(row.consented_at), withdrawnAt: row.withdrawn_at ? iso(row.withdrawn_at) : null,
   }));
+}
+
+export async function listGuideContributionModerationQueue(
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<GuideContributionModerationCandidate[]> {
+  const result = await database.query<any>(
+    `SELECT c.public_id::text, i.public_id::text AS item_id,
+            c.submitted_by_participant_id::text, pp.display_name AS submitted_by_name,
+            c.offered_title, c.offered_description, c.offered_location_text,
+            c.consent_version, c.consent_statement, c.attribution_permitted, c.attribution_name,
+            c.status, c.consented_at, c.withdrawn_at, c.reviewed_title, c.reviewed_description,
+            c.reviewed_location_text, c.result_type, c.result_guide_slug, c.moderation_notes,
+            au.display_name AS reviewed_by_name, c.reviewed_at
+       FROM guide_contribution_candidates c
+       JOIN plan_participants pp ON pp.id = c.submitted_by_participant_id
+       LEFT JOIN plan_items i ON i.id = c.plan_item_id
+       LEFT JOIN admin_users au ON au.id = c.reviewed_by_admin_user_id
+      ORDER BY (c.status = 'pending') DESC, c.created_at DESC`,
+  );
+  return result.rows.map((row: any) => ({
+    id: row.public_id, itemId: row.item_id, submittedByParticipantId: row.submitted_by_participant_id,
+    submittedByName: row.submitted_by_name, offeredTitle: row.offered_title,
+    offeredDescription: row.offered_description, offeredLocationText: row.offered_location_text,
+    attributionPermitted: row.attribution_permitted, attributionName: row.attribution_name,
+    status: row.status, consentedAt: iso(row.consented_at), withdrawnAt: row.withdrawn_at ? iso(row.withdrawn_at) : null,
+    consentVersion: row.consent_version, consentStatement: row.consent_statement,
+    reviewedTitle: row.reviewed_title, reviewedDescription: row.reviewed_description,
+    reviewedLocationText: row.reviewed_location_text, resultType: row.result_type,
+    resultGuideSlug: row.result_guide_slug, moderationNotes: row.moderation_notes,
+    reviewedByName: row.reviewed_by_name, reviewedAt: row.reviewed_at ? iso(row.reviewed_at) : null,
+  }));
+}
+
+export async function moderateGuideContribution(input: {
+  candidateId: string;
+  decision: 'accept' | 'reject';
+  reviewedTitle?: string;
+  reviewedDescription?: string;
+  reviewedLocationText?: string | null;
+  resultType?: 'new_entry_draft' | 'suggested_update';
+  resultGuideSlug?: string;
+  moderationNotes?: string;
+  actor: PlanActor;
+}, database: Database = getPool()): Promise<{ revision: number; planId: string }> {
+  const notes = optionalText(input.moderationNotes, 'Moderation notes', 3000);
+  if (input.decision === 'reject' && !notes) throw new PlannerError('VALIDATION_ERROR', 'A rejection reason is required.');
+  const reviewedTitle = input.decision === 'accept' ? requireText(input.reviewedTitle ?? '', 'Reviewed title', 200) : null;
+  const reviewedDescription = input.decision === 'accept' ? (input.reviewedDescription?.trim() ?? '') : null;
+  if (reviewedDescription !== null && reviewedDescription.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Reviewed description is too long.');
+  const reviewedLocationText = input.decision === 'accept' ? optionalText(input.reviewedLocationText, 'Reviewed location', 500) : null;
+  const resultType = input.decision === 'accept' && ['new_entry_draft', 'suggested_update'].includes(input.resultType ?? '') ? input.resultType! : null;
+  const resultGuideSlug = input.decision === 'accept' ? validateGuideSlug(input.resultGuideSlug) : null;
+  if (input.decision === 'accept' && (!resultType || !resultGuideSlug)) throw new PlannerError('VALIDATION_ERROR', 'An accepted contribution needs a result type and Local Guide slug.');
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    const candidate = await client.query<any>(
+      `SELECT c.offered_title, hp.id AS plan_internal_id, hp.public_id::text AS plan_id, hp.revision
+         FROM guide_contribution_candidates c
+         JOIN holiday_plans hp ON hp.id = c.holiday_plan_id
+        WHERE c.public_id = $1::uuid AND c.status = 'pending'
+        FOR UPDATE OF c, hp`,
+      [validatePublicId(input.candidateId, 'Contribution identifier')],
+    );
+    if (!candidate.rowCount) throw new PlannerError('NOT_FOUND', 'Pending contribution not found.');
+    const row = candidate.rows[0];
+    await client.query(
+      `UPDATE guide_contribution_candidates
+          SET status = $2, reviewed_title = $3, reviewed_description = $4,
+              reviewed_location_text = $5, result_type = $6, result_guide_slug = $7,
+              moderation_notes = $8, reviewed_by_admin_user_id = $9,
+              reviewed_at = NOW(), updated_at = NOW()
+        WHERE public_id = $1::uuid`,
+      [input.candidateId, input.decision === 'accept' ? 'accepted' : 'rejected', reviewedTitle,
+        reviewedDescription, reviewedLocationText, resultType, resultGuideSlug, notes, input.actor.adminUserId],
+    );
+    const action = input.decision === 'accept' ? 'guide_contribution_accepted' : 'guide_contribution_rejected';
+    const summary = input.decision === 'accept'
+      ? `Accepted “${row.offered_title}” as a Local Guide ${resultType === 'new_entry_draft' ? 'entry draft' : 'suggested update'}.`
+      : `Rejected “${row.offered_title}” for Local Guide use.`;
+    const revision = await finishMutation(client, String(row.plan_internal_id), row.revision, input.actor, action, summary,
+      { candidateId: input.candidateId, decision: input.decision, resultType, resultGuideSlug });
+    await client.query('COMMIT');
+    return { revision, planId: row.plan_id };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if ((error as { code?: string }).code === '23505') throw new PlannerError('VALIDATION_ERROR', 'That new Local Guide slug already has an accepted draft.');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateExamplePlan(

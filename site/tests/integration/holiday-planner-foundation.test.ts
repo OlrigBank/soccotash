@@ -17,10 +17,12 @@ import {
   invitePlanParticipant,
   listPlanParticipants,
   listGuideContributions,
+  listGuideContributionModerationQueue,
   listExamplePlans,
   listPublishedExamplePlans,
   movePlanDay,
   movePlanItem,
+  moderateGuideContribution,
   offerGuideContribution,
   publishExamplePlan,
   removePlanDay,
@@ -544,6 +546,61 @@ test('persists structured plans and makes every mutation an atomic revision', as
       planId: bookingPlan.id, candidateId: contribution.candidateId, expectedRevision: 12, actor: bookerActor,
     }, applicationPool), 13);
     assert.equal((await listGuideContributions(bookingPlan.id, applicationPool))[0].status, 'withdrawn');
+    const resubmitted = await offerGuideContribution({
+      planId: bookingPlan.id, itemId: recommendation.itemId, expectedRevision: 13,
+      offeredTitle: 'Quiet riverside picnic', offeredDescription: 'A peaceful spot beyond the old bridge.',
+      offeredLocationText: 'River path', consent: true, attributionPermitted: true, actor: bookerActor,
+    }, applicationPool);
+    const accepted = await moderateGuideContribution({
+      candidateId: resubmitted.candidateId, decision: 'accept', reviewedTitle: 'Quiet riverside picnic',
+      reviewedDescription: 'A peaceful riverside picnic spot beyond the old bridge.',
+      reviewedLocationText: 'River path', resultType: 'new_entry_draft',
+      resultGuideSlug: 'quiet-riverside-picnic', moderationNotes: 'Suitable as a new draft.', actor,
+    }, applicationPool);
+    assert.equal(accepted.revision, 15);
+    const acceptedCandidate = (await listGuideContributionModerationQueue(applicationPool)).find(entry => entry.id === resubmitted.candidateId)!;
+    assert.equal(acceptedCandidate.status, 'accepted');
+    assert.equal(acceptedCandidate.resultType, 'new_entry_draft');
+    assert.equal(acceptedCandidate.resultGuideSlug, 'quiet-riverside-picnic');
+    assert.equal(acceptedCandidate.reviewedByName, 'Planner Admin');
+    await assert.rejects(
+      moderateGuideContribution({ candidateId: resubmitted.candidateId, decision: 'reject',
+        moderationNotes: 'Cannot decide twice.', actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    const secondRecommendation = await addPlanItem({
+      planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 15,
+      title: 'Crowded shortcut', itemType: 'activity', status: 'idea', actor: bookerActor,
+    }, applicationPool);
+    const rejectedSubmission = await offerGuideContribution({
+      planId: bookingPlan.id, itemId: secondRecommendation.itemId, expectedRevision: 16,
+      offeredTitle: 'Crowded shortcut', consent: true, attributionPermitted: false, actor: bookerActor,
+    }, applicationPool);
+    const rejected = await moderateGuideContribution({
+      candidateId: rejectedSubmission.candidateId, decision: 'reject',
+      moderationNotes: 'Not sufficiently useful for future guests.', actor,
+    }, applicationPool);
+    assert.equal(rejected.revision, 18);
+    const rejectedCandidate = (await listGuideContributionModerationQueue(applicationPool)).find(entry => entry.id === rejectedSubmission.candidateId)!;
+    assert.equal(rejectedCandidate.status, 'rejected');
+    assert.equal(rejectedCandidate.moderationNotes, 'Not sufficiently useful for future guests.');
+    const updateRecommendation = await addPlanItem({
+      planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 18,
+      title: 'Kendal Castle accessibility note', itemType: 'activity', status: 'idea', actor: bookerActor,
+    }, applicationPool);
+    const updateSubmission = await offerGuideContribution({
+      planId: bookingPlan.id, itemId: updateRecommendation.itemId, expectedRevision: 19,
+      offeredTitle: 'Kendal Castle accessibility note', consent: true, attributionPermitted: false, actor: bookerActor,
+    }, applicationPool);
+    const suggestedUpdate = await moderateGuideContribution({
+      candidateId: updateSubmission.candidateId, decision: 'accept',
+      reviewedTitle: 'Kendal Castle accessibility note', reviewedDescription: 'Add an accessibility note.',
+      resultType: 'suggested_update', resultGuideSlug: 'kendalcastle', actor,
+    }, applicationPool);
+    assert.equal(suggestedUpdate.revision, 21);
+    const updateCandidate = (await listGuideContributionModerationQueue(applicationPool)).find(entry => entry.id === updateSubmission.candidateId)!;
+    assert.equal(updateCandidate.resultType, 'suggested_update');
+    assert.equal(updateCandidate.resultGuideSlug, 'kendalcastle');
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
