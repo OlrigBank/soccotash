@@ -17,6 +17,13 @@ export type PlanActor = {
   adminUserId: string;
 };
 
+export type BookerPlanActor = {
+  type: 'booker';
+  bookingId: string;
+};
+
+export type PlannerRevisionActor = PlanActor | BookerPlanActor;
+
 export type PlanRevision = {
   revision: number;
   actorType: 'administrator' | 'guest' | 'external_ai' | 'system';
