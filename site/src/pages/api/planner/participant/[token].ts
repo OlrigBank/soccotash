@@ -8,6 +8,8 @@ import {
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
+import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
 
 export const prerender=false;
 type Input=Record<string,unknown>;
@@ -35,6 +37,7 @@ export const POST:APIRoute=async({params,request})=>{
     }
     if(input.action==='createAiCapability'){const created=await createPlanAiCapability({planId:plan.id,expectedRevision,expiresHours:Number(input.expiresHours),actor});const url=new URL(`/planner/ai/${created.token}/`,request.url).toString();return Response.json({...created,url,qrDataUrl:await QRCode.toDataURL(url,{errorCorrectionLevel:'M',margin:2,width:320})})}
     if(input.action==='revokeAiCapability')return Response.json({revision:await revokePlanAiCapability({planId:plan.id,capabilityId:text(input.capabilityId),expectedRevision,actor})});
+    if(input.action==='acceptAiProposal'||input.action==='rejectAiProposal'){const proposal=await getAiProposal(plan.id,text(input.proposalId));if(!proposal)throw new PlannerError('NOT_FOUND','Pending proposal not found.');const checked=validateAiProposalDecision(input.action==='rejectAiProposal'?{action:'reject',reason:input.reason}:{action:'accept',selections:input.selections},proposal.proposal);if(!checked.valid)throw new PlannerError('VALIDATION_ERROR',checked.errors.join(' '));if(checked.decision.action==='reject'){await rejectAiProposal({planId:plan.id,proposalId:proposal.id,reason:checked.decision.reason,actor});return Response.json({revision:plan.revision,status:'rejected'})}return Response.json({revision:await acceptAiProposal({planId:plan.id,proposalId:proposal.id,expectedRevision,decision:checked.decision,actor}),status:'accepted'})}
     let result:Record<string,unknown>;
     switch(input.action){
       case'updatePlan':result={revision:await updateBookingLinkedPlan({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),actor})};break;

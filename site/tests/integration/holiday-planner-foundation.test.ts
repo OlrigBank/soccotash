@@ -48,6 +48,7 @@ import { PlannerError } from '../../src/lib/planner/types.ts';
 import { resolveParticipantCredential } from '../../src/lib/planner/participant-access.ts';
 import { resolvePlanShareCredential } from '../../src/lib/planner/share-access.ts';
 import { resolveAiCapabilityCredential } from '../../src/lib/planner/ai-capability-access.ts';
+import { acceptAiProposal, rejectAiProposal, storeAiProposal } from '../../src/lib/planner/ai-proposals.ts';
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
@@ -645,7 +646,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(capability.revision, 24);
     assert.match(capability.token, /^[A-Za-z0-9_-]{43}$/);
     const storedCapability = await applicationPool.query(
-      `SELECT token_hash, protocol_version, scopes, created_plan_revision,
+      `SELECT id::text, token_hash, protocol_version, scopes, created_plan_revision,
               expires_at > NOW() AS active
          FROM plan_ai_capabilities WHERE public_id=$1::uuid`, [capability.capabilityId],
     );
@@ -669,6 +670,85 @@ test('persists structured plans and makes every mutation an atomic revision', as
          FROM plan_ai_capabilities WHERE public_id=$1::uuid`, [capability.capabilityId],
     );
     assert.deepEqual(revokedCapability.rows, [{ erased: true, revoked: true, accessed: true }]);
+
+    const proposalBase = {
+      format: 'olrig-holiday-plan-proposal', version: '1.0', planId: bookingPlan.id,
+      sourceRevision: 25, summary: 'Add two ideas',
+      operations: [
+        { op: 'add_item', dayId: guestDay.dayId, afterItemId: null,
+          item: { title: 'Morning market', type: 'activity', description: 'Browse local stalls.',
+            startTime: '09:00', endTime: '10:00', location: 'Kendal', status: 'proposed' } },
+        { op: 'add_item', dayId: guestDay.dayId, afterItemId: null,
+          item: { title: 'Afternoon walk', type: 'activity', description: 'Walk by the river.',
+            startTime: '14:00', endTime: '15:00', location: 'Kendal', status: 'proposed' } },
+      ],
+    };
+    const partialProposal = await storeAiProposal({
+      capabilityId: String(storedCapability.rows[0].id), planId: bookingPlan.id, proposal: proposalBase,
+    }, applicationPool);
+    assert.ok(partialProposal);
+    assert.equal(await acceptAiProposal({
+      planId: bookingPlan.id, proposalId: partialProposal.proposalId, expectedRevision: 25,
+      decision: { action: 'accept', selections: [{ operationIndex: 0 }] }, actor: bookerActor,
+    }, applicationPool), 26);
+    const acceptedProposal = await applicationPool.query(
+      `SELECT p.status, p.decision, pp.role AS decider_role, r.actor_type, r.source, r.participant_id IS NOT NULL AS attributed
+         FROM plan_ai_proposals p
+         JOIN plan_participants pp ON pp.id=p.decided_by_participant_id
+         JOIN plan_revisions r ON r.holiday_plan_id=p.holiday_plan_id AND r.revision=26
+        WHERE p.public_id=$1::uuid`, [partialProposal.proposalId],
+    );
+    assert.equal(acceptedProposal.rows[0].status, 'partially_accepted');
+    assert.deepEqual(acceptedProposal.rows[0].decision, { action: 'accept', selections: [{ operationIndex: 0 }] });
+    assert.deepEqual({ ...acceptedProposal.rows[0], decision: undefined }, {
+      status: 'partially_accepted', decision: undefined, decider_role: 'owner', actor_type: 'external_ai',
+      source: 'external_ai_proposal', attributed: true,
+    });
+    assert.equal((await getHolidayPlan(bookingPlan.id, applicationPool))!.days
+      .flatMap(day => day.items).some(item => item.title === 'Morning market'), true);
+    assert.equal((await getHolidayPlan(bookingPlan.id, applicationPool))!.days
+      .flatMap(day => day.items).some(item => item.title === 'Afternoon walk'), false);
+    await assert.rejects(
+      acceptAiProposal({ planId: bookingPlan.id, proposalId: partialProposal.proposalId, expectedRevision: 26,
+        decision: { action: 'accept', selections: [{ operationIndex: 1 }] }, actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+
+    const rejectedProposal = await storeAiProposal({
+      capabilityId: String(storedCapability.rows[0].id), planId: bookingPlan.id,
+      proposal: { ...proposalBase, sourceRevision: 26, summary: 'Unwanted walk' },
+    }, applicationPool);
+    assert.ok(rejectedProposal);
+    await rejectAiProposal({ planId: bookingPlan.id, proposalId: rejectedProposal.proposalId,
+      reason: 'This does not suit our plans.', actor: bookerActor }, applicationPool);
+    const rejectionEvidence = await applicationPool.query(
+      `SELECT status, decision, decided_at IS NOT NULL AS decided FROM plan_ai_proposals WHERE public_id=$1::uuid`,
+      [rejectedProposal.proposalId],
+    );
+    assert.deepEqual(rejectionEvidence.rows, [{ status: 'rejected',
+      decision: { action: 'reject', reason: 'This does not suit our plans.' }, decided: true }]);
+    assert.equal((await getHolidayPlan(bookingPlan.id, applicationPool))!.revision, 26);
+
+    const unsafeProposal = await storeAiProposal({
+      capabilityId: String(storedCapability.rows[0].id), planId: bookingPlan.id,
+      proposal: { ...proposalBase, sourceRevision: 26, summary: 'Unsafe batch', operations: [
+        proposalBase.operations[1],
+        { op: 'remove_item', itemId: '10000000-0000-4000-8000-000000000099' },
+      ] },
+    }, applicationPool);
+    assert.ok(unsafeProposal);
+    await assert.rejects(
+      acceptAiProposal({ planId: bookingPlan.id, proposalId: unsafeProposal.proposalId, expectedRevision: 26,
+        decision: { action: 'accept', selections: [{ operationIndex: 0 }, { operationIndex: 1 }] },
+        actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    assert.equal((await getHolidayPlan(bookingPlan.id, applicationPool))!.days
+      .flatMap(day => day.items).some(item => item.title === 'Afternoon walk'), false);
+    assert.deepEqual((await applicationPool.query(
+      `SELECT status, decision FROM plan_ai_proposals WHERE public_id=$1::uuid`, [unsafeProposal.proposalId],
+    )).rows, [{ status: 'pending', decision: null }]);
+    assert.equal((await getHolidayPlan(bookingPlan.id, applicationPool))!.revision, 26);
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
