@@ -26,7 +26,7 @@ const capabilityPath = `/planner/ai/${token}`;
     <p>These URLs use the same temporary credential as this page. Do not reproduce, log or share them beyond the guest's chosen AI session.</p>
   </section>
   <section class="booking-panel"><h2>Instructions for the AI</h2><h3>You may</h3><ul>{instructions.may.map(item=><li>{item}</li>)}</ul><h3>You must</h3><ul>{instructions.must.map(item=><li>{item}</li>)}</ul><h3>You may not</h3><ul>{instructions.prohibited.map(item=><li>{item}</li>)}</ul></section>
-  <section class="booking-panel"><h2>Returning proposed changes</h2><p>Proposal submission is not enabled in this protocol increment. Develop suggestions with the guest, but do not attempt to POST changes or treat conversational output as an update to the live plan.</p><p>Only a later, schema-validated proposal endpoint and explicit guest approval can change this itinerary.</p></section>
+  <section class="booking-panel"><h2>Returning proposed changes</h2><p>Validate proposed changes against the <a href={`${capabilityPath}/proposal-schema.json`}>proposal JSON Schema</a>, then send one JSON document with <code>POST {capabilityPath}/proposals</code> and <code>Content-Type: application/json</code>.</p><p>Submission stores a pending proposal only. It never changes the live plan; an authorised guest must review and approve it later.</p></section>
   <aside class="booking-panel"><strong>Restricted representation</strong><p>This page excludes booking credentials, contact and payment details, participants, private items, reservation notes, administrator notes and Local Guide consent.</p></aside>
   <PlannerItinerary plan={plan} showPrintButton={false}/>
 </BaseLayout>
