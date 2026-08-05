@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { createParticipantCredential } from './participant-access.ts';
+import { createShareCredential } from './share-access.ts';
 import { getPool } from '../booking/db.ts';
 import {
   PLAN_ITEM_STATUSES,
@@ -38,6 +39,8 @@ export type PlanParticipant = {
   acceptedAt: string | null;
   revokedAt: string | null;
 };
+
+export type PlanShareLink = { id:string; expiresAt:string; revokedAt:string|null; lastAccessedAt:string|null; createdAt:string };
 
 function actorAdminUserId(actor: PlannerRevisionActor): string | null {
   return actor.type === 'administrator' ? actor.adminUserId : null;
@@ -695,6 +698,35 @@ export async function revokePlanParticipant(input: {
     return { value: undefined, action: 'participant_revoked', summary: `Revoked ${revoked.rows[0].display_name}'s planner access.`, changes: { participantId: input.participantId } };
   });
   return result.revision;
+}
+
+export async function listPlanShareLinks(planId:string,bookingId:string,database:Pick<Pool,'query'>=getPool()):Promise<PlanShareLink[]>{
+  const result=await database.query<any>(`SELECT s.public_id::text,s.expires_at,s.revoked_at,s.last_accessed_at,s.created_at
+    FROM plan_share_links s JOIN holiday_plans hp ON hp.id=s.holiday_plan_id
+    WHERE hp.public_id=$1::uuid AND hp.booking_id=$2 ORDER BY s.created_at DESC`,[validatePublicId(planId,'Plan identifier'),bookingId]);
+  return result.rows.map((row:any)=>({id:row.public_id,expiresAt:iso(row.expires_at),revokedAt:row.revoked_at?iso(row.revoked_at):null,lastAccessedAt:row.last_accessed_at?iso(row.last_accessed_at):null,createdAt:iso(row.created_at)}));
+}
+
+export async function createPlanShareLink(input:{planId:string;expectedRevision:number;expiresDays:number;actor:BookerPlanActor},database:Database=getPool()):Promise<{shareId:string;token:string;expiresAt:string;revision:number}>{
+  if(!Number.isInteger(input.expiresDays)||input.expiresDays<1||input.expiresDays>30)throw new PlannerError('VALIDATION_ERROR','Share expiry must be between 1 and 30 days.');
+  const credential=createShareCredential();
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const owner=await client.query<{id:string|number}>(`SELECT id FROM plan_participants WHERE holiday_plan_id=$1 AND booking_id=$2 AND role='owner' AND revoked_at IS NULL`,[internalId,input.actor.bookingId]);
+    if(!owner.rowCount)throw new PlannerError('NOT_FOUND','Holiday plan not found.');
+    const created=await client.query<{public_id:string;expires_at:Date|string}>(`INSERT INTO plan_share_links
+      (holiday_plan_id,created_by_participant_id,token_hash,expires_at)
+      VALUES($1,$2,$3,NOW()+($4*INTERVAL '1 day')) RETURNING public_id::text,expires_at`,[internalId,owner.rows[0].id,credential.hash,input.expiresDays]);
+    return{value:{shareId:created.rows[0].public_id,expiresAt:iso(created.rows[0].expires_at)},action:'plan_share_created',summary:`Created a read-only share link for ${input.expiresDays} ${input.expiresDays===1?'day':'days'}.`,changes:{shareId:created.rows[0].public_id,expiresDays:input.expiresDays}};
+  });
+  return{...result.value,token:credential.token,revision:result.revision};
+}
+
+export async function revokePlanShareLink(input:{planId:string;shareId:string;expectedRevision:number;actor:BookerPlanActor},database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const revoked=await client.query(`UPDATE plan_share_links SET revoked_at=NOW(),token_hash=NULL WHERE public_id=$1::uuid AND holiday_plan_id=$2 AND revoked_at IS NULL`,[validatePublicId(input.shareId,'Share identifier'),internalId]);
+    if(!revoked.rowCount)throw new PlannerError('NOT_FOUND','Active share link not found.');
+    return{value:undefined,action:'plan_share_revoked',summary:'Revoked a read-only share link.',changes:{shareId:input.shareId}};
+  });return result.revision;
 }
 
 const GUIDE_CONTRIBUTION_CONSENT_VERSION = 'local-guide-contribution-v1';

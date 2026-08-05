@@ -1,0 +1,10 @@
+---
+import BaseLayout from '../../../../../../layouts/BaseLayout.astro';
+import PlannerItinerary from '../../../../../../components/PlannerItinerary.astro';
+import { resolveBookingAccessCredential } from '../../../../../../lib/booking/booking-access.ts';
+import { getBookingLinkedPlanByBookingReference } from '../../../../../../lib/planner/repository.ts';
+export const prerender=false;
+Astro.response.headers.set('Cache-Control','private, no-store');Astro.response.headers.set('Referrer-Policy','no-referrer');Astro.response.headers.set('X-Robots-Tag','noindex, nofollow, noarchive');
+const token=String(Astro.params.token||'');const access=await resolveBookingAccessCredential(token,{recordUse:true,recordDenied:true});if(!access.allowed)return new Response('Holiday plan not found.',{status:404});const plan=await getBookingLinkedPlanByBookingReference(access.reference);if(!plan)return new Response('Holiday plan not found.',{status:404});
+---
+<BaseLayout title={`${plan.title} · Print`} description="Private printable holiday itinerary." showSidebar={false} robots="noindex,nofollow,noarchive"><p class="no-print"><a href={`/booking/manage/${token}/planner/`}>Back to planner</a></p><PlannerItinerary plan={plan} includePrivateItems={true} includeReservationNotes={true}/></BaseLayout>
