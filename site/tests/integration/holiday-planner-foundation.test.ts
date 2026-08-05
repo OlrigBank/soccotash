@@ -23,6 +23,7 @@ import {
   removePlanItem,
   setPlanItemGuideReference,
   updateExamplePlan,
+  updateBookingLinkedPlan,
   updatePlanDay,
   updatePlanItem,
   unpublishExamplePlan,
@@ -428,6 +429,38 @@ test('persists structured plans and makes every mutation an atomic revision', as
     }, applicationPool), 9);
     assert.equal((await getBookingLinkedPlanByBookingReference(bookingRow.public_id, applicationPool))?.days[0].items[0].title,
       'Source template castle visit', 'the booking copy must remain independent');
+    const bookerActor = { type: 'booker' as const, bookingId: bookingRow.id };
+    assert.equal(await updateBookingLinkedPlan({
+      planId: bookingPlan.id, expectedRevision: 2, title: 'Alex and friends in Kendal',
+      description: 'Our private working itinerary.', actor: bookerActor,
+    }, applicationPool), 3);
+    const guestDay = await addPlanDay({
+      planId: bookingPlan.id, expectedRevision: 3, title: 'Lake District day',
+      summary: 'A flexible day out.', date: '2026-10-11', actor: bookerActor,
+    }, applicationPool);
+    const guestItem = await addPlanItem({
+      planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 4,
+      title: 'Walk around the lake', itemType: 'activity', localGuideSlug: 'fellfoot',
+      status: 'idea', actor: bookerActor,
+    }, applicationPool);
+    assert.equal(await updatePlanItem({
+      planId: bookingPlan.id, itemId: guestItem.itemId, expectedRevision: 5,
+      title: 'Walk around Fell Foot', itemType: 'activity', status: 'proposed',
+      reservationNote: 'Check accessible parking', visibility: 'participants', actor: bookerActor,
+    }, applicationPool), 6);
+    await assert.rejects(
+      updatePlanDay({ planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 6,
+        title: 'Intruder edit', date: '2026-10-11', actor: { type: 'booker', bookingId: '999999' } }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    await assert.rejects(
+      addPlanDay({ planId: bookingPlan.id, expectedRevision: 5, title: 'Stale day', date: '2026-10-12', actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'STALE_REVISION',
+    );
+    const editedBookingPlan = await getBookingLinkedPlanByBookingReference(bookingRow.public_id, applicationPool);
+    assert.equal(editedBookingPlan?.revision, 6);
+    assert.equal(editedBookingPlan?.revisions.at(-1)?.actorType, 'guest');
+    assert.equal(editedBookingPlan?.revisions.at(-1)?.action, 'item_updated');
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
