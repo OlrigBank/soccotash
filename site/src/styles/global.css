@@ -2970,4 +2970,9 @@ body.has-booking-drawer { overflow: hidden; }
 .planner-guide-reference { padding:.75rem; margin:.75rem 0; border-left:4px solid #4f7553; background:#f2f7ef; }
 .planner-guide-reference p { margin:.3rem 0; }
 .planner-guide-candidate { font-size:.9rem; color:#655d52; }
+.planner-header-actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+.planner-history ol { display:grid; gap:.8rem; padding-left:1.5rem; }
+.planner-history li > div { display:flex; flex-direction:column; gap:.2rem; }
+.planner-history li span { font-size:.9rem; color:#655d52; }
+.planner-history pre { white-space:pre-wrap; overflow-wrap:anywhere; }
 @media (max-width: 700px) { .planner-form { grid-template-columns: minmax(0, 1fr); } .planner-wide { grid-column: auto; } .planner-dates { grid-template-columns: 1fr; } .planner-form-actions { align-items: stretch; } }

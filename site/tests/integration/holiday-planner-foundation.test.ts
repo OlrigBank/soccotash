@@ -9,6 +9,7 @@ import {
   addPlanItem,
   archiveExamplePlan,
   createExamplePlan,
+  duplicateExamplePlan,
   getHolidayPlan,
   listExamplePlans,
   movePlanDay,
@@ -250,6 +251,18 @@ test('persists structured plans and makes every mutation an atomic revision', as
     itemPlan=await getHolidayPlan(dated.id,applicationPool);
     assert.equal(itemPlan?.days[1].items[0].localGuideSlug,'kendalcastle');
     assert.equal(itemPlan?.days[1].items[0].title,'Breakfast booking','linking guide content must preserve plan-specific text');
+    const copy=await duplicateExamplePlan({planId:dated.id,actor},applicationPool);
+    assert.notEqual(copy.id,dated.id); assert.equal(copy.revision,1); assert.equal(copy.publicationStatus,'draft'); assert.equal(copy.visibility,'private');
+    assert.deepEqual(copy.days.map(day=>day.position),itemPlan?.days.map(day=>day.position));
+    assert.notDeepEqual(copy.days.map(day=>day.id),itemPlan?.days.map(day=>day.id));
+    assert.notEqual(copy.days[1].items[0].id,breakfast.itemId); assert.equal(copy.days[1].items[0].localGuideSlug,'kendalcastle');
+    assert.equal(copy.revisions[0].action,'plan_duplicated'); assert.equal(copy.revisions[0].changes.sourcePlanId,dated.id);
+    await updatePlanDay({planId:copy.id,dayId:copy.days[0].id,expectedRevision:1,title:'Independent copied day',date:'2026-09-12',actor},applicationPool);
+    itemPlan=await getHolidayPlan(dated.id,applicationPool); assert.equal(itemPlan?.days[0].title,'Arrival day');
+    const countBeforeFailure=await applicationPool.query('SELECT count(*)::int count FROM holiday_plans');
+    await assert.rejects(duplicateExamplePlan({planId:dated.id,actor:{type:'administrator',adminUserId:'999999999'}},applicationPool),/foreign key constraint/);
+    const countAfterFailure=await applicationPool.query('SELECT count(*)::int count FROM holiday_plans');
+    assert.equal(countAfterFailure.rows[0].count,countBeforeFailure.rows[0].count,'failed duplication must leave no partial plan');
     assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideSlug: null, expectedRevision: 10, actor }, applicationPool), 11);
     itemPlan=await getHolidayPlan(dated.id,applicationPool);
     assert.equal(itemPlan?.days[1].items[0].localGuideSlug,null);

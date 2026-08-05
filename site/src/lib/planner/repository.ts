@@ -299,6 +299,37 @@ export async function listExamplePlans(
   }));
 }
 
+export async function duplicateExamplePlan(
+  input: { planId: string; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<HolidayPlan> {
+  validatePublicId(input.planId, 'Plan identifier');
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    const source = await client.query<any>(
+      `SELECT * FROM holiday_plans WHERE public_id=$1::uuid AND plan_type='example' FOR SHARE`, [input.planId]);
+    if(!source.rowCount) throw new PlannerError('NOT_FOUND','Example plan not found.');
+    const original=source.rows[0];
+    const created=await client.query<{id:string|number;public_id:string}>(
+      `INSERT INTO holiday_plans(plan_type,title,description,publication_status,visibility,starts_on,ends_on,duration_days,revision,created_by_admin_user_id,updated_by_admin_user_id)
+       VALUES('example',$1,$2,'draft','private',$3,$4,$5,1,$6,$6) RETURNING id,public_id::text`,
+      [`${original.title} — copy`,original.description,original.starts_on,original.ends_on,original.duration_days,input.actor.adminUserId]);
+    const targetId=String(created.rows[0].id);
+    const sourceDays=await client.query<any>('SELECT * FROM plan_days WHERE holiday_plan_id=$1 ORDER BY position',[original.id]);
+    for(const day of sourceDays.rows){
+      const newDay=await client.query<{id:string|number}>(`INSERT INTO plan_days(holiday_plan_id,day_date,title,summary,position,created_by_admin_user_id,updated_by_admin_user_id) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING id`,[targetId,day.day_date,day.title,day.summary,day.position,input.actor.adminUserId]);
+      await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,local_guide_slug,status,position,reservation_note,visibility,created_by_admin_user_id,updated_by_admin_user_id)
+        SELECT $1,title,description,item_type,start_time,end_time,location_text,local_guide_slug,status,position,reservation_note,visibility,$2,$2 FROM plan_items WHERE plan_day_id=$3 ORDER BY position`,[newDay.rows[0].id,input.actor.adminUserId,day.id]);
+    }
+    await recordRevision(client,targetId,1,input.actor,'plan_duplicated',`Duplicated example plan “${original.title}”.`,{sourcePlanId:input.planId});
+    await client.query('COMMIT');
+    const plan=await getHolidayPlan(created.rows[0].public_id,database);
+    if(!plan) throw new PlannerError('NOT_FOUND','Duplicated plan could not be read.');
+    return plan;
+  }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+}
+
 type MutationContext = { client: PoolClient; internalId: string; revision: number };
 
 async function mutatePlan<T>(
