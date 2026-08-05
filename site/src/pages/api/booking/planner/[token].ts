@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
-  addPlanDay, addPlanItem, changePlanParticipantRole, getBookingLinkedPlanByBookingReference,
+  addPlanDay, addPlanItem, changePlanParticipantRole, getBookingLinkedPlanByBookingReference, getHolidayPlan,
   invitePlanParticipant, movePlanDay, movePlanItem,
   removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant,
@@ -55,7 +55,14 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
     return Response.json(result);
   } catch(error) {
-    if(error instanceof PlannerError) return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:error.code==='STALE_REVISION'?409:400});
+    if(error instanceof PlannerError) {
+      if(error.code==='STALE_REVISION'){
+        const currentRevision=(await getHolidayPlan(plan.id))?.revision??plan.revision;
+        console.warn('Booker planner revision conflict',{bookingReference:access.reference,expectedRevision,currentRevision});
+        return Response.json({error:error.message,code:error.code,currentRevision},{status:409});
+      }
+      return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:400});
+    }
     console.error('Booker planner action failed', { action: input.action, bookingReference: access.reference });
     return Response.json({error:'The planner action could not be completed.'},{status:500});
   }

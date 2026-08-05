@@ -506,6 +506,10 @@ test('persists structured plans and makes every mutation an atomic revision', as
          FROM plan_participants WHERE public_id = $1::uuid`, [invitation.participantId],
     )).rows[0].erased, true);
     assert.equal(await resolveParticipantCredential(invitation.token, false, applicationPool), null);
+    const collaborativeHistory = (await getHolidayPlan(bookingPlan.id, applicationPool))!.revisions;
+    assert.equal(collaborativeHistory.find(entry => entry.action === 'participant_invited')?.actorDisplayName, 'Alex Booker');
+    assert.equal(collaborativeHistory.find(entry => entry.action === 'day_updated')?.actorDisplayName, 'Sam Editor');
+    assert.equal(collaborativeHistory.find(entry => entry.action === 'day_updated')?.participantId, participantActor.participantId);
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings

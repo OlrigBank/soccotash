@@ -46,7 +46,14 @@ export const POST:APIRoute=async({params,request})=>{
     }
     return Response.json(result);
   }catch(error){
-    if(error instanceof PlannerError)return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:error.code==='STALE_REVISION'?409:400});
+    if(error instanceof PlannerError){
+      if(error.code==='STALE_REVISION'){
+        const currentRevision=(await getHolidayPlan(plan.id))?.revision??plan.revision;
+        console.warn('Participant planner revision conflict',{participantId:access.participantId,expectedRevision,currentRevision});
+        return Response.json({error:error.message,code:error.code,currentRevision},{status:409});
+      }
+      return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:400});
+    }
     console.error('Participant planner action failed',{action:input.action,participantId:access.participantId});
     return Response.json({error:'The planner action could not be completed.'},{status:500});
   }

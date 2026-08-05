@@ -966,7 +966,7 @@ A possible breakdown is:
 2. [Copy example plan into guest planner](../olrig-bank-planner-stage-2-pr-2-copy-example-plan.md).
 3. [Booker editing workflow](../olrig-bank-planner-stage-2-pr-3-booker-editing.md).
 4. [Participant roles and permissions](../olrig-bank-planner-stage-2-pr-4-participant-roles.md).
-5. Activity history and concurrency handling.
+5. [Activity history and concurrency handling](../olrig-bank-planner-stage-2-pr-5-activity-concurrency.md).
 6. Guest Local Guide contribution consent.
 7. Administrator contribution moderation.
 8. Guest-facing printable and shareable views.
