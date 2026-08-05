@@ -10,6 +10,8 @@ import {
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
+import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
 
 export const prerender = false;
 type Input = Record<string, unknown>;
@@ -58,6 +60,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'revokeShareLink': result={revision:await revokePlanShareLink({planId:plan.id,shareId:text(input.shareId),expectedRevision,actor})}; break;
       case 'createAiCapability': { const created=await createPlanAiCapability({planId:plan.id,expectedRevision,expiresHours:Number(input.expiresHours),actor});const url=new URL(`/planner/ai/${created.token}/`,request.url).toString();result={...created,url,qrDataUrl:await QRCode.toDataURL(url,{errorCorrectionLevel:'M',margin:2,width:320})};break; }
       case 'revokeAiCapability': result={revision:await revokePlanAiCapability({planId:plan.id,capabilityId:text(input.capabilityId),expectedRevision,actor})};break;
+      case 'acceptAiProposal':
+      case 'rejectAiProposal': { const proposal=await getAiProposal(plan.id,text(input.proposalId));if(!proposal)throw new PlannerError('NOT_FOUND','Pending proposal not found.');const checked=validateAiProposalDecision(input.action==='rejectAiProposal'?{action:'reject',reason:input.reason}:{action:'accept',selections:input.selections},proposal.proposal);if(!checked.valid)throw new PlannerError('VALIDATION_ERROR',checked.errors.join(' '));if(checked.decision.action==='reject'){await rejectAiProposal({planId:plan.id,proposalId:proposal.id,reason:checked.decision.reason,actor});result={revision:plan.revision,status:'rejected'}}else result={revision:await acceptAiProposal({planId:plan.id,proposalId:proposal.id,expectedRevision,decision:checked.decision,actor}),status:'accepted'};break; }
       default: return Response.json({error:'Planner action is invalid.'},{status:400});
     }
     return Response.json(result);

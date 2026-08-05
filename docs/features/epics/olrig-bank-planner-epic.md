@@ -979,7 +979,7 @@ A possible breakdown is:
 4. [QR code and link-management interface](../olrig-bank-planner-stage-3-pr-4-qr-link-management.md).
 5. [Proposed-change schema and validation](../olrig-bank-planner-stage-3-pr-5-proposal-schema-validation.md).
 6. [Diff and review interface](../olrig-bank-planner-stage-3-pr-6-diff-review.md).
-7. Approval, partial approval and rejection workflow.
+7. [Approval, partial approval and rejection workflow](../olrig-bank-planner-stage-3-pr-7-proposal-decisions.md).
 8. Expiry, revocation, rate limiting and audit hardening.
 
 ---
