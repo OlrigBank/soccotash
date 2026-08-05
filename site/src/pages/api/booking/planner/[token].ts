@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
+import QRCode from 'qrcode';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
-  addPlanDay, addPlanItem, changePlanParticipantRole, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
-  invitePlanParticipant, movePlanDay, movePlanItem, revokePlanShareLink,
+  addPlanDay, addPlanItem, changePlanParticipantRole, createPlanAiCapability, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
+  invitePlanParticipant, movePlanDay, movePlanItem, revokePlanAiCapability, revokePlanShareLink,
   offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
@@ -55,6 +56,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'withdrawGuideContribution': result={revision:await withdrawGuideContribution({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})}; break;
       case 'createShareLink': result=await createPlanShareLink({planId:plan.id,expectedRevision,expiresDays:Number(input.expiresDays),actor}); break;
       case 'revokeShareLink': result={revision:await revokePlanShareLink({planId:plan.id,shareId:text(input.shareId),expectedRevision,actor})}; break;
+      case 'createAiCapability': { const created=await createPlanAiCapability({planId:plan.id,expectedRevision,expiresHours:Number(input.expiresHours),actor});const url=new URL(`/planner/ai/${created.token}/`,request.url).toString();result={...created,url,qrDataUrl:await QRCode.toDataURL(url,{errorCorrectionLevel:'M',margin:2,width:320})};break; }
+      case 'revokeAiCapability': result={revision:await revokePlanAiCapability({planId:plan.id,capabilityId:text(input.capabilityId),expectedRevision,actor})};break;
       default: return Response.json({error:'Planner action is invalid.'},{status:400});
     }
     return Response.json(result);
