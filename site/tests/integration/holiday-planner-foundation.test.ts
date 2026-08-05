@@ -12,9 +12,12 @@ import {
   getHolidayPlan,
   listExamplePlans,
   movePlanDay,
+  movePlanItem,
   removePlanDay,
+  removePlanItem,
   updateExamplePlan,
   updatePlanDay,
+  updatePlanItem,
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
 
@@ -227,9 +230,24 @@ test('persists structured plans and makes every mutation an atomic revision', as
       planId: dated.id, expectedRevision: 1, title: 'Arrival day', date: '2026-09-12', actor,
     }, applicationPool);
     assert.equal(datedDay.revision, 2);
+    const datedDayTwo = await addPlanDay({ planId: dated.id, expectedRevision: 2, title: 'Second day', date: '2026-09-13', actor }, applicationPool);
+    const breakfast = await addPlanItem({ planId: dated.id, dayId: datedDay.dayId, expectedRevision: 3, title: 'Breakfast', itemType: 'meal', startTime: '08:00', endTime: '09:00', actor }, applicationPool);
+    const walk = await addPlanItem({ planId: dated.id, dayId: datedDay.dayId, expectedRevision: 4, title: 'Morning walk', itemType: 'activity', actor }, applicationPool);
+    assert.equal(await updatePlanItem({ planId: dated.id, itemId: breakfast.itemId, expectedRevision: 5, title: 'Breakfast booking', itemType: 'reservation', startTime: '08:00', endTime: '09:00', status: 'proposed', visibility: 'participants', actor }, applicationPool), 6);
+    await assert.rejects(updatePlanItem({ planId: dated.id, itemId: breakfast.itemId, expectedRevision: 6, title: 'Invalid leap', itemType: 'reservation', status: 'booked', visibility: 'participants', actor }, applicationPool), (error:unknown)=>error instanceof PlannerError&&error.code==='VALIDATION_ERROR');
+    assert.equal(await movePlanItem({ planId: dated.id, itemId: walk.itemId, targetDayId: datedDay.dayId, expectedRevision: 6, position: 'up', actor }, applicationPool), 7);
+    let itemPlan = await getHolidayPlan(dated.id, applicationPool);
+    assert.deepEqual(itemPlan?.days[0].items.map(item=>item.id), [walk.itemId, breakfast.itemId]);
+    assert.equal(await movePlanItem({ planId: dated.id, itemId: breakfast.itemId, targetDayId: datedDayTwo.dayId, expectedRevision: 7, position: 'end', actor }, applicationPool), 8);
+    itemPlan = await getHolidayPlan(dated.id, applicationPool);
+    assert.equal(itemPlan?.days[1].items[0].id, breakfast.itemId);
+    assert.equal(await removePlanItem({ planId: dated.id, itemId: walk.itemId, expectedRevision: 8, actor }, applicationPool), 9);
+    itemPlan = await getHolidayPlan(dated.id, applicationPool);
+    assert.equal(itemPlan?.days[0].items.length, 0);
+    assert.deepEqual(itemPlan?.revisions.slice(-4).map(entry=>entry.action), ['item_updated','item_moved','item_moved','item_removed']);
     await assert.rejects(
       updateExamplePlan({
-        planId: dated.id, expectedRevision: 2, title: 'Broken range',
+        planId: dated.id, expectedRevision: 9, title: 'Broken range',
         startsOn: '2026-09-13', endsOn: '2026-09-14', actor,
       }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',

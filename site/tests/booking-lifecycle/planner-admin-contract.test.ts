@@ -21,4 +21,8 @@ test('Admin Planner routes retain authentication, same-origin and accessible ord
   assert.match(detail, /aria-label={`Move \$\{day\.title\} up`}/, 'day ordering needs an accessible move-up control');
   assert.match(detail, /aria-label={`Move \$\{day\.title\} down`}/, 'day ordering needs an accessible move-down control');
   assert.doesNotMatch(detail, /draggable=/, 'drag and drop must not be the only day-ordering interface');
+  assert.match(detail, /data-item-move="up"/, 'items need an accessible move-up control');
+  assert.match(detail, /data-item-move="down"/, 'items need an accessible move-down control');
+  assert.match(detail, /Remove this item and discard its plan-specific content\?/, 'item removal must require explicit confirmation');
+  assert.match(api, /updatePlanItem/, 'item changes must use the transactional planner service');
 });

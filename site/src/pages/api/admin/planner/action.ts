@@ -2,12 +2,16 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth';
 import {
   addPlanDay,
+  addPlanItem,
   archiveExamplePlan,
   createExamplePlan,
   movePlanDay,
+  movePlanItem,
   removePlanDay,
+  removePlanItem,
   updateExamplePlan,
   updatePlanDay,
+  updatePlanItem,
 } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 
@@ -72,6 +76,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
           planId: text(input.planId), dayId: text(input.dayId), expectedRevision: revision(input.expectedRevision),
           direction: input.direction, actor,
         }) });
+      case 'addItem': {
+        const result = await addPlanItem({ ...itemInput(input), planId:text(input.planId), dayId:text(input.dayId), expectedRevision:revision(input.expectedRevision), actor });
+        return Response.json(result);
+      }
+      case 'updateItem':
+        return Response.json({ revision: await updatePlanItem({ ...itemInput(input), planId:text(input.planId), itemId:text(input.itemId), expectedRevision:revision(input.expectedRevision), actor }) });
+      case 'removeItem':
+        return Response.json({ revision: await removePlanItem({ planId:text(input.planId), itemId:text(input.itemId), expectedRevision:revision(input.expectedRevision), actor }) });
+      case 'moveItem':
+        if (!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');
+        return Response.json({ revision: await movePlanItem({ planId:text(input.planId), itemId:text(input.itemId), targetDayId:text(input.targetDayId), expectedRevision:revision(input.expectedRevision), position:text(input.position) as 'up'|'down'|'end', actor }) });
       default:
         return Response.json({ error: 'Planner action is invalid.' }, { status: 400 });
     }
@@ -84,3 +99,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return Response.json({ error: 'The planner action could not be completed.' }, { status: 500 });
   }
 };
+
+function itemInput(input: Input) {
+  return { title:text(input.title), description:text(input.description), itemType:text(input.itemType) as any,
+    startTime:nullableText(input.startTime), endTime:nullableText(input.endTime), locationText:nullableText(input.locationText),
+    status:text(input.status) as any, reservationNote:nullableText(input.reservationNote), visibility:text(input.visibility) as any };
+}
