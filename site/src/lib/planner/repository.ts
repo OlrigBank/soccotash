@@ -12,6 +12,7 @@ import {
   validatePublicId,
   validateTime,
   type HolidayPlan,
+  type HolidayPlanSummary,
   type PlanActor,
   type PlanDay,
   type PlanItem,
@@ -151,6 +152,7 @@ export async function addPlanDay(
   try {
     await client.query('BEGIN');
     const plan = await lockPlan(client, input.planId, input.expectedRevision);
+    await requireCompatibleDayDate(client, plan.internalId, dayDate);
     const created = await client.query<{ public_id: string }>(
       `INSERT INTO plan_days
          (holiday_plan_id, day_date, title, summary, position, created_by_admin_user_id, updated_by_admin_user_id)
@@ -271,4 +273,175 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
     createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), days, revisions,
   };
+}
+
+export async function listExamplePlans(
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<HolidayPlanSummary[]> {
+  const result = await database.query<any>(
+    `SELECT p.*, count(d.id)::int AS day_count
+       FROM holiday_plans p
+       LEFT JOIN plan_days d ON d.holiday_plan_id = p.id
+      WHERE p.plan_type = 'example'
+      GROUP BY p.id
+      ORDER BY (p.archived_at IS NOT NULL), p.updated_at DESC`,
+  );
+  return result.rows.map((row: any) => ({
+    id: String(row.public_id), planType: row.plan_type,
+    bookingId: null, title: row.title, description: row.description,
+    publicationStatus: row.publication_status, visibility: row.visibility,
+    startsOn: date(row.starts_on), endsOn: date(row.ends_on),
+    durationDays: row.duration_days, revision: row.revision,
+    archivedAt: row.archived_at ? iso(row.archived_at) : null,
+    createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+    dayCount: row.day_count,
+  }));
+}
+
+type MutationContext = { client: PoolClient; internalId: string; revision: number };
+
+async function mutatePlan<T>(
+  database: Database,
+  planId: string,
+  expectedRevision: number,
+  actor: PlanActor,
+  mutation: (context: MutationContext) => Promise<{ value: T; action: string; summary: string; changes: Record<string, unknown> }>,
+): Promise<{ value: T; revision: number }> {
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    const plan = await lockPlan(client, planId, expectedRevision);
+    const result = await mutation({ client, internalId: plan.internalId, revision: plan.revision });
+    const revision = await finishMutation(client, plan.internalId, plan.revision, actor, result.action, result.summary, result.changes);
+    await client.query('COMMIT');
+    return { value: result.value, revision };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateExamplePlan(
+  input: {
+    planId: string; expectedRevision: number; title: string; description?: string;
+    startsOn?: string | null; endsOn?: string | null; durationDays?: number | null; actor: PlanActor;
+  },
+  database: Database = getPool(),
+): Promise<number> {
+  const title = requireText(input.title, 'Plan title', 160, 3);
+  const description = input.description?.trim() ?? '';
+  if (description.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Plan description is too long.');
+  const startsOn = validateDate(input.startsOn, 'Plan start date');
+  const endsOn = validateDate(input.endsOn, 'Plan end date');
+  if ((startsOn === null) !== (endsOn === null)) throw new PlannerError('VALIDATION_ERROR', 'Plan start and end dates must be supplied together.');
+  if (startsOn && endsOn && endsOn < startsOn) throw new PlannerError('VALIDATION_ERROR', 'Plan end date cannot precede its start date.');
+  const durationDays = input.durationDays ?? null;
+  if (durationDays != null && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 366)) {
+    throw new PlannerError('VALIDATION_ERROR', 'Plan duration must be between 1 and 366 days.');
+  }
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const incompatible = await client.query(
+      startsOn
+        ? `SELECT 1 FROM plan_days WHERE holiday_plan_id = $1 AND (day_date IS NULL OR day_date < $2::date OR day_date > $3::date) LIMIT 1`
+        : `SELECT 1 FROM plan_days WHERE holiday_plan_id = $1 AND day_date IS NOT NULL LIMIT 1`,
+      startsOn ? [internalId, startsOn, endsOn] : [internalId],
+    );
+    if (incompatible.rowCount) throw new PlannerError('VALIDATION_ERROR', 'Existing days do not fit the selected plan dates.');
+    const updated = await client.query(
+      `UPDATE holiday_plans SET title = $2, description = $3, starts_on = $4::date,
+         ends_on = $5::date, duration_days = $6 WHERE id = $1 AND plan_type = 'example' AND archived_at IS NULL`,
+      [internalId, title, description, startsOn, endsOn, durationDays],
+    );
+    if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Editable example plan not found.');
+    return { value: undefined, action: 'plan_updated', summary: `Updated example plan “${title}”.`, changes: { title, startsOn, endsOn, durationDays } };
+  });
+  return result.revision;
+}
+
+export async function archiveExamplePlan(
+  input: { planId: string; expectedRevision: number; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const updated = await client.query(
+      `UPDATE holiday_plans SET archived_at = NOW(), publication_status = 'unpublished', visibility = 'private'
+        WHERE id = $1 AND plan_type = 'example' AND archived_at IS NULL`, [internalId],
+    );
+    if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Editable example plan not found.');
+    return { value: undefined, action: 'plan_archived', summary: 'Archived example plan.', changes: { archived: true } };
+  });
+  return result.revision;
+}
+
+async function requireCompatibleDayDate(client: PoolClient, planInternalId: string, inputDate: string | null): Promise<void> {
+  const plan = await client.query<{ starts_on: string | Date | null; ends_on: string | Date | null }>(
+    'SELECT starts_on, ends_on FROM holiday_plans WHERE id = $1 AND archived_at IS NULL', [planInternalId],
+  );
+  if (!plan.rowCount) throw new PlannerError('NOT_FOUND', 'Editable example plan not found.');
+  const startsOn = date(plan.rows[0].starts_on);
+  const endsOn = date(plan.rows[0].ends_on);
+  if (startsOn === null && inputDate !== null) throw new PlannerError('VALIDATION_ERROR', 'Relative plans cannot contain dated days.');
+  if (startsOn !== null && inputDate === null) throw new PlannerError('VALIDATION_ERROR', 'Dated plans require a date for every day.');
+  if (inputDate && (inputDate < startsOn! || inputDate > endsOn!)) throw new PlannerError('VALIDATION_ERROR', 'Plan day date must fall within the plan dates.');
+}
+
+export async function updatePlanDay(
+  input: { planId: string; dayId: string; expectedRevision: number; title: string; summary?: string; date?: string | null; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const title = requireText(input.title, 'Day title', 160);
+  const summary = input.summary?.trim() ?? '';
+  if (summary.length > 3000) throw new PlannerError('VALIDATION_ERROR', 'Day summary is too long.');
+  const dayDate = validateDate(input.date, 'Plan day date');
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    await requireCompatibleDayDate(client, internalId, dayDate);
+    const updated = await client.query(
+      `UPDATE plan_days SET title = $3, summary = $4, day_date = $5::date,
+         updated_by_admin_user_id = $6, updated_at = NOW()
+       WHERE public_id = $1::uuid AND holiday_plan_id = $2`,
+      [validatePublicId(input.dayId, 'Plan day identifier'), internalId, title, summary, dayDate, input.actor.adminUserId],
+    );
+    if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
+    return { value: undefined, action: 'day_updated', summary: `Updated day “${title}”.`, changes: { dayId: input.dayId, title, date: dayDate } };
+  });
+  return result.revision;
+}
+
+export async function removePlanDay(
+  input: { planId: string; dayId: string; expectedRevision: number; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const removed = await client.query<{ title: string }>(
+      'DELETE FROM plan_days WHERE public_id = $1::uuid AND holiday_plan_id = $2 RETURNING title',
+      [validatePublicId(input.dayId, 'Plan day identifier'), internalId],
+    );
+    if (!removed.rowCount) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
+    return { value: undefined, action: 'day_removed', summary: `Removed day “${removed.rows[0].title}”.`, changes: { dayId: input.dayId } };
+  });
+  return result.revision;
+}
+
+export async function movePlanDay(
+  input: { planId: string; dayId: string; expectedRevision: number; direction: 'up' | 'down'; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const days = await client.query<{ id: string | number; public_id: string; position: number }>(
+      'SELECT id, public_id::text, position FROM plan_days WHERE holiday_plan_id = $1 ORDER BY position FOR UPDATE', [internalId],
+    );
+    const index = days.rows.findIndex((row) => row.public_id === validatePublicId(input.dayId, 'Plan day identifier'));
+    const targetIndex = input.direction === 'up' ? index - 1 : index + 1;
+    if (index < 0) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
+    if (targetIndex < 0 || targetIndex >= days.rows.length) throw new PlannerError('VALIDATION_ERROR', 'Plan day cannot move further.');
+    const current = days.rows[index];
+    const target = days.rows[targetIndex];
+    await client.query('UPDATE plan_days SET position = 2147483647 WHERE id = $1', [current.id]);
+    await client.query('UPDATE plan_days SET position = $2, updated_at = NOW() WHERE id = $1', [target.id, current.position]);
+    await client.query('UPDATE plan_days SET position = $2, updated_at = NOW() WHERE id = $1', [current.id, target.position]);
+    return { value: undefined, action: 'day_reordered', summary: `Moved a plan day ${input.direction}.`, changes: { dayId: input.dayId, direction: input.direction } };
+  });
+  return result.revision;
 }

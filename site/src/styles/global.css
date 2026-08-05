@@ -2940,3 +2940,23 @@ body.has-booking-drawer { overflow: hidden; }
 .customer-booking-date-change-form button {
   align-self: end;
 }
+
+.planner-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: end; }
+.planner-form label { display: grid; gap: .4rem; font-weight: 650; }
+.planner-form input, .planner-form textarea { width: 100%; }
+.planner-wide { grid-column: 1 / -1; }
+.planner-dates { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; border: 1px solid var(--admin-border, #d8d2c6); padding: .75rem; }
+.planner-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+.planner-card { display: block; color: inherit; text-decoration: none; }
+.planner-card:hover { border-color: currentColor; }
+.planner-card h3 { margin-bottom: .4rem; }
+.planner-card.is-archived { opacity: .72; }
+.planner-archive { margin-top: 2rem; }
+.planner-archive summary { cursor: pointer; font-weight: 700; margin-bottom: 1rem; }
+.planner-days { margin-block: 2rem; }
+.planner-day { margin-bottom: 1rem; }
+.planner-day-heading, .planner-form-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.planner-move-controls { display: flex; gap: .35rem; }
+.planner-move-controls button { min-width: 2.5rem; min-height: 2.5rem; }
+.planner-help { font-size: .9rem; opacity: .8; }
+@media (max-width: 700px) { .planner-form { grid-template-columns: 1fr; } .planner-wide { grid-column: auto; } }

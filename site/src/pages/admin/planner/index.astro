@@ -1,0 +1,45 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listExamplePlans } from '../../../lib/planner/repository.ts';
+
+export const prerender = false;
+const plans = await listExamplePlans();
+const activePlans = plans.filter((plan) => !plan.archivedAt);
+const archivedPlans = plans.filter((plan) => plan.archivedAt);
+---
+<AdminLayout title="Holiday Planner">
+  <header class="admin-page-header">
+    <div><p class="eyebrow">Administration</p><h1>Holiday Planner</h1><p>Create reusable day-by-day example itineraries. Publishing and plan items arrive in later increments.</p></div>
+  </header>
+  <div id="planner-message" class="admin-alert" role="status" aria-live="polite" hidden></div>
+  <section class="admin-panel planner-create" aria-labelledby="create-plan-heading">
+    <h2 id="create-plan-heading">Create example plan</h2>
+    <form id="create-plan-form" class="planner-form">
+      <label>Title<input name="title" required minlength="3" maxlength="160" /></label>
+      <label class="planner-wide">Description<textarea name="description" maxlength="5000" rows="3"></textarea></label>
+      <label>Duration in days<input name="durationDays" type="number" min="1" max="366" /></label>
+      <fieldset class="planner-dates"><legend>Optional fixed dates</legend><label>Starts<input name="startsOn" type="date" /></label><label>Ends<input name="endsOn" type="date" /></label></fieldset>
+      <button class="admin-button" type="submit">Create plan</button>
+    </form>
+  </section>
+  <section aria-labelledby="active-plans-heading"><h2 id="active-plans-heading">Example plans</h2>
+    <div class="planner-card-grid">
+      {activePlans.map((plan) => <a class="admin-panel planner-card" href={`/admin/planner/${plan.id}/`}><span class:list={['status-badge', `status-${plan.publicationStatus}`]}>{plan.publicationStatus}</span><h3>{plan.title}</h3><p>{plan.description || 'No description yet.'}</p><small>{plan.dayCount} {plan.dayCount === 1 ? 'day' : 'days'} · revision {plan.revision}</small></a>)}
+      {!activePlans.length && <p class="admin-panel">No example plans have been created.</p>}
+    </div>
+  </section>
+  {archivedPlans.length > 0 && <details class="planner-archive"><summary>Archived plans ({archivedPlans.length})</summary><div class="planner-card-grid">{archivedPlans.map((plan) => <a class="admin-panel planner-card is-archived" href={`/admin/planner/${plan.id}/`}><h3>{plan.title}</h3><small>{plan.dayCount} days · archived</small></a>)}</div></details>}
+</AdminLayout>
+<script>
+  const form = document.querySelector('#create-plan-form');
+  const message = document.querySelector('#planner-message');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!(form instanceof HTMLFormElement)) return;
+    const values = Object.fromEntries(new FormData(form));
+    const response = await fetch('/api/admin/planner/action/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'createPlan', ...values }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { if (message instanceof HTMLElement) { message.hidden = false; message.textContent = data.error || 'Plan creation failed.'; message.className = 'admin-alert admin-alert--error'; } return; }
+    window.location.href = `/admin/planner/${data.plan.id}/`;
+  });
+</script>
