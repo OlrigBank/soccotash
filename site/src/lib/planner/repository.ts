@@ -1,6 +1,8 @@
 import type { Pool, PoolClient } from 'pg';
 import { createParticipantCredential } from './participant-access.ts';
 import { createShareCredential } from './share-access.ts';
+import { createAiCapabilityCredential } from './ai-capability-access.ts';
+import { AI_PLAN_VERSION } from './ai-representation.ts';
 import { getPool } from '../booking/db.ts';
 import {
   PLAN_ITEM_STATUSES,
@@ -41,6 +43,7 @@ export type PlanParticipant = {
 };
 
 export type PlanShareLink = { id:string; expiresAt:string; revokedAt:string|null; lastAccessedAt:string|null; createdAt:string };
+export type PlanAiCapability = { id:string; protocolVersion:string; scopes:string[]; createdPlanRevision:number; expiresAt:string; revokedAt:string|null; lastAccessedAt:string|null; createdAt:string };
 
 function actorAdminUserId(actor: PlannerRevisionActor): string | null {
   return actor.type === 'administrator' ? actor.adminUserId : null;
@@ -726,6 +729,52 @@ export async function revokePlanShareLink(input:{planId:string;shareId:string;ex
     const revoked=await client.query(`UPDATE plan_share_links SET revoked_at=NOW(),token_hash=NULL WHERE public_id=$1::uuid AND holiday_plan_id=$2 AND revoked_at IS NULL`,[validatePublicId(input.shareId,'Share identifier'),internalId]);
     if(!revoked.rowCount)throw new PlannerError('NOT_FOUND','Active share link not found.');
     return{value:undefined,action:'plan_share_revoked',summary:'Revoked a read-only share link.',changes:{shareId:input.shareId}};
+  });return result.revision;
+}
+
+type AiCapabilityActor = BookerPlanActor | Extract<PlannerRevisionActor, { type: 'participant' }>;
+
+async function aiCapabilityCreator(client:PoolClient,planInternalId:string,actor:AiCapabilityActor):Promise<string>{
+  if(actor.type==='participant'&&actor.role!=='editor')throw new PlannerError('NOT_FOUND','Holiday plan not found.');
+  const result=actor.type==='booker'
+    ? await client.query<{id:string|number}>(`SELECT id FROM plan_participants WHERE holiday_plan_id=$1 AND booking_id=$2 AND role='owner' AND revoked_at IS NULL`,[planInternalId,actor.bookingId])
+    : await client.query<{id:string|number}>(`SELECT id FROM plan_participants WHERE id=$1 AND holiday_plan_id=$2 AND participant_type='guest' AND role='editor' AND revoked_at IS NULL`,[actor.participantId,planInternalId]);
+  if(!result.rowCount)throw new PlannerError('NOT_FOUND','Holiday plan not found.');
+  return String(result.rows[0].id);
+}
+
+export async function listPlanAiCapabilities(planId:string,actor:AiCapabilityActor,database:Pick<Pool,'query'>=getPool()):Promise<PlanAiCapability[]>{
+  const actorClause=actor.type==='booker'
+    ? `pp.booking_id=$2 AND pp.role='owner'`
+    : `pp.id=$2 AND pp.role='editor' AND pp.participant_type='guest'`;
+  if(actor.type==='participant'&&actor.role!=='editor')return[];
+  const actorId=actor.type==='booker'?actor.bookingId:actor.participantId;
+  const result=await database.query<any>(`SELECT c.public_id::text,c.protocol_version,c.scopes,c.created_plan_revision,c.expires_at,c.revoked_at,c.last_accessed_at,c.created_at
+    FROM plan_ai_capabilities c JOIN holiday_plans hp ON hp.id=c.holiday_plan_id
+    JOIN plan_participants pp ON pp.holiday_plan_id=hp.id
+    WHERE hp.public_id=$1::uuid AND ${actorClause} AND pp.revoked_at IS NULL ORDER BY c.created_at DESC`,[validatePublicId(planId,'Plan identifier'),actorId]);
+  return result.rows.map((row:any)=>({id:row.public_id,protocolVersion:row.protocol_version,scopes:row.scopes,createdPlanRevision:row.created_plan_revision,expiresAt:iso(row.expires_at),revokedAt:row.revoked_at?iso(row.revoked_at):null,lastAccessedAt:row.last_accessed_at?iso(row.last_accessed_at):null,createdAt:iso(row.created_at)}));
+}
+
+export async function createPlanAiCapability(input:{planId:string;expectedRevision:number;expiresHours:number;actor:AiCapabilityActor},database:Database=getPool()):Promise<{capabilityId:string;token:string;expiresAt:string;revision:number}>{
+  if(!Number.isInteger(input.expiresHours)||input.expiresHours<1||input.expiresHours>24)throw new PlannerError('VALIDATION_ERROR','AI collaboration expiry must be between 1 and 24 hours.');
+  const credential=createAiCapabilityCredential();
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId,revision})=>{
+    const creatorId=await aiCapabilityCreator(client,internalId,input.actor);
+    const created=await client.query<{public_id:string;expires_at:Date|string}>(`INSERT INTO plan_ai_capabilities
+      (holiday_plan_id,created_by_participant_id,token_hash,protocol_version,created_plan_revision,expires_at)
+      VALUES($1,$2,$3,$4,$5,NOW()+($6*INTERVAL '1 hour')) RETURNING public_id::text,expires_at`,[internalId,creatorId,credential.hash,AI_PLAN_VERSION,revision,input.expiresHours]);
+    return{value:{capabilityId:created.rows[0].public_id,expiresAt:iso(created.rows[0].expires_at)},action:'ai_capability_created',summary:`Created a temporary AI collaboration capability for ${input.expiresHours} ${input.expiresHours===1?'hour':'hours'}.`,changes:{capabilityId:created.rows[0].public_id,expiresHours:input.expiresHours,protocolVersion:AI_PLAN_VERSION,scopes:['plan:read','proposal:submit']}};
+  });
+  return{...result.value,token:credential.token,revision:result.revision};
+}
+
+export async function revokePlanAiCapability(input:{planId:string;capabilityId:string;expectedRevision:number;actor:AiCapabilityActor},database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    await aiCapabilityCreator(client,internalId,input.actor);
+    const revoked=await client.query(`UPDATE plan_ai_capabilities SET revoked_at=NOW(),token_hash=NULL WHERE public_id=$1::uuid AND holiday_plan_id=$2 AND revoked_at IS NULL`,[validatePublicId(input.capabilityId,'AI capability identifier'),internalId]);
+    if(!revoked.rowCount)throw new PlannerError('NOT_FOUND','Active AI collaboration capability not found.');
+    return{value:undefined,action:'ai_capability_revoked',summary:'Revoked a temporary AI collaboration capability.',changes:{capabilityId:input.capabilityId}};
   });return result.revision;
 }
 
