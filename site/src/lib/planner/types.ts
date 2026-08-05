@@ -132,3 +132,15 @@ export function validateTime(value: string | null | undefined, field: string): s
   }
   return value;
 }
+
+const ITEM_STATUS_TRANSITIONS: Record<PlanItemStatus, readonly PlanItemStatus[]> = {
+  idea: ['proposed', 'cancelled'], proposed: ['idea', 'agreed', 'cancelled'],
+  agreed: ['proposed', 'booked', 'cancelled'], booked: ['completed', 'cancelled'],
+  completed: [], cancelled: ['idea', 'proposed'],
+};
+
+export function validateItemStatusTransition(from: PlanItemStatus, to: PlanItemStatus): void {
+  if (from !== to && !ITEM_STATUS_TRANSITIONS[from].includes(to)) {
+    throw new PlannerError('VALIDATION_ERROR', `Plan item cannot move from ${from} to ${to}.`);
+  }
+}

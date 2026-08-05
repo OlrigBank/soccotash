@@ -11,6 +11,7 @@ import {
   validateGuideSlug,
   validatePublicId,
   validateTime,
+  validateItemStatusTransition,
   type HolidayPlan,
   type HolidayPlanSummary,
   type PlanActor,
@@ -444,4 +445,72 @@ export async function movePlanDay(
     return { value: undefined, action: 'day_reordered', summary: `Moved a plan day ${input.direction}.`, changes: { dayId: input.dayId, direction: input.direction } };
   });
   return result.revision;
+}
+
+type ItemInput = {
+  title: string; description?: string; itemType: PlanItemType; startTime?: string | null;
+  endTime?: string | null; locationText?: string | null; status?: PlanItemStatus;
+  reservationNote?: string | null; visibility?: PlanItemVisibility;
+};
+
+function validatedItem(input: ItemInput) {
+  const title = requireText(input.title, 'Item title', 200);
+  const description = input.description?.trim() ?? '';
+  if (description.length > 10000) throw new PlannerError('VALIDATION_ERROR', 'Item description is too long.');
+  if (!PLAN_ITEM_TYPES.includes(input.itemType)) throw new PlannerError('VALIDATION_ERROR', 'Plan item type is invalid.');
+  const status = input.status ?? 'idea';
+  const visibility = input.visibility ?? 'participants';
+  if (!PLAN_ITEM_STATUSES.includes(status)) throw new PlannerError('VALIDATION_ERROR', 'Plan item status is invalid.');
+  if (!PLAN_ITEM_VISIBILITIES.includes(visibility)) throw new PlannerError('VALIDATION_ERROR', 'Plan item visibility is invalid.');
+  const startTime = validateTime(input.startTime, 'Item start time');
+  const endTime = validateTime(input.endTime, 'Item end time');
+  if (startTime && endTime && endTime <= startTime) throw new PlannerError('VALIDATION_ERROR', 'Item end time must be after its start time.');
+  return { title, description, itemType: input.itemType, startTime, endTime,
+    locationText: optionalText(input.locationText, 'Location', 500), status,
+    reservationNote: optionalText(input.reservationNote, 'Reservation note', 3000), visibility };
+}
+
+export async function updatePlanItem(input: ItemInput & {
+  planId: string; itemId: string; expectedRevision: number; actor: PlanActor;
+}, database: Database = getPool()): Promise<number> {
+  const item = validatedItem(input);
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const existing = await client.query<{ status: PlanItemStatus }>(
+      `SELECT i.status FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id
+       WHERE i.public_id=$1::uuid AND d.holiday_plan_id=$2 FOR UPDATE`,
+      [validatePublicId(input.itemId, 'Plan item identifier'), internalId]);
+    if (!existing.rowCount) throw new PlannerError('NOT_FOUND', 'Plan item not found.');
+    validateItemStatusTransition(existing.rows[0].status, item.status);
+    await client.query(`UPDATE plan_items SET title=$2,description=$3,item_type=$4,start_time=$5::time,
+      end_time=$6::time,location_text=$7,status=$8,reservation_note=$9,visibility=$10,
+      updated_by_admin_user_id=$11,updated_at=NOW() WHERE public_id=$1::uuid`,
+      [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.status,item.reservationNote,item.visibility,input.actor.adminUserId]);
+    return { value: undefined, action:'item_updated', summary:`Updated item “${item.title}”.`, changes:{itemId:input.itemId,status:item.status} };
+  }); return result.revision;
+}
+
+export async function removePlanItem(input:{planId:string;itemId:string;expectedRevision:number;actor:PlanActor}, database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const removed=await client.query<{title:string}>(`DELETE FROM plan_items i USING plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2 RETURNING i.title`,[validatePublicId(input.itemId,'Plan item identifier'),internalId]);
+    if(!removed.rowCount) throw new PlannerError('NOT_FOUND','Plan item not found.');
+    return {value:undefined,action:'item_removed',summary:`Removed item “${removed.rows[0].title}”.`,changes:{itemId:input.itemId}};
+  }); return result.revision;
+}
+
+export async function movePlanItem(input:{planId:string;itemId:string;targetDayId:string;expectedRevision:number;position:'up'|'down'|'end';actor:PlanActor},database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const rows=await client.query<any>(`SELECT i.id,i.public_id::text,i.plan_day_id,i.position FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE d.holiday_plan_id=$1 ORDER BY i.plan_day_id,i.position FOR UPDATE OF i`,[internalId]);
+    const current=rows.rows.find((r:any)=>r.public_id===validatePublicId(input.itemId,'Plan item identifier'));
+    const targetDay=await client.query<{id:string|number}>('SELECT id FROM plan_days WHERE public_id=$1::uuid AND holiday_plan_id=$2',[validatePublicId(input.targetDayId,'Plan day identifier'),internalId]);
+    if(!current||!targetDay.rowCount) throw new PlannerError('NOT_FOUND','Plan item or target day not found.');
+    const siblings=rows.rows.filter((r:any)=>String(r.plan_day_id)===String(current.plan_day_id)); const index=siblings.findIndex((r:any)=>r.id===current.id);
+    if(String(current.plan_day_id)===String(targetDay.rows[0].id)&&input.position!=='end'){
+      const target=siblings[input.position==='up'?index-1:index+1]; if(!target) throw new PlannerError('VALIDATION_ERROR','Plan item cannot move further.');
+      await client.query('UPDATE plan_items SET position=2147483647 WHERE id=$1',[current.id]); await client.query('UPDATE plan_items SET position=$2 WHERE id=$1',[target.id,current.position]); await client.query('UPDATE plan_items SET position=$2 WHERE id=$1',[current.id,target.position]);
+    }else{
+      const next=await client.query<{position:number}>('SELECT COALESCE(max(position)+10,10)::int position FROM plan_items WHERE plan_day_id=$1',[targetDay.rows[0].id]);
+      await client.query('UPDATE plan_items SET plan_day_id=$2,position=$3,updated_at=NOW() WHERE id=$1',[current.id,targetDay.rows[0].id,next.rows[0].position]);
+    }
+    return {value:undefined,action:'item_moved',summary:'Moved a plan item.',changes:{itemId:input.itemId,targetDayId:input.targetDayId,position:input.position}};
+  });return result.revision;
 }
