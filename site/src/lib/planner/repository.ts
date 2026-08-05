@@ -269,7 +269,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
     id: String(row.public_id), planType: row.plan_type,
     bookingId: row.booking_id == null ? null : String(row.booking_id), title: row.title,
     description: row.description, publicationStatus: row.publication_status,
-    visibility: row.visibility, startsOn: date(row.starts_on), endsOn: date(row.ends_on),
+    visibility: row.visibility, publicSlug: row.public_slug, startsOn: date(row.starts_on), endsOn: date(row.ends_on),
     durationDays: row.duration_days, revision: row.revision,
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
     createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), days, revisions,
@@ -291,6 +291,7 @@ export async function listExamplePlans(
     id: String(row.public_id), planType: row.plan_type,
     bookingId: null, title: row.title, description: row.description,
     publicationStatus: row.publication_status, visibility: row.visibility,
+    publicSlug: row.public_slug,
     startsOn: date(row.starts_on), endsOn: date(row.ends_on),
     durationDays: row.duration_days, revision: row.revision,
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
@@ -405,6 +406,108 @@ export async function archiveExamplePlan(
     return { value: undefined, action: 'plan_archived', summary: 'Archived example plan.', changes: { archived: true } };
   });
   return result.revision;
+}
+
+function slugifyPlanTitle(title: string): string {
+  const slug = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 120).replace(/-$/g, '');
+  return slug || 'holiday-plan';
+}
+
+async function availablePublicSlug(client: PoolClient, title: string): Promise<string> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('holiday-plan-public-slug'))");
+  const base = slugifyPlanTitle(title);
+  for (let suffix = 1; suffix < 10000; suffix += 1) {
+    const candidate = suffix === 1 ? base : `${base.slice(0, 120 - String(suffix).length - 1)}-${suffix}`;
+    const existing = await client.query('SELECT 1 FROM holiday_plans WHERE public_slug = $1', [candidate]);
+    if (!existing.rowCount) return candidate;
+  }
+  throw new PlannerError('VALIDATION_ERROR', 'A public URL could not be allocated for this plan.');
+}
+
+export async function publishExamplePlan(
+  input: { planId: string; expectedRevision: number; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<{ revision: number; publicSlug: string }> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const plan = await client.query<{ title: string; public_slug: string | null; publication_status: string }>(
+      `SELECT title, public_slug, publication_status FROM holiday_plans
+        WHERE id = $1 AND plan_type = 'example' AND archived_at IS NULL`, [internalId],
+    );
+    if (!plan.rowCount) throw new PlannerError('NOT_FOUND', 'Publishable example plan not found.');
+    if (plan.rows[0].publication_status === 'published') throw new PlannerError('VALIDATION_ERROR', 'The example plan is already published.');
+    const incomplete = await client.query(
+      `SELECT 1
+         FROM holiday_plans p
+        WHERE p.id = $1
+          AND (NOT EXISTS (SELECT 1 FROM plan_days d WHERE d.holiday_plan_id = p.id)
+            OR EXISTS (
+              SELECT 1 FROM plan_days d
+               WHERE d.holiday_plan_id = p.id
+                 AND NOT EXISTS (
+                   SELECT 1 FROM plan_items i WHERE i.plan_day_id = d.id AND i.visibility <> 'private'
+                 )
+            ))`, [internalId],
+    );
+    if (incomplete.rowCount) throw new PlannerError('VALIDATION_ERROR', 'Add at least one item to every day before publishing.');
+    const publicSlug = plan.rows[0].public_slug ?? await availablePublicSlug(client, plan.rows[0].title);
+    await client.query(
+      `UPDATE holiday_plans SET publication_status = 'published', visibility = 'public', public_slug = $2
+        WHERE id = $1`, [internalId, publicSlug],
+    );
+    return { value: publicSlug, action: 'plan_published', summary: `Published example plan at /holiday-plans/${publicSlug}/.`, changes: { publicSlug } };
+  });
+  return { revision: result.revision, publicSlug: result.value };
+}
+
+export async function unpublishExamplePlan(
+  input: { planId: string; expectedRevision: number; actor: PlanActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const updated = await client.query<{ public_slug: string }>(
+      `UPDATE holiday_plans SET publication_status = 'unpublished', visibility = 'private'
+        WHERE id = $1 AND plan_type = 'example' AND archived_at IS NULL AND publication_status = 'published'
+        RETURNING public_slug`, [internalId],
+    );
+    if (!updated.rowCount) throw new PlannerError('VALIDATION_ERROR', 'Only a published example plan can be unpublished.');
+    return { value: undefined, action: 'plan_unpublished', summary: 'Unpublished example plan.', changes: { publicSlug: updated.rows[0].public_slug } };
+  });
+  return result.revision;
+}
+
+export async function getPublishedExamplePlanBySlug(
+  slug: string,
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<HolidayPlan | null> {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return null;
+  const result = await database.query<{ public_id: string }>(
+    `SELECT public_id::text FROM holiday_plans
+      WHERE public_slug = $1 AND plan_type = 'example' AND publication_status = 'published'
+        AND visibility = 'public' AND archived_at IS NULL`, [slug],
+  );
+  return result.rowCount ? getHolidayPlan(result.rows[0].public_id, database) : null;
+}
+
+export async function listPublishedExamplePlans(
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<HolidayPlanSummary[]> {
+  const result = await database.query<any>(
+    `SELECT p.*, count(d.id)::int AS day_count
+       FROM holiday_plans p
+       LEFT JOIN plan_days d ON d.holiday_plan_id = p.id
+      WHERE p.plan_type = 'example' AND p.publication_status = 'published'
+        AND p.visibility = 'public' AND p.archived_at IS NULL AND p.public_slug IS NOT NULL
+      GROUP BY p.id ORDER BY p.updated_at DESC`,
+  );
+  return result.rows.map((row: any) => ({
+    id: String(row.public_id), planType: row.plan_type, bookingId: null,
+    title: row.title, description: row.description, publicationStatus: row.publication_status,
+    visibility: row.visibility, publicSlug: row.public_slug,
+    startsOn: date(row.starts_on), endsOn: date(row.ends_on), durationDays: row.duration_days,
+    revision: row.revision, archivedAt: null, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+    dayCount: row.day_count,
+  }));
 }
 
 async function requireCompatibleDayDate(client: PoolClient, planInternalId: string, inputDate: string | null): Promise<void> {

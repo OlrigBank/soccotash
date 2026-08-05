@@ -12,14 +12,18 @@ import {
   duplicateExamplePlan,
   getHolidayPlan,
   listExamplePlans,
+  listPublishedExamplePlans,
   movePlanDay,
   movePlanItem,
+  publishExamplePlan,
   removePlanDay,
   removePlanItem,
   setPlanItemGuideReference,
   updateExamplePlan,
   updatePlanDay,
   updatePlanItem,
+  unpublishExamplePlan,
+  getPublishedExamplePlanBySlug,
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
 
@@ -289,6 +293,49 @@ test('persists structured plans and makes every mutation an atomic revision', as
       ),
       /check constraint/,
     );
+
+    const publishable = await createExamplePlan({
+      title: 'A Perfect Kendal Weekend', description: 'A complete public example.', durationDays: 1, actor,
+    }, applicationPool);
+    await assert.rejects(
+      publishExamplePlan({ planId: publishable.id, expectedRevision: 1, actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    const publicDay = await addPlanDay({ planId: publishable.id, expectedRevision: 1, title: 'Explore Kendal', actor }, applicationPool);
+    await assert.rejects(
+      publishExamplePlan({ planId: publishable.id, expectedRevision: 2, actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    await addPlanItem({
+      planId: publishable.id, dayId: publicDay.dayId, expectedRevision: 2, title: 'Kendal Castle',
+      description: 'Walk from Olrig Bank.', itemType: 'activity', localGuideSlug: 'kendalcastle', actor,
+    }, applicationPool);
+    const published = await publishExamplePlan({ planId: publishable.id, expectedRevision: 3, actor }, applicationPool);
+    assert.equal(published.revision, 4);
+    assert.equal(published.publicSlug, 'a-perfect-kendal-weekend');
+    assert.equal((await getPublishedExamplePlanBySlug(published.publicSlug, applicationPool))?.id, publishable.id);
+    assert.deepEqual((await listPublishedExamplePlans(applicationPool)).map((plan) => plan.id), [publishable.id]);
+    await assert.rejects(
+      unpublishExamplePlan({ planId: publishable.id, expectedRevision: 3, actor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'STALE_REVISION',
+    );
+    assert.equal(await unpublishExamplePlan({ planId: publishable.id, expectedRevision: 4, actor }, applicationPool), 5);
+    assert.equal(await getPublishedExamplePlanBySlug(published.publicSlug, applicationPool), null);
+    assert.equal((await getHolidayPlan(publishable.id, applicationPool))?.revisions.at(-1)?.action, 'plan_unpublished');
+    assert.equal(await updateExamplePlan({
+      planId: publishable.id, expectedRevision: 5, title: 'Renamed after publication',
+      description: 'A complete public example.', durationDays: 1, actor,
+    }, applicationPool), 6);
+    const republished = await publishExamplePlan({ planId: publishable.id, expectedRevision: 6, actor }, applicationPool);
+    assert.equal(republished.publicSlug, published.publicSlug, 'renaming must not change the stable public URL');
+
+    const collision = await createExamplePlan({ title: 'A Perfect Kendal Weekend', durationDays: 1, actor }, applicationPool);
+    const collisionDay = await addPlanDay({ planId: collision.id, expectedRevision: 1, title: 'One day', actor }, applicationPool);
+    await addPlanItem({ planId: collision.id, dayId: collisionDay.dayId, expectedRevision: 2, title: 'A walk', itemType: 'activity', actor }, applicationPool);
+    const collisionPublished = await publishExamplePlan({ planId: collision.id, expectedRevision: 3, actor }, applicationPool);
+    assert.equal(collisionPublished.publicSlug, 'a-perfect-kendal-weekend-2');
+    assert.equal(await archiveExamplePlan({ planId: collision.id, expectedRevision: 4, actor }, applicationPool), 5);
+    assert.equal(await getPublishedExamplePlanBySlug(collisionPublished.publicSlug, applicationPool), null);
   } finally {
     await applicationPool.end();
     await controlPool.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);
