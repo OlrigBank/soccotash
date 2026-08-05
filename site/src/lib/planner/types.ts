@@ -60,6 +60,7 @@ export type HolidayPlan = {
   description: string;
   publicationStatus: PlanPublicationStatus;
   visibility: PlanVisibility;
+  publicSlug: string | null;
   startsOn: string | null;
   endsOn: string | null;
   durationDays: number | null;

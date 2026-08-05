@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import PlanItinerary from '../../../../components/PlanItinerary.astro';
+import { getHolidayPlan } from '../../../../lib/planner/repository.ts';
+import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
+import { PlannerError } from '../../../../lib/planner/types.ts';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+let plan = null;
+try { plan = await getHolidayPlan(Astro.params.id ?? ''); } catch (error) { if (!(error instanceof PlannerError)) throw error; }
+if (!plan || plan.planType !== 'example') return Astro.redirect('/admin/planner/?result=not-found');
+const guideEntries = await getPlannerGuideEntries();
+---
+
+<BaseLayout title={`Preview: ${plan.title}`} description="Administrator preview of an example holiday plan." robots="noindex,nofollow" showSidebar={false}>
+  <div class="plan-preview-banner no-print" role="status">
+    <strong>Administrator preview · {plan.publicationStatus}</strong>
+    <span>This page is authenticated and is not the public URL.</span>
+    <a class="button" href={`/admin/planner/${plan.id}/`}>Return to editor</a>
+  </div>
+  <PlanItinerary {plan} {guideEntries} />
+  <p class="plan-print-action no-print"><button class="button" type="button" onclick="window.print()">Print itinerary</button></p>
+</BaseLayout>

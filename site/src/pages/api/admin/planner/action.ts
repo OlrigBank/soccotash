@@ -8,9 +8,11 @@ import {
   duplicateExamplePlan,
   movePlanDay,
   movePlanItem,
+  publishExamplePlan,
   removePlanDay,
   removePlanItem,
   setPlanItemGuideReference,
+  unpublishExamplePlan,
   updateExamplePlan,
   updatePlanDay,
   updatePlanItem,
@@ -57,6 +59,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         }) });
       case 'archivePlan':
         return Response.json({ revision: await archiveExamplePlan({
+          planId: text(input.planId), expectedRevision: revision(input.expectedRevision), actor,
+        }) });
+      case 'publishPlan':
+        return Response.json(await publishExamplePlan({
+          planId: text(input.planId), expectedRevision: revision(input.expectedRevision), actor,
+        }));
+      case 'unpublishPlan':
+        return Response.json({ revision: await unpublishExamplePlan({
           planId: text(input.planId), expectedRevision: revision(input.expectedRevision), actor,
         }) });
       case 'addDay': {

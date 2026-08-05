@@ -2975,4 +2975,32 @@ body.has-booking-drawer { overflow: hidden; }
 .planner-history li > div { display:flex; flex-direction:column; gap:.2rem; }
 .planner-history li span { font-size:.9rem; color:#655d52; }
 .planner-history pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+.plan-preview-banner { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem 1rem; margin-bottom:1.25rem; padding:1rem; border:2px solid var(--accent); background:#fff8e8; }
+.plan-itinerary { width:min(900px,100%); margin-inline:auto; }
+.plan-itinerary-hero { margin-bottom:2rem; padding:clamp(1.5rem,5vw,3.5rem); background:var(--accent-dark); color:#fff; }
+.plan-itinerary-hero h1 { color:inherit; }
+.plan-itinerary-meta,.plan-itinerary-type { font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.plan-itinerary-days { display:grid; gap:1.5rem; }
+.plan-itinerary-day { padding:clamp(1rem,3vw,2rem); border:1px solid #d8d0c3; background:#fff; break-inside:avoid; }
+.plan-itinerary-day > header > p:first-child,.plan-itinerary-type { color:#655d52; font-size:.85rem; }
+.plan-itinerary-items { display:grid; gap:1.25rem; margin:1.25rem 0 0; padding:0; list-style:none; }
+.plan-itinerary-item { display:grid; grid-template-columns:6rem minmax(0,1fr); gap:1rem; padding-top:1.25rem; border-top:1px solid #e2dbd0; break-inside:avoid; }
+.plan-itinerary-time { font-weight:700; font-variant-numeric:tabular-nums; }
+.plan-itinerary-guide,.plan-itinerary-note { margin:.75rem 0; padding:.8rem 1rem; border-left:4px solid #4f7553; background:#f2f7ef; }
+.plan-itinerary-note { border-color:#b7873f; background:#fff8e8; }
+.plan-itinerary-guide p,.plan-itinerary-note p { margin:.3rem 0; }
+.plan-itinerary-guide-missing { color:#655d52; font-style:italic; }
+.plan-print-action { width:min(900px,100%); margin:1.5rem auto; text-align:right; }
+@media (max-width:600px) { .plan-itinerary-item { grid-template-columns:1fr; gap:.35rem; } }
+@media print {
+  @page { margin:16mm; }
+  .site-header,.site-footer,.mobile-menu-wrap,.desktop-sidebar-wrap,.no-print,.admin-header,.admin-sidebar { display:none !important; }
+  body,.site-shell,.page-grid,.admin-body,.admin-shell,.admin-main { margin:0; padding:0; background:#fff; color:#111; }
+  .page-grid,.admin-shell { display:block; width:auto; }
+  .plan-itinerary { width:auto; }
+  .plan-itinerary-hero { padding:0 0 1rem; background:#fff; color:#111; }
+  .plan-itinerary-day { padding:1rem 0; border:0; border-top:1px solid #777; }
+  .plan-itinerary-guide,.plan-itinerary-note { background:#fff; }
+  a { color:inherit; text-decoration:none; }
+}
 @media (max-width: 700px) { .planner-form { grid-template-columns: minmax(0, 1fr); } .planner-wide { grid-column: auto; } .planner-dates { grid-template-columns: 1fr; } .planner-form-actions { align-items: stretch; } }
