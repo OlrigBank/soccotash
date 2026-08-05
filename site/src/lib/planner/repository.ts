@@ -15,6 +15,7 @@ import {
   type HolidayPlan,
   type HolidayPlanSummary,
   type PlanActor,
+  type PlannerRevisionActor,
   type PlanDay,
   type PlanItem,
   type PlanItemStatus,
@@ -42,17 +43,96 @@ async function recordRevision(
   client: PoolClient,
   planInternalId: string,
   revision: number,
-  actor: PlanActor,
+  actor: PlannerRevisionActor,
   action: string,
   summary: string,
   changes: Record<string, unknown>,
 ): Promise<void> {
+  const administrator = actor.type === 'administrator';
   await client.query(
     `INSERT INTO plan_revisions
        (holiday_plan_id, revision, actor_type, admin_user_id, source, action, summary, changes)
-     VALUES ($1, $2, 'administrator', $3, 'admin', $4, $5, $6::jsonb)`,
-    [planInternalId, revision, actor.adminUserId, action, summary, JSON.stringify(changes)],
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+    [planInternalId, revision, administrator ? 'administrator' : 'guest',
+      administrator ? actor.adminUserId : null, administrator ? 'admin' : 'guest',
+      action, summary, JSON.stringify(changes)],
   );
+}
+
+export async function getBookingLinkedPlanByBookingReference(
+  bookingReference: string,
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<HolidayPlan | null> {
+  const result = await database.query<{ public_id: string }>(
+    `SELECT p.public_id::text
+       FROM holiday_plans p
+       JOIN provisional_bookings b ON b.id = p.booking_id
+      WHERE b.public_id = $1::uuid AND p.plan_type = 'booking_linked'`,
+    [validatePublicId(bookingReference, 'Booking reference')],
+  );
+  return result.rowCount ? getHolidayPlan(result.rows[0].public_id, database) : null;
+}
+
+export async function createBookingLinkedPlan(
+  input: { bookingReference: string; actor: PlannerRevisionActor },
+  database: Database = getPool(),
+): Promise<HolidayPlan> {
+  const bookingReference = validatePublicId(input.bookingReference, 'Booking reference');
+  const client = await database.connect();
+  try {
+    await client.query('BEGIN');
+    const booking = await client.query<any>(
+      `SELECT id, public_id::text, guest_name AS name, arrival, departure, status
+         FROM provisional_bookings WHERE public_id = $1::uuid FOR UPDATE`, [bookingReference],
+    );
+    if (!booking.rowCount) throw new PlannerError('NOT_FOUND', 'Eligible booking not found.');
+    const row = booking.rows[0];
+    if (!['confirmed', 'approved'].includes(row.status)) {
+      throw new PlannerError('VALIDATION_ERROR', 'A holiday plan can be created after the booking is confirmed.');
+    }
+    if (input.actor.type === 'booker' && input.actor.bookingId !== String(row.id)) {
+      throw new PlannerError('NOT_FOUND', 'Eligible booking not found.');
+    }
+    const existing = await client.query('SELECT 1 FROM holiday_plans WHERE booking_id = $1', [row.id]);
+    if (existing.rowCount) throw new PlannerError('VALIDATION_ERROR', 'This booking already has a holiday plan.');
+    const administratorId = input.actor.type === 'administrator' ? input.actor.adminUserId : null;
+    const title = `${row.name}'s holiday plan`;
+    const created = await client.query<{ id: string | number; public_id: string }>(
+      `INSERT INTO holiday_plans
+         (plan_type, booking_id, title, starts_on, ends_on, duration_days,
+          created_by_admin_user_id, updated_by_admin_user_id)
+       VALUES ('booking_linked', $1, $2, $3::date, $4::date, ($4::date - $3::date) + 1, $5, $5)
+       RETURNING id, public_id::text`,
+      [row.id, title, row.arrival, row.departure, administratorId],
+    );
+    const planInternalId = String(created.rows[0].id);
+    await client.query(
+      `INSERT INTO plan_participants
+         (holiday_plan_id, role, participant_type, booking_id, display_name)
+       VALUES ($1, 'owner', 'booker', $2, $3)`, [planInternalId, row.id, row.name],
+    );
+    await recordRevision(client, planInternalId, 1, input.actor, 'booking_plan_created',
+      `Created an empty holiday plan for booking ${bookingReference}.`, { bookingReference, initialState: 'empty' });
+    await client.query(
+      `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
+       VALUES ($1, $2, 'holiday_plan_created', $3::jsonb)`,
+      [row.id, input.actor.type === 'administrator' ? 'administrator' : 'customer',
+        JSON.stringify({ planId: created.rows[0].public_id, adminUserId: administratorId })],
+    );
+    await client.query('COMMIT');
+    const plan = await getHolidayPlan(created.rows[0].public_id, database);
+    if (!plan) throw new PlannerError('NOT_FOUND', 'Created holiday plan could not be read.');
+    return plan;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if ((error as { code?: string; constraint?: string }).code === '23505'
+      && (error as { constraint?: string }).constraint === 'holiday_plans_booking_idx') {
+      throw new PlannerError('VALIDATION_ERROR', 'This booking already has a holiday plan.');
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function lockPlan(

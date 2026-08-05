@@ -38,6 +38,8 @@ import {
   getBookingManagementRecipients,
   getEmailConfiguration,
 } from '../../../../lib/email/sender';
+import { createBookingLinkedPlan, getBookingLinkedPlanByBookingReference } from '../../../../lib/planner/repository.ts';
+import { PlannerError } from '../../../../lib/planner/types.ts';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
@@ -63,13 +65,24 @@ const messageNotificationAvailable = messageEmailConfiguration.configured && man
 let responseError = '';
 let messageError = '';
 let responseResult: CustomerOfferResponseResult | null = null;
+const holidayPlan = await getBookingLinkedPlanByBookingReference(offer.bookingReference);
 
 if (Astro.request.method === 'POST') {
   // The unguessable token in this URL is the authorisation credential for the Booker.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
-  if (action === 'withdraw-whatsapp-consent') {
+  if (action === 'create-holiday-plan') {
+    try {
+      await createBookingLinkedPlan({
+        bookingReference: offer.bookingReference,
+        actor: { type: 'booker', bookingId: access.bookingId },
+      });
+      return Astro.redirect(`/booking/manage/${token}/?planner=created#holiday-planner`);
+    } catch (error) {
+      responseError = error instanceof PlannerError ? error.message : 'The holiday plan could not be created.';
+    }
+  } else if (action === 'withdraw-whatsapp-consent') {
     await withdrawProvisionalBookingWhatsAppConsent(offer.bookingReference, 'booker');
     await recordBookingActivity({
       bookingReference: offer.bookingReference,
@@ -371,6 +384,26 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     messageNotificationAvailable={messageNotificationAvailable}
     payments={payments}
   />
+  <section id="holiday-planner" class="booking-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
+    <p class="eyebrow">Holiday Planner</p>
+    <h2 id="holiday-planner-heading">Plan your stay together</h2>
+    {holidayPlan ? (
+      <>
+        <p><strong>{holidayPlan.title}</strong> is ready for {holidayPlan.startsOn} to {holidayPlan.endsOn}.</p>
+        <p>{holidayPlan.days.length ? `${holidayPlan.days.length} planned days` : 'This is an empty plan. Adding days and activities arrives in the next planner increment.'}</p>
+        <p class="status-badge status-draft">Private · revision {holidayPlan.revision}</p>
+      </>
+    ) : confirmedBooking ? (
+      <form method="post">
+        <input type="hidden" name="action" value="create-holiday-plan" />
+        <p>Start with an empty private plan linked only to this confirmed booking.</p>
+        <button class="button" type="submit">Create my holiday plan</button>
+      </form>
+    ) : (
+      <p>The Holiday Planner becomes available after this booking is confirmed.</p>
+    )}
+    {Astro.url.searchParams.get('planner') === 'created' && <p role="status">Your private holiday plan has been created.</p>}
+  </section>
   <section class="booking-panel" aria-labelledby="whatsapp-preferences-heading">
     <h2 id="whatsapp-preferences-heading">WhatsApp preferences</h2>
     {offer.whatsappConsentStatus === 'active' ? (

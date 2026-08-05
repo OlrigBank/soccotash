@@ -2991,6 +2991,8 @@ body.has-booking-drawer { overflow: hidden; }
 .plan-itinerary-guide p,.plan-itinerary-note p { margin:.3rem 0; }
 .plan-itinerary-guide-missing { color:#655d52; font-style:italic; }
 .plan-print-action { width:min(900px,100%); margin:1.5rem auto; text-align:right; }
+.booking-planner-card { border-left:5px solid #4f7553; }
+.booking-planner-card form { display:flex; flex-wrap:wrap; align-items:center; gap:1rem; }
 @media (max-width:600px) { .plan-itinerary-item { grid-template-columns:1fr; gap:.35rem; } }
 @media print {
   @page { margin:16mm; }

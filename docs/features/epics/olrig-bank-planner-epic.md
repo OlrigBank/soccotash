@@ -962,7 +962,7 @@ A possible breakdown is:
 
 ### Stage 2
 
-1. Booking-linked planner creation.
+1. [Booking-linked planner creation](../olrig-bank-planner-stage-2-pr-1-booking-plan-creation.md).
 2. Copy example plan into guest planner.
 3. Booker editing workflow.
 4. Participant roles and permissions.

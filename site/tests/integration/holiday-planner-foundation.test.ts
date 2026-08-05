@@ -9,8 +9,10 @@ import {
   addPlanItem,
   archiveExamplePlan,
   createExamplePlan,
+  createBookingLinkedPlan,
   duplicateExamplePlan,
   getHolidayPlan,
+  getBookingLinkedPlanByBookingReference,
   listExamplePlans,
   listPublishedExamplePlans,
   movePlanDay,
@@ -336,6 +338,85 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(collisionPublished.publicSlug, 'a-perfect-kendal-weekend-2');
     assert.equal(await archiveExamplePlan({ planId: collision.id, expectedRevision: 4, actor }, applicationPool), 5);
     assert.equal(await getPublishedExamplePlanBySlug(collisionPublished.publicSlug, applicationPool), null);
+
+    const booking = await applicationPool.query(
+      `INSERT INTO provisional_bookings
+         (property_id, arrival, departure, guests, guest_name, guest_email, status)
+       VALUES ('olrig-bank', '2026-10-10', '2026-10-13', 2, 'Alex Booker',
+               'alex@example.invalid', 'confirmed')
+       RETURNING id::text, public_id::text`,
+    );
+    const bookingRow = booking.rows[0];
+    await assert.rejects(
+      createBookingLinkedPlan({
+        bookingReference: bookingRow.public_id,
+        actor: { type: 'booker', bookingId: '999999' },
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    const bookingPlan = await createBookingLinkedPlan({
+      bookingReference: bookingRow.public_id,
+      actor: { type: 'booker', bookingId: bookingRow.id },
+    }, applicationPool);
+    assert.equal(bookingPlan.planType, 'booking_linked');
+    assert.equal(bookingPlan.bookingId, bookingRow.id);
+    assert.equal(bookingPlan.title, "Alex Booker's holiday plan");
+    assert.equal(bookingPlan.startsOn, '2026-10-10');
+    assert.equal(bookingPlan.endsOn, '2026-10-13');
+    assert.equal(bookingPlan.durationDays, 4);
+    assert.equal(bookingPlan.days.length, 0);
+    assert.equal(bookingPlan.revisions[0].actorType, 'guest');
+    assert.equal(bookingPlan.revisions[0].action, 'booking_plan_created');
+    assert.equal((await getBookingLinkedPlanByBookingReference(bookingRow.public_id, applicationPool))?.id, bookingPlan.id);
+    const owner = await applicationPool.query(
+      `SELECT role, participant_type, booking_id::text, display_name
+         FROM plan_participants WHERE holiday_plan_id = (SELECT id FROM holiday_plans WHERE public_id = $1)`,
+      [bookingPlan.id],
+    );
+    assert.deepEqual(owner.rows, [{ role: 'owner', participant_type: 'booker', booking_id: bookingRow.id, display_name: 'Alex Booker' }]);
+    const plannerActivity = await applicationPool.query(
+      `SELECT actor, event_type FROM booking_activity
+        WHERE provisional_booking_id = $1 AND event_type = 'holiday_plan_created'`, [bookingRow.id],
+    );
+    assert.deepEqual(plannerActivity.rows, [{ actor: 'customer', event_type: 'holiday_plan_created' }]);
+    await assert.rejects(
+      createBookingLinkedPlan({
+        bookingReference: bookingRow.public_id,
+        actor: { type: 'booker', bookingId: bookingRow.id },
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+
+    const pendingBooking = await applicationPool.query(
+      `INSERT INTO provisional_bookings
+         (property_id, arrival, departure, guests, guest_name, guest_email, status)
+       VALUES ('olrig-bank', '2026-11-10', '2026-11-12', 1, 'Pending Booker',
+               'pending@example.invalid', 'pending') RETURNING public_id::text`,
+    );
+    await assert.rejects(
+      createBookingLinkedPlan({
+        bookingReference: pendingBooking.rows[0].public_id,
+        actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+
+    const adminBooking = await applicationPool.query(
+      `INSERT INTO provisional_bookings
+         (property_id, arrival, departure, guests, guest_name, guest_email, status)
+       VALUES ('olrig-bank', '2026-12-01', '2026-12-04', 2, 'Admin-created Booker',
+               'admin-created@example.invalid', 'approved') RETURNING id::text, public_id::text`,
+    );
+    const adminCreatedPlan = await createBookingLinkedPlan({
+      bookingReference: adminBooking.rows[0].public_id, actor,
+    }, applicationPool);
+    assert.equal(adminCreatedPlan.revisions[0].actorType, 'administrator');
+    assert.equal(adminCreatedPlan.revisions[0].adminUserId, actor.adminUserId);
+    const adminActivity = await applicationPool.query(
+      `SELECT actor, details->>'adminUserId' AS admin_user_id FROM booking_activity
+        WHERE provisional_booking_id = $1 AND event_type = 'holiday_plan_created'`, [adminBooking.rows[0].id],
+    );
+    assert.deepEqual(adminActivity.rows, [{ actor: 'administrator', admin_user_id: actor.adminUserId }]);
   } finally {
     await applicationPool.end();
     await controlPool.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);
