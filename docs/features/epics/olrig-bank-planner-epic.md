@@ -1,5 +1,7 @@
 # Olrig Bank Planner Epic
 
+**Status:** Complete — see the [completion record](../olrig-bank-planner-epic-completion.md).
+
 ## Epic summary
 
 Build a native Olrig Bank holiday-planning capability within the `soccotash` application.
