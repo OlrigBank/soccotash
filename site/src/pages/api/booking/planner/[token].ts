@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
-  addPlanDay, addPlanItem, changePlanParticipantRole, getBookingLinkedPlanByBookingReference, getHolidayPlan,
-  invitePlanParticipant, movePlanDay, movePlanItem,
+  addPlanDay, addPlanItem, changePlanParticipantRole, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
+  invitePlanParticipant, movePlanDay, movePlanItem, revokePlanShareLink,
   offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
@@ -53,6 +53,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'revokeParticipant': result={revision:await revokePlanParticipant({planId:plan.id,participantId:text(input.participantId),expectedRevision,actor})}; break;
       case 'offerGuideContribution': result=await offerGuideContribution({planId:plan.id,itemId:text(input.itemId),expectedRevision,offeredTitle:text(input.offeredTitle),offeredDescription:text(input.offeredDescription),offeredLocationText:nullable(input.offeredLocationText),consent:input.consent===true,attributionPermitted:input.attributionPermitted===true,actor}); break;
       case 'withdrawGuideContribution': result={revision:await withdrawGuideContribution({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})}; break;
+      case 'createShareLink': result=await createPlanShareLink({planId:plan.id,expectedRevision,expiresDays:Number(input.expiresDays),actor}); break;
+      case 'revokeShareLink': result={revision:await revokePlanShareLink({planId:plan.id,shareId:text(input.shareId),expectedRevision,actor})}; break;
       default: return Response.json({error:'Planner action is invalid.'},{status:400});
     }
     return Response.json(result);

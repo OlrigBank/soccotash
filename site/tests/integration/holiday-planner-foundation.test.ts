@@ -10,6 +10,7 @@ import {
   archiveExamplePlan,
   createExamplePlan,
   createBookingLinkedPlan,
+  createPlanShareLink,
   copyPublishedExampleIntoBookingPlan,
   duplicateExamplePlan,
   getHolidayPlan,
@@ -20,6 +21,7 @@ import {
   listGuideContributionModerationQueue,
   listExamplePlans,
   listPublishedExamplePlans,
+  listPlanShareLinks,
   movePlanDay,
   movePlanItem,
   moderateGuideContribution,
@@ -28,6 +30,7 @@ import {
   removePlanDay,
   removePlanItem,
   revokePlanParticipant,
+  revokePlanShareLink,
   setPlanItemGuideReference,
   updateExamplePlan,
   updateBookingLinkedPlan,
@@ -40,6 +43,7 @@ import {
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
 import { resolveParticipantCredential } from '../../src/lib/planner/participant-access.ts';
+import { resolvePlanShareCredential } from '../../src/lib/planner/share-access.ts';
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
@@ -601,6 +605,27 @@ test('persists structured plans and makes every mutation an atomic revision', as
     const updateCandidate = (await listGuideContributionModerationQueue(applicationPool)).find(entry => entry.id === updateSubmission.candidateId)!;
     assert.equal(updateCandidate.resultType, 'suggested_update');
     assert.equal(updateCandidate.resultGuideSlug, 'kendalcastle');
+    await assert.rejects(
+      createPlanShareLink({ planId: bookingPlan.id, expectedRevision: 21, expiresDays: 7,
+        actor: { type: 'booker', bookingId: '999999' } }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    const share = await createPlanShareLink({
+      planId: bookingPlan.id, expectedRevision: 21, expiresDays: 7, actor: bookerActor,
+    }, applicationPool);
+    assert.equal(share.revision, 22);
+    assert.match(share.token, /^[A-Za-z0-9_-]{43}$/);
+    const storedShare = await applicationPool.query(
+      `SELECT token_hash, expires_at > NOW() AS active FROM plan_share_links WHERE public_id=$1::uuid`, [share.shareId],
+    );
+    assert.equal(storedShare.rows[0].token_hash, crypto.createHash('sha256').update(share.token).digest('hex'));
+    assert.equal(storedShare.rows[0].active, true);
+    assert.equal((await resolvePlanShareCredential(share.token, true, applicationPool))?.planId, bookingPlan.id);
+    assert.equal((await listPlanShareLinks(bookingPlan.id, bookingRow.id, applicationPool)).length, 1);
+    assert.equal(await revokePlanShareLink({
+      planId: bookingPlan.id, shareId: share.shareId, expectedRevision: 22, actor: bookerActor,
+    }, applicationPool), 23);
+    assert.equal(await resolvePlanShareCredential(share.token, false, applicationPool), null);
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
