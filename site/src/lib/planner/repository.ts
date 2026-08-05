@@ -15,6 +15,7 @@ import {
   validateItemStatusTransition,
   type HolidayPlan,
   type HolidayPlanSummary,
+  type GuideContributionCandidate,
   type BookerPlanActor,
   type PlanActor,
   type PlannerRevisionActor,
@@ -693,6 +694,133 @@ export async function revokePlanParticipant(input: {
     return { value: undefined, action: 'participant_revoked', summary: `Revoked ${revoked.rows[0].display_name}'s planner access.`, changes: { participantId: input.participantId } };
   });
   return result.revision;
+}
+
+const GUIDE_CONTRIBUTION_CONSENT_VERSION = 'local-guide-contribution-v1';
+const GUIDE_CONTRIBUTION_CONSENT_STATEMENT = 'Share this specific recommendation with Olrig Bank so it may help future guests.';
+
+async function contributionSubmitter(
+  client: PoolClient,
+  planInternalId: string,
+  actor: BookerPlanActor | Extract<PlannerRevisionActor, { type: 'participant' }>,
+): Promise<{ id: string; displayName: string }> {
+  const result = actor.type === 'booker'
+    ? await client.query<any>(
+        `SELECT id::text, display_name FROM plan_participants
+          WHERE holiday_plan_id = $1 AND booking_id = $2 AND role = 'owner' AND revoked_at IS NULL`,
+        [planInternalId, actor.bookingId],
+      )
+    : await client.query<any>(
+        `SELECT id::text, display_name FROM plan_participants
+          WHERE id = $1 AND holiday_plan_id = $2 AND participant_type = 'guest' AND revoked_at IS NULL`,
+        [actor.participantId, planInternalId],
+      );
+  if (!result.rowCount) throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+  return { id: result.rows[0].id, displayName: result.rows[0].display_name };
+}
+
+export async function offerGuideContribution(input: {
+  planId: string;
+  itemId: string;
+  expectedRevision: number;
+  offeredTitle: string;
+  offeredDescription?: string;
+  offeredLocationText?: string | null;
+  consent: boolean;
+  attributionPermitted: boolean;
+  actor: BookerPlanActor | Extract<PlannerRevisionActor, { type: 'participant' }>;
+}, database: Database = getPool()): Promise<{ candidateId: string; revision: number }> {
+  if (input.consent !== true) throw new PlannerError('VALIDATION_ERROR', 'Explicit contribution consent is required.');
+  const offeredTitle = requireText(input.offeredTitle, 'Contribution title', 200);
+  const offeredDescription = input.offeredDescription?.trim() ?? '';
+  if (offeredDescription.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Contribution description is too long.');
+  const offeredLocationText = optionalText(input.offeredLocationText, 'Contribution location', 500);
+  try {
+    const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+      const submitter = await contributionSubmitter(client, internalId, input.actor);
+      const item = await client.query<{ id: string | number; title: string }>(
+        `SELECT i.id, i.title FROM plan_items i
+          JOIN plan_days d ON d.id = i.plan_day_id
+         WHERE i.public_id = $1::uuid AND d.holiday_plan_id = $2 AND i.local_guide_slug IS NULL
+           AND EXISTS (
+             SELECT 1 FROM plan_revisions r
+              WHERE r.holiday_plan_id = $2 AND r.action = 'item_added'
+                AND r.changes->>'itemId' = i.public_id::text
+                AND (($4 = 'participant' AND r.participant_id = $3)
+                  OR ($4 = 'booker' AND r.actor_type = 'guest' AND r.participant_id IS NULL))
+           )`,
+        [validatePublicId(input.itemId, 'Plan item identifier'), internalId, submitter.id, input.actor.type],
+      );
+      if (!item.rowCount) throw new PlannerError('VALIDATION_ERROR', 'Only a custom activity you added can be offered.');
+      const created = await client.query<{ public_id: string }>(
+        `INSERT INTO guide_contribution_candidates
+           (holiday_plan_id, plan_item_id, submitted_by_participant_id, offered_title,
+            offered_description, offered_location_text, consent_version, consent_statement,
+            attribution_permitted, attribution_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING public_id::text`,
+        [internalId, item.rows[0].id, submitter.id, offeredTitle, offeredDescription,
+          offeredLocationText, GUIDE_CONTRIBUTION_CONSENT_VERSION, GUIDE_CONTRIBUTION_CONSENT_STATEMENT, input.attributionPermitted,
+          input.attributionPermitted ? submitter.displayName : null],
+      );
+      return {
+        value: created.rows[0].public_id,
+        action: 'guide_contribution_offered',
+        summary: `Offered “${offeredTitle}” to the Local Guide.`,
+        changes: { candidateId: created.rows[0].public_id, itemId: input.itemId, attributionPermitted: input.attributionPermitted },
+      };
+    });
+    return { candidateId: result.value, revision: result.revision };
+  } catch (error) {
+    if ((error as { code?: string }).code === '23505') throw new PlannerError('VALIDATION_ERROR', 'This activity already has an active contribution.');
+    throw error;
+  }
+}
+
+export async function withdrawGuideContribution(input: {
+  planId: string;
+  candidateId: string;
+  expectedRevision: number;
+  actor: BookerPlanActor | Extract<PlannerRevisionActor, { type: 'participant' }>;
+}, database: Database = getPool()): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const submitter = await contributionSubmitter(client, internalId, input.actor);
+    const withdrawn = await client.query<{ offered_title: string }>(
+      `UPDATE guide_contribution_candidates SET status = 'withdrawn', withdrawn_at = NOW(), updated_at = NOW()
+        WHERE public_id = $1::uuid AND holiday_plan_id = $2
+          AND submitted_by_participant_id = $3 AND status = 'pending'
+        RETURNING offered_title`,
+      [validatePublicId(input.candidateId, 'Contribution identifier'), internalId, submitter.id],
+    );
+    if (!withdrawn.rowCount) throw new PlannerError('NOT_FOUND', 'Pending contribution not found.');
+    return { value: undefined, action: 'guide_contribution_withdrawn', summary: `Withdrew “${withdrawn.rows[0].offered_title}” from Local Guide review.`, changes: { candidateId: input.candidateId } };
+  });
+  return result.revision;
+}
+
+export async function listGuideContributions(
+  planId: string,
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<GuideContributionCandidate[]> {
+  const result = await database.query<any>(
+    `SELECT c.public_id::text, i.public_id::text AS item_id,
+            c.submitted_by_participant_id::text, pp.display_name AS submitted_by_name,
+            c.offered_title, c.offered_description, c.offered_location_text,
+            c.attribution_permitted, c.attribution_name, c.status, c.consented_at, c.withdrawn_at
+       FROM guide_contribution_candidates c
+       JOIN holiday_plans hp ON hp.id = c.holiday_plan_id
+       JOIN plan_participants pp ON pp.id = c.submitted_by_participant_id
+       LEFT JOIN plan_items i ON i.id = c.plan_item_id
+      WHERE hp.public_id = $1::uuid ORDER BY c.created_at DESC`,
+    [validatePublicId(planId, 'Plan identifier')],
+  );
+  return result.rows.map((row: any) => ({
+    id: row.public_id, itemId: row.item_id, submittedByParticipantId: row.submitted_by_participant_id,
+    submittedByName: row.submitted_by_name, offeredTitle: row.offered_title,
+    offeredDescription: row.offered_description, offeredLocationText: row.offered_location_text,
+    attributionPermitted: row.attribution_permitted, attributionName: row.attribution_name,
+    status: row.status, consentedAt: iso(row.consented_at), withdrawnAt: row.withdrawn_at ? iso(row.withdrawn_at) : null,
+  }));
 }
 
 export async function updateExamplePlan(

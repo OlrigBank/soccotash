@@ -16,10 +16,12 @@ import {
   getBookingLinkedPlanByBookingReference,
   invitePlanParticipant,
   listPlanParticipants,
+  listGuideContributions,
   listExamplePlans,
   listPublishedExamplePlans,
   movePlanDay,
   movePlanItem,
+  offerGuideContribution,
   publishExamplePlan,
   removePlanDay,
   removePlanItem,
@@ -31,6 +33,7 @@ import {
   updatePlanDay,
   updatePlanItem,
   unpublishExamplePlan,
+  withdrawGuideContribution,
   getPublishedExamplePlanBySlug,
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
@@ -510,6 +513,37 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(collaborativeHistory.find(entry => entry.action === 'participant_invited')?.actorDisplayName, 'Alex Booker');
     assert.equal(collaborativeHistory.find(entry => entry.action === 'day_updated')?.actorDisplayName, 'Sam Editor');
     assert.equal(collaborativeHistory.find(entry => entry.action === 'day_updated')?.participantId, participantActor.participantId);
+    await assert.rejects(
+      offerGuideContribution({ planId: bookingPlan.id, itemId: guestItem.itemId, expectedRevision: 10,
+        offeredTitle: 'Existing guide item', consent: true, attributionPermitted: false, actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    const recommendation = await addPlanItem({
+      planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 10,
+      title: 'Quiet riverside picnic', description: 'A peaceful spot beyond the old bridge.',
+      itemType: 'activity', locationText: 'River path', status: 'idea', actor: bookerActor,
+    }, applicationPool);
+    await assert.rejects(
+      offerGuideContribution({ planId: bookingPlan.id, itemId: recommendation.itemId, expectedRevision: 11,
+        offeredTitle: 'Quiet riverside picnic', consent: false, attributionPermitted: true, actor: bookerActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    const contribution = await offerGuideContribution({
+      planId: bookingPlan.id, itemId: recommendation.itemId, expectedRevision: 11,
+      offeredTitle: 'Quiet riverside picnic', offeredDescription: 'A peaceful spot beyond the old bridge.',
+      offeredLocationText: 'River path', consent: true, attributionPermitted: true, actor: bookerActor,
+    }, applicationPool);
+    assert.equal(contribution.revision, 12);
+    const candidates = await listGuideContributions(bookingPlan.id, applicationPool);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].offeredTitle, 'Quiet riverside picnic');
+    assert.equal(candidates[0].submittedByName, 'Alex Booker');
+    assert.equal(candidates[0].attributionName, 'Alex Booker');
+    assert.equal(candidates[0].status, 'pending');
+    assert.equal(await withdrawGuideContribution({
+      planId: bookingPlan.id, candidateId: contribution.candidateId, expectedRevision: 12, actor: bookerActor,
+    }, applicationPool), 13);
+    assert.equal((await listGuideContributions(bookingPlan.id, applicationPool))[0].status, 'withdrawn');
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings

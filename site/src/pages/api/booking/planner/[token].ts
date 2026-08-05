@@ -4,8 +4,8 @@ import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-
 import {
   addPlanDay, addPlanItem, changePlanParticipantRole, getBookingLinkedPlanByBookingReference, getHolidayPlan,
   invitePlanParticipant, movePlanDay, movePlanItem,
-  removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
-  updatePlanDay, updatePlanItem, revokePlanParticipant,
+  offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
+  updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
@@ -51,6 +51,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'inviteParticipant': result=await invitePlanParticipant({planId:plan.id,expectedRevision,displayName:text(input.displayName),email:text(input.email),role:text(input.role) as any,actor}); break;
       case 'changeParticipantRole': result={revision:await changePlanParticipantRole({planId:plan.id,participantId:text(input.participantId),expectedRevision,role:text(input.role) as any,actor})}; break;
       case 'revokeParticipant': result={revision:await revokePlanParticipant({planId:plan.id,participantId:text(input.participantId),expectedRevision,actor})}; break;
+      case 'offerGuideContribution': result=await offerGuideContribution({planId:plan.id,itemId:text(input.itemId),expectedRevision,offeredTitle:text(input.offeredTitle),offeredDescription:text(input.offeredDescription),offeredLocationText:nullable(input.offeredLocationText),consent:input.consent===true,attributionPermitted:input.attributionPermitted===true,actor}); break;
+      case 'withdrawGuideContribution': result={revision:await withdrawGuideContribution({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})}; break;
       default: return Response.json({error:'Planner action is invalid.'},{status:400});
     }
     return Response.json(result);

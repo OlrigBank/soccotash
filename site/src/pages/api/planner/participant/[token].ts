@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveParticipantCredential } from '../../../../lib/planner/participant-access.ts';
 import {
-  addPlanDay, addPlanItem, getHolidayPlan, movePlanDay, movePlanItem, removePlanDay,
-  removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem,
+  addPlanDay, addPlanItem, getHolidayPlan, movePlanDay, movePlanItem, offerGuideContribution, removePlanDay,
+  removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
@@ -25,6 +25,8 @@ export const POST:APIRoute=async({params,request})=>{
   const expectedRevision=Number(input.expectedRevision);
   const actor={type:'participant' as const,participantId:access.participantId,planId:access.planId,role:access.role};
   try{
+    if(input.action==='offerGuideContribution')return Response.json(await offerGuideContribution({planId:plan.id,itemId:text(input.itemId),expectedRevision,offeredTitle:text(input.offeredTitle),offeredDescription:text(input.offeredDescription),offeredLocationText:nullable(input.offeredLocationText),consent:input.consent===true,attributionPermitted:input.attributionPermitted===true,actor}));
+    if(input.action==='withdrawGuideContribution')return Response.json({revision:await withdrawGuideContribution({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})});
     if(access.role==='contributor'){
       if(input.action!=='addItem')return Response.json({error:'Contributors may propose activities but cannot change the plan structure.'},{status:403});
       const slug=nullable(input.localGuideSlug);if(slug)await requirePlannerGuideEntry(slug);
