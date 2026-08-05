@@ -8,6 +8,7 @@ const {
   description = 'Guest information and local guide for Olrig Bank.',
   showSidebar = true,
   robots = '',
+  analytics = true,
 } = Astro.props;
 
 const pageTitle = title === 'Olrig Bank' ? title : `${title} | Olrig Bank`;
@@ -25,7 +26,7 @@ const currentYear = new Date().getFullYear();
     {robots && <meta name="robots" content={robots} />}
     <title>{pageTitle}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <Analytics />
+    {analytics && <Analytics />}
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>

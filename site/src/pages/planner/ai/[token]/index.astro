@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import PlannerItinerary from '../../../../components/PlannerItinerary.astro';
+import { AI_COLLABORATION_INSTRUCTIONS as instructions } from '../../../../lib/planner/ai-instructions.ts';
+import { AI_PLAN_FORMAT, AI_PLAN_VERSION } from '../../../../lib/planner/ai-representation.ts';
+import { resolveAiCapabilityCredential } from '../../../../lib/planner/ai-capability-access.ts';
+import { getHolidayPlan } from '../../../../lib/planner/repository.ts';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+const token = String(Astro.params.token || '');
+const access = await resolveAiCapabilityCredential(token, true);
+if (!access) return new Response('AI collaboration not found.', { status: 404 });
+const plan = await getHolidayPlan(access.planId);
+if (!plan) return new Response('AI collaboration not found.', { status: 404 });
+const capabilityPath = `/planner/ai/${token}`;
+---
+<BaseLayout title={`AI collaboration · ${plan.title}`} description="Restricted Olrig Bank Holiday Planner collaboration." showSidebar={false} robots="noindex,nofollow,noarchive" analytics={false}>
+  <header class="hero"><p class="eyebrow">Temporary AI collaboration</p><h1>Help develop this holiday plan</h1><p>{instructions.purpose}</p></header>
+  <section class="booking-panel" aria-labelledby="machine-heading">
+    <h2 id="machine-heading">Machine-readable plan</h2>
+    <p>Format <code>{AI_PLAN_FORMAT}</code>, protocol version <code>{AI_PLAN_VERSION}</code>, current plan revision <strong>{plan.revision}</strong>.</p>
+    <p><a class="button" href={`${capabilityPath}/plan.json`}>Read plan JSON</a> <a class="button button--secondary" href={`${capabilityPath}/schema.json`}>Read JSON Schema</a></p>
+    <p>These URLs use the same temporary credential as this page. Do not reproduce, log or share them beyond the guest's chosen AI session.</p>
+  </section>
+  <section class="booking-panel"><h2>Instructions for the AI</h2><h3>You may</h3><ul>{instructions.may.map(item=><li>{item}</li>)}</ul><h3>You must</h3><ul>{instructions.must.map(item=><li>{item}</li>)}</ul><h3>You may not</h3><ul>{instructions.prohibited.map(item=><li>{item}</li>)}</ul></section>
+  <section class="booking-panel"><h2>Returning proposed changes</h2><p>Proposal submission is not enabled in this protocol increment. Develop suggestions with the guest, but do not attempt to POST changes or treat conversational output as an update to the live plan.</p><p>Only a later, schema-validated proposal endpoint and explicit guest approval can change this itinerary.</p></section>
+  <aside class="booking-panel"><strong>Restricted representation</strong><p>This page excludes booking credentials, contact and payment details, participants, private items, reservation notes, administrator notes and Local Guide consent.</p></aside>
+  <PlannerItinerary plan={plan} showPrintButton={false}/>
+</BaseLayout>
