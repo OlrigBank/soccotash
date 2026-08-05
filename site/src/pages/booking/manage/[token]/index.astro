@@ -405,6 +405,7 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
         <p><strong>{holidayPlan.title}</strong> is ready for {holidayPlan.startsOn} to {holidayPlan.endsOn}.</p>
         <p>{holidayPlan.days.length ? `${holidayPlan.days.length} planned ${holidayPlan.days.length === 1 ? 'day' : 'days'}` : 'This is an empty plan. Adding days and activities arrives in the next planner increment.'}</p>
         <p class="status-badge status-draft">Private · revision {holidayPlan.revision}</p>
+        <p><a class="button" href={`/booking/manage/${token}/planner/`}>Open holiday planner</a></p>
         {holidayPlan.days.length === 0 && publishedExamplePlans.length > 0 && <form method="post" class="booking-planner-copy-form">
           <input type="hidden" name="action" value="copy-example-plan" />
           <input type="hidden" name="expectedRevision" value={holidayPlan.revision} />

@@ -1,0 +1,60 @@
+import type { APIRoute } from 'astro';
+import { isSameOrigin } from '../../../../lib/admin/auth.ts';
+import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
+import {
+  addPlanDay, addPlanItem, getBookingLinkedPlanByBookingReference, movePlanDay, movePlanItem,
+  removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
+  updatePlanDay, updatePlanItem,
+} from '../../../../lib/planner/repository.ts';
+import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
+import { PlannerError } from '../../../../lib/planner/types.ts';
+
+export const prerender = false;
+type Input = Record<string, unknown>;
+const text = (value: unknown) => String(value ?? '');
+const nullable = (value: unknown) => text(value).trim() || null;
+
+export const POST: APIRoute = async ({ params, request }) => {
+  if (!isSameOrigin(request)) return Response.json({ error: 'Cross-site request forbidden.' }, { status: 403 });
+  const access = await resolveBookingAccessCredential(text(params.token), { recordUse: true, recordDenied: true });
+  if (!access.allowed) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
+  const plan = await getBookingLinkedPlanByBookingReference(access.reference);
+  if (!plan) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
+  const input = await request.json().catch(() => null) as Input | null;
+  if (!input) return Response.json({ error: 'A valid JSON request is required.' }, { status: 400 });
+  const expectedRevision = Number(input.expectedRevision);
+  const actor = { type: 'booker' as const, bookingId: access.bookingId };
+  try {
+    let result: Record<string, unknown>;
+    switch (input.action) {
+      case 'updatePlan': result = { revision: await updateBookingLinkedPlan({ planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),actor }) }; break;
+      case 'addDay': result = await addPlanDay({ planId:plan.id,expectedRevision,title:text(input.title),summary:text(input.summary),date:nullable(input.date),actor }); break;
+      case 'updateDay': result = { revision:await updatePlanDay({ planId:plan.id,dayId:text(input.dayId),expectedRevision,title:text(input.title),summary:text(input.summary),date:nullable(input.date),actor }) }; break;
+      case 'removeDay': result = { revision:await removePlanDay({ planId:plan.id,dayId:text(input.dayId),expectedRevision,actor }) }; break;
+      case 'moveDay':
+        if (!['up','down'].includes(text(input.direction))) throw new PlannerError('VALIDATION_ERROR','Move direction is invalid.');
+        result={revision:await movePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})}; break;
+      case 'addItem': {
+        const slug=nullable(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
+        result=await addPlanItem({ ...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideSlug:slug,actor }); break;
+      }
+      case 'updateItem': result={revision:await updatePlanItem({...item(input),planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
+      case 'removeItem': result={revision:await removePlanItem({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
+      case 'setGuideReference': {
+        const slug=nullable(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
+        result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideSlug:slug,expectedRevision,actor})}; break;
+      }
+      case 'moveItem':
+        if(!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');
+        result={revision:await movePlanItem({planId:plan.id,itemId:text(input.itemId),targetDayId:text(input.targetDayId),expectedRevision,position:text(input.position) as 'up'|'down'|'end',actor})}; break;
+      default: return Response.json({error:'Planner action is invalid.'},{status:400});
+    }
+    return Response.json(result);
+  } catch(error) {
+    if(error instanceof PlannerError) return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:error.code==='STALE_REVISION'?409:400});
+    console.error('Booker planner action failed', { action: input.action, bookingReference: access.reference });
+    return Response.json({error:'The planner action could not be completed.'},{status:500});
+  }
+};
+
+function item(input:Input){return {title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),status:text(input.status) as any,reservationNote:nullable(input.reservationNote),visibility:'participants' as const};}

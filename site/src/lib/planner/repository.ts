@@ -26,6 +26,10 @@ import {
 
 type Database = Pick<Pool, 'query' | 'connect'>;
 
+function actorAdminUserId(actor: PlannerRevisionActor): string | null {
+  return actor.type === 'administrator' ? actor.adminUserId : null;
+}
+
 function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
@@ -231,12 +235,17 @@ async function lockPlan(
   client: PoolClient,
   planId: string,
   expectedRevision: number,
+  actor: PlannerRevisionActor,
 ): Promise<{ internalId: string; revision: number }> {
-  const result = await client.query<{ id: string | number; revision: number }>(
-    'SELECT id, revision FROM holiday_plans WHERE public_id = $1::uuid FOR UPDATE',
+  const result = await client.query<{ id: string | number; revision: number; booking_id: string | number | null; plan_type: string }>(
+    'SELECT id, revision, booking_id, plan_type FROM holiday_plans WHERE public_id = $1::uuid FOR UPDATE',
     [validatePublicId(planId, 'Plan identifier')],
   );
   if (!result.rowCount) throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+  if (actor.type === 'booker'
+    && (result.rows[0].plan_type !== 'booking_linked' || String(result.rows[0].booking_id) !== actor.bookingId)) {
+    throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+  }
   if (result.rows[0].revision !== expectedRevision) {
     throw new PlannerError('STALE_REVISION', 'The holiday plan has changed. Reload it before saving.');
   }
@@ -247,7 +256,7 @@ async function finishMutation(
   client: PoolClient,
   planInternalId: string,
   currentRevision: number,
-  actor: PlanActor,
+  actor: PlannerRevisionActor,
   action: string,
   summary: string,
   changes: Record<string, unknown>,
@@ -257,7 +266,7 @@ async function finishMutation(
     `UPDATE holiday_plans
         SET revision = $2, updated_by_admin_user_id = $3, updated_at = NOW()
       WHERE id = $1`,
-    [planInternalId, revision, actor.adminUserId],
+    [planInternalId, revision, actorAdminUserId(actor)],
   );
   await recordRevision(client, planInternalId, revision, actor, action, summary, changes);
   return revision;
@@ -314,7 +323,7 @@ export async function createExamplePlan(
 }
 
 export async function addPlanDay(
-  input: { planId: string; expectedRevision: number; title: string; summary?: string; date?: string | null; actor: PlanActor },
+  input: { planId: string; expectedRevision: number; title: string; summary?: string; date?: string | null; actor: PlannerRevisionActor },
   database: Database = getPool(),
 ): Promise<{ dayId: string; revision: number }> {
   const title = requireText(input.title, 'Day title', 160);
@@ -324,7 +333,7 @@ export async function addPlanDay(
   const client = await database.connect();
   try {
     await client.query('BEGIN');
-    const plan = await lockPlan(client, input.planId, input.expectedRevision);
+    const plan = await lockPlan(client, input.planId, input.expectedRevision, input.actor);
     await requireCompatibleDayDate(client, plan.internalId, dayDate);
     const created = await client.query<{ public_id: string }>(
       `INSERT INTO plan_days
@@ -332,7 +341,7 @@ export async function addPlanDay(
        VALUES ($1, $2::date, $3, $4,
          COALESCE((SELECT max(position) + 10 FROM plan_days WHERE holiday_plan_id = $1), 10), $5, $5)
        RETURNING public_id::text`,
-      [plan.internalId, dayDate, title, summary, input.actor.adminUserId],
+      [plan.internalId, dayDate, title, summary, actorAdminUserId(input.actor)],
     );
     const revision = await finishMutation(client, plan.internalId, plan.revision, input.actor, 'day_added', `Added day “${title}”.`, { dayId: created.rows[0].public_id, title });
     await client.query('COMMIT');
@@ -360,7 +369,7 @@ export async function addPlanItem(
     status?: PlanItemStatus;
     reservationNote?: string | null;
     visibility?: PlanItemVisibility;
-    actor: PlanActor;
+    actor: PlannerRevisionActor;
   },
   database: Database = getPool(),
 ): Promise<{ itemId: string; revision: number }> {
@@ -380,7 +389,7 @@ export async function addPlanItem(
   const client = await database.connect();
   try {
     await client.query('BEGIN');
-    const plan = await lockPlan(client, input.planId, input.expectedRevision);
+    const plan = await lockPlan(client, input.planId, input.expectedRevision, input.actor);
     const created = await client.query<{ public_id: string }>(
       `INSERT INTO plan_items
          (plan_day_id, title, description, item_type, start_time, end_time, location_text,
@@ -395,7 +404,7 @@ export async function addPlanItem(
       [validatePublicId(input.dayId, 'Plan day identifier'), plan.internalId, title, description, input.itemType, startTime,
         endTime, optionalText(input.locationText, 'Location', 500),
         validateGuideSlug(input.localGuideSlug), status,
-        optionalText(input.reservationNote, 'Reservation note', 3000), visibility, input.actor.adminUserId],
+        optionalText(input.reservationNote, 'Reservation note', 3000), visibility, actorAdminUserId(input.actor)],
     );
     if (!created.rowCount) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
     const revision = await finishMutation(client, plan.internalId, plan.revision, input.actor, 'item_added', `Added item “${title}”.`, { dayId: input.dayId, itemId: created.rows[0].public_id, title });
@@ -509,13 +518,13 @@ async function mutatePlan<T>(
   database: Database,
   planId: string,
   expectedRevision: number,
-  actor: PlanActor,
+  actor: PlannerRevisionActor,
   mutation: (context: MutationContext) => Promise<{ value: T; action: string; summary: string; changes: Record<string, unknown> }>,
 ): Promise<{ value: T; revision: number }> {
   const client = await database.connect();
   try {
     await client.query('BEGIN');
-    const plan = await lockPlan(client, planId, expectedRevision);
+    const plan = await lockPlan(client, planId, expectedRevision, actor);
     const result = await mutation({ client, internalId: plan.internalId, revision: plan.revision });
     const revision = await finishMutation(client, plan.internalId, plan.revision, actor, result.action, result.summary, result.changes);
     await client.query('COMMIT');
@@ -561,6 +570,25 @@ export async function updateExamplePlan(
     );
     if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Editable example plan not found.');
     return { value: undefined, action: 'plan_updated', summary: `Updated example plan “${title}”.`, changes: { title, startsOn, endsOn, durationDays } };
+  });
+  return result.revision;
+}
+
+export async function updateBookingLinkedPlan(
+  input: { planId: string; expectedRevision: number; title: string; description?: string; actor: PlannerRevisionActor },
+  database: Database = getPool(),
+): Promise<number> {
+  const title = requireText(input.title, 'Plan title', 160, 3);
+  const description = input.description?.trim() ?? '';
+  if (description.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Plan description is too long.');
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const updated = await client.query(
+      `UPDATE holiday_plans SET title = $2, description = $3
+        WHERE id = $1 AND plan_type = 'booking_linked' AND archived_at IS NULL`,
+      [internalId, title, description],
+    );
+    if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Booking holiday plan not found.');
+    return { value: undefined, action: 'booking_plan_updated', summary: `Updated holiday plan “${title}”.`, changes: { title } };
   });
   return result.revision;
 }
@@ -695,7 +723,7 @@ async function requireCompatibleDayDate(client: PoolClient, planInternalId: stri
 }
 
 export async function updatePlanDay(
-  input: { planId: string; dayId: string; expectedRevision: number; title: string; summary?: string; date?: string | null; actor: PlanActor },
+  input: { planId: string; dayId: string; expectedRevision: number; title: string; summary?: string; date?: string | null; actor: PlannerRevisionActor },
   database: Database = getPool(),
 ): Promise<number> {
   const title = requireText(input.title, 'Day title', 160);
@@ -708,7 +736,7 @@ export async function updatePlanDay(
       `UPDATE plan_days SET title = $3, summary = $4, day_date = $5::date,
          updated_by_admin_user_id = $6, updated_at = NOW()
        WHERE public_id = $1::uuid AND holiday_plan_id = $2`,
-      [validatePublicId(input.dayId, 'Plan day identifier'), internalId, title, summary, dayDate, input.actor.adminUserId],
+      [validatePublicId(input.dayId, 'Plan day identifier'), internalId, title, summary, dayDate, actorAdminUserId(input.actor)],
     );
     if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
     return { value: undefined, action: 'day_updated', summary: `Updated day “${title}”.`, changes: { dayId: input.dayId, title, date: dayDate } };
@@ -717,7 +745,7 @@ export async function updatePlanDay(
 }
 
 export async function removePlanDay(
-  input: { planId: string; dayId: string; expectedRevision: number; actor: PlanActor },
+  input: { planId: string; dayId: string; expectedRevision: number; actor: PlannerRevisionActor },
   database: Database = getPool(),
 ): Promise<number> {
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
@@ -732,7 +760,7 @@ export async function removePlanDay(
 }
 
 export async function movePlanDay(
-  input: { planId: string; dayId: string; expectedRevision: number; direction: 'up' | 'down'; actor: PlanActor },
+  input: { planId: string; dayId: string; expectedRevision: number; direction: 'up' | 'down'; actor: PlannerRevisionActor },
   database: Database = getPool(),
 ): Promise<number> {
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
@@ -777,7 +805,7 @@ function validatedItem(input: ItemInput) {
 }
 
 export async function updatePlanItem(input: ItemInput & {
-  planId: string; itemId: string; expectedRevision: number; actor: PlanActor;
+  planId: string; itemId: string; expectedRevision: number; actor: PlannerRevisionActor;
 }, database: Database = getPool()): Promise<number> {
   const item = validatedItem(input);
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
@@ -790,12 +818,12 @@ export async function updatePlanItem(input: ItemInput & {
     await client.query(`UPDATE plan_items SET title=$2,description=$3,item_type=$4,start_time=$5::time,
       end_time=$6::time,location_text=$7,status=$8,reservation_note=$9,visibility=$10,
       updated_by_admin_user_id=$11,updated_at=NOW() WHERE public_id=$1::uuid`,
-      [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.status,item.reservationNote,item.visibility,input.actor.adminUserId]);
+      [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.status,item.reservationNote,item.visibility,actorAdminUserId(input.actor)]);
     return { value: undefined, action:'item_updated', summary:`Updated item “${item.title}”.`, changes:{itemId:input.itemId,status:item.status} };
   }); return result.revision;
 }
 
-export async function removePlanItem(input:{planId:string;itemId:string;expectedRevision:number;actor:PlanActor}, database:Database=getPool()):Promise<number>{
+export async function removePlanItem(input:{planId:string;itemId:string;expectedRevision:number;actor:PlannerRevisionActor}, database:Database=getPool()):Promise<number>{
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
     const removed=await client.query<{title:string}>(`DELETE FROM plan_items i USING plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2 RETURNING i.title`,[validatePublicId(input.itemId,'Plan item identifier'),internalId]);
     if(!removed.rowCount) throw new PlannerError('NOT_FOUND','Plan item not found.');
@@ -803,16 +831,16 @@ export async function removePlanItem(input:{planId:string;itemId:string;expected
   }); return result.revision;
 }
 
-export async function setPlanItemGuideReference(input:{planId:string;itemId:string;localGuideSlug:string|null;expectedRevision:number;actor:PlanActor},database:Database=getPool()):Promise<number>{
+export async function setPlanItemGuideReference(input:{planId:string;itemId:string;localGuideSlug:string|null;expectedRevision:number;actor:PlannerRevisionActor},database:Database=getPool()):Promise<number>{
   const slug=validateGuideSlug(input.localGuideSlug);
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
-    const updated=await client.query(`UPDATE plan_items i SET local_guide_slug=$3,updated_by_admin_user_id=$4,updated_at=NOW() FROM plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2`,[validatePublicId(input.itemId,'Plan item identifier'),internalId,slug,input.actor.adminUserId]);
+    const updated=await client.query(`UPDATE plan_items i SET local_guide_slug=$3,updated_by_admin_user_id=$4,updated_at=NOW() FROM plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2`,[validatePublicId(input.itemId,'Plan item identifier'),internalId,slug,actorAdminUserId(input.actor)]);
     if(!updated.rowCount) throw new PlannerError('NOT_FOUND','Plan item not found.');
     return {value:undefined,action:slug?'guide_reference_attached':'guide_reference_detached',summary:slug?`Linked plan item to Local Guide entry “${slug}”.`:'Detached Local Guide reference.',changes:{itemId:input.itemId,localGuideSlug:slug}};
   });return result.revision;
 }
 
-export async function movePlanItem(input:{planId:string;itemId:string;targetDayId:string;expectedRevision:number;position:'up'|'down'|'end';actor:PlanActor},database:Database=getPool()):Promise<number>{
+export async function movePlanItem(input:{planId:string;itemId:string;targetDayId:string;expectedRevision:number;position:'up'|'down'|'end';actor:PlannerRevisionActor},database:Database=getPool()):Promise<number>{
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
     const rows=await client.query<any>(`SELECT i.id,i.public_id::text,i.plan_day_id,i.position FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE d.holiday_plan_id=$1 ORDER BY i.plan_day_id,i.position FOR UPDATE OF i`,[internalId]);
     const current=rows.rows.find((r:any)=>r.public_id===validatePublicId(input.itemId,'Plan item identifier'));
