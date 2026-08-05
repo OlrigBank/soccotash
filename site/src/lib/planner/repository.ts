@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { createParticipantCredential } from './participant-access.ts';
 import { getPool } from '../booking/db.ts';
 import {
   PLAN_ITEM_STATUSES,
@@ -14,6 +15,7 @@ import {
   validateItemStatusTransition,
   type HolidayPlan,
   type HolidayPlanSummary,
+  type BookerPlanActor,
   type PlanActor,
   type PlannerRevisionActor,
   type PlanDay,
@@ -26,8 +28,21 @@ import {
 
 type Database = Pick<Pool, 'query' | 'connect'>;
 
+export type PlanParticipant = {
+  id: string;
+  displayName: string;
+  email: string | null;
+  role: 'owner' | 'editor' | 'contributor' | 'viewer';
+  acceptedAt: string | null;
+  revokedAt: string | null;
+};
+
 function actorAdminUserId(actor: PlannerRevisionActor): string | null {
   return actor.type === 'administrator' ? actor.adminUserId : null;
+}
+
+function actorParticipantId(actor: PlannerRevisionActor): string | null {
+  return actor.type === 'participant' ? actor.participantId : null;
 }
 
 function iso(value: Date | string): string {
@@ -55,10 +70,10 @@ async function recordRevision(
   const administrator = actor.type === 'administrator';
   await client.query(
     `INSERT INTO plan_revisions
-       (holiday_plan_id, revision, actor_type, admin_user_id, source, action, summary, changes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+       (holiday_plan_id, revision, actor_type, admin_user_id, participant_id, source, action, summary, changes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
     [planInternalId, revision, administrator ? 'administrator' : 'guest',
-      administrator ? actor.adminUserId : null, administrator ? 'admin' : 'guest',
+      administrator ? actor.adminUserId : null, actorParticipantId(actor), administrator ? 'admin' : 'guest',
       action, summary, JSON.stringify(changes)],
   );
 }
@@ -245,6 +260,18 @@ async function lockPlan(
   if (actor.type === 'booker'
     && (result.rows[0].plan_type !== 'booking_linked' || String(result.rows[0].booking_id) !== actor.bookingId)) {
     throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+  }
+  if (actor.type === 'participant') {
+    if (actor.planId !== planId || result.rows[0].plan_type !== 'booking_linked') {
+      throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+    }
+    const participant = await client.query(
+      `SELECT 1 FROM plan_participants
+        WHERE id = $1 AND holiday_plan_id = $2 AND role = $3
+          AND participant_type = 'guest' AND revoked_at IS NULL`,
+      [actor.participantId, result.rows[0].id, actor.role],
+    );
+    if (!participant.rowCount) throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
   }
   if (result.rows[0].revision !== expectedRevision) {
     throw new PlannerError('STALE_REVISION', 'The holiday plan has changed. Reload it before saving.');
@@ -443,6 +470,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
   const revisions: PlanRevision[] = revisionsResult.rows.map((revisionRow: any) => ({
     revision: revisionRow.revision, actorType: revisionRow.actor_type,
     adminUserId: revisionRow.admin_user_id == null ? null : String(revisionRow.admin_user_id),
+    participantId: revisionRow.participant_id == null ? null : String(revisionRow.participant_id),
     source: revisionRow.source, action: revisionRow.action, summary: revisionRow.summary,
     changes: revisionRow.changes, createdAt: iso(revisionRow.created_at),
   }));
@@ -535,6 +563,122 @@ async function mutatePlan<T>(
   } finally {
     client.release();
   }
+}
+
+export async function listPlanParticipants(
+  planId: string,
+  bookingId: string,
+  database: Pick<Pool, 'query'> = getPool(),
+): Promise<PlanParticipant[]> {
+  const result = await database.query<any>(
+    `SELECT pp.public_id::text, pp.display_name, pp.invited_email, pp.role,
+            pp.accepted_at, pp.revoked_at
+       FROM plan_participants pp
+       JOIN holiday_plans hp ON hp.id = pp.holiday_plan_id
+      WHERE hp.public_id = $1::uuid AND hp.booking_id = $2
+      ORDER BY (pp.role = 'owner') DESC, pp.created_at`,
+    [validatePublicId(planId, 'Plan identifier'), bookingId],
+  );
+  return result.rows.map((row: any) => ({
+    id: row.public_id,
+    displayName: row.display_name,
+    email: row.invited_email,
+    role: row.role,
+    acceptedAt: row.accepted_at ? iso(row.accepted_at) : null,
+    revokedAt: row.revoked_at ? iso(row.revoked_at) : null,
+  }));
+}
+
+export async function invitePlanParticipant(input: {
+  planId: string;
+  expectedRevision: number;
+  displayName: string;
+  email: string;
+  role: 'editor' | 'contributor' | 'viewer';
+  actor: BookerPlanActor;
+}, database: Database = getPool()): Promise<{ participantId: string; token: string; revision: number }> {
+  const displayName = requireText(input.displayName, 'Participant name', 160);
+  const email = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    throw new PlannerError('VALIDATION_ERROR', 'Participant email address is invalid.');
+  }
+  if (!['editor', 'contributor', 'viewer'].includes(input.role)) {
+    throw new PlannerError('VALIDATION_ERROR', 'Participant role is invalid.');
+  }
+  const credential = createParticipantCredential();
+  try {
+    const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+      const owner = await client.query<{ id: string | number }>(
+        `SELECT id FROM plan_participants
+          WHERE holiday_plan_id = $1 AND booking_id = $2 AND role = 'owner' AND revoked_at IS NULL`,
+        [internalId, input.actor.bookingId],
+      );
+      if (!owner.rowCount) throw new PlannerError('NOT_FOUND', 'Holiday plan not found.');
+      const created = await client.query<{ public_id: string }>(
+        `INSERT INTO plan_participants
+           (holiday_plan_id, role, participant_type, booking_id, display_name,
+            invited_email, access_token_hash, invited_by_participant_id)
+         VALUES ($1, $2, 'guest', $3, $4, $5, $6, $7)
+         RETURNING public_id::text`,
+        [internalId, input.role, input.actor.bookingId, displayName, email, credential.hash, owner.rows[0].id],
+      );
+      return {
+        value: { participantId: created.rows[0].public_id },
+        action: 'participant_invited',
+        summary: `Invited ${displayName} as ${input.role}.`,
+        changes: { participantId: created.rows[0].public_id, displayName, role: input.role },
+      };
+    });
+    return { ...result.value, token: credential.token, revision: result.revision };
+  } catch (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw new PlannerError('VALIDATION_ERROR', 'That email address already has an active invitation.');
+    }
+    throw error;
+  }
+}
+
+export async function changePlanParticipantRole(input: {
+  planId: string;
+  participantId: string;
+  expectedRevision: number;
+  role: 'editor' | 'contributor' | 'viewer';
+  actor: BookerPlanActor;
+}, database: Database = getPool()): Promise<number> {
+  if (!['editor', 'contributor', 'viewer'].includes(input.role)) throw new PlannerError('VALIDATION_ERROR', 'Participant role is invalid.');
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const updated = await client.query<{ display_name: string }>(
+      `UPDATE plan_participants SET role = $3
+        WHERE public_id = $1::uuid AND holiday_plan_id = $2
+          AND participant_type = 'guest' AND role <> 'owner' AND revoked_at IS NULL
+        RETURNING display_name`,
+      [validatePublicId(input.participantId, 'Participant identifier'), internalId, input.role],
+    );
+    if (!updated.rowCount) throw new PlannerError('NOT_FOUND', 'Participant not found.');
+    return { value: undefined, action: 'participant_role_changed', summary: `Changed ${updated.rows[0].display_name} to ${input.role}.`, changes: { participantId: input.participantId, role: input.role } };
+  });
+  return result.revision;
+}
+
+export async function revokePlanParticipant(input: {
+  planId: string;
+  participantId: string;
+  expectedRevision: number;
+  actor: BookerPlanActor;
+}, database: Database = getPool()): Promise<number> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const revoked = await client.query<{ display_name: string }>(
+      `UPDATE plan_participants
+          SET revoked_at = NOW(), access_token_hash = NULL
+        WHERE public_id = $1::uuid AND holiday_plan_id = $2
+          AND participant_type = 'guest' AND role <> 'owner' AND revoked_at IS NULL
+        RETURNING display_name`,
+      [validatePublicId(input.participantId, 'Participant identifier'), internalId],
+    );
+    if (!revoked.rowCount) throw new PlannerError('NOT_FOUND', 'Participant not found.');
+    return { value: undefined, action: 'participant_revoked', summary: `Revoked ${revoked.rows[0].display_name}'s planner access.`, changes: { participantId: input.participantId } };
+  });
+  return result.revision;
 }
 
 export async function updateExamplePlan(

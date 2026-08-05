@@ -2,9 +2,10 @@ import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
-  addPlanDay, addPlanItem, getBookingLinkedPlanByBookingReference, movePlanDay, movePlanItem,
+  addPlanDay, addPlanItem, changePlanParticipantRole, getBookingLinkedPlanByBookingReference,
+  invitePlanParticipant, movePlanDay, movePlanItem,
   removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
-  updatePlanDay, updatePlanItem,
+  updatePlanDay, updatePlanItem, revokePlanParticipant,
 } from '../../../../lib/planner/repository.ts';
 import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
@@ -47,6 +48,9 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'moveItem':
         if(!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');
         result={revision:await movePlanItem({planId:plan.id,itemId:text(input.itemId),targetDayId:text(input.targetDayId),expectedRevision,position:text(input.position) as 'up'|'down'|'end',actor})}; break;
+      case 'inviteParticipant': result=await invitePlanParticipant({planId:plan.id,expectedRevision,displayName:text(input.displayName),email:text(input.email),role:text(input.role) as any,actor}); break;
+      case 'changeParticipantRole': result={revision:await changePlanParticipantRole({planId:plan.id,participantId:text(input.participantId),expectedRevision,role:text(input.role) as any,actor})}; break;
+      case 'revokeParticipant': result={revision:await revokePlanParticipant({planId:plan.id,participantId:text(input.participantId),expectedRevision,actor})}; break;
       default: return Response.json({error:'Planner action is invalid.'},{status:400});
     }
     return Response.json(result);

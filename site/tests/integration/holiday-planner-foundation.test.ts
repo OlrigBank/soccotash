@@ -14,6 +14,8 @@ import {
   duplicateExamplePlan,
   getHolidayPlan,
   getBookingLinkedPlanByBookingReference,
+  invitePlanParticipant,
+  listPlanParticipants,
   listExamplePlans,
   listPublishedExamplePlans,
   movePlanDay,
@@ -21,15 +23,18 @@ import {
   publishExamplePlan,
   removePlanDay,
   removePlanItem,
+  revokePlanParticipant,
   setPlanItemGuideReference,
   updateExamplePlan,
   updateBookingLinkedPlan,
+  changePlanParticipantRole,
   updatePlanDay,
   updatePlanItem,
   unpublishExamplePlan,
   getPublishedExamplePlanBySlug,
 } from '../../src/lib/planner/repository.ts';
 import { PlannerError } from '../../src/lib/planner/types.ts';
+import { resolveParticipantCredential } from '../../src/lib/planner/participant-access.ts';
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
@@ -461,6 +466,46 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(editedBookingPlan?.revision, 6);
     assert.equal(editedBookingPlan?.revisions.at(-1)?.actorType, 'guest');
     assert.equal(editedBookingPlan?.revisions.at(-1)?.action, 'item_updated');
+    const invitation = await invitePlanParticipant({
+      planId: bookingPlan.id, expectedRevision: 6, displayName: 'Sam Editor',
+      email: 'sam@example.invalid', role: 'editor', actor: bookerActor,
+    }, applicationPool);
+    assert.match(invitation.token, /^[A-Za-z0-9_-]{43}$/);
+    const storedInvitation = await applicationPool.query(
+      `SELECT access_token_hash, invited_email FROM plan_participants WHERE public_id = $1::uuid`,
+      [invitation.participantId],
+    );
+    assert.notEqual(storedInvitation.rows[0].access_token_hash, invitation.token);
+    assert.equal(storedInvitation.rows[0].access_token_hash, crypto.createHash('sha256').update(invitation.token).digest('hex'));
+    const invitedAccess = await resolveParticipantCredential(invitation.token, true, applicationPool);
+    assert.equal(invitedAccess?.role, 'editor');
+    assert.equal(invitedAccess?.planId, bookingPlan.id);
+    assert.equal((await listPlanParticipants(bookingPlan.id, bookingRow.id, applicationPool)).length, 2);
+    const participantActor = { type: 'participant' as const, participantId: String((await applicationPool.query(
+      `SELECT id::text FROM plan_participants WHERE public_id = $1::uuid`, [invitation.participantId],
+    )).rows[0].id), planId: bookingPlan.id, role: 'editor' as const };
+    assert.equal(await updatePlanDay({
+      planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 7,
+      title: 'Lake District with Sam', date: '2026-10-11', actor: participantActor,
+    }, applicationPool), 8);
+    assert.equal(await changePlanParticipantRole({
+      planId: bookingPlan.id, participantId: invitation.participantId,
+      expectedRevision: 8, role: 'viewer', actor: bookerActor,
+    }, applicationPool), 9);
+    await assert.rejects(
+      updateBookingLinkedPlan({ planId: bookingPlan.id, expectedRevision: 9,
+        title: 'Stale participant role', actor: participantActor }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    assert.equal(await revokePlanParticipant({
+      planId: bookingPlan.id, participantId: invitation.participantId,
+      expectedRevision: 9, actor: bookerActor,
+    }, applicationPool), 10);
+    assert.equal((await applicationPool.query(
+      `SELECT access_token_hash IS NULL AS erased, revoked_at IS NOT NULL AS revoked
+         FROM plan_participants WHERE public_id = $1::uuid`, [invitation.participantId],
+    )).rows[0].erased, true);
+    assert.equal(await resolveParticipantCredential(invitation.token, false, applicationPool), null);
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings

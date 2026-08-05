@@ -22,12 +22,22 @@ export type BookerPlanActor = {
   bookingId: string;
 };
 
-export type PlannerRevisionActor = PlanActor | BookerPlanActor;
+export type ParticipantRole = 'owner' | 'editor' | 'contributor' | 'viewer';
+
+export type ParticipantPlanActor = {
+  type: 'participant';
+  participantId: string;
+  planId: string;
+  role: Exclude<ParticipantRole, 'owner'>;
+};
+
+export type PlannerRevisionActor = PlanActor | BookerPlanActor | ParticipantPlanActor;
 
 export type PlanRevision = {
   revision: number;
   actorType: 'administrator' | 'guest' | 'external_ai' | 'system';
   adminUserId: string | null;
+  participantId: string | null;
   source: 'admin' | 'guest' | 'external_ai_proposal' | 'system';
   action: string;
   summary: string;
