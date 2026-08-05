@@ -10,6 +10,7 @@ import {
   archiveExamplePlan,
   createExamplePlan,
   createBookingLinkedPlan,
+  copyPublishedExampleIntoBookingPlan,
   duplicateExamplePlan,
   getHolidayPlan,
   getBookingLinkedPlanByBookingReference,
@@ -308,7 +309,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
       publishExamplePlan({ planId: publishable.id, expectedRevision: 2, actor }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
     );
-    await addPlanItem({
+    const publicItem = await addPlanItem({
       planId: publishable.id, dayId: publicDay.dayId, expectedRevision: 2, title: 'Kendal Castle',
       description: 'Walk from Olrig Bank.', itemType: 'activity', localGuideSlug: 'kendalcastle', actor,
     }, applicationPool);
@@ -386,6 +387,47 @@ test('persists structured plans and makes every mutation an atomic revision', as
       }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
     );
+    await assert.rejects(
+      copyPublishedExampleIntoBookingPlan({
+        bookingReference: bookingRow.public_id, sourcePlanId: publishable.id, expectedRevision: 1,
+        actor: { type: 'booker', bookingId: '999999' },
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
+    assert.equal(await updatePlanItem({
+      planId: publishable.id, itemId: publicItem.itemId, expectedRevision: 7,
+      title: 'Source template castle visit', description: 'Independent source wording.',
+      itemType: 'activity', status: 'proposed', reservationNote: 'Administrator-only template note',
+      visibility: 'participants', actor,
+    }, applicationPool), 8);
+    const copiedBookingPlan = await copyPublishedExampleIntoBookingPlan({
+      bookingReference: bookingRow.public_id, sourcePlanId: publishable.id, expectedRevision: 1,
+      actor: { type: 'booker', bookingId: bookingRow.id },
+    }, applicationPool);
+    assert.equal(copiedBookingPlan.revision, 2);
+    assert.equal(copiedBookingPlan.days.length, 1);
+    assert.equal(copiedBookingPlan.days[0].date, '2026-10-10');
+    assert.notEqual(copiedBookingPlan.days[0].id, publicDay.dayId);
+    assert.notEqual(copiedBookingPlan.days[0].items[0].id, publicItem.itemId);
+    assert.equal(copiedBookingPlan.days[0].items[0].title, 'Source template castle visit');
+    assert.equal(copiedBookingPlan.days[0].items[0].localGuideSlug, 'kendalcastle');
+    assert.equal(copiedBookingPlan.days[0].items[0].status, 'idea');
+    assert.equal(copiedBookingPlan.days[0].items[0].visibility, 'participants');
+    assert.equal(copiedBookingPlan.days[0].items[0].reservationNote, null);
+    assert.equal(copiedBookingPlan.revisions.at(-1)?.action, 'example_plan_copied');
+    await assert.rejects(
+      copyPublishedExampleIntoBookingPlan({
+        bookingReference: bookingRow.public_id, sourcePlanId: publishable.id, expectedRevision: 2,
+        actor: { type: 'booker', bookingId: bookingRow.id },
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    assert.equal(await updatePlanItem({
+      planId: publishable.id, itemId: publicItem.itemId, expectedRevision: 8,
+      title: 'Source changed later', itemType: 'activity', status: 'proposed', visibility: 'participants', actor,
+    }, applicationPool), 9);
+    assert.equal((await getBookingLinkedPlanByBookingReference(bookingRow.public_id, applicationPool))?.days[0].items[0].title,
+      'Source template castle visit', 'the booking copy must remain independent');
 
     const pendingBooking = await applicationPool.query(
       `INSERT INTO provisional_bookings
@@ -417,6 +459,14 @@ test('persists structured plans and makes every mutation an atomic revision', as
         WHERE provisional_booking_id = $1 AND event_type = 'holiday_plan_created'`, [adminBooking.rows[0].id],
     );
     assert.deepEqual(adminActivity.rows, [{ actor: 'administrator', admin_user_id: actor.adminUserId }]);
+    assert.equal(await unpublishExamplePlan({ planId: publishable.id, expectedRevision: 9, actor }, applicationPool), 10);
+    await assert.rejects(
+      copyPublishedExampleIntoBookingPlan({
+        bookingReference: adminBooking.rows[0].public_id, sourcePlanId: publishable.id,
+        expectedRevision: adminCreatedPlan.revision, actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
+    );
   } finally {
     await applicationPool.end();
     await controlPool.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);

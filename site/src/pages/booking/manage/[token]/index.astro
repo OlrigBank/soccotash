@@ -38,7 +38,7 @@ import {
   getBookingManagementRecipients,
   getEmailConfiguration,
 } from '../../../../lib/email/sender';
-import { createBookingLinkedPlan, getBookingLinkedPlanByBookingReference } from '../../../../lib/planner/repository.ts';
+import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, getBookingLinkedPlanByBookingReference, listPublishedExamplePlans } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 
 export const prerender = false;
@@ -66,13 +66,26 @@ let responseError = '';
 let messageError = '';
 let responseResult: CustomerOfferResponseResult | null = null;
 const holidayPlan = await getBookingLinkedPlanByBookingReference(offer.bookingReference);
+const publishedExamplePlans = holidayPlan && holidayPlan.days.length === 0 ? await listPublishedExamplePlans() : [];
 
 if (Astro.request.method === 'POST') {
   // The unguessable token in this URL is the authorisation credential for the Booker.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
-  if (action === 'create-holiday-plan') {
+  if (action === 'copy-example-plan') {
+    try {
+      await copyPublishedExampleIntoBookingPlan({
+        bookingReference: offer.bookingReference,
+        sourcePlanId: String(form.get('sourcePlanId') || ''),
+        expectedRevision: Number(form.get('expectedRevision')),
+        actor: { type: 'booker', bookingId: access.bookingId },
+      });
+      return Astro.redirect(`/booking/manage/${token}/?planner=example-copied#holiday-planner`);
+    } catch (error) {
+      responseError = error instanceof PlannerError ? error.message : 'The example plan could not be copied.';
+    }
+  } else if (action === 'create-holiday-plan') {
     try {
       await createBookingLinkedPlan({
         bookingReference: offer.bookingReference,
@@ -390,8 +403,17 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     {holidayPlan ? (
       <>
         <p><strong>{holidayPlan.title}</strong> is ready for {holidayPlan.startsOn} to {holidayPlan.endsOn}.</p>
-        <p>{holidayPlan.days.length ? `${holidayPlan.days.length} planned days` : 'This is an empty plan. Adding days and activities arrives in the next planner increment.'}</p>
+        <p>{holidayPlan.days.length ? `${holidayPlan.days.length} planned ${holidayPlan.days.length === 1 ? 'day' : 'days'}` : 'This is an empty plan. Adding days and activities arrives in the next planner increment.'}</p>
         <p class="status-badge status-draft">Private · revision {holidayPlan.revision}</p>
+        {holidayPlan.days.length === 0 && publishedExamplePlans.length > 0 && <form method="post" class="booking-planner-copy-form">
+          <input type="hidden" name="action" value="copy-example-plan" />
+          <input type="hidden" name="expectedRevision" value={holidayPlan.revision} />
+          <label>Start from an Olrig Bank example
+            <select name="sourcePlanId" required><option value="" selected disabled>Choose an example…</option>{publishedExamplePlans.map((example) => <option value={example.id}>{example.title} · {example.dayCount} days</option>)}</select>
+          </label>
+          <button class="button" type="submit">Copy example into my plan</button>
+          <small>Items become independent ideas. Private items and reservation notes are never copied.</small>
+        </form>}
       </>
     ) : confirmedBooking ? (
       <form method="post">
@@ -403,6 +425,7 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
       <p>The Holiday Planner becomes available after this booking is confirmed.</p>
     )}
     {Astro.url.searchParams.get('planner') === 'created' && <p role="status">Your private holiday plan has been created.</p>}
+    {Astro.url.searchParams.get('planner') === 'example-copied' && <p role="status">The example was copied into your private holiday plan.</p>}
   </section>
   <section class="booking-panel" aria-labelledby="whatsapp-preferences-heading">
     <h2 id="whatsapp-preferences-heading">WhatsApp preferences</h2>
