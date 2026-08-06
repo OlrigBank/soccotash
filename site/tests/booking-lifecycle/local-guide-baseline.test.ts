@@ -1,18 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { buildLocalGuideBaseline } from '../../scripts/generate-local-guide-baseline.ts';
-
-const siteRoot = new URL('../../', import.meta.url).pathname;
-
-test('Local Guide baseline accounts for every current source entry', async () => {
-  const generated = await buildLocalGuideBaseline(siteRoot);
+test('retired Local Guide source is preserved completely in the migration baseline', async () => {
   const committed = JSON.parse(await readFile(new URL('../../src/data/local-guide-baseline.json', import.meta.url), 'utf8'));
-  assert.deepEqual(generated, committed);
-  assert.equal(generated.entryCount, 39);
-  assert.equal(generated.entries.length, generated.entryCount);
-  assert.equal(new Set(generated.entries.map((entry) => entry.slug.toLowerCase())).size, generated.entryCount);
-  assert.equal(generated.entries.every((entry) => entry.url === `/local-guide/${entry.slug}/`), true);
-  assert.equal(generated.entries.every((entry) => /^[a-f0-9]{64}$/.test(entry.bodySha256)), true);
+  assert.equal(committed.entryCount, 39);
+  assert.equal(committed.entries.length, committed.entryCount);
+  assert.equal(new Set(committed.entries.map((entry: any) => entry.slug.toLowerCase())).size, committed.entryCount);
+  assert.equal(committed.entries.every((entry: any) => entry.url === `/local-guide/${entry.slug}/`), true);
+  assert.equal(committed.entries.every((entry: any) => /^[a-f0-9]{64}$/.test(entry.bodySha256)), true);
+  assert.deepEqual(await readdir(new URL('../../src/content/local-guide', import.meta.url)), []);
 });
-
