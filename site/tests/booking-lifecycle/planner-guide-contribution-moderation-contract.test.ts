@@ -22,7 +22,7 @@ test('administrator moderation creates audited non-public contribution results',
   assert.match(page,/Review only the content each guest explicitly offered/,'the queue must state its privacy boundary');
   assert.match(page,/Accept as non-public draft/,'acceptance must clearly remain non-public');
   assert.match(page,/Rejection reason[\s\S]*required/,'rejections need a reason');
-  assert.match(api,/requirePlannerGuideEntry/,'suggested updates must reference existing guide content');
+  assert.match(api,/requirePlannerGuideSlug/,'suggested updates must reference existing database guide content');
   assert.match(api,/That Local Guide slug already exists/,'new drafts must not overwrite existing guide content');
   assert.match(api,/isSameOrigin\(request\)/,'moderation mutations need same-origin protection');
   assert.match(middleware,/path\.startsWith\('\/api\/admin\/'\)/,'the moderation API must remain administrator-authenticated');

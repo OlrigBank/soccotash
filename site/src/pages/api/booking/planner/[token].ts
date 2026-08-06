@@ -8,7 +8,6 @@ import {
   offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
-import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
@@ -39,14 +38,12 @@ export const POST: APIRoute = async ({ params, request }) => {
         if (!['up','down'].includes(text(input.direction))) throw new PlannerError('VALIDATION_ERROR','Move direction is invalid.');
         result={revision:await movePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})}; break;
       case 'addItem': {
-        const slug=nullable(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
-        result=await addPlanItem({ ...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideSlug:slug,actor }); break;
+        result=await addPlanItem({ ...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor }); break;
       }
       case 'updateItem': result={revision:await updatePlanItem({...item(input),planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
       case 'removeItem': result={revision:await removePlanItem({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
       case 'setGuideReference': {
-        const slug=nullable(input.localGuideSlug); if(slug) await requirePlannerGuideEntry(slug);
-        result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideSlug:slug,expectedRevision,actor})}; break;
+        result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideEntryId:nullable(input.localGuideEntryId),expectedRevision,actor})}; break;
       }
       case 'moveItem':
         if(!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');

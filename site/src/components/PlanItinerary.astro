@@ -3,7 +3,7 @@ import type { HolidayPlan } from '../lib/planner/types.ts';
 import type { PlannerGuideEntry } from '../lib/planner/local-guide.ts';
 
 const { plan, guideEntries } = Astro.props as { plan: HolidayPlan; guideEntries: PlannerGuideEntry[] };
-const guideFor = (slug: string | null) => slug ? guideEntries.find((entry) => entry.slug === slug) ?? null : null;
+const guideFor = (entryId: string | null) => entryId ? guideEntries.find((entry) => entry.id === entryId) ?? null : null;
 const visibleItems = (items: HolidayPlan['days'][number]['items']) => items.filter((item) => item.visibility !== 'private');
 const formatDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString('en-GB', {
   weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
@@ -30,7 +30,7 @@ const formatDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDat
         </header>
         <ol class="plan-itinerary-items">
           {visibleItems(day.items).map((item) => {
-            const guide = guideFor(item.localGuideSlug);
+            const guide = guideFor(item.localGuideEntryId);
             return (
               <li class="plan-itinerary-item">
                 <div class="plan-itinerary-time">
@@ -45,7 +45,7 @@ const formatDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDat
                       {guide.summary && <p>{guide.summary}</p>}
                       <a href={`/local-guide/${guide.slug}/`}>Read the Local Guide entry</a>
                     </aside>
-                  ) : item.localGuideSlug ? (
+                  ) : item.localGuideEntryId ? (
                     <p class="plan-itinerary-guide-missing">Local Guide details are currently unavailable.</p>
                   ) : null}
                   {item.description && <div class="plan-itinerary-note"><strong>Plan note</strong><p>{item.description}</p></div>}

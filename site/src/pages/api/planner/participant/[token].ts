@@ -6,7 +6,6 @@ import {
   addPlanDay, addPlanItem, createPlanAiCapability, getHolidayPlan, movePlanDay, movePlanItem, offerGuideContribution, removePlanDay,
   removePlanItem, revokePlanAiCapability, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
-import { requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
@@ -32,8 +31,7 @@ export const POST:APIRoute=async({params,request})=>{
     if(input.action==='withdrawGuideContribution')return Response.json({revision:await withdrawGuideContribution({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})});
     if(access.role==='contributor'){
       if(input.action!=='addItem')return Response.json({error:'Contributors may propose activities but cannot change the plan structure.'},{status:403});
-      const slug=nullable(input.localGuideSlug);if(slug)await requirePlannerGuideEntry(slug);
-      return Response.json(await addPlanItem({planId:plan.id,dayId:text(input.dayId),expectedRevision,title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),localGuideSlug:slug,status:'proposed',reservationNote:null,visibility:'participants',actor}));
+      return Response.json(await addPlanItem({planId:plan.id,dayId:text(input.dayId),expectedRevision,title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),localGuideEntryId:nullable(input.localGuideEntryId),status:'proposed',reservationNote:null,visibility:'participants',actor}));
     }
     if(input.action==='createAiCapability'){const created=await createPlanAiCapability({planId:plan.id,expectedRevision,expiresHours:Number(input.expiresHours),actor});const url=new URL(`/planner/ai/${created.token}/`,request.url).toString();return Response.json({...created,url,qrDataUrl:await QRCode.toDataURL(url,{errorCorrectionLevel:'M',margin:2,width:320})})}
     if(input.action==='revokeAiCapability')return Response.json({revision:await revokePlanAiCapability({planId:plan.id,capabilityId:text(input.capabilityId),expectedRevision,actor})});
@@ -45,10 +43,10 @@ export const POST:APIRoute=async({params,request})=>{
       case'updateDay':result={revision:await updatePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,title:text(input.title),summary:text(input.summary),date:nullable(input.date),actor})};break;
       case'removeDay':result={revision:await removePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,actor})};break;
       case'moveDay':if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Move direction is invalid.');result={revision:await movePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
-      case'addItem':{const slug=nullable(input.localGuideSlug);if(slug)await requirePlannerGuideEntry(slug);result=await addPlanItem({...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideSlug:slug,actor});break}
+      case'addItem':{result=await addPlanItem({...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor});break}
       case'updateItem':result={revision:await updatePlanItem({...item(input),planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})};break;
       case'removeItem':result={revision:await removePlanItem({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})};break;
-      case'setGuideReference':{const slug=nullable(input.localGuideSlug);if(slug)await requirePlannerGuideEntry(slug);result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideSlug:slug,expectedRevision,actor})};break}
+      case'setGuideReference':{result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideEntryId:nullable(input.localGuideEntryId),expectedRevision,actor})};break}
       case'moveItem':if(!['up','down','end'].includes(text(input.position)))throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');result={revision:await movePlanItem({planId:plan.id,itemId:text(input.itemId),targetDayId:text(input.targetDayId),expectedRevision,position:text(input.position) as any,actor})};break;
       default:return Response.json({error:'Planner action is invalid.'},{status:400});
     }

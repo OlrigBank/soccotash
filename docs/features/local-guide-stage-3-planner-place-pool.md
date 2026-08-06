@@ -6,6 +6,7 @@
 - Base and merge target: `agent/local-guide-db-migration-epic`
 - Feature branch: `agent/local-guide-stage-3-planner-place-pool`
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
+- Implementation: complete
 - Depends on: [Stage 2](./local-guide-stage-2-deterministic-data-migration.md)
 - Enables: stable planner references and public cutover
 
@@ -45,3 +46,18 @@ Use migrated Local Guide entries as the stable pool of places administrators sel
 
 - Public Local Guide cutover.
 - Local Guide editing and publication UI.
+
+## Implementation record
+
+- Migration `035_planner_local_guide_entry_references.sql` adds the stable Local Guide entry reference, backfills legacy slugs through canonical slugs or aliases, and aborts atomically when a reference cannot be resolved.
+- Planner reads join the current database entry while retaining the recorded slug as a historical snapshot, so slug changes do not break existing plans and unavailable entries remain readable.
+- Admin, Booker and participant mutations now select published database entries by stable public ID; copied plans preserve both the stable reference and slug snapshot.
+- The example-plan place pickers are database-backed and expose title, category and recommendation state for filtering and selection.
+
+## Verification record
+
+- `npm run test:booking-lifecycle`: 34 passed.
+- `npm run test:booking-integration` with the local PostgreSQL test database and `TZ=UTC`: 10 passed.
+- `npm run check`: 0 errors; one pre-existing unused-variable hint in `src/pages/admin/login.astro`.
+- `npm run build`: passed.
+- `git diff --check`: passed.

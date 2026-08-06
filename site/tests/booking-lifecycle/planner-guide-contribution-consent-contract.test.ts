@@ -20,7 +20,7 @@ test('Local Guide candidate creation requires specific explicit guest consent', 
   assert.match(migration, /status IN \('pending', 'withdrawn', 'under_review', 'accepted', 'rejected'\)/, 'candidate state must support later moderation');
   assert.doesNotMatch(migration, /access_token|guest_email|reservation_note/, 'candidate persistence must exclude credentials and unrelated private data');
   assert.match(repository, /input\.consent !== true/, 'the server must require explicit consent');
-  assert.match(repository, /i\.local_guide_slug IS NULL/, 'existing Local Guide references must not be re-offered');
+  assert.match(repository, /i\.local_guide_entry_id IS NULL/, 'existing Local Guide references must not be re-offered');
   assert.match(repository, /r\.changes->>'itemId' = i\.public_id::text/, 'eligibility must bind to the immutable item creation revision');
   assert.match(repository, /submitted_by_participant_id = \$3/, 'only the submitter may withdraw a candidate');
   for (const page of [bookerPage, participantPage]) {

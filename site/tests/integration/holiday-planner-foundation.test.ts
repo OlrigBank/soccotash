@@ -86,6 +86,11 @@ test('persists structured plans and makes every mutation an atomic revision', as
       await applicationPool.query(await readFile(new URL(filename, migrationDirectory), 'utf8'));
     }
 
+    const guideRows = await applicationPool.query<{ canonical_slug: string; public_id: string }>(
+      `SELECT canonical_slug, public_id::text FROM local_guide_entries WHERE canonical_slug IN ('kendalcastle', 'fellfoot')`,
+    );
+    const guideIds = Object.fromEntries(guideRows.rows.map((row) => [row.canonical_slug, row.public_id]));
+
     const admin = await applicationPool.query<{ id: string | number }>(
       `INSERT INTO admin_users (email, display_name, password_hash)
        VALUES ('planner@example.invalid', 'Planner Admin', 'not-a-real-password-hash') RETURNING id`,
@@ -121,7 +126,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
       itemType: 'activity',
       startTime: '10:00',
       endTime: '12:00',
-      localGuideSlug: 'kendalcastle',
+      localGuideEntryId: guideIds.kendalcastle,
       status: 'proposed',
       actor,
     }, applicationPool);
@@ -168,7 +173,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
         expectedRevision: 5,
         title: 'Bad guide reference',
         itemType: 'activity',
-        localGuideSlug: '../private-note',
+        localGuideEntryId: '../private-note',
         actor,
       }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
@@ -274,7 +279,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
     itemPlan = await getHolidayPlan(dated.id, applicationPool);
     assert.equal(itemPlan?.days[0].items.length, 0);
     assert.deepEqual(itemPlan?.revisions.slice(-4).map(entry=>entry.action), ['item_updated','item_moved','item_moved','item_removed']);
-    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideSlug: 'kendalcastle', expectedRevision: 9, actor }, applicationPool), 10);
+    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideEntryId: guideIds.kendalcastle, expectedRevision: 9, actor }, applicationPool), 10);
     itemPlan=await getHolidayPlan(dated.id,applicationPool);
     assert.equal(itemPlan?.days[1].items[0].localGuideSlug,'kendalcastle');
     assert.equal(itemPlan?.days[1].items[0].title,'Breakfast booking','linking guide content must preserve plan-specific text');
@@ -290,7 +295,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
     await assert.rejects(duplicateExamplePlan({planId:dated.id,actor:{type:'administrator',adminUserId:'999999999'}},applicationPool),/foreign key constraint/);
     const countAfterFailure=await applicationPool.query('SELECT count(*)::int count FROM holiday_plans');
     assert.equal(countAfterFailure.rows[0].count,countBeforeFailure.rows[0].count,'failed duplication must leave no partial plan');
-    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideSlug: null, expectedRevision: 10, actor }, applicationPool), 11);
+    assert.equal(await setPlanItemGuideReference({ planId: dated.id, itemId: breakfast.itemId, localGuideEntryId: null, expectedRevision: 10, actor }, applicationPool), 11);
     itemPlan=await getHolidayPlan(dated.id,applicationPool);
     assert.equal(itemPlan?.days[1].items[0].localGuideSlug,null);
     assert.equal(itemPlan?.days[1].items[0].title,'Breakfast booking','detaching must preserve plan-specific text');
@@ -331,7 +336,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
     );
     const publicItem = await addPlanItem({
       planId: publishable.id, dayId: publicDay.dayId, expectedRevision: 2, title: 'Kendal Castle',
-      description: 'Walk from Olrig Bank.', itemType: 'activity', localGuideSlug: 'kendalcastle', actor,
+      description: 'Walk from Olrig Bank.', itemType: 'activity', localGuideEntryId: guideIds.kendalcastle, actor,
     }, applicationPool);
     const published = await publishExamplePlan({ planId: publishable.id, expectedRevision: 3, actor }, applicationPool);
     assert.equal(published.revision, 4);
@@ -459,7 +464,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
     }, applicationPool);
     const guestItem = await addPlanItem({
       planId: bookingPlan.id, dayId: guestDay.dayId, expectedRevision: 4,
-      title: 'Walk around the lake', itemType: 'activity', localGuideSlug: 'fellfoot',
+      title: 'Walk around the lake', itemType: 'activity', localGuideEntryId: guideIds.fellfoot,
       status: 'idea', actor: bookerActor,
     }, applicationPool);
     assert.equal(await updatePlanItem({

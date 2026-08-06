@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
-import { getPlannerGuideEntries, requirePlannerGuideEntry } from '../../../../lib/planner/local-guide.ts';
+import { getPlannerGuideEntries, requirePlannerGuideSlug } from '../../../../lib/planner/local-guide.ts';
 import { moderateGuideContribution } from '../../../../lib/planner/repository.ts';
 import { PlannerError, validateGuideSlug } from '../../../../lib/planner/types.ts';
 
@@ -21,7 +21,7 @@ export const POST:APIRoute=async({request,locals})=>{
     const resultGuideSlug=nullable(input.resultGuideSlug);
     if(decision==='accept'){
       const slug=validateGuideSlug(resultGuideSlug);
-      if(resultType==='suggested_update')await requirePlannerGuideEntry(slug!);
+      if(resultType==='suggested_update')await requirePlannerGuideSlug(slug!);
       else if(resultType==='new_entry_draft'){
         if((await getPlannerGuideEntries()).some(entry=>entry.slug===slug))throw new PlannerError('VALIDATION_ERROR','That Local Guide slug already exists.');
       }else throw new PlannerError('VALIDATION_ERROR','Accepted contributions need a valid result type.');
