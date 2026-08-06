@@ -36,21 +36,20 @@ test('captures and reconciles every legacy Local Guide entry atomically', async 
     const counts = await database.query(`
       SELECT count(*)::int entries,
         count(*) FILTER (WHERE status='published')::int published,
-        count(DISTINCT canonical_slug)::int slugs,
-        count(DISTINCT migration_source_sha256)::int fingerprints
+        count(DISTINCT canonical_slug)::int slugs
       FROM local_guide_entries`);
-    assert.deepEqual(counts.rows[0], { entries: 39, published: 39, slugs: 39, fingerprints: 39 });
+    assert.deepEqual(counts.rows[0], { entries: 39, published: 39, slugs: 39 });
     assert.equal(Number((await database.query(`SELECT count(*) FROM local_guide_revisions WHERE revision_number=1 AND actor_type='system' AND source='legacy_markdown_migration'`)).rows[0].count), 39);
     assert.equal(Number((await database.query(`SELECT count(*) FROM local_guide_events WHERE action='created' AND source='legacy_markdown_migration'`)).rows[0].count), 39);
     assert.equal(Number((await database.query(`SELECT count(*) FROM local_guide_entries WHERE working_revision_id=published_revision_id`)).rows[0].count), 39);
 
     const rows = await database.query(`
-      SELECT e.canonical_slug slug, e.legacy_content_id "contentId", e.migration_source_sha256 "sourceSha256",
+      SELECT e.canonical_slug slug, e.legacy_content_id "contentId",
              encode(digest(r.markdown_body, 'sha256'), 'hex') "bodySha256"
         FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
        ORDER BY e.canonical_slug`);
     assert.deepEqual(rows.rows, [...report.entries].sort((left, right) => left.slug.localeCompare(right.slug)).map((entry) => ({
-      slug: entry.slug, contentId: entry.contentId, sourceSha256: entry.sourceSha256, bodySha256: entry.bodySha256,
+      slug: entry.slug, contentId: entry.contentId, bodySha256: entry.bodySha256,
     })));
     const metadata = await database.query(`
       SELECT e.canonical_slug slug, e.legacy_content_id "contentId", e.legacy_id "legacyId",

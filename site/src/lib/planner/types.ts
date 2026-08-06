@@ -56,7 +56,6 @@ export type PlanItem = {
   locationText: string | null;
   localGuideEntryId: string | null;
   localGuideSlug: string | null;
-  localGuideSlugSnapshot: string | null;
   status: PlanItemStatus;
   position: number;
   reservationNote: string | null;

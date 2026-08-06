@@ -8,6 +8,7 @@
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 7](./local-guide-stage-7-contribution-integration.md)
 - Enables: epic completion
+- Implementation: complete and accepted on the feature branch
 
 ## Objective
 
@@ -43,3 +44,13 @@ Prove that Local Guide content can be exported and restored without the retired 
 
 - General media management or database-managed categories.
 - Moving other website content collections into PostgreSQL.
+
+## Implementation and acceptance record
+
+- Added deterministic versioned JSON export and empty-database restore commands for entries, revisions, aliases, lifecycle events and contribution provenance.
+- Restore recreates administrator attribution as disabled recovery identities and deliberately excludes password hashes and other credentials.
+- Added an integration test that exports a populated source database, restores an empty target database, reconciles the complete export and rejects restoration into a non-empty target.
+- Removed the temporary planner slug dual-write column and migration fingerprint column after stable-ID and migration reconciliation tests passed.
+- Documented backup, restore, rollback, failure-response and retention procedures in [Local Guide recovery](../../local-guide-recovery.md).
+- The complete booking lifecycle suite, Astro checks, production build and PostgreSQL integration suite passed.
+- A fresh Docker deployment applied migration 038 successfully. Live acceptance confirmed that all 39 migrated entry URLs and the published all-places example plan return successfully, with neither compatibility column remaining.

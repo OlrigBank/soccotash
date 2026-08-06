@@ -19,6 +19,8 @@
     "check:local-guide-baseline": "node --experimental-strip-types ./scripts/generate-local-guide-baseline.ts --check",
     "generate:local-guide-migration": "node --experimental-strip-types ./scripts/generate-local-guide-data-migration.ts",
     "check:local-guide-migration": "node --experimental-strip-types ./scripts/generate-local-guide-data-migration.ts --check",
+    "local-guide:export": "node --experimental-strip-types ./scripts/export-local-guide.mjs",
+    "local-guide:restore": "node --experimental-strip-types ./scripts/restore-local-guide.mjs",
     "test:booking-lifecycle": "node --experimental-strip-types --test ./tests/booking-lifecycle/*.test.ts",
     "test:booking-integration": "node --experimental-strip-types --test --test-concurrency=1 ./tests/integration/*.test.ts"
   },

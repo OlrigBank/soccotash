@@ -36,11 +36,11 @@ test('backfills stable guide IDs, survives slug changes and rejects unresolved m
     const seeded=await seedPlan(database,'kendalcastle');
     await database.query(referenceMigration);
     const initial=await getHolidayPlan(seeded.planId,database);const item=initial!.days[0].items[0];
-    assert.match(item.localGuideEntryId!,/^[0-9a-f-]{36}$/);assert.equal(item.localGuideSlug,'kendalcastle');assert.equal(item.localGuideSlugSnapshot,'kendalcastle');
+    assert.match(item.localGuideEntryId!,/^[0-9a-f-]{36}$/);assert.equal(item.localGuideSlug,'kendalcastle');
 
     await database.query(`UPDATE local_guide_entries SET canonical_slug='kendal-castle-current' WHERE public_id=$1::uuid`,[item.localGuideEntryId]);
     const renamed=(await getHolidayPlan(seeded.planId,database))!.days[0].items[0];
-    assert.equal(renamed.localGuideEntryId,item.localGuideEntryId);assert.equal(renamed.localGuideSlug,'kendal-castle-current');assert.equal(renamed.localGuideSlugSnapshot,'kendalcastle');
+    assert.equal(renamed.localGuideEntryId,item.localGuideEntryId);assert.equal(renamed.localGuideSlug,'kendal-castle-current');
 
     await database.query(`UPDATE local_guide_entries SET status='unpublished',unpublished_at=NOW() WHERE public_id=$1::uuid`,[item.localGuideEntryId]);
     assert.equal((await getHolidayPlan(seeded.planId,database))!.days[0].items[0].localGuideEntryId,item.localGuideEntryId,'historical reference remains readable');

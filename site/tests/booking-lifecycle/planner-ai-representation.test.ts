@@ -15,7 +15,6 @@ const ordinaryItem: PlanItem = {
   locationText: 'Kendal Castle',
   localGuideEntryId: '11111111-1111-4111-8111-111111111111',
   localGuideSlug: 'kendalcastle',
-  localGuideSlugSnapshot: 'kendalcastle',
   status: 'proposed',
   position: 20,
   reservationNote: 'Door code 1234',

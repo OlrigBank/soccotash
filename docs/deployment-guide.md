@@ -41,6 +41,8 @@ docker compose up --build -d
 
 ## Move the database to another development machine
 
+For Local Guide-specific JSON export, empty-database restore, rollback and retention procedures, see [Local Guide recovery](./local-guide-recovery.md).
+
 Create a portable PostgreSQL custom-format backup:
 
 ```bash

@@ -229,10 +229,10 @@ export async function copyPublishedExampleIntoBookingPlan(
       await client.query(
         `INSERT INTO plan_items
            (plan_day_id, title, description, item_type, start_time, end_time, location_text,
-            local_guide_entry_id, local_guide_slug, status, position, reservation_note, visibility,
+            local_guide_entry_id, status, position, reservation_note, visibility,
             created_by_admin_user_id, updated_by_admin_user_id)
          SELECT $1, title, description, item_type, start_time, end_time, location_text,
-                local_guide_entry_id, local_guide_slug, 'idea', position, NULL, 'participants', $2, $2
+                local_guide_entry_id, 'idea', position, NULL, 'participants', $2, $2
            FROM plan_items WHERE plan_day_id = $3 AND visibility <> 'private' ORDER BY position`,
         [copiedDay.rows[0].id, input.actor.type === 'administrator' ? input.actor.adminUserId : null, day.id],
       );
@@ -439,17 +439,17 @@ export async function addPlanItem(
     const created = await client.query<{ public_id: string }>(
       `INSERT INTO plan_items
          (plan_day_id, title, description, item_type, start_time, end_time, location_text,
-          local_guide_entry_id, local_guide_slug, status, position, reservation_note, visibility,
+          local_guide_entry_id, status, position, reservation_note, visibility,
           created_by_admin_user_id, updated_by_admin_user_id)
-       SELECT d.id, $3, $4, $5, $6::time, $7::time, $8, $9, $10, $11,
+       SELECT d.id, $3, $4, $5, $6::time, $7::time, $8, $9, $10,
               COALESCE((SELECT max(position) + 10 FROM plan_items WHERE plan_day_id = d.id), 10),
-              $12, $13, $14, $14
+              $11, $12, $13, $13
          FROM plan_days d
         WHERE d.public_id = $1::uuid AND d.holiday_plan_id = $2
        RETURNING public_id::text`,
       [validatePublicId(input.dayId, 'Plan day identifier'), plan.internalId, title, description, input.itemType, startTime,
         endTime, optionalText(input.locationText, 'Location', 500),
-        guide?.internalId ?? null, guide?.slug ?? null, status,
+        guide?.internalId ?? null, status,
         optionalText(input.reservationNote, 'Reservation note', 3000), visibility, actorAdminUserId(input.actor)],
     );
     if (!created.rowCount) throw new PlannerError('NOT_FOUND', 'Plan day not found.');
@@ -474,7 +474,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
        'itemType', i.item_type, 'startTime', to_char(i.start_time, 'HH24:MI'),
        'endTime', to_char(i.end_time, 'HH24:MI'), 'locationText', i.location_text,
        'localGuideEntryId', guide.public_id::text, 'localGuideSlug', guide.canonical_slug,
-       'localGuideSlugSnapshot', i.local_guide_slug, 'status', i.status, 'position', i.position,
+       'status', i.status, 'position', i.position,
        'reservationNote', i.reservation_note, 'visibility', i.visibility
      ) ORDER BY i.position) FILTER (WHERE i.id IS NOT NULL), '[]'::jsonb) AS items
        FROM plan_days d LEFT JOIN plan_items i ON i.plan_day_id = d.id
@@ -564,8 +564,8 @@ export async function duplicateExamplePlan(
     const sourceDays=await client.query<any>('SELECT * FROM plan_days WHERE holiday_plan_id=$1 ORDER BY position',[original.id]);
     for(const day of sourceDays.rows){
       const newDay=await client.query<{id:string|number}>(`INSERT INTO plan_days(holiday_plan_id,day_date,title,summary,position,created_by_admin_user_id,updated_by_admin_user_id) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING id`,[targetId,day.day_date,day.title,day.summary,day.position,input.actor.adminUserId]);
-      await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,local_guide_slug,status,position,reservation_note,visibility,created_by_admin_user_id,updated_by_admin_user_id)
-        SELECT $1,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,local_guide_slug,status,position,reservation_note,visibility,$2,$2 FROM plan_items WHERE plan_day_id=$3 ORDER BY position`,[newDay.rows[0].id,input.actor.adminUserId,day.id]);
+      await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,status,position,reservation_note,visibility,created_by_admin_user_id,updated_by_admin_user_id)
+        SELECT $1,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,status,position,reservation_note,visibility,$2,$2 FROM plan_items WHERE plan_day_id=$3 ORDER BY position`,[newDay.rows[0].id,input.actor.adminUserId,day.id]);
     }
     await recordRevision(client,targetId,1,input.actor,'plan_duplicated',`Duplicated example plan “${original.title}”.`,{sourcePlanId:input.planId});
     await client.query('COMMIT');
@@ -1331,7 +1331,7 @@ export async function removePlanItem(input:{planId:string;itemId:string;expected
 export async function setPlanItemGuideReference(input:{planId:string;itemId:string;localGuideEntryId:string|null;expectedRevision:number;actor:PlannerRevisionActor},database:Database=getPool()):Promise<number>{
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
     const guide=await selectableGuideReference(client,input.localGuideEntryId);
-    const updated=await client.query(`UPDATE plan_items i SET local_guide_entry_id=$3,local_guide_slug=$4,updated_by_admin_user_id=$5,updated_at=NOW() FROM plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2`,[validatePublicId(input.itemId,'Plan item identifier'),internalId,guide?.internalId??null,guide?.slug??null,actorAdminUserId(input.actor)]);
+    const updated=await client.query(`UPDATE plan_items i SET local_guide_entry_id=$3,updated_by_admin_user_id=$4,updated_at=NOW() FROM plan_days d WHERE i.plan_day_id=d.id AND i.public_id=$1::uuid AND d.holiday_plan_id=$2`,[validatePublicId(input.itemId,'Plan item identifier'),internalId,guide?.internalId??null,actorAdminUserId(input.actor)]);
     if(!updated.rowCount) throw new PlannerError('NOT_FOUND','Plan item not found.');
     return {value:undefined,action:guide?'guide_reference_attached':'guide_reference_detached',summary:guide?`Linked plan item to Local Guide entry “${guide.slug}”.`:'Detached Local Guide reference.',changes:{itemId:input.itemId,localGuideEntryId:input.localGuideEntryId,localGuideSlug:guide?.slug??null}};
   });return result.revision;

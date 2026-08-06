@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';import crypto from 'node:crypto';import {readdir,readFile} from 'node:fs/promises';import test from 'node:test';import pg from 'pg';
+import {createLocalGuideDraft,publishLocalGuideEntry,changeLocalGuideSlug,editLocalGuideDraft} from '../../src/lib/local-guide/repository.ts';
+import {exportLocalGuide,restoreLocalGuide} from '../../scripts/local-guide-portability.ts';
+const {Pool}=pg;const url=process.env.TEST_DATABASE_URL||process.env.DATABASE_URL;
+const quote=(v:string)=>`"${v.replaceAll('"','""')}"`;const scoped=(base:string,schema:string)=>{const u=new URL(base);u.searchParams.set('options',`-c search_path=${schema},public`);return u.toString()};
+test('Local Guide JSON export restores complete runtime and audit state into an empty database',async()=>{
+ assert.ok(url);const sourceSchema=`guide_export_${process.pid}_${crypto.randomBytes(4).toString('hex')}`,targetSchema=`guide_restore_${process.pid}_${crypto.randomBytes(4).toString('hex')}`;
+ const control=new Pool({connectionString:url});const source=new Pool({connectionString:scoped(url!,sourceSchema)});const target=new Pool({connectionString:scoped(url!,targetSchema)});
+ try{for(const schema of [sourceSchema,targetSchema])await control.query(`CREATE SCHEMA ${quote(schema)}`);const dir=new URL('../../db/',import.meta.url);const migrations=(await readdir(dir)).filter(n=>n.endsWith('.sql')).sort();for(const file of migrations)await source.query(await readFile(new URL(file,dir),'utf8'));for(const file of migrations.filter(name=>name!=='034_local_guide_content_migration.sql'))await target.query(await readFile(new URL(file,dir),'utf8'));
+  const admin=await source.query(`INSERT INTO admin_users(email,display_name,password_hash) VALUES('recovery@example.invalid','Recovery Admin','disabled') RETURNING id::text`);const actor={type:'administrator' as const,adminUserId:admin.rows[0].id};
+  let entry=await createLocalGuideDraft({slug:'recovery-place',content:{title:'Recovery place',summary:'Portable content.',markdownBody:'## Safe body',categoryId:'activities'},actor},source);entry=await publishLocalGuideEntry({entryId:entry.id,expectedVersion:1,actor},source);entry=await editLocalGuideDraft({entryId:entry.id,expectedVersion:2,content:{title:'Recovery place revised',summary:'Private revision.',markdownBody:'## Revised',categoryId:'activities'},actor},source);await changeLocalGuideSlug({entryId:entry.id,expectedVersion:3,slug:'recovery-place-current',actor},source);
+  const exported=await exportLocalGuide(source);await restoreLocalGuide(exported,target);assert.deepEqual(await exportLocalGuide(target),exported);assert.equal(exported.entries.length,40);assert.equal(exported.revisions.length,41);assert.equal(exported.aliases.length,1);assert.equal(exported.events.length,43);
+  await assert.rejects(restoreLocalGuide(exported,target),/requires empty/);
+ }finally{await source.end();await target.end();for(const schema of [sourceSchema,targetSchema])await control.query(`DROP SCHEMA IF EXISTS ${quote(schema)} CASCADE`);await control.end()}
+});

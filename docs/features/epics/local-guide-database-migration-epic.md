@@ -1075,6 +1075,8 @@ The sequence may be split further if a PR becomes too broad.
 
 ## Completion criteria
 
+Implementation status: all eight feature stages are complete and have passed the epic acceptance suite. The completed work is integrated on `agent/local-guide-db-migration-epic`; merging that epic branch into `development` remains the final integration action.
+
 This epic is complete when:
 
 - all existing Local Guide content is stored in PostgreSQL;
@@ -1092,3 +1094,5 @@ This epic is complete when:
 - pages, spaces and accommodation listings remain unaffected;
 - existing booking, planner and Local Guide tests pass;
 - the complete migration has passed interactive acceptance testing.
+
+Acceptance was completed against a fresh local Docker deployment. PostgreSQL is the sole Local Guide runtime source, all 39 migrated public entry URLs resolve, the published example plan containing the complete migrated place pool resolves, recovery export/restore reconciliation passes, and the temporary migration compatibility columns have been removed.
