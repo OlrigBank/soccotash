@@ -2,12 +2,20 @@
 
 ## Status
 
+- Implementation: complete
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
 - Base and merge target: `agent/local-guide-db-migration-epic`
 - Feature branch: `agent/local-guide-stage-1-foundation`
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: none
 - Enables: all later Local Guide migration features
+
+### Completion evidence
+
+- The committed baseline accounts for 39 Local Guide source entries.
+- Migration `033_local_guide_foundation.sql` establishes entries, immutable revisions, aliases and lifecycle events.
+- Working and published revisions are independent and protected by integration tests.
+- Baseline, lifecycle, Astro, build and complete PostgreSQL integration checks pass.
 
 ## Objective
 

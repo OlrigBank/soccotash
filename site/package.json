@@ -15,6 +15,8 @@
     "admin:create": "node ./scripts/create-admin.mjs",
     "generate:booking-lifecycle-docs": "node --experimental-strip-types ./scripts/generate-booking-lifecycle-docs.ts",
     "check:booking-lifecycle-docs": "node --experimental-strip-types ./scripts/generate-booking-lifecycle-docs.ts --check",
+    "generate:local-guide-baseline": "node --experimental-strip-types ./scripts/generate-local-guide-baseline.ts",
+    "check:local-guide-baseline": "node --experimental-strip-types ./scripts/generate-local-guide-baseline.ts --check",
     "test:booking-lifecycle": "node --experimental-strip-types --test ./tests/booking-lifecycle/*.test.ts",
     "test:booking-integration": "node --experimental-strip-types --test --test-concurrency=1 ./tests/integration/*.test.ts"
   },
