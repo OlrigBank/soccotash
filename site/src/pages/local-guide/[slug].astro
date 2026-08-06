@@ -1,128 +1,77 @@
 ---
-import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import OfferingCard from '../../components/OfferingCard.astro';
-import { entrySummary, getEntriesForCategory } from '../../lib/content';
-import { getCategoryById, getChildCategories, getLocalGuideCategories } from '../../lib/navigation';
+import { entrySummary, getEntriesForCategory, type LocalGuideEntry } from '../../lib/content';
+import { getCategoryById, getChildCategories } from '../../lib/navigation';
+import { resolvePublishedLocalGuideSlug } from '../../lib/local-guide/repository.ts';
+import { renderSafeLocalGuideMarkdown } from '../../lib/local-guide/markdown.ts';
 
-export const prerender = true;
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'no-store, private');
 
-export async function getStaticPaths() {
-  const entries = await getCollection('localGuide');
-  const entryPaths = entries.map((entry) => ({
-    params: { slug: entry.data.slug || entry.id },
-    props: { kind: 'entry', entry },
-  }));
-
-  const categoryPaths = getLocalGuideCategories()
-    .filter((category) => category.id !== 'home')
-    .map((category) => ({
-      params: { slug: category.id },
-      props: { kind: 'category', category },
-    }));
-
-  return [...entryPaths, ...categoryPaths];
-}
-
-const { kind } = Astro.props;
-
+const slug = Astro.params.slug ?? '';
+const category = getCategoryById(slug);
+let kind: 'category' | 'entry' = category && category.id !== 'home' ? 'category' : 'entry';
 let title = '';
 let description = '';
-let categoryEntries: any[] = [];
-let childCategories: any[] = [];
+let categoryEntries: LocalGuideEntry[] = [];
+let childCategories: ReturnType<typeof getChildCategories> = [];
 let childCounts = new Map<string, number>();
-let category: any = Astro.props.category;
-let entry: any = Astro.props.entry;
-let Content: any;
+let entry: LocalGuideEntry | null = null;
 let summary = '';
-let entryCategory: any;
-let hasMeaningfulBody = false;
+let entryCategory: ReturnType<typeof getCategoryById>;
+let bodyHtml = '';
+let notFound = false;
 
-if (kind === 'category') {
-  title = category.label;
-  categoryEntries = await getEntriesForCategory(category.id);
-  childCategories = getChildCategories(category.id);
-  for (const child of childCategories) {
-    childCounts.set(child.id, (await getEntriesForCategory(child.id)).length);
+try {
+  if (kind === 'category' && category) {
+    title = category.label;
+    categoryEntries = await getEntriesForCategory(category.id);
+    childCategories = getChildCategories(category.id);
+    for (const child of childCategories) childCounts.set(child.id, (await getEntriesForCategory(child.id)).length);
+    description = category.description || `Local guide recommendations for ${category.label}.`;
+  } else {
+    const resolved = await resolvePublishedLocalGuideSlug(slug);
+    if (!resolved) {
+      Astro.response.status = 404; notFound = true;
+      title = 'Page not found'; description = 'The requested page could not be found.';
+    }
+    if (!resolved) {
+      // Keep the response deliberately free of unpublished entry metadata.
+    } else {
+    if (resolved.isAlias) return Astro.redirect(`/local-guide/${resolved.entry.slug}/`, 301);
+    const published = resolved.entry;
+    entry = { ...published, urlSlug: published.slug, categoryInfo: getCategoryById(published.categoryId), data: {
+      slug: published.slug, title: published.title, summary: published.summary, category: published.categoryId,
+      categoryLabel: published.categoryLabel, image: published.imagePath, externalLink: published.externalLink,
+      recommended: published.recommended, legacyText: null,
+    } };
+    title = entry.title; summary = entrySummary(entry); description = summary;
+    entryCategory = getCategoryById(entry.categoryId);
+    bodyHtml = renderSafeLocalGuideMarkdown(entry.markdownBody);
+    if (entry.markdownBody.trim().toLocaleLowerCase() === entry.title.trim().toLocaleLowerCase() ||
+        entry.markdownBody.trim().toLocaleLowerCase() === summary.trim().toLocaleLowerCase()) bodyHtml = '';
+    }
   }
-  description = category.description || `Local guide recommendations for ${category.label}.`;
-} else {
-  title = entry.data.title;
-  summary = entrySummary(entry);
-  description = summary;
-  entryCategory = getCategoryById(entry.data.category || '');
-  const rendered = await render(entry);
-  Content = rendered.Content;
-  const bodyText = (entry.body || '').trim();
-  hasMeaningfulBody = Boolean(
-    bodyText &&
-    bodyText.toLocaleLowerCase() !== entry.data.title.trim().toLocaleLowerCase() &&
-    bodyText.toLocaleLowerCase() !== summary.trim().toLocaleLowerCase()
-  );
+} catch (error) {
+  console.error('Public Local Guide lookup failed.', { slug, cause: error instanceof Error ? error.name : 'unknown' });
+  Astro.response.status = 503;
+  title = 'Local Guide unavailable'; description = 'The Local Guide is temporarily unavailable.';
 }
 
-function recommendationLabel(count: number) {
-  return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`;
-}
+function recommendationLabel(count: number) { return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`; }
 ---
 
 <BaseLayout title={title} description={description}>
-  {kind === 'category' ? (
-    <div>
-      <section class="hero">
-        <h1>{category.label}</h1>
-        <p>{category.description || recommendationLabel(categoryEntries.length)}</p>
-      </section>
-
-      {childCategories.length ? (
-        <section class="prose category-section">
-          <h2>Explore this category</h2>
-          <div class="grid">
-            {childCategories.map((child) => (
-              <article class="card category-card">
-                <a class="card-link" href={`/local-guide/${child.id}/`}>
-                  <div class="card-content">
-                    <h3>{child.label}</h3>
-                    {child.description ? <p>{child.description}</p> : null}
-                    <p class="category-count">{recommendationLabel(childCounts.get(child.id) ?? 0)}</p>
-                  </div>
-                </a>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section class="section-block">
-        <div class="section-heading">
-          <h2>Recommendations</h2>
-          <p>{recommendationLabel(categoryEntries.length)} in this section.</p>
-        </div>
-        {categoryEntries.length ? (
-          <div class="grid">
-            {categoryEntries.map((entry) => <OfferingCard entry={entry} />)}
-          </div>
-        ) : (
-          <div class="prose"><p>No recommendations have been added to this category yet.</p></div>
-        )}
-      </section>
+  {Astro.response.status === 503 ? <section class="hero"><h1>Local Guide unavailable</h1><p>Please try again shortly.</p></section> : notFound ? <section class="hero"><h1>Page not found</h1><p>The requested page could not be found.</p></section> : kind === 'category' && category ? (
+    <div><section class="hero"><h1>{category.label}</h1><p>{category.description || recommendationLabel(categoryEntries.length)}</p></section>
+      {childCategories.length ? <section class="prose category-section"><h2>Explore this category</h2><div class="grid">{childCategories.map((child) => <article class="card category-card"><a class="card-link" href={`/local-guide/${child.id}/`}><div class="card-content"><h3>{child.label}</h3>{child.description ? <p>{child.description}</p> : null}<p class="category-count">{recommendationLabel(childCounts.get(child.id) ?? 0)}</p></div></a></article>)}</div></section> : null}
+      <section class="section-block"><div class="section-heading"><h2>Recommendations</h2><p>{recommendationLabel(categoryEntries.length)} in this section.</p></div>{categoryEntries.length ? <div class="grid">{categoryEntries.map((item) => <OfferingCard entry={item} />)}</div> : <div class="prose"><p>No recommendations have been added to this category yet.</p></div>}</section>
     </div>
-  ) : (
-    <div>
-      <section class="hero">
-        {entryCategory ? <span class="badge">{entryCategory.label}</span> : null}
-        <h1>{entry.data.title}</h1>
-        {summary ? <p>{summary}</p> : null}
-        {entry.data.externalLink ? <a class="button" href={entry.data.externalLink}>Visit website</a> : null}
-      </section>
-
-      {entry.data.image ? <img src={entry.data.image} alt={entry.data.title} class="listing-hero-image" /> : null}
-
-      {hasMeaningfulBody && Content ? (
-        <section class="prose">
-          <Content />
-        </section>
-      ) : null}
+  ) : entry ? (
+    <div><section class="hero">{entryCategory ? <span class="badge">{entryCategory.label}</span> : null}<h1>{entry.title}</h1>{summary ? <p>{summary}</p> : null}{entry.externalLink ? <a class="button" href={entry.externalLink}>Visit website</a> : null}</section>
+      {entry.imagePath ? <img src={entry.imagePath} alt={entry.title} class="listing-hero-image" /> : null}
+      {bodyHtml ? <section class="prose" set:html={bodyHtml} /> : null}
     </div>
-  )}
+  ) : null}
 </BaseLayout>
