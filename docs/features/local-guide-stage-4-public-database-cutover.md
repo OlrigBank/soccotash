@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-4-public-cutover`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 3](./local-guide-stage-3-planner-place-pool.md)
 - Enables: retirement of the Markdown runtime implementation
 
@@ -45,4 +48,3 @@ Make PostgreSQL the sole runtime source for every public Local Guide read.
 
 - Runtime fallback to the old collection.
 - Administrator editing pages.
-

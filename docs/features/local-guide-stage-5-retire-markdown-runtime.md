@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-5-retire-markdown`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 4](./local-guide-stage-4-public-database-cutover.md)
 - Enables: a single unambiguous source of truth
 
@@ -36,4 +39,3 @@ Remove the existing Local Guide content-collection implementation immediately af
 
 - Deleting the migration snapshot before recovery is verified.
 - Administration or contribution workflows.
-

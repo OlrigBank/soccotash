@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-8-recovery`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 7](./local-guide-stage-7-contribution-integration.md)
 - Enables: epic completion
 

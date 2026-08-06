@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-3-planner-place-pool`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 2](./local-guide-stage-2-deterministic-data-migration.md)
 - Enables: stable planner references and public cutover
 
@@ -42,4 +45,3 @@ Use migrated Local Guide entries as the stable pool of places administrators sel
 
 - Public Local Guide cutover.
 - Local Guide editing and publication UI.
-

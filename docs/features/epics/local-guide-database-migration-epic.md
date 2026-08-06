@@ -53,6 +53,39 @@ The Local Guide database becomes the authoritative source of published guide con
 
 ---
 
+## Branch and integration workflow
+
+The epic is developed on:
+
+```text
+development
+└── agent/local-guide-db-migration-epic
+    ├── agent/local-guide-stage-1-foundation
+    ├── agent/local-guide-stage-2-data-migration
+    ├── agent/local-guide-stage-3-planner-place-pool
+    ├── agent/local-guide-stage-4-public-cutover
+    ├── agent/local-guide-stage-5-retire-markdown
+    ├── agent/local-guide-stage-6-administration
+    ├── agent/local-guide-stage-7-contributions
+    └── agent/local-guide-stage-8-recovery
+```
+
+Rules:
+
+1. `agent/local-guide-db-migration-epic` is the integration branch for the complete epic and is derived from `development`.
+2. Each feature branch is created from the latest local epic branch, never directly from `development`.
+3. Only the feature assigned to that branch is implemented there.
+4. The feature's automated tests and acceptance checks must pass before integration.
+5. The completed feature is merged locally into `agent/local-guide-db-migration-epic` in stage order.
+6. The merged feature is rechecked on the epic branch before its feature branch is deleted.
+7. The next feature branch is created only from the epic branch containing all previously accepted stages.
+8. Feature branches are not merged individually into `development`.
+9. The epic branch is merged into `development` only after every stage and the complete epic regression and acceptance suite pass.
+
+If a completed stage needs correction, the correction is made through a new feature/fix branch derived from the current epic branch; a deleted feature branch is not reused.
+
+---
+
 ## Current state
 
 The Local Guide is currently stored as Markdown files under:

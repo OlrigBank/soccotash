@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-7-contributions`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 6](./local-guide-stage-6-administration.md)
 - Enables: moderated guest recommendations entering the editorial workflow
 
@@ -41,4 +44,3 @@ Connect accepted guest contributions to database drafts and proposed working rev
 
 - Automatic publication or guest editing of published content.
 - Guest-facing moderation notifications.
-

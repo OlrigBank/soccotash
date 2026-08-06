@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-6-administration`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 5](./local-guide-stage-5-retire-markdown-runtime.md)
 - Enables: deployment-independent Local Guide maintenance
 
@@ -45,4 +48,3 @@ Allow authenticated administrators to maintain the database-backed place pool sa
 - Rich-text editing or media upload.
 - Category administration.
 - Guest contribution linkage.
-

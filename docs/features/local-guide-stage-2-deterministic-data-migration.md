@@ -3,6 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-2-data-migration`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 1](./local-guide-stage-1-foundation-and-baseline.md)
 - Enables: database-backed planner and public consumers
 
@@ -42,4 +45,3 @@ Capture every existing Local Guide entry in PostgreSQL through a deterministic n
 - A reusable runtime importer.
 - Public cutover or Markdown fallback.
 - Editing imported entries.
-

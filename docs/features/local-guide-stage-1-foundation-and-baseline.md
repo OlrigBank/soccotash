@@ -3,8 +3,9 @@
 ## Status
 
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
-- Target branch: `development`
-- Suggested feature branch: `feature/local-guide-foundation`
+- Base and merge target: `agent/local-guide-db-migration-epic`
+- Feature branch: `agent/local-guide-stage-1-foundation`
+- Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: none
 - Enables: all later Local Guide migration features
 
@@ -43,4 +44,3 @@ Capture the current Local Guide contract and introduce the database domain neede
 - Migrating the Markdown data.
 - Changing public or planner reads.
 - Administration pages.
-
