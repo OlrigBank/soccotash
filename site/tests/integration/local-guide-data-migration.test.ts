@@ -29,6 +29,7 @@ test('captures and reconciles every legacy Local Guide entry atomically', async 
   const report = JSON.parse(await readFile(new URL('../../src/data/local-guide-migration-report.json', import.meta.url), 'utf8'));
   const baseline = JSON.parse(await readFile(new URL('../../src/data/local-guide-baseline.json', import.meta.url), 'utf8'));
   try {
+    await control.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(schema)}`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(rollbackSchema)}`);
     for (const filename of filenames) await database.query(await readFile(new URL(filename, migrationDirectory), 'utf8'));
@@ -48,7 +49,8 @@ test('captures and reconciles every legacy Local Guide entry atomically', async 
              encode(digest(r.markdown_body, 'sha256'), 'hex') "bodySha256"
         FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
        ORDER BY e.canonical_slug`);
-    assert.deepEqual(rows.rows, [...report.entries].sort((left, right) => left.slug.localeCompare(right.slug)).map((entry) => ({
+    const byDatabaseSlugOrder = <T extends { slug: string }>(left: T, right: T) => left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0;
+    assert.deepEqual([...rows.rows].sort(byDatabaseSlugOrder), [...report.entries].sort(byDatabaseSlugOrder).map((entry) => ({
       slug: entry.slug, contentId: entry.contentId, bodySha256: entry.bodySha256,
     })));
     const metadata = await database.query(`
@@ -57,7 +59,7 @@ test('captures and reconciles every legacy Local Guide entry atomically', async 
              r.category_label "categoryLabel", r.image_path image, r.external_link "externalLink", r.recommended
         FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
        ORDER BY e.canonical_slug`);
-    assert.deepEqual(metadata.rows, [...baseline.entries].sort((left, right) => left.slug.localeCompare(right.slug)).map((entry) => ({
+    assert.deepEqual([...metadata.rows].sort(byDatabaseSlugOrder), [...baseline.entries].sort(byDatabaseSlugOrder).map((entry) => ({
       slug: entry.slug, contentId: entry.contentId, legacyId: entry.legacyId, title: entry.title,
       summary: entry.summary, legacyText: entry.legacyText || null, category: entry.category,
       categoryLabel: entry.categoryLabel, image: entry.image, externalLink: entry.externalLink,
