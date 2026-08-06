@@ -10,6 +10,7 @@ const TOKEN='localGuideRegressionToken012345678901234567';
 const ADMIN_EMAIL='playwright-local-guide-admin@example.test';
 const ADMIN_PASSWORD='playwright-local-guide-password';
 const TITLE='Playwright Riverside Recommendation';
+const UPDATED_TITLE='Playwright Riverside Walk Recommendation';
 const ORIGINAL_SLUG='playwright-riverside-recommendation';
 const RENAMED_SLUG='playwright-riverside-walk';
 
@@ -90,41 +91,50 @@ test.describe('Local Guide database migration epic',()=>{
     const adminContext=await browser.newContext();const admin=await adminContext.newPage();
     await admin.goto('/admin/login/');await admin.getByLabel('Email address').fill(ADMIN_EMAIL);
     await admin.getByLabel('Password').fill(ADMIN_PASSWORD);await admin.getByRole('button',{name:'Sign in'}).click();
+    await admin.goto('/admin/local-guide/');await admin.getByLabel('Title').fill("Café & Cycle Sprog's Family Rides");
+    await expect(admin.getByLabel('Public URL slug')).toHaveValue('cafe-cycle-sprogs-family-rides');
+    await admin.locator('summary',{hasText:'Advanced URL settings'}).click();await admin.getByLabel('Public URL slug').fill('chosen-family-rides');
+    await admin.getByLabel('Title').fill('A completely different title');await expect(admin.getByLabel('Public URL slug')).toHaveValue('chosen-family-rides');
     await admin.goto('/admin/planner/contributions/');const review=admin.locator('.contribution-review').filter({hasText:TITLE});
     await review.getByLabel('Local Guide slug').fill(ORIGINAL_SLUG);
     await review.getByLabel('Category for new entry').selectOption('activities');
+    await review.getByLabel('Reviewed summary').fill('');
     await review.getByRole('button',{name:'Accept into private editorial workflow'}).click();
     const decision=admin.getByRole('row').filter({hasText:TITLE});await expect(decision).toContainText('new entry draft');
     await decision.getByRole('link',{name:'Open result'}).click();await expect(admin.getByText('draft').first()).toBeVisible();
+    await expect(admin.locator('[data-local-guide-preview] h3')).toHaveText(TITLE);
+    await expect(admin.getByText('No additional body content.')).toBeVisible();
     expect((await request.get(`/local-guide/${ORIGINAL_SLUG}/`)).status()).toBe(404);
 
-    await admin.getByLabel('Markdown body').fill('## Riverside route\n\nA database-backed recommendation from a guest.');
-    await admin.getByRole('button',{name:'Save new revision'}).click();
-    await expect(admin.getByText(/Revision 2:/).first()).toBeVisible();
-    const guideIdentity=await withDatabase(async client=>(await client.query(`SELECT id::text,public_id::text,lock_version FROM local_guide_entries WHERE canonical_slug=$1`,[ORIGINAL_SLUG])).rows[0]);
-    const lifecycle=async(action:'publish'|'unpublish')=>admin.evaluate(async body=>{
-      const response=await fetch('/api/admin/local-guide/action/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-      return {status:response.status,data:await response.json()};
-    },{action,entryId:guideIdentity.public_id,expectedVersion:guideIdentity.lock_version});
-    const published=await lifecycle('publish');expect(published.status).toBe(200);guideIdentity.lock_version=published.data.entry.lockVersion;
-    await admin.reload();
+    const confirmedAction=async(name:string)=>{admin.once('dialog',dialog=>dialog.accept());const response=admin.waitForResponse(value=>value.url().endsWith('/api/admin/local-guide/action/')&&value.request().method()==='POST');const navigation=admin.waitForNavigation({waitUntil:'load'});await admin.getByRole('button',{name}).click();expect((await response).status()).toBe(200);await navigation};
+    await confirmedAction('Publish working revision');
     await expect(admin.getByText('published').first()).toBeVisible();
     expect((await request.get(`/local-guide/${ORIGINAL_SLUG}/`)).status()).toBe(200);
 
+    await admin.getByLabel('Title').fill(UPDATED_TITLE);await admin.getByLabel('Markdown body').fill('## Riverside route\n\nA database-backed recommendation from a guest.');
+    await admin.getByRole('button',{name:'Save new revision'}).click();await expect(admin.getByText(/Revision 3:/).first()).toBeVisible();
+    await expect(admin.getByText(/working revision contains unpublished changes/)).toBeVisible();
+    await expect(admin.locator('[data-local-guide-preview] h3')).toHaveText(UPDATED_TITLE);
+    await expect(admin.getByRole('button',{name:'Publish working revision'})).toBeVisible();
+    await expect(admin.getByRole('button',{name:'Unpublish current entry'})).toBeVisible();
+    expect(await (await request.get(`/local-guide/${ORIGINAL_SLUG}/`)).text()).toContain(TITLE);
+    await confirmedAction('Publish working revision');
+    expect(await (await request.get(`/local-guide/${ORIGINAL_SLUG}/`)).text()).toContain(UPDATED_TITLE);
+    const guideIdentity=await withDatabase(async client=>(await client.query(`SELECT id::text,public_id::text FROM local_guide_entries WHERE canonical_slug=$1`,[ORIGINAL_SLUG])).rows[0]);
+
     await page.reload();const item=page.locator('.planner-item').filter({hasText:TITLE});
     await item.locator('[data-guide]').selectOption(guideIdentity.public_id);await item.getByRole('button',{name:'Apply guide'}).click();
-    await expect(page.getByRole('link',{name:TITLE})).toHaveAttribute('href',`/local-guide/${ORIGINAL_SLUG}/`);
+    await expect(page.getByRole('link',{name:UPDATED_TITLE})).toHaveAttribute('href',`/local-guide/${ORIGINAL_SLUG}/`);
     const stableId=await withDatabase(async client=>(await client.query(`SELECT i.local_guide_entry_id::text FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id JOIN holiday_plans p ON p.id=d.holiday_plan_id JOIN provisional_bookings b ON b.id=p.booking_id WHERE b.guest_email=$1 AND i.title=$2`,[EMAIL,TITLE])).rows[0].local_guide_entry_id);
     expect(stableId).toBe(guideIdentity.id);
 
-    await admin.getByLabel('Canonical slug').fill(RENAMED_SLUG);
-    await admin.getByRole('button',{name:'Change slug'}).click();await expect(admin.locator('code')).toHaveText(RENAMED_SLUG);
+    await admin.locator('summary',{hasText:'Advanced URL settings'}).click();await admin.getByLabel('Public URL slug').fill(RENAMED_SLUG);
+    await confirmedAction('Change public URL');await expect(admin.locator('code')).toHaveText(RENAMED_SLUG);
     const alias=await request.get(`/local-guide/${ORIGINAL_SLUG}/`,{maxRedirects:0});expect(alias.status()).toBe(301);
     expect(alias.headers().location).toBe(`/local-guide/${RENAMED_SLUG}/`);
-    await page.reload();await expect(page.getByRole('link',{name:TITLE})).toHaveAttribute('href',`/local-guide/${RENAMED_SLUG}/`);
+    await page.reload();await expect(page.getByRole('link',{name:UPDATED_TITLE})).toHaveAttribute('href',`/local-guide/${RENAMED_SLUG}/`);
 
-    guideIdentity.lock_version=await withDatabase(async client=>(await client.query(`SELECT lock_version FROM local_guide_entries WHERE id=$1`,[guideIdentity.id])).rows[0].lock_version);
-    const unpublished=await lifecycle('unpublish');expect(unpublished.status).toBe(200);await admin.reload();
+    await confirmedAction('Unpublish current entry');
     await expect(admin.getByText('unpublished').first()).toBeVisible();
     expect((await request.get(`/local-guide/${RENAMED_SLUG}/`)).status()).toBe(404);
     const evidence=await withDatabase(async client=>(await client.query(`SELECT e.status,e.id::text=$2 AS stable_reference,
