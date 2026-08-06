@@ -2,12 +2,21 @@
 
 ## Status
 
+- Implementation: complete
 - Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
 - Base and merge target: `agent/local-guide-db-migration-epic`
 - Feature branch: `agent/local-guide-stage-2-data-migration`
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
 - Depends on: [Stage 1](./local-guide-stage-1-foundation-and-baseline.md)
 - Enables: database-backed planner and public consumers
+
+### Completion evidence
+
+- Generated migration `034_local_guide_content_migration.sql` captures all 39 source entries as published database records and immutable initial revisions.
+- The committed reconciliation report includes baseline and payload fingerprints plus per-entry body and source fingerprints.
+- Database integration tests reconcile every metadata field and body hash and prove complete rollback on a deliberate conflict.
+- One pre-existing missing image path, `/media/images/local-guide/olrigbank.png`, is retained and reported as a non-blocking warning.
+- Baseline, determinism, lifecycle, Astro, build and complete PostgreSQL integration checks pass.
 
 ## Objective
 

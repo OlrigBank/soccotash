@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "baselineVersion": 1,
+  "entryCount": 39,
+  "publishedCount": 39,
+  "nonEmptyBodyCount": 3,
+  "recommendedCount": 7,
+  "categoryCounts": {
+    "activities": 2,
+    "antiques": 1,
+    "bars": 2,
+    "close-to-home": 8,
+    "collectables": 1,
+    "cycling": 3,
+    "eating-out": 3,
+    "exhibitions": 2,
+    "festivals": 3,
+    "further-afield": 5,
+    "home": 1,
+    "local": 0,
+    "music": 4,
+    "outdoor-pursuits": 0,
+    "pre-owned": 0,
+    "shopping": 3,
+    "whats-on": 1
+  },
+  "baselineSha256": "0b01111f024324588a711164a39c8ca5d174978c54f28b88bc6e06a1d13581cb",
+  "payloadSha256": "7926c3c7abef86df872b5f41ae678db8056e87900bb1bcdb8b1a586164febffb",
+  "warnings": [
+    {
+      "slug": "olrigbank",
+      "code": "missing_image",
+      "path": "/media/images/local-guide/olrigbank.png"
+    }
+  ],
+  "entries": [
+    {
+      "slug": "abbothall",
+      "contentId": "abbothall",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "341407a10d327392c52480ca7a5770b58a87ed04b652edf3d7a0a4ed7d71bb29"
+    },
+    {
+      "slug": "albion-snooker-hall",
+      "contentId": "albion-snooker-hall",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "8221e8a08e4ca21ece6d86df2c78e08f5fb68a6f240b6c7be91053040a21261c"
+    },
+    {
+      "slug": "babaganoush",
+      "contentId": "babaganoush",
+      "bodySha256": "aaf3b5e8fbb5f47262696776f752d6727d6564672be33195b30544ac28a67e56",
+      "sourceSha256": "6f33bfb4ae32992f1dd995476121832147462f2fb6a0744c72eeda07f3cfd97d"
+    },
+    {
+      "slug": "baycycleway",
+      "contentId": "baycycleway",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "3bd0ef44ab3d2e7d9daebe7eb6d5c3f55375b36f5e5150d343c3cc21add178c8"
+    },
+    {
+      "slug": "cyclesprog",
+      "contentId": "cycle-sprogs-best-family-friendly-bike-rides-in-the-lake-district",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "38f2a552b95f1eb698ea73b99f65ade35258b4777619fd95ab5014b2c3d7e614"
+    },
+    {
+      "slug": "cycling-kendal",
+      "contentId": "cycling-kendal",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "1096c81900c46e0d03c1018f3a0bb918295d11c342b6f0b969698adb88ff9cd7"
+    },
+    {
+      "slug": "thefell",
+      "contentId": "thefell",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "2167ab604f2b9b9db2f8d05d05292924cc8e86e500cb0ef274aa4d926e317485"
+    },
+    {
+      "slug": "fellfoot",
+      "contentId": "fellfoot",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "5d3c731fca66599c2063ff1b19ef01117d349647709a4ab76b9775ef0f1d65c7"
+    },
+    {
+      "slug": "gummershowe",
+      "contentId": "gummershowe",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "cb92b369036c9f55a1e4380e2f4846737f3290d8015d3176e76dcf4b7afb8bb4"
+    },
+    {
+      "slug": "gurnal-dubs-tarn",
+      "contentId": "gurnal-dubs-tarn",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "bc5cb0fad8ef7812957c26d89f750dcde11cc397586c2d0263c204011c46dec6"
+    },
+    {
+      "slug": "ingenlboroughcave",
+      "contentId": "ingenlboroughcave",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "d36211b4bc758d2543d5a8b53554848b96e7b5d37a7315086a144b4c00269017"
+    },
+    {
+      "slug": "kendalcastle",
+      "contentId": "kendalcastle",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "c7e1a2e6db251a4b0c7765bc8c93b0c51144b242383eb0ee2d48cd9746efa4c5"
+    },
+    {
+      "slug": "kendalfishandseafoods",
+      "contentId": "kendalfishandseafoods",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "cca4ffd47634b52e1ef32b0b2d4701d24c9aacba1253b361c1e909d73d37efe1"
+    },
+    {
+      "slug": "kendal-jazz",
+      "contentId": "kendal-jazz",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "9231c84ece2a89d8886cd8034599ca4608867a91a9dd49961168ae06c70c670c"
+    },
+    {
+      "slug": "mountain",
+      "contentId": "mountain",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "85830c30f9935e5f3d18c3c402098abea86724c75edfc8a9f9974a66fd765cd2"
+    },
+    {
+      "slug": "kendal-music-feastival",
+      "contentId": "kendal-music-feastival",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "dc63cb53f9c67fb071303d9bac8354a36b943288270a265051d90490599d6cf0"
+    },
+    {
+      "slug": "kendalpeoplescafe",
+      "contentId": "kendalpeoplescafe",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "2dede68fb90580ea91a683e5d36e01fd0df54b81c0a40081556da82c06998d8c"
+    },
+    {
+      "slug": "skatepark",
+      "contentId": "kendal-skatepark-beezon-fields",
+      "bodySha256": "ab975ad3df8c37c80998a8f80d72d22fd8932f295eece1abc98de9eadbf48d1c",
+      "sourceSha256": "2d2eb7320818bc2b52a957dac04d62a2482e33d2ca84fb87bb1046fbc491058d"
+    },
+    {
+      "slug": "kendalwalkingfestival",
+      "contentId": "kendalwalkingfestival",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "17fafa19a0c34cfcd9fae6547c84919ed5e8d1c3fadd624b5e8e6ef675479048"
+    },
+    {
+      "slug": "kcw",
+      "contentId": "kcw",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "512ee521665b24a8a0c3b0af1bfeb68919719ea4392423dc2a5446f566a26538"
+    },
+    {
+      "slug": "comic-art-featival",
+      "contentId": "comic-art-featival",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "d33b18c99d2c5c73716bedd667280b499ee623bc50f7156f6078bf19622529ff"
+    },
+    {
+      "slug": "brewery-music",
+      "contentId": "brewery-music",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "a852e07d8ec8094a741bc2312317baeaaff673e44fdd6c4577e8d33b970ae482"
+    },
+    {
+      "slug": "nutshell",
+      "contentId": "nutshell",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "1d533e7b3346f142d26ae5fadfcb4e79fbc14505bd6a6dc01aa1062a02de1460"
+    },
+    {
+      "slug": "olrigbank",
+      "contentId": "olrigbank",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "abe493a22eb310f423c52171967487ae7901deb6bf5649e2a844ab9afdd074d4"
+    },
+    {
+      "slug": "park-end-moss-wetland-walk-at-sizergh",
+      "contentId": "park-end-moss-wetland-walk-at-sizergh",
+      "bodySha256": "397df24eb2e09af2120d8602cb77e87525d75680c7aa0a4701c4d3d1b4829783",
+      "sourceSha256": "d75cdd337997eae3842b3c79e3dee2663d65e4296b46e77849fa49be4e4d432d"
+    },
+    {
+      "slug": "qtm",
+      "contentId": "qtm",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "c7be9c8d0e3ee9dbdbb2404f4a9bc3de31b6c7f464e451b94539705b63a76ca4"
+    },
+    {
+      "slug": "ring-o-bells",
+      "contentId": "ring-o-bells",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "88ce243a5574e851e83e02b29c22fb921b0dc3a3c6e55986a1b2b2b54463ff13"
+    },
+    {
+      "slug": "ruskins",
+      "contentId": "ruskins",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "3232ccda949ed40e0d5103c06a3796f66b8707f5616a67cbd02e4e3ad8fd0f68"
+    },
+    {
+      "slug": "scoutscar",
+      "contentId": "scoutscar",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "8184578a18592a91d5c30ba79071f57e6d13b686a7ea14c3378239e34942e41b"
+    },
+    {
+      "slug": "serpentine-woods",
+      "contentId": "serpentine-woods",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "0da55efb38e732e571c54f10e8f84123fae3e622fa182164ca327d4d41370f11"
+    },
+    {
+      "slug": "sizergh-fellwalk",
+      "contentId": "sizergh-fellwalk",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "54317ef91bece4ea3cf7154383064ade2954fdfa274d178b9c97a3f82406e615"
+    },
+    {
+      "slug": "staff-of-life",
+      "contentId": "staff-of-life",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "f94a199366e9855a966699faedc452f80c5ac3b33f339ff00e58687d0cdbc42f"
+    },
+    {
+      "slug": "sraveley-woodlands",
+      "contentId": "sraveley-woodlands",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "4dd9d2e18c4ef3978c0b5c922fd05bfbe6a8dbc1437e80b904b4488c60699cda"
+    },
+    {
+      "slug": "thehelm",
+      "contentId": "thehelm",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "e0911a87b8eb467b3dc9857e6e12ed05fe5fac10da646db68c94a45da4044892"
+    },
+    {
+      "slug": "joshua-tree",
+      "contentId": "joshua-tree",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "1b41055b140397b8fff0ffda94c1162bc768e49ad06c033ed7d4a26b51a13ea5"
+    },
+    {
+      "slug": "tocshop",
+      "contentId": "tocshop",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "0c9e88151e7cc0905137d0e45969f001d93d5a8ed40da3905e18c7180addefba"
+    },
+    {
+      "slug": "tradclimbing",
+      "contentId": "tradclimbing",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "391f24de172fb340af8f4625a647c2816685e8ed4f29d2ae9c14f1979286a419"
+    },
+    {
+      "slug": "watson-wollard",
+      "contentId": "watson-wollard",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "7db2838efbd9fed9c50b79f07e03025cc199b9af5cab3d89210b2a487113a98b"
+    },
+    {
+      "slug": "whatsonkendal",
+      "contentId": "whatsonkendal",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceSha256": "1c8d91db22a2003e37fd2537c84f9f2f3641378ff32f9d67c54bd33c7bf02a38"
+    }
+  ]
+}

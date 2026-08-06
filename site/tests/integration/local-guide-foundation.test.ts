@@ -84,7 +84,7 @@ test('Local Guide mutations are transactional, versioned and publication-safe', 
     assert.equal((await database.query(`SELECT old_slug FROM local_guide_slug_aliases WHERE local_guide_entry_id=(SELECT id FROM local_guide_entries WHERE public_id=$1)`, [draft.id])).rows[0].old_slug, 'new-kendal-place');
     assert.equal((await resolvePublishedLocalGuideSlug('new-kendal-place', database))?.isAlias, true);
     assert.equal((await resolvePublishedLocalGuideSlug('better-kendal-place', database))?.entry.title, 'A better Kendal place');
-    assert.equal((await listPublishedLocalGuideEntries(database)).length, 1);
+    assert.equal((await listPublishedLocalGuideEntries(database)).some((entry) => entry.id === draft.id), true);
     assert.deepEqual((await listLocalGuideRevisions(draft.id, database)).map((item) => item.revisionNumber), [3, 1]);
 
     const unpublished = await unpublishLocalGuideEntry({ entryId: draft.id, expectedVersion: 5, actor }, database);

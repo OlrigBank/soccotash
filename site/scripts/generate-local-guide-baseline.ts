@@ -47,7 +47,7 @@ function optionalString(value: unknown, field: string, filename: string): string
   return value.trim() || null;
 }
 
-function splitMarkdown(source: string, filename: string): { data: Frontmatter; body: string } {
+export function splitLocalGuideMarkdown(source: string, filename: string): { data: Frontmatter; body: string } {
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) throw new Error(`${filename}: valid YAML frontmatter is required.`);
   const data = parse(match[1]);
@@ -67,7 +67,7 @@ export async function buildLocalGuideBaseline(siteRoot = process.cwd()): Promise
 
   for (const filename of filenames) {
     const source = await readFile(path.join(contentDirectory, filename), 'utf8');
-    const { data, body } = splitMarkdown(source, filename);
+    const { data, body } = splitLocalGuideMarkdown(source, filename);
     const contentId = filename.replace(/\.md$/i, '');
     const slug = optionalString(data.slug, 'slug', filename) ?? contentId;
     if (!slugPattern.test(slug)) throw new Error(`${filename}: slug is invalid.`);
