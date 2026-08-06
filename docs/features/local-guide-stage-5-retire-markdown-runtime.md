@@ -1,0 +1,39 @@
+# Proposed feature — Stage 5: Retire the Local Guide Markdown runtime
+
+## Status
+
+- Epic: [Local Guide Database Migration](./epics/local-guide-database-migration-epic.md)
+- Depends on: [Stage 4](./local-guide-stage-4-public-database-cutover.md)
+- Enables: a single unambiguous source of truth
+
+## Objective
+
+Remove the existing Local Guide content-collection implementation immediately after database cutover acceptance.
+
+## Scope
+
+- Remove `localGuide` from the Astro content collection configuration.
+- Remove collection-backed Local Guide helpers and planner adapters.
+- Remove static Local Guide entry path generation.
+- Verify that every public, planner, print and example-plan consumer uses PostgreSQL.
+- Retain the original Markdown only as a clearly labelled migration snapshot until recovery acceptance is complete.
+- Document that the snapshot is not an application input and cannot be used as runtime fallback.
+
+## Acceptance criteria
+
+- No runtime code calls `getCollection('localGuide')` or reads `site/src/content/local-guide`.
+- Public and planner acceptance tests pass with the content collection removed.
+- Pages, spaces and accommodation collections remain unchanged.
+- PostgreSQL is the sole Local Guide source of truth.
+
+## Tests
+
+- Static contract check for forbidden Local Guide collection reads.
+- Production build and public smoke tests.
+- Planner selection, rendering and print regression tests.
+
+## Out of scope
+
+- Deleting the migration snapshot before recovery is verified.
+- Administration or contribution workflows.
+

@@ -13,12 +13,12 @@ services:
     networks:
       - soccotash-shared
     environment:
-      PORT: "8081"
+      PORT: "8080"
       DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
       AIRBNB_MAIN_HOUSE_ICAL_URLS: ${AIRBNB_MAIN_HOUSE_ICAL_URLS:-}
       AIRBNB_COTTAGE_ICAL_URLS: ${AIRBNB_COTTAGE_ICAL_URLS:-}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8081
+      BOOKING_SERVICE_URL: http://site:8080
       DATABASE_SSL: "false"
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       BOOKING_EMAIL_FROM: ${BOOKING_EMAIL_FROM:-}
@@ -32,7 +32,7 @@ services:
       SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     ports:
-      - "${OLRIGBANK_PORT:-8081}:8081"
+      - "${OLRIGBANK_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "node", "./scripts/healthcheck.mjs"]
       interval: 10s
@@ -53,7 +53,7 @@ services:
       AIRBNB_MAIN_HOUSE_ICAL_URLS: ${AIRBNB_MAIN_HOUSE_ICAL_URLS:-}
       AIRBNB_COTTAGE_ICAL_URLS: ${AIRBNB_COTTAGE_ICAL_URLS:-}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8081
+      BOOKING_SERVICE_URL: http://site:8080
       DATABASE_SSL: "false"
     command: ["npm", "run", "sync:calendars"]
 
@@ -68,7 +68,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
       CALENDAR_SYNC_TOKEN: ${CALENDAR_SYNC_TOKEN:?Set CALENDAR_SYNC_TOKEN in .env}
-      BOOKING_SERVICE_URL: http://site:8081
+      BOOKING_SERVICE_URL: http://site:8080
       DATABASE_SSL: "false"
     command: ["npm", "run", "booking:report"]
 

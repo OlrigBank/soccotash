@@ -3,4 +3,5 @@ set -euo pipefail
 docker compose down
 npm --prefix site ci
 npm --prefix site run build
-docker compose build
+docker compose build --no-cache site
+docker compose up -d
