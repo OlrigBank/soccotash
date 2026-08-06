@@ -108,6 +108,11 @@ export async function getLocalGuideEntry(publicId: string, database: Pick<Pool, 
   return result.rowCount ? mapEntry(result.rows[0]) : null;
 }
 
+export async function listLocalGuideEntries(database: Pick<Pool, 'query'> = getPool()): Promise<LocalGuideEntry[]> {
+  const result = await database.query(`${entrySelect} ORDER BY COALESCE(wr.title, pr.title) COLLATE "C", e.canonical_slug`);
+  return result.rows.map(mapEntry);
+}
+
 export async function listLocalGuideRevisions(publicId: string, database: Pick<Pool, 'query'> = getPool()): Promise<LocalGuideRevision[]> {
   const result = await database.query(
     `SELECT r.* FROM local_guide_revisions r
@@ -251,6 +256,34 @@ export async function changeLocalGuideSlug(input: { entryId: string; expectedVer
     await client.query(`UPDATE local_guide_entries SET canonical_slug=$2, lock_version=$3, updated_by_admin_user_id=$4, updated_at=NOW() WHERE id=$1`, [entry.id, slug, nextVersion, actor.adminUserId]);
     await client.query(`INSERT INTO local_guide_slug_aliases (old_slug, local_guide_entry_id, created_by_admin_user_id) VALUES ($1,$2,$3)`, [entry.canonical_slug, entry.id, actor.adminUserId]);
     await addEvent(client, String(entry.id), nextVersion, actor, 'slug_changed', { from: entry.canonical_slug, to: slug });
+  });
+  return (await getLocalGuideEntry(input.entryId, database))!;
+}
+
+export async function restoreLocalGuideRevision(input: {
+  entryId: string; revisionId: string; expectedVersion: number; actor: LocalGuideActor;
+}, database: Database = getPool()): Promise<LocalGuideEntry> {
+  const actor = validateAdminActor(input.actor);
+  await inTransaction(database, async (client) => {
+    const entry = await lockedEntry(client, input.entryId, input.expectedVersion);
+    if (entry.status === 'archived') throw new LocalGuideError('INVALID_TRANSITION', 'Archived entries are read-only.');
+    const source = await client.query(
+      `SELECT r.* FROM local_guide_revisions r
+        WHERE r.id=$1::bigint AND r.local_guide_entry_id=$2`, [input.revisionId, entry.id],
+    );
+    if (!source.rowCount) throw new LocalGuideError('NOT_FOUND', 'Local Guide revision was not found.');
+    const row = source.rows[0]; const revisionNumber = input.expectedVersion + 1;
+    const inserted = await insertRevision(client, String(entry.id), revisionNumber, {
+      title: row.title, summary: row.summary, markdownBody: row.markdown_body,
+      categoryId: row.category_id, categoryLabel: row.category_label, imagePath: row.image_path,
+      externalLink: row.external_link, recommended: row.recommended, legacyText: row.legacy_text,
+    }, actor, 'revision_restored');
+    await client.query(
+      `UPDATE local_guide_entries SET working_revision_id=$2, lock_version=$3,
+       updated_by_admin_user_id=$4, updated_at=NOW() WHERE id=$1`,
+      [entry.id, inserted.rows[0].id, revisionNumber, actor.adminUserId],
+    );
+    await addEvent(client, String(entry.id), revisionNumber, actor, 'revision_restored', { sourceRevisionId: String(row.id), sourceRevisionNumber: row.revision_number });
   });
   return (await getLocalGuideEntry(input.entryId, database))!;
 }

@@ -6,6 +6,7 @@
 - Base and merge target: `agent/local-guide-db-migration-epic`
 - Feature branch: `agent/local-guide-stage-6-administration`
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
+- Implementation: complete
 - Depends on: [Stage 5](./local-guide-stage-5-retire-markdown-runtime.md)
 - Enables: deployment-independent Local Guide maintenance
 
@@ -48,3 +49,18 @@ Allow authenticated administrators to maintain the database-backed place pool sa
 - Rich-text editing or media upload.
 - Category administration.
 - Guest contribution linkage.
+
+## Implementation record
+
+- Added protected Local Guide administration navigation, status/category listing and draft creation.
+- Added a working-revision editor for content, category, recommendation state, image path and external link, with safe Markdown preview and retained form values on validation errors.
+- Added explicit publish, republish, unpublish, archive and canonical-slug actions through the same-origin protected admin API.
+- Added revision history, content comparison and rollback-by-copy as a new immutable revision, including an audited `revision_restored` event.
+- Archived entries render read-only and optimistic lock conflicts report the current version with a recoverable reload instruction.
+
+## Verification record
+
+- `npm run test:booking-lifecycle`: 36 passed.
+- `npm run test:booking-integration` with PostgreSQL and `TZ=UTC`: 10 passed.
+- `npm run check` and `npm run build`: passed.
+- Browser acceptance created, edited, previewed and published an entry without deployment; the public route appeared immediately and returned 404 immediately after archival.

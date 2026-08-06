@@ -10,9 +10,11 @@ import {
   editLocalGuideDraft,
   getLocalGuideEntry,
   listLocalGuideRevisions,
+  listLocalGuideEntries,
   listPublishedLocalGuideEntries,
   publishLocalGuideEntry,
   resolvePublishedLocalGuideSlug,
+  restoreLocalGuideRevision,
   unpublishLocalGuideEntry,
 } from '../../src/lib/local-guide/repository.ts';
 import { LocalGuideError } from '../../src/lib/local-guide/types.ts';
@@ -86,15 +88,23 @@ test('Local Guide mutations are transactional, versioned and publication-safe', 
     assert.equal((await resolvePublishedLocalGuideSlug('better-kendal-place', database))?.entry.title, 'A better Kendal place');
     assert.equal((await listPublishedLocalGuideEntries(database)).some((entry) => entry.id === draft.id), true);
     assert.deepEqual((await listLocalGuideRevisions(draft.id, database)).map((item) => item.revisionNumber), [3, 1]);
+    assert.equal((await listLocalGuideEntries(database)).some((item) => item.id === draft.id), true);
 
-    const unpublished = await unpublishLocalGuideEntry({ entryId: draft.id, expectedVersion: 5, actor }, database);
+    const restored = await restoreLocalGuideRevision({
+      entryId: draft.id, revisionId: draft.workingRevisionId!, expectedVersion: 5, actor,
+    }, database);
+    assert.equal(restored.lockVersion, 6);
+    assert.equal(restored.workingRevision?.revisionNumber, 6);
+    assert.equal(restored.workingRevision?.title, content.title);
+
+    const unpublished = await unpublishLocalGuideEntry({ entryId: draft.id, expectedVersion: 6, actor }, database);
     assert.equal(unpublished.status, 'unpublished');
     assert.ok(unpublished.publishedRevision, 'historical published revision remains linked');
     assert.equal(await resolvePublishedLocalGuideSlug('better-kendal-place', database), null);
-    const archived = await archiveLocalGuideEntry({ entryId: draft.id, expectedVersion: 6, actor }, database);
+    const archived = await archiveLocalGuideEntry({ entryId: draft.id, expectedVersion: 7, actor }, database);
     assert.equal(archived.status, 'archived');
     await assert.rejects(
-      editLocalGuideDraft({ entryId: draft.id, expectedVersion: 7, actor, content }, database),
+      editLocalGuideDraft({ entryId: draft.id, expectedVersion: 8, actor, content }, database),
       (error: unknown) => error instanceof LocalGuideError && error.code === 'INVALID_TRANSITION',
     );
 
@@ -112,7 +122,7 @@ test('Local Guide mutations are transactional, versioned and publication-safe', 
     );
 
     const events = await database.query(`SELECT action FROM local_guide_events WHERE local_guide_entry_id=(SELECT id FROM local_guide_entries WHERE public_id=$1) ORDER BY id`, [draft.id]);
-    assert.deepEqual(events.rows.map((row) => row.action), ['created', 'published', 'edited', 'published', 'slug_changed', 'unpublished', 'archived']);
+    assert.deepEqual(events.rows.map((row) => row.action), ['created', 'published', 'edited', 'published', 'slug_changed', 'revision_restored', 'unpublished', 'archived']);
   } finally {
     await database.end();
     await control.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);

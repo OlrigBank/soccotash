@@ -8,5 +8,8 @@ test('retired Local Guide source is preserved completely in the migration baseli
   assert.equal(new Set(committed.entries.map((entry: any) => entry.slug.toLowerCase())).size, committed.entryCount);
   assert.equal(committed.entries.every((entry: any) => entry.url === `/local-guide/${entry.slug}/`), true);
   assert.equal(committed.entries.every((entry: any) => /^[a-f0-9]{64}$/.test(entry.bodySha256)), true);
-  assert.deepEqual(await readdir(new URL('../../src/content/local-guide', import.meta.url)), []);
+  assert.deepEqual(await readdir(new URL('../../src/content/local-guide', import.meta.url)).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }), []);
 });
