@@ -31,6 +31,7 @@ test('backfills stable guide IDs, survives slug changes and rejects unresolved m
   const beforeReference=files.filter(name=>name<'035_planner_local_guide_entry_references.sql');
   const referenceMigration=await readFile(new URL('035_planner_local_guide_entry_references.sql',directory),'utf8');
   try{
+    await control.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(schema)}`);await control.query(`CREATE SCHEMA ${quoteIdentifier(badSchema)}`);
     for(const filename of beforeReference){const sql=await readFile(new URL(filename,directory),'utf8');await database.query(sql);await badDatabase.query(sql)}
     const seeded=await seedPlan(database,'kendalcastle');
