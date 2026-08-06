@@ -576,7 +576,13 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(acceptedCandidate.status, 'accepted');
     assert.equal(acceptedCandidate.resultType, 'new_entry_draft');
     assert.equal(acceptedCandidate.resultGuideSlug, 'quiet-riverside-picnic');
+    assert.ok(acceptedCandidate.resultLocalGuideEntryId);
+    assert.ok(acceptedCandidate.resultLocalGuideRevisionId);
     assert.equal(acceptedCandidate.reviewedByName, 'Planner Admin');
+    const acceptedDraft=await applicationPool.query(`SELECT e.status,r.actor_type,r.change_summary FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.working_revision_id WHERE e.public_id=$1::uuid`,[acceptedCandidate.resultLocalGuideEntryId]);
+    assert.equal(acceptedDraft.rows[0].status,'draft');
+    assert.equal(acceptedDraft.rows[0].actor_type,'contribution');
+    assert.equal(acceptedDraft.rows[0].change_summary.attributionName,'Alex Booker');
     await assert.rejects(
       moderateGuideContribution({ candidateId: resubmitted.candidateId, decision: 'reject',
         moderationNotes: 'Cannot decide twice.', actor }, applicationPool),
@@ -615,6 +621,11 @@ test('persists structured plans and makes every mutation an atomic revision', as
     const updateCandidate = (await listGuideContributionModerationQueue(applicationPool)).find(entry => entry.id === updateSubmission.candidateId)!;
     assert.equal(updateCandidate.resultType, 'suggested_update');
     assert.equal(updateCandidate.resultGuideSlug, 'kendalcastle');
+    assert.ok(updateCandidate.resultLocalGuideEntryId);
+    assert.ok(updateCandidate.resultLocalGuideRevisionId);
+    const updateState=await applicationPool.query(`SELECT status,working_revision_id<>published_revision_id AS private_proposal FROM local_guide_entries WHERE public_id=$1::uuid`,[updateCandidate.resultLocalGuideEntryId]);
+    assert.equal(updateState.rows[0].status,'published');
+    assert.equal(updateState.rows[0].private_proposal,true);
     await assert.rejects(
       createPlanShareLink({ planId: bookingPlan.id, expectedRevision: 21, expiresDays: 7,
         actor: { type: 'booker', bookingId: '999999' } }, applicationPool),

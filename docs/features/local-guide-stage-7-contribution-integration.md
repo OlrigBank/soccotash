@@ -6,6 +6,7 @@
 - Base and merge target: `agent/local-guide-db-migration-epic`
 - Feature branch: `agent/local-guide-stage-7-contributions`
 - Completion: test, merge locally into the epic branch, recheck, then delete this feature branch
+- Implementation: complete
 - Depends on: [Stage 6](./local-guide-stage-6-administration.md)
 - Enables: moderated guest recommendations entering the editorial workflow
 
@@ -44,3 +45,20 @@ Connect accepted guest contributions to database drafts and proposed working rev
 
 - Automatic publication or guest editing of published content.
 - Guest-facing moderation notifications.
+
+## Implementation record
+
+- Added stable resulting Local Guide entry and revision relationships, plus category capture for new-entry drafts.
+- Migration 037 reconciles accepted slug-only candidates into private drafts or contribution-authored working revisions and blocks unresolved/colliding results atomically.
+- New moderation acceptance creates exactly one private draft or proposed working revision in the same transaction as the candidate decision and planner audit revision.
+- Immutable revision metadata retains candidate ID, consent wording/version/time and recorded attribution preference/name; moderation history links directly to the resulting editorial record.
+- Suggested updates preserve the currently published revision until an administrator separately publishes the proposed working revision.
+- Rejected, withdrawn and already-decided candidates cannot create or change Local Guide content.
+
+## Verification record
+
+- Planner integration covers new drafts, suggested updates, private publication state, attribution provenance, duplicate suppression, rejection and withdrawal.
+- `npm run test:booking-lifecycle`: 36 passed.
+- `npm run test:booking-integration` with PostgreSQL and `TZ=UTC`: 10 passed.
+- `npm run check` and `npm run build`: passed.
+- Local Docker deployment is healthy and applied migration `037_local_guide_contribution_results.sql` successfully.

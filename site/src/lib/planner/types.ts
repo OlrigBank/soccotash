@@ -119,6 +119,9 @@ export type GuideContributionModerationCandidate = GuideContributionCandidate & 
   reviewedLocationText: string | null;
   resultType: 'new_entry_draft' | 'suggested_update' | null;
   resultGuideSlug: string | null;
+  reviewedCategoryId: string | null;
+  resultLocalGuideEntryId: string | null;
+  resultLocalGuideRevisionId: string | null;
   moderationNotes: string | null;
   reviewedByName: string | null;
   reviewedAt: string | null;
