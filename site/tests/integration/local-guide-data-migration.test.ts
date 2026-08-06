@@ -29,6 +29,7 @@ test('captures and reconciles every legacy Local Guide entry atomically', async 
   const report = JSON.parse(await readFile(new URL('../../src/data/local-guide-migration-report.json', import.meta.url), 'utf8'));
   const baseline = JSON.parse(await readFile(new URL('../../src/data/local-guide-baseline.json', import.meta.url), 'utf8'));
   try {
+    await control.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(schema)}`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(rollbackSchema)}`);
     for (const filename of filenames) await database.query(await readFile(new URL(filename, migrationDirectory), 'utf8'));
