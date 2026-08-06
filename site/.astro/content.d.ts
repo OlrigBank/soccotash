@@ -132,14 +132,6 @@ declare module 'astro:content' {
   rendered?: RenderedContent;
   filePath?: string;
 }>;
-"localGuide": Record<string, {
-  id: string;
-  body?: string;
-  collection: "localGuide";
-  data: InferEntrySchema<"localGuide">;
-  rendered?: RenderedContent;
-  filePath?: string;
-}>;
 "pages": Record<string, {
   id: string;
   body?: string;
