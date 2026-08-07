@@ -87,7 +87,24 @@ const currentYear = new Date().getFullYear();
 
   body {
     min-width: 320px;
-    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  .mobile-first-shell,
+  .site-header,
+  .mobile-first-header-inner,
+  .mobile-first-top-nav {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mobile-first-shell {
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .site-header {
+    contain: inline-size;
   }
 
   .skip-link {
