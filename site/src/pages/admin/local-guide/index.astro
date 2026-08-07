@@ -10,14 +10,19 @@ const entries=all.filter(e=>(!status||e.status===status)&&(!category||e.workingR
   <header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Local Guide</h1><p>Create, revise and publish the database-backed place pool.</p></div></header>
   <div id="guide-message" class="admin-alert" role="status" aria-live="polite" hidden></div>
   <section class="admin-panel"><h2>Create place</h2><form id="create-guide" class="planner-form">
-    <label>Title<input name="title" required maxlength="200"/></label><label>Slug<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*"/></label>
+    <label>Title<input name="title" required maxlength="200"/></label>
     <label>Category<select name="categoryId" required>{categories.map(c=><option value={c.id}>{c.label}</option>)}</select></label>
-    <label class="planner-wide">Summary<textarea name="summary" maxlength="1000"></textarea></label><button class="admin-button">Create draft</button>
+    <label class="planner-wide">Summary<textarea name="summary" maxlength="1000"></textarea></label>
+    <details class="planner-wide"><summary>Advanced URL settings</summary><p>The public URL is generated from the title. Change it only when a specific URL is required.</p><label>Public URL slug<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" data-generated-slug/></label></details>
+    <button class="admin-button">Create draft</button>
   </form></section>
   <section class="admin-panel"><h2>Places</h2><form method="get" class="planner-form"><label>Status<select name="status"><option value="">All</option>{['draft','published','unpublished','archived'].map(s=><option value={s} selected={status===s}>{s}</option>)}</select></label><label>Category<select name="category"><option value="">All</option>{categories.map(c=><option value={c.id} selected={category===c.id}>{c.label}</option>)}</select></label><button class="admin-button admin-button--secondary">Filter</button></form>
     <div class="planner-card-grid">{entries.map(e=><a class="admin-panel planner-card" href={`/admin/local-guide/${e.id}/`}><span class:list={['status-badge',`status-${e.status}`]}>{e.status}</span><h3>{e.workingRevision?.title??e.slug}</h3><p>{e.workingRevision?.summary}</p><small>{e.slug} · revision {e.lockVersion}</small></a>)}</div>
   </section>
 </AdminLayout>
 <script>
-const f=document.querySelector('#create-guide'),m=document.querySelector('#guide-message');f?.addEventListener('submit',async e=>{e.preventDefault();if(!(f instanceof HTMLFormElement))return;const body={action:'create',...Object.fromEntries(new FormData(f))};const r=await fetch('/api/admin/local-guide/action/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(r.ok)location.href=`/admin/local-guide/${d.entry.id}/`;else if(m instanceof HTMLElement){m.hidden=false;m.textContent=d.error;m.className='admin-alert admin-alert--error'}});
+const f=document.querySelector('#create-guide'),m=document.querySelector('#guide-message'),title=f?.querySelector('[name="title"]'),slug=f?.querySelector('[name="slug"]');
+const slugify=(value:string)=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/['’]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');let slugManuallyEdited=false;
+title?.addEventListener('input',()=>{if(!slugManuallyEdited&&slug instanceof HTMLInputElement&&title instanceof HTMLInputElement)slug.value=slugify(title.value)});slug?.addEventListener('input',()=>{if(slug instanceof HTMLInputElement&&title instanceof HTMLInputElement)slugManuallyEdited=slug.value!==slugify(title.value)});
+f?.addEventListener('submit',async e=>{e.preventDefault();if(!(f instanceof HTMLFormElement))return;if(slug instanceof HTMLInputElement&&!slug.value&&title instanceof HTMLInputElement)slug.value=slugify(title.value);const body={action:'create',...Object.fromEntries(new FormData(f))};const r=await fetch('/api/admin/local-guide/action/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(r.ok)location.href=`/admin/local-guide/${d.entry.id}/`;else if(m instanceof HTMLElement){m.hidden=false;m.textContent=d.error;m.className='admin-alert admin-alert--error'}});
 </script>
