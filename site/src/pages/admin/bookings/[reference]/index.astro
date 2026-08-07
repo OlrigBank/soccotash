@@ -36,6 +36,8 @@ import { customerPricingLinesFromUnknown } from '../../../../lib/pricing/display
 import { validateOfferTotal } from '../../../../lib/booking/offer-price';
 import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../../../../lib/booking/admin-display';
 import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
+import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, getBookingLinkedPlanByBookingReference, listPublishedExamplePlans } from '../../../../lib/planner/repository.ts';
+import { PlannerError } from '../../../../lib/planner/types.ts';
 
 export const prerender = false;
 
@@ -105,13 +107,37 @@ let contactEmail = booking.email;
 let contactTelephone = booking.telephone || '';
 let error = '';
 let messageError = '';
+const holidayPlan = await getBookingLinkedPlanByBookingReference(reference);
+const publishedExamplePlans = holidayPlan && holidayPlan.days.length === 0 ? await listPublishedExamplePlans() : [];
 
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
-  if (action === 'withdraw-whatsapp-consent') {
+  if (action === 'copy-example-plan') {
+    try {
+      await copyPublishedExampleIntoBookingPlan({
+        bookingReference: reference,
+        sourcePlanId: cleanText(form.get('sourcePlanId'), 36),
+        expectedRevision: Number(form.get('expectedRevision')),
+        actor: { type: 'administrator', adminUserId: Astro.locals.adminUser!.id },
+      });
+      return Astro.redirect(`/admin/bookings/${reference}/?planner=example-copied#holiday-planner`);
+    } catch (plannerError) {
+      error = plannerError instanceof PlannerError ? plannerError.message : 'The example plan could not be copied.';
+    }
+  } else if (action === 'create-holiday-plan') {
+    try {
+      await createBookingLinkedPlan({
+        bookingReference: reference,
+        actor: { type: 'administrator', adminUserId: Astro.locals.adminUser!.id },
+      });
+      return Astro.redirect(`/admin/bookings/${reference}/?planner=created#holiday-planner`);
+    } catch (plannerError) {
+      error = plannerError instanceof PlannerError ? plannerError.message : 'The holiday plan could not be created.';
+    }
+  } else if (action === 'withdraw-whatsapp-consent') {
     await withdrawProvisionalBookingWhatsAppConsent(reference, 'administrator');
     await audit(Astro.locals.adminUser!.id, 'booking.whatsapp_consent_withdrawn', { bookingReference: reference });
     return Astro.redirect(`/admin/bookings/${reference}/?consent=withdrawn`);
@@ -446,6 +472,30 @@ if (arrangementAssigned) {
       <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
     </div>
   </header>
+
+  <section id="holiday-planner" class="admin-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
+    <p class="eyebrow">Booking-linked Holiday Planner</p>
+    <h2 id="holiday-planner-heading">{holidayPlan?.title ?? 'Create an empty plan for this booking'}</h2>
+    {holidayPlan ? (
+      <>
+        <p>Private booking plan · {holidayPlan.startsOn} to {holidayPlan.endsOn} · revision {holidayPlan.revision}</p>
+        <p>{holidayPlan.days.length ? `${holidayPlan.days.length} planned ${holidayPlan.days.length === 1 ? 'day' : 'days'}` : 'The Booker owns an empty plan ready for the next editing increment.'}</p>
+        {holidayPlan.days.length === 0 && publishedExamplePlans.length > 0 && <form method="post" class="booking-planner-copy-form">
+          <input type="hidden" name="action" value="copy-example-plan" />
+          <input type="hidden" name="expectedRevision" value={holidayPlan.revision} />
+          <label>Published example<select name="sourcePlanId" required><option value="" selected disabled>Choose an example…</option>{publishedExamplePlans.map((example) => <option value={example.id}>{example.title} · {example.dayCount} days</option>)}</select></label>
+          <button class="admin-button" type="submit">Copy example into Booker plan</button>
+          <small>The copy is independent; private items and reservation notes are excluded.</small>
+        </form>}
+      </>
+    ) : ['confirmed', 'approved'].includes(booking.status) ? (
+      <form method="post"><input type="hidden" name="action" value="create-holiday-plan" /><button class="admin-button" type="submit">Create Booker holiday plan</button></form>
+    ) : (
+      <p>A planner can be created after the booking is confirmed.</p>
+    )}
+    {Astro.url.searchParams.get('planner') === 'created' && <p class="admin-alert admin-alert--success" role="status">The private booking plan was created and the Booker is its owner.</p>}
+    {Astro.url.searchParams.get('planner') === 'example-copied' && <p class="admin-alert admin-alert--success" role="status">The published example was copied into the independent Booker plan.</p>}
+  </section>
 
   <BookingConversation
     messages={messages}

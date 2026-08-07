@@ -1,0 +1,24 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
+import { listGuideContributionModerationQueue } from '../../../../lib/planner/repository.ts';
+import { getLocalGuideCategories } from '../../../../lib/navigation.ts';
+export const prerender=false;
+const [candidates,guides]=await Promise.all([listGuideContributionModerationQueue(),getPlannerGuideEntries()]);
+const categories=getLocalGuideCategories();const pending=candidates.filter(c=>c.status==='pending');const decided=candidates.filter(c=>['accepted','rejected'].includes(c.status));
+const format=(value:string)=>new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'}).format(new Date(value));
+---
+<AdminLayout title="Local Guide contributions">
+ <header class="admin-page-header"><div><p class="eyebrow">Holiday Planner</p><h1>Local Guide contributions</h1><p>Review only explicitly offered content. Acceptance creates private editorial work and never publishes it.</p></div></header>
+ <div id="moderation-message" class="admin-alert" role="status" aria-live="polite" hidden></div>
+ <section><h2>Pending review ({pending.length})</h2>{pending.length===0?<p class="admin-panel">No contributions are waiting.</p>:pending.map(candidate=><article class="admin-panel contribution-review" data-candidate-id={candidate.id}>
+  <header><h3>{candidate.offeredTitle}</h3><p>Offered {format(candidate.consentedAt)} · {candidate.attributionPermitted?`Attribution permitted: ${candidate.attributionName}`:'Anonymous use only'}</p></header><blockquote>{candidate.consentStatement}</blockquote><p>{candidate.offeredDescription||'No description supplied.'}</p>
+  <form class="planner-form accept-form"><input type="hidden" name="decision" value="accept"/><label>Reviewed title<input name="reviewedTitle" value={candidate.offeredTitle} required maxlength="200"/></label><label>Result<select name="resultType"><option value="new_entry_draft">New entry draft</option><option value="suggested_update">Suggested update</option></select></label><label>Local Guide slug<input name="resultGuideSlug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" list="guide-slugs"/></label><label>Category for new entry<select name="reviewedCategoryId">{categories.map(c=><option value={c.id}>{c.label}</option>)}</select></label><label class="planner-wide">Reviewed summary<textarea name="reviewedDescription" maxlength="1000">{candidate.offeredDescription}</textarea></label><label>Reviewed location<input name="reviewedLocationText" value={candidate.offeredLocationText??''} maxlength="500"/></label><label class="planner-wide">Moderation note<textarea name="moderationNotes" maxlength="3000"></textarea></label><button class="admin-button">Accept into private editorial workflow</button></form>
+  <form class="planner-form reject-form"><input type="hidden" name="decision" value="reject"/><label>Rejection reason<textarea name="moderationNotes" required maxlength="3000"></textarea></label><button class="admin-button admin-button--danger">Reject contribution</button></form>
+ </article>)}</section>
+ <datalist id="guide-slugs">{guides.map(g=><option value={g.slug}>{g.title}</option>)}</datalist>
+ <section><h2>Decision history</h2>{decided.length===0?<p class="admin-panel">No moderation decisions yet.</p>:<div class="admin-table-wrap"><table><thead><tr><th>Contribution</th><th>Decision</th><th>Result</th><th>Reviewed by</th><th>Reviewed</th></tr></thead><tbody>{decided.map(c=><tr><td>{c.offeredTitle}</td><td>{c.status}</td><td>{c.resultType?<>{c.resultType.replaceAll('_',' ')} · {c.resultGuideSlug}{c.resultLocalGuideEntryId&&<> · <a href={`/admin/local-guide/${c.resultLocalGuideEntryId}/`}>Open result</a></>}</>:c.moderationNotes}</td><td>{c.reviewedByName??'Former administrator'}</td><td>{c.reviewedAt?format(c.reviewedAt):''}</td></tr>)}</tbody></table></div>}</section>
+</AdminLayout>
+<script>
+const message=document.querySelector('#moderation-message');async function submit(form:HTMLFormElement){const response=await fetch('/api/admin/planner/contributions/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidateId:form.closest<HTMLElement>('[data-candidate-id]')?.dataset.candidateId,...Object.fromEntries(new FormData(form))})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Moderation failed.');location.reload()}document.querySelectorAll<HTMLFormElement>('.accept-form,.reject-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();try{await submit(form)}catch(error){if(message instanceof HTMLElement){message.hidden=false;message.textContent=error instanceof Error?error.message:'Moderation failed.';message.className='admin-alert admin-alert--error'}}}));
+</script>

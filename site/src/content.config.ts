@@ -2,22 +2,6 @@ import { defineCollection } from 'astro:content';
 import { z } from 'astro/zod';
 import { glob } from 'astro/loaders';
 
-const localGuide = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: './src/content/local-guide' }),
-  schema: z.object({
-    title: z.string(),
-    slug: z.string().optional(),
-    legacyId: z.string().optional(),
-    category: z.string().optional().default('local'),
-    categoryLabel: z.string().optional(),
-    image: z.string().optional(),
-    externalLink: z.string().optional(),
-    recommended: z.boolean().optional().default(false),
-    summary: z.string().optional(),
-    legacyText: z.string().optional(),
-  }),
-});
-
 const pages = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/pages' }),
   schema: z.object({
@@ -66,7 +50,6 @@ const listings = defineCollection({
 });
 
 export const collections = {
-  localGuide,
   pages,
   listings,
   spaces,

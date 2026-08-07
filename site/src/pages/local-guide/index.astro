@@ -3,8 +3,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import OfferingCard from '../../components/OfferingCard.astro';
 import { getLocalGuideEntries } from '../../lib/content';
 import { getDescendantCategoryIds, getLocalGuideCategories } from '../../lib/navigation';
+import { listPublishedExamplePlans } from '../../lib/planner/repository.ts';
 
 const entries = await getLocalGuideEntries();
+const examplePlans = await listPublishedExamplePlans();
+Astro.response.headers.set('Cache-Control', 'no-store');
 const categories = getLocalGuideCategories().filter((category) => category.parent === 'home');
 
 function countForCategory(categoryId: string) {
@@ -42,6 +45,11 @@ function recommendationLabel(count: number) {
       })}
     </div>
   </section>
+
+  {examplePlans.length > 0 && <section class="section-block" aria-labelledby="example-plans-heading">
+    <div class="section-heading"><h2 id="example-plans-heading">Example holiday plans</h2><p>Ready-made ideas for exploring Kendal and the Lakes.</p></div>
+    <div class="grid">{examplePlans.map((plan) => <article class="card"><a class="card-link" href={`/holiday-plans/${plan.publicSlug}/`}><div class="card-content"><h3>{plan.title}</h3><p>{plan.description}</p><p class="category-count">{plan.dayCount} {plan.dayCount === 1 ? 'day' : 'days'}</p></div></a></article>)}</div>
+  </section>}
 
   <section class="section-block">
     <div class="section-heading">

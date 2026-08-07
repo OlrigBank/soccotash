@@ -1,0 +1,12 @@
+---
+import type { HolidayPlan } from '../lib/planner/types.ts';
+const {plan,includePrivateItems=false,includeReservationNotes=false,showPrintButton=true}=Astro.props as {plan:HolidayPlan;includePrivateItems?:boolean;includeReservationNotes?:boolean;showPrintButton?:boolean};
+const days=plan.days.map(day=>({...day,items:day.items.filter(item=>includePrivateItems||item.visibility!=='private')}));
+---
+<article class="planner-itinerary">
+  <header><p class="eyebrow">Olrig Bank Holiday Planner</p><h1>{plan.title}</h1><p>{plan.description}</p><p>{plan.startsOn} to {plan.endsOn}</p>{showPrintButton&&<button type="button" class="button no-print" onclick="window.print()">Print itinerary</button>}</header>
+  {days.map((day,index)=><section class="itinerary-day"><h2>Day {index+1}: {day.title}</h2><p><strong>{day.date}</strong>{day.summary&&<> · {day.summary}</>}</p>{day.items.length===0?<p>No activities planned.</p>:<ol>{day.items.map(item=><li><h3>{item.title} <small>· {item.status}</small></h3>{(item.startTime||item.endTime)&&<p>{item.startTime??'—'}–{item.endTime??'—'}</p>}{item.locationText&&<p>{item.locationText}</p>}{item.description&&<p>{item.description}</p>}{item.localGuideSlug&&<p><a href={`/local-guide/${item.localGuideSlug}/`}>Local Guide details</a></p>}{includeReservationNotes&&item.reservationNote&&<p><strong>Reservation note:</strong> {item.reservationNote}</p>}</li>)}</ol>}</section>)}
+</article>
+<style>
+.planner-itinerary{max-width:900px;margin:0 auto;padding:2rem}.itinerary-day{break-inside:avoid;border-top:1px solid #bbb;margin-top:2rem;padding-top:1rem}.itinerary-day li{break-inside:avoid;margin-bottom:1.25rem}.itinerary-day h3{margin-bottom:.25rem}@media print{.no-print,.site-header,.site-footer{display:none!important}.planner-itinerary{max-width:none;padding:0}.itinerary-day{page-break-inside:avoid}a{color:inherit;text-decoration:none}}
+</style>

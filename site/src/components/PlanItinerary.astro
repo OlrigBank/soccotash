@@ -1,0 +1,61 @@
+---
+import type { HolidayPlan } from '../lib/planner/types.ts';
+import type { PlannerGuideEntry } from '../lib/planner/local-guide.ts';
+
+const { plan, guideEntries } = Astro.props as { plan: HolidayPlan; guideEntries: PlannerGuideEntry[] };
+const guideFor = (entryId: string | null) => entryId ? guideEntries.find((entry) => entry.id === entryId) ?? null : null;
+const visibleItems = (items: HolidayPlan['days'][number]['items']) => items.filter((item) => item.visibility !== 'private');
+const formatDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+});
+---
+
+<article class="plan-itinerary">
+  <header class="plan-itinerary-hero">
+    <p class="eyebrow">Example holiday plan</p>
+    <h1>{plan.title}</h1>
+    {plan.description && <p>{plan.description}</p>}
+    <p class="plan-itinerary-meta">
+      {plan.startsOn && plan.endsOn ? `${formatDate(plan.startsOn)} – ${formatDate(plan.endsOn)}` : `${plan.durationDays ?? plan.days.length} day itinerary`}
+    </p>
+  </header>
+
+  <div class="plan-itinerary-days">
+    {plan.days.map((day, dayIndex) => (
+      <section class="plan-itinerary-day" aria-labelledby={`plan-day-${dayIndex + 1}`}>
+        <header>
+          <p>Day {dayIndex + 1}{day.date ? ` · ${formatDate(day.date)}` : ''}</p>
+          <h2 id={`plan-day-${dayIndex + 1}`}>{day.title}</h2>
+          {day.summary && <p>{day.summary}</p>}
+        </header>
+        <ol class="plan-itinerary-items">
+          {visibleItems(day.items).map((item) => {
+            const guide = guideFor(item.localGuideEntryId);
+            return (
+              <li class="plan-itinerary-item">
+                <div class="plan-itinerary-time">
+                  {item.startTime ? <time>{item.startTime}{item.endTime ? `–${item.endTime}` : ''}</time> : <span>Flexible</span>}
+                </div>
+                <div>
+                  <p class="plan-itinerary-type">{item.itemType.replace('_', ' ')} · {item.status}</p>
+                  <h3>{guide?.title ?? item.title}</h3>
+                  {guide ? (
+                    <aside class="plan-itinerary-guide">
+                      <strong>From the Olrig Bank Local Guide</strong>
+                      {guide.summary && <p>{guide.summary}</p>}
+                      <a href={`/local-guide/${guide.slug}/`}>Read the Local Guide entry</a>
+                    </aside>
+                  ) : item.localGuideEntryId ? (
+                    <p class="plan-itinerary-guide-missing">Local Guide details are currently unavailable.</p>
+                  ) : null}
+                  {item.description && <div class="plan-itinerary-note"><strong>Plan note</strong><p>{item.description}</p></div>}
+                  {item.locationText && <p><strong>Location:</strong> {item.locationText}</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    ))}
+  </div>
+</article>

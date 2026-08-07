@@ -9,6 +9,9 @@ const links = [
   ['/admin/content/', 'Website content'],
   ['/admin/listings/', 'Listings'],
   ['/admin/calendars/', 'Calendars'],
+  ['/admin/planner/', 'Holiday Planner'],
+  ['/admin/local-guide/', 'Local Guide'],
+  ['/admin/planner/contributions/', 'Guide contributions'],
   ['/admin/pricing/', 'Pricing'],
   ['/admin/bookings/', 'Bookings'],
   ['/admin/settings/', 'Settings'],
@@ -42,7 +45,9 @@ const links = [
       <aside class="admin-sidebar" aria-label="Administration navigation">
         <nav>
           {links.map(([href, label]) => {
-            const active = href === '/admin/' ? activePath === href : activePath.startsWith(href);
+            const active = href === '/admin/' ? activePath === href
+              : href === '/admin/planner/' ? activePath.startsWith(href) && !activePath.startsWith('/admin/planner/contributions/')
+              : activePath.startsWith(href);
             return (
               <a href={href} aria-current={active ? 'page' : undefined}>
                 {label}
