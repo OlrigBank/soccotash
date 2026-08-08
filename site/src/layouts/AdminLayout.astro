@@ -21,7 +21,7 @@ const links = [
 <html lang="en-GB">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex,nofollow" />
     <title>{title} | Olrig Bank Administration</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -41,6 +41,21 @@ const links = [
         </form>
       </div>
     </header>
+    <details class="admin-mobile-menu">
+      <summary>Administration menu</summary>
+      <nav aria-label="Mobile administration navigation">
+        {links.map(([href, label]) => {
+          const active = href === '/admin/' ? activePath === href
+            : href === '/admin/planner/' ? activePath.startsWith(href) && !activePath.startsWith('/admin/planner/contributions/')
+            : activePath.startsWith(href);
+          return (
+            <a href={href} aria-current={active ? 'page' : undefined}>
+              {label}
+            </a>
+          );
+        })}
+      </nav>
+    </details>
     <div class="admin-shell">
       <aside class="admin-sidebar" aria-label="Administration navigation">
         <nav>

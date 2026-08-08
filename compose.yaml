@@ -40,6 +40,23 @@ services:
       retries: 12
       start_period: 30s
 
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks:
+      - soccotash-shared
+    depends_on:
+      site:
+        condition: service_healthy
+    environment:
+      OLRIGBANK_HTTPS_HOST: ${OLRIGBANK_HTTPS_HOST:-192.168.68.56}
+    ports:
+      - "${OLRIGBANK_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      - olrigbank-caddy-data:/data
+      - olrigbank-caddy-config:/config
+
   calendar-sync:
     <<: *app-image
     profiles: ["tools"]
@@ -76,3 +93,7 @@ networks:
   soccotash-shared:
     external: true
     name: ${SOCCOTASH_DOCKER_NETWORK:-soccotash_default}
+
+volumes:
+  olrigbank-caddy-data:
+  olrigbank-caddy-config:

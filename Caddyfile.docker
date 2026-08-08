@@ -1,0 +1,8 @@
+{
+	default_sni {$OLRIGBANK_HTTPS_HOST:192.168.68.56}
+}
+
+https://{$OLRIGBANK_HTTPS_HOST:192.168.68.56} {
+	tls internal
+	reverse_proxy site:8080
+}

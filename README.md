@@ -37,6 +37,12 @@ http://localhost:8081/
 http://localhost:8081/book/
 ```
 
+For login testing from another device, set `OLRIGBANK_HTTPS_HOST` in `.env` to
+the Docker host's LAN address and start the stack. The HTTPS proxy is then at
+`https://<LAN-address>:8443/`. It uses Caddy's local certificate authority, so
+install `/data/caddy/pki/authorities/local/root.crt` from the `https` container
+as a trusted root on each test device before entering credentials.
+
 The Olrig Bank container joins `soccotash_default` and runs migrations against
 the same database. Actions performed in either application are immediately
 visible in the other.
