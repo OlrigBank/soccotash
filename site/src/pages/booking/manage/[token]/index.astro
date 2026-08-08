@@ -1,5 +1,5 @@
 ---
-import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import BookerLayout from '../../../../layouts/BookerLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access';
 import { getProperties } from '../../../../lib/booking/config';
@@ -81,7 +81,7 @@ if (Astro.request.method === 'POST') {
         expectedRevision: Number(form.get('expectedRevision')),
         actor: { type: 'booker', bookingId: access.bookingId },
       });
-      return Astro.redirect(`/booking/manage/${token}/?planner=example-copied#holiday-planner`);
+      return Astro.redirect(`/booking/manage/${token}/holiday-planner/?planner=example-copied#holiday-planner`);
     } catch (error) {
       responseError = error instanceof PlannerError ? error.message : 'The example plan could not be copied.';
     }
@@ -91,7 +91,7 @@ if (Astro.request.method === 'POST') {
         bookingReference: offer.bookingReference,
         actor: { type: 'booker', bookingId: access.bookingId },
       });
-      return Astro.redirect(`/booking/manage/${token}/?planner=created#holiday-planner`);
+      return Astro.redirect(`/booking/manage/${token}/holiday-planner/?planner=created#holiday-planner`);
     } catch (error) {
       responseError = error instanceof PlannerError ? error.message : 'The holiday plan could not be created.';
     }
@@ -102,7 +102,7 @@ if (Astro.request.method === 'POST') {
       actor: 'customer',
       eventType: 'whatsapp_consent_withdrawn',
     });
-    return Astro.redirect(`/booking/manage/${token}/?consent=withdrawn`);
+    return Astro.redirect(`/booking/manage/${token}/reservation/?consent=withdrawn`);
   } else if (action === 'respond-bespoke-dates') {
     const decision = String(form.get('dateDecision') || '');
     if (decision !== 'accept' && decision !== 'change' && decision !== 'keep_original') {
@@ -118,7 +118,7 @@ if (Astro.request.method === 'POST') {
       } else {
         const result = await respondToBespokeDateSuggestion(token, decision, changedDates);
         if (result === 'accepted' || result === 'changed' || result === 'original_retained') {
-        return Astro.redirect(`/booking/manage/${token}/?dates=${result}`);
+        return Astro.redirect(`/booking/manage/${token}/reservation/?dates=${result}`);
         }
         responseError = result === 'invalid_dates'
           ? 'Enter valid arrival and departure dates for a stay of no more than 365 nights.'
@@ -163,7 +163,7 @@ if (Astro.request.method === 'POST') {
           eventType: `booking_cancelled_by_booker_email_${notification.status}`,
           details: notification,
         });
-        return Astro.redirect(`/booking/manage/${token}/?cancelled=1&email=${notification.status}`);
+        return Astro.redirect(`/booking/manage/${token}/reservation/?cancelled=1&email=${notification.status}`);
       }
     }
   } else if (action === 'send-message') {
@@ -214,7 +214,7 @@ if (Astro.request.method === 'POST') {
         eventType: 'booker_message_sent',
         details: { messageId: message.publicId, notificationRequested, notificationAvailable: messageNotificationAvailable, notificationStatus },
       });
-      return Astro.redirect(`/booking/manage/${token}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+      return Astro.redirect(`/booking/manage/${token}/messages/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
     }
   } else if (action === 'report-bank-transfer') {
     const confirmedTransfer = form.get('confirmTransfer') === 'yes';
@@ -251,11 +251,11 @@ if (Astro.request.method === 'POST') {
           details: notification,
         });
         return Astro.redirect(
-          `/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
+          `/booking/manage/${token}/reservation/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
         );
       }
       if (transferResult === 'already_reported') {
-        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
+        return Astro.redirect(`/booking/manage/${token}/reservation/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'
         ? 'A manual transfer cannot be reported at this stage of the booking.'
@@ -323,7 +323,7 @@ if (Astro.request.method === 'POST') {
           });
         }
 
-        return Astro.redirect(`/booking/manage/${token}/?response=${response === 'accepted' ? 'payment-required' : 'declined'}&email=${customerEmailStatus}`);
+        return Astro.redirect(`/booking/manage/${token}/reservation/?response=${response === 'accepted' ? 'payment-required' : 'declined'}&email=${customerEmailStatus}`);
       }
 
       const messages: Record<CustomerOfferResponseResult, string> = {
@@ -376,14 +376,42 @@ const confirmedBooking = offer.bookingStatus === 'confirmed' || offer.bookingSta
 const cancelledBooking = offer.bookingStatus === 'cancelled';
 const pendingBooking = offer.customerStatus === 'request_pending' || offer.bookingStatus === 'pending';
 const conversationMessages = await getBookingMessagesByToken(token, 'booker', { markRead: true });
+const workspace = Astro.url.searchParams.get('workspace');
+const bookingTitle = cancelledBooking ? 'Cancelled booking' : confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer';
+const bookingLandingUrl = new URL(`/booking/manage/${token}/`, Astro.url).toString();
 ---
-<BaseLayout
-  title={`${cancelledBooking ? 'Cancelled booking' : confirmedBooking ? 'Confirmed booking' : pendingBooking ? 'Booking request' : 'Booking offer'} · ${propertyName}`}
+<BookerLayout
+  title={`${bookingTitle} · ${propertyName}`}
   description="Manage your Olrig Bank booking and conversation."
   showSidebar={false}
   robots="noindex,nofollow,noarchive"
 >
-  <CustomerBookingView
+  <header class="booker-page-header">
+    <div><p class="eyebrow">{bookingTitle}</p><h1>{offer.guestName}</h1><p>{propertyName} · {offer.arrival} to {offer.departure}</p></div>
+    {workspace && <a class="button button--secondary" href={`/booking/manage/${token}/`}>Back to booking</a>}
+  </header>
+
+  {!workspace && <nav class="booker-workspace-list" aria-label="Your booking">
+    <a href={`/booking/manage/${token}/reservation/`}><span>Reservation</span><strong>{propertyName}</strong><small>Dates, status, price, payments and responses</small></a>
+    <a href={`/booking/manage/${token}/messages/`}><span>Chat</span><strong>Conversation with Olrig Bank</strong><small>{conversationMessages.length} message{conversationMessages.length === 1 ? '' : 's'}</small></a>
+    <a href={`/booking/manage/${token}/holiday-planner/`}><span>Holiday Planner</span><strong>{holidayPlan?.title ?? 'Plan your stay'}</strong><small>{holidayPlan ? `${holidayPlan.days.length} planned day${holidayPlan.days.length === 1 ? '' : 's'}` : confirmedBooking ? 'Create your private plan' : 'Available after confirmation'}</small></a>
+  </nav>}
+
+  {!workspace && <section class="customer-booking-card customer-booking-access-card">
+    <div>
+      <p class="eyebrow">Your private booking page</p>
+      <h2>Save this booking link</h2>
+      <p>Bookmark this landing page or keep its address somewhere safe. Your reservation, chat and Holiday Planner are all available from here.</p>
+      <p class="customer-booking-security-note">Anyone with this link can view and respond to the booking, so do not share it publicly.</p>
+    </div>
+    <div class="customer-booking-access-actions">
+      <button class="customer-booking-submit" type="button" data-copy-booking-link={bookingLandingUrl}>Copy booking link</button>
+      <button class="customer-booking-submit customer-booking-refresh" type="button" data-refresh-booking-page>Check for updates</button>
+      <span class="customer-booking-copy-status" data-copy-booking-status aria-live="polite"></span>
+    </div>
+  </section>}
+
+  {(workspace === 'reservation' || workspace === 'messages') && <CustomerBookingView
     offer={offer}
     messages={conversationMessages}
     propertyName={propertyName}
@@ -396,8 +424,9 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     allowResponse={true}
     messageNotificationAvailable={messageNotificationAvailable}
     payments={payments}
-  />
-  <section id="holiday-planner" class="booking-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
+    view={workspace}
+  />}
+  {workspace === 'holiday-planner' && <section id="holiday-planner" class="booking-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
     <p class="eyebrow">Holiday Planner</p>
     <h2 id="holiday-planner-heading">Plan your stay together</h2>
     {holidayPlan ? (
@@ -427,8 +456,8 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
     )}
     {Astro.url.searchParams.get('planner') === 'created' && <p role="status">Your private holiday plan has been created.</p>}
     {Astro.url.searchParams.get('planner') === 'example-copied' && <p role="status">The example was copied into your private holiday plan.</p>}
-  </section>
-  <section class="booking-panel" aria-labelledby="whatsapp-preferences-heading">
+  </section>}
+  {workspace === 'reservation' && <section class="booking-panel" aria-labelledby="whatsapp-preferences-heading">
     <h2 id="whatsapp-preferences-heading">WhatsApp preferences</h2>
     {offer.whatsappConsentStatus === 'active' ? (
       <>
@@ -442,8 +471,8 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
       <p>WhatsApp notifications are {offer.whatsappConsentStatus === 'withdrawn' ? 'withdrawn' : 'not enabled'} for this booking. Email and this private page remain available.</p>
     )}
     {Astro.url.searchParams.get('consent') === 'withdrawn' && <p role="status">WhatsApp consent has been withdrawn. No further WhatsApp notifications will be submitted for this booking.</p>}
-  </section>
-</BaseLayout>
+  </section>}
+</BookerLayout>
 
 <script is:inline define:vars={{ responseNotice, paymentReportResultCurrent, messageSent, confirmedBooking, propertyId: offer.propertyId }}>
   const analyticsEvents = [
@@ -462,4 +491,20 @@ const conversationMessages = await getBookingMessagesByToken(token, 'booker', { 
       if (name !== 'manage_booking_opened') sessionStorage.setItem(key, 'sent');
     }
   }
+</script>
+
+<script>
+  document.querySelector<HTMLButtonElement>('[data-copy-booking-link]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    const status = document.querySelector<HTMLElement>('[data-copy-booking-status]');
+    const bookingUrl = button.dataset.copyBookingLink;
+    if (!bookingUrl) return;
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      if (status) status.textContent = 'Booking link copied.';
+    } catch {
+      if (status) status.textContent = 'Use your browser address bar to copy this booking link.';
+    }
+  });
+  document.querySelector<HTMLButtonElement>('[data-refresh-booking-page]')?.addEventListener('click', () => window.location.reload());
 </script>
