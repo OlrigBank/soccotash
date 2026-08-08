@@ -23,6 +23,7 @@ import {
   type BookerPlanActor,
   type PlanActor,
   type PlannerRevisionActor,
+  type PlanCandidateActivity,
   type PlanDay,
   type PlanItem,
   type PlanItemStatus,
@@ -51,6 +52,22 @@ function actorAdminUserId(actor: PlannerRevisionActor): string | null {
 
 function actorParticipantId(actor: PlannerRevisionActor): string | null {
   return actor.type === 'participant' ? actor.participantId : null;
+}
+
+function validateSourceUrl(value: string | null | undefined, required = false): string | null {
+  const clean = value?.trim() ?? '';
+  if (!clean) {
+    if (required) throw new PlannerError('VALIDATION_ERROR', 'Activity webpage URL is required.');
+    return null;
+  }
+  if (clean.length > 2000) throw new PlannerError('VALIDATION_ERROR', 'Activity webpage URL is too long.');
+  try {
+    const parsed = new URL(clean);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
+    return parsed.toString();
+  } catch {
+    throw new PlannerError('VALIDATION_ERROR', 'Activity webpage URL must be a valid HTTP or HTTPS address.');
+  }
 }
 
 function iso(value: Date | string): string {
@@ -144,12 +161,19 @@ export async function createBookingLinkedPlan(
     );
     const planInternalId = String(created.rows[0].id);
     await client.query(
+      `INSERT INTO plan_days (holiday_plan_id,day_date,title,summary,position,created_by_admin_user_id,updated_by_admin_user_id)
+       SELECT $1,$2::date+day.day_number,'Day '||(day.day_number+1),'',(day.day_number+1)*10,$4,$4
+         FROM generate_series(0,$3::date-$2::date) AS day(day_number)`,
+      [planInternalId,row.arrival,row.departure,administratorId],
+    );
+    await client.query(
       `INSERT INTO plan_participants
          (holiday_plan_id, role, participant_type, booking_id, display_name)
        VALUES ($1, 'owner', 'booker', $2, $3)`, [planInternalId, row.id, row.name],
     );
     await recordRevision(client, planInternalId, 1, input.actor, 'booking_plan_created',
-      'Created an empty holiday plan.', { bookingReference, initialState: 'empty' });
+      'Created a holiday plan with one section for each day of the stay.',
+      { bookingReference, initialState: 'dated_days' });
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type, details)
        VALUES ($1, $2, 'holiday_plan_created', $3::jsonb)`,
@@ -201,8 +225,8 @@ export async function copyPublishedExampleIntoBookingPlan(
     if (destination.revision !== input.expectedRevision) {
       throw new PlannerError('STALE_REVISION', 'The holiday plan has changed. Reload it before copying.');
     }
-    const existingDays = await client.query('SELECT 1 FROM plan_days WHERE holiday_plan_id = $1 LIMIT 1', [destination.id]);
-    if (existingDays.rowCount) throw new PlannerError('VALIDATION_ERROR', 'An example can only be copied into an empty holiday plan.');
+    const existingItems = await client.query('SELECT 1 FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE d.holiday_plan_id=$1 LIMIT 1',[destination.id]);
+    if(existingItems.rowCount)throw new PlannerError('VALIDATION_ERROR','An example can only be copied into a plan with no scheduled activities.');
     const source = await client.query<any>(
       `SELECT id, public_id::text, title, public_slug
          FROM holiday_plans
@@ -217,24 +241,20 @@ export async function copyPublishedExampleIntoBookingPlan(
     if (sourceDays.rows.length > Number(destination.duration_days)) {
       throw new PlannerError('VALIDATION_ERROR', 'This example has more days than the booked stay.');
     }
+    const targetDays=await client.query<any>('SELECT * FROM plan_days WHERE holiday_plan_id=$1 ORDER BY position FOR UPDATE',[destination.id]);
     for (let index = 0; index < sourceDays.rows.length; index += 1) {
       const day = sourceDays.rows[index];
-      const copiedDay = await client.query<{ id: string | number }>(
-        `INSERT INTO plan_days
-           (holiday_plan_id, day_date, title, summary, position, created_by_admin_user_id, updated_by_admin_user_id)
-         VALUES ($1, $2::date + $3::int, $4, $5, $6, $7, $7) RETURNING id`,
-        [destination.id, destination.starts_on, index, day.title, day.summary, day.position,
-          input.actor.type === 'administrator' ? input.actor.adminUserId : null],
-      );
+      const copiedDay=targetDays.rows[index];
+      await client.query('UPDATE plan_days SET title=$2,summary=$3,updated_by_admin_user_id=$4,updated_at=NOW() WHERE id=$1',[copiedDay.id,day.title,day.summary,input.actor.type==='administrator'?input.actor.adminUserId:null]);
       await client.query(
         `INSERT INTO plan_items
            (plan_day_id, title, description, item_type, start_time, end_time, location_text,
-            local_guide_entry_id, status, position, reservation_note, visibility,
+            source_url, local_guide_entry_id, status, position, reservation_note, visibility,
             created_by_admin_user_id, updated_by_admin_user_id)
          SELECT $1, title, description, item_type, start_time, end_time, location_text,
-                local_guide_entry_id, 'idea', position, NULL, 'participants', $2, $2
+                source_url, local_guide_entry_id, 'idea', position, NULL, 'participants', $2, $2
            FROM plan_items WHERE plan_day_id = $3 AND visibility <> 'private' ORDER BY position`,
-        [copiedDay.rows[0].id, input.actor.type === 'administrator' ? input.actor.adminUserId : null, day.id],
+        [copiedDay.id, input.actor.type === 'administrator' ? input.actor.adminUserId : null, day.id],
       );
     }
     const revision = destination.revision + 1;
@@ -414,6 +434,7 @@ export async function addPlanItem(
     status?: PlanItemStatus;
     reservationNote?: string | null;
     visibility?: PlanItemVisibility;
+    sourceUrl?: string | null;
     actor: PlannerRevisionActor;
   },
   database: Database = getPool(),
@@ -428,6 +449,7 @@ export async function addPlanItem(
   if (!PLAN_ITEM_VISIBILITIES.includes(visibility)) throw new PlannerError('VALIDATION_ERROR', 'Plan item visibility is invalid.');
   const startTime = validateTime(input.startTime, 'Item start time');
   const endTime = validateTime(input.endTime, 'Item end time');
+  const sourceUrl = validateSourceUrl(input.sourceUrl);
   if (startTime && endTime && endTime <= startTime) {
     throw new PlannerError('VALIDATION_ERROR', 'Item end time must be after its start time.');
   }
@@ -439,16 +461,16 @@ export async function addPlanItem(
     const created = await client.query<{ public_id: string }>(
       `INSERT INTO plan_items
          (plan_day_id, title, description, item_type, start_time, end_time, location_text,
-          local_guide_entry_id, status, position, reservation_note, visibility,
+          source_url, local_guide_entry_id, status, position, reservation_note, visibility,
           created_by_admin_user_id, updated_by_admin_user_id)
-       SELECT d.id, $3, $4, $5, $6::time, $7::time, $8, $9, $10,
+       SELECT d.id, $3, $4, $5, $6::time, $7::time, $8, $9, $10, $11,
               COALESCE((SELECT max(position) + 10 FROM plan_items WHERE plan_day_id = d.id), 10),
-              $11, $12, $13, $13
+              $12, $13, $14, $14
          FROM plan_days d
         WHERE d.public_id = $1::uuid AND d.holiday_plan_id = $2
        RETURNING public_id::text`,
       [validatePublicId(input.dayId, 'Plan day identifier'), plan.internalId, title, description, input.itemType, startTime,
-        endTime, optionalText(input.locationText, 'Location', 500),
+        endTime, optionalText(input.locationText, 'Location', 500), sourceUrl,
         guide?.internalId ?? null, status,
         optionalText(input.reservationNote, 'Reservation note', 3000), visibility, actorAdminUserId(input.actor)],
     );
@@ -473,6 +495,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
        'id', i.public_id::text, 'title', i.title, 'description', i.description,
        'itemType', i.item_type, 'startTime', to_char(i.start_time, 'HH24:MI'),
        'endTime', to_char(i.end_time, 'HH24:MI'), 'locationText', i.location_text,
+       'sourceUrl', i.source_url,
        'localGuideEntryId', guide.public_id::text, 'localGuideSlug', guide.canonical_slug,
        'status', i.status, 'position', i.position,
        'reservationNote', i.reservation_note, 'visibility', i.visibility
@@ -496,6 +519,13 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
        ) owner ON r.actor_type = 'guest' AND r.participant_id IS NULL
       WHERE r.holiday_plan_id = $1 ORDER BY r.revision`, [row.id],
   );
+  const candidatesResult = await database.query<any>(
+    `SELECT c.public_id::text, c.title, c.description, c.source_url, c.position,
+            guide.public_id::text AS local_guide_entry_id, guide.canonical_slug AS local_guide_slug
+       FROM plan_candidate_activities c
+       LEFT JOIN local_guide_entries guide ON guide.id = c.local_guide_entry_id
+      WHERE c.holiday_plan_id = $1 ORDER BY c.position`, [row.id],
+  );
   const days: PlanDay[] = daysResult.rows.map((dayRow: any) => ({
     id: String(dayRow.public_id), date: date(dayRow.day_date), title: dayRow.title,
     summary: dayRow.summary, position: dayRow.position,
@@ -509,6 +539,11 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
     source: revisionRow.source, action: revisionRow.action, summary: revisionRow.summary,
     changes: revisionRow.changes, createdAt: iso(revisionRow.created_at),
   }));
+  const candidates: PlanCandidateActivity[] = candidatesResult.rows.map((candidate: any) => ({
+    id: candidate.public_id, title: candidate.title, description: candidate.description,
+    sourceUrl: candidate.source_url, localGuideEntryId: candidate.local_guide_entry_id,
+    localGuideSlug: candidate.local_guide_slug, position: candidate.position,
+  }));
   return {
     id: String(row.public_id), planType: row.plan_type,
     bookingId: row.booking_id == null ? null : String(row.booking_id), title: row.title,
@@ -516,7 +551,7 @@ export async function getHolidayPlan(planId: string, database: Pick<Pool, 'query
     visibility: row.visibility, publicSlug: row.public_slug, startsOn: date(row.starts_on), endsOn: date(row.ends_on),
     durationDays: row.duration_days, revision: row.revision,
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
-    createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), days, revisions,
+    createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), days, candidates, revisions,
   };
 }
 
@@ -564,8 +599,8 @@ export async function duplicateExamplePlan(
     const sourceDays=await client.query<any>('SELECT * FROM plan_days WHERE holiday_plan_id=$1 ORDER BY position',[original.id]);
     for(const day of sourceDays.rows){
       const newDay=await client.query<{id:string|number}>(`INSERT INTO plan_days(holiday_plan_id,day_date,title,summary,position,created_by_admin_user_id,updated_by_admin_user_id) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING id`,[targetId,day.day_date,day.title,day.summary,day.position,input.actor.adminUserId]);
-      await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,status,position,reservation_note,visibility,created_by_admin_user_id,updated_by_admin_user_id)
-        SELECT $1,title,description,item_type,start_time,end_time,location_text,local_guide_entry_id,status,position,reservation_note,visibility,$2,$2 FROM plan_items WHERE plan_day_id=$3 ORDER BY position`,[newDay.rows[0].id,input.actor.adminUserId,day.id]);
+      await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,source_url,local_guide_entry_id,status,position,reservation_note,visibility,created_by_admin_user_id,updated_by_admin_user_id)
+        SELECT $1,title,description,item_type,start_time,end_time,location_text,source_url,local_guide_entry_id,status,position,reservation_note,visibility,$2,$2 FROM plan_items WHERE plan_day_id=$3 ORDER BY position`,[newDay.rows[0].id,input.actor.adminUserId,day.id]);
     }
     await recordRevision(client,targetId,1,input.actor,'plan_duplicated',`Duplicated example plan “${original.title}”.`,{sourcePlanId:input.planId});
     await client.query('COMMIT');
@@ -598,6 +633,92 @@ async function mutatePlan<T>(
   } finally {
     client.release();
   }
+}
+
+export async function addPlanCandidateActivity(input: {
+  planId: string; expectedRevision: number; title?: string; description?: string;
+  sourceUrl?: string | null; localGuideEntryId?: string | null; actor: PlannerRevisionActor;
+}, database: Database = getPool()): Promise<{ candidateId: string; revision: number }> {
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
+    const guide = await selectableGuideReference(client, input.localGuideEntryId);
+    let title: string; let description: string; let sourceUrl: string | null;
+    if (guide) {
+      const published = await client.query<{ title: string; summary: string }>(
+        `SELECT r.title, r.summary FROM local_guide_entries e
+          JOIN local_guide_revisions r ON r.id=e.published_revision_id
+         WHERE e.id=$1 AND e.status='published'`, [guide.internalId]);
+      if (!published.rowCount) throw new PlannerError('VALIDATION_ERROR', 'The selected Local Guide entry is unavailable.');
+      title = published.rows[0].title; description = published.rows[0].summary; sourceUrl = null;
+    } else {
+      title = requireText(input.title ?? '', 'Activity title', 200);
+      description = input.description?.trim() ?? '';
+      if (description.length > 10000) throw new PlannerError('VALIDATION_ERROR', 'Activity description is too long.');
+      sourceUrl = validateSourceUrl(input.sourceUrl, true);
+    }
+    const created = await client.query<{ public_id: string }>(
+      `INSERT INTO plan_candidate_activities
+         (holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
+       VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6)
+       RETURNING public_id::text`, [internalId,title,description,sourceUrl,guide?.internalId??null,actorAdminUserId(input.actor)]);
+    return { value: created.rows[0].public_id, action: 'candidate_activity_added',
+      summary: `Added candidate activity “${title}”.`, changes: { candidateId: created.rows[0].public_id, localGuideEntryId: input.localGuideEntryId ?? null } };
+  });
+  return { candidateId: result.value, revision: result.revision };
+}
+
+export async function movePlanCandidateActivity(input: {
+  planId: string; candidateId: string; expectedRevision: number; direction: 'up'|'down'; actor: PlannerRevisionActor;
+}, database: Database = getPool()): Promise<number> {
+  const result = await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const rows=await client.query<any>('SELECT id,public_id::text,position FROM plan_candidate_activities WHERE holiday_plan_id=$1 ORDER BY position FOR UPDATE',[internalId]);
+    const index=rows.rows.findIndex((row:any)=>row.public_id===validatePublicId(input.candidateId,'Candidate activity identifier'));
+    const target=rows.rows[input.direction==='up'?index-1:index+1]; const current=rows.rows[index];
+    if(!current)throw new PlannerError('NOT_FOUND','Candidate activity not found.');
+    if(!target)throw new PlannerError('VALIDATION_ERROR','Candidate activity cannot move further.');
+    await client.query('UPDATE plan_candidate_activities SET position=2147483647 WHERE id=$1',[current.id]);
+    await client.query('UPDATE plan_candidate_activities SET position=$2 WHERE id=$1',[target.id,current.position]);
+    await client.query('UPDATE plan_candidate_activities SET position=$2,updated_at=NOW() WHERE id=$1',[current.id,target.position]);
+    return{value:undefined,action:'candidate_activity_reordered',summary:'Reordered candidate activities.',changes:{candidateId:input.candidateId,direction:input.direction}};
+  });return result.revision;
+}
+
+export async function removePlanCandidateActivity(input:{
+  planId:string;candidateId:string;expectedRevision:number;actor:PlannerRevisionActor;
+},database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const removed=await client.query<{title:string}>(
+      'DELETE FROM plan_candidate_activities WHERE public_id=$1::uuid AND holiday_plan_id=$2 RETURNING title',
+      [validatePublicId(input.candidateId,'Candidate activity identifier'),internalId],
+    );
+    if(!removed.rowCount)throw new PlannerError('NOT_FOUND','Candidate activity not found.');
+    return{value:undefined,action:'candidate_activity_removed',summary:`Removed candidate activity “${removed.rows[0].title}”.`,changes:{candidateId:input.candidateId}};
+  });
+  return result.revision;
+}
+
+export async function schedulePlanCandidateActivity(input:{
+  planId:string;candidateId:string;dayId:string;expectedRevision:number;actor:PlannerRevisionActor;
+},database:Database=getPool()):Promise<{itemId:string;revision:number}>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const candidate=await client.query<any>('SELECT * FROM plan_candidate_activities WHERE public_id=$1::uuid AND holiday_plan_id=$2 FOR UPDATE',[validatePublicId(input.candidateId,'Candidate activity identifier'),internalId]);
+    const day=await client.query<{id:string|number}>('SELECT id FROM plan_days WHERE public_id=$1::uuid AND holiday_plan_id=$2',[validatePublicId(input.dayId,'Plan day identifier'),internalId]);
+    if(!candidate.rowCount||!day.rowCount)throw new PlannerError('NOT_FOUND','Candidate activity or plan day not found.');
+    const row=candidate.rows[0];const created=await client.query<{public_id:string}>(`INSERT INTO plan_items(plan_day_id,title,description,item_type,source_url,local_guide_entry_id,status,position,visibility,created_by_admin_user_id,updated_by_admin_user_id)
+      VALUES($1,$2,$3,'activity',$4,$5,'idea',COALESCE((SELECT max(position)+10 FROM plan_items WHERE plan_day_id=$1),10),'participants',$6,$6) RETURNING public_id::text`,[day.rows[0].id,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    await client.query('DELETE FROM plan_candidate_activities WHERE id=$1',[row.id]);
+    return{value:created.rows[0].public_id,action:'candidate_activity_scheduled',summary:`Scheduled “${row.title}”.`,changes:{candidateId:input.candidateId,itemId:created.rows[0].public_id,dayId:input.dayId}};
+  });return{itemId:result.value,revision:result.revision};
+}
+
+export async function returnPlanItemToCandidates(input:{planId:string;itemId:string;expectedRevision:number;actor:PlannerRevisionActor},database:Database=getPool()):Promise<{candidateId:string;revision:number}>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const item=await client.query<any>(`SELECT i.* FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE i.public_id=$1::uuid AND d.holiday_plan_id=$2 FOR UPDATE OF i`,[validatePublicId(input.itemId,'Plan item identifier'),internalId]);
+    if(!item.rowCount)throw new PlannerError('NOT_FOUND','Plan item not found.');const row=item.rows[0];
+    const created=await client.query<{public_id:string}>(`INSERT INTO plan_candidate_activities(holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
+      VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6) RETURNING public_id::text`,[internalId,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    await client.query('DELETE FROM plan_items WHERE id=$1',[row.id]);
+    return{value:created.rows[0].public_id,action:'plan_item_returned_to_candidates',summary:`Returned “${row.title}” to candidate activities.`,changes:{itemId:input.itemId,candidateId:created.rows[0].public_id}};
+  });return{candidateId:result.value,revision:result.revision};
 }
 
 export async function listPlanParticipants(
@@ -1281,7 +1402,7 @@ export async function movePlanDay(
 type ItemInput = {
   title: string; description?: string; itemType: PlanItemType; startTime?: string | null;
   endTime?: string | null; locationText?: string | null; status?: PlanItemStatus;
-  reservationNote?: string | null; visibility?: PlanItemVisibility;
+  reservationNote?: string | null; visibility?: PlanItemVisibility; sourceUrl?: string | null;
 };
 
 function validatedItem(input: ItemInput) {
@@ -1297,7 +1418,7 @@ function validatedItem(input: ItemInput) {
   const endTime = validateTime(input.endTime, 'Item end time');
   if (startTime && endTime && endTime <= startTime) throw new PlannerError('VALIDATION_ERROR', 'Item end time must be after its start time.');
   return { title, description, itemType: input.itemType, startTime, endTime,
-    locationText: optionalText(input.locationText, 'Location', 500), status,
+    locationText: optionalText(input.locationText, 'Location', 500), sourceUrl:validateSourceUrl(input.sourceUrl),status,
     reservationNote: optionalText(input.reservationNote, 'Reservation note', 3000), visibility };
 }
 
@@ -1313,9 +1434,9 @@ export async function updatePlanItem(input: ItemInput & {
     if (!existing.rowCount) throw new PlannerError('NOT_FOUND', 'Plan item not found.');
     validateItemStatusTransition(existing.rows[0].status, item.status);
     await client.query(`UPDATE plan_items SET title=$2,description=$3,item_type=$4,start_time=$5::time,
-      end_time=$6::time,location_text=$7,status=$8,reservation_note=$9,visibility=$10,
-      updated_by_admin_user_id=$11,updated_at=NOW() WHERE public_id=$1::uuid`,
-      [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.status,item.reservationNote,item.visibility,actorAdminUserId(input.actor)]);
+      end_time=$6::time,location_text=$7,source_url=$8,status=$9,reservation_note=$10,visibility=$11,
+      updated_by_admin_user_id=$12,updated_at=NOW() WHERE public_id=$1::uuid`,
+      [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.sourceUrl,item.status,item.reservationNote,item.visibility,actorAdminUserId(input.actor)]);
     return { value: undefined, action:'item_updated', summary:`Updated item “${item.title}”.`, changes:{itemId:input.itemId,status:item.status} };
   }); return result.revision;
 }
@@ -1352,5 +1473,19 @@ export async function movePlanItem(input:{planId:string;itemId:string;targetDayI
       await client.query('UPDATE plan_items SET plan_day_id=$2,position=$3,updated_at=NOW() WHERE id=$1',[current.id,targetDay.rows[0].id,next.rows[0].position]);
     }
     return {value:undefined,action:'item_moved',summary:'Moved a plan item.',changes:{itemId:input.itemId,targetDayId:input.targetDayId,position:input.position}};
+  });return result.revision;
+}
+
+export async function placePlanItem(input:{planId:string;itemId:string;relativeItemId:string;placement:'before'|'after';expectedRevision:number;actor:PlannerRevisionActor},database:Database=getPool()):Promise<number>{
+  const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
+    const rows=await client.query<any>(`SELECT i.id,i.public_id::text,i.plan_day_id FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE d.holiday_plan_id=$1 ORDER BY i.position FOR UPDATE OF i`,[internalId]);
+    const itemId=validatePublicId(input.itemId,'Plan item identifier');const relativeId=validatePublicId(input.relativeItemId,'Relative plan item identifier');
+    const current=rows.rows.find((row:any)=>row.public_id===itemId);const relative=rows.rows.find((row:any)=>row.public_id===relativeId);
+    if(!current||!relative)throw new PlannerError('NOT_FOUND','Plan item not found.');
+    const ordered=rows.rows.filter((row:any)=>String(row.plan_day_id)===String(relative.plan_day_id)&&row.id!==current.id);
+    const relativeIndex=ordered.findIndex((row:any)=>row.id===relative.id);ordered.splice(relativeIndex+(input.placement==='after'?1:0),0,current);
+    await client.query('UPDATE plan_items SET position=position+1000000 WHERE plan_day_id=$1',[relative.plan_day_id]);
+    for(let index=0;index<ordered.length;index+=1)await client.query('UPDATE plan_items SET plan_day_id=$2,position=$3,updated_at=NOW() WHERE id=$1',[ordered[index].id,relative.plan_day_id,(index+1)*10]);
+    return{value:undefined,action:'item_moved',summary:'Reordered a plan item by dragging.',changes:{itemId,relativeItemId:relativeId,placement:input.placement}};
   });return result.revision;
 }

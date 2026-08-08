@@ -23,10 +23,11 @@ test('Local Guide candidate creation requires specific explicit guest consent', 
   assert.match(repository, /i\.local_guide_entry_id IS NULL/, 'existing Local Guide references must not be re-offered');
   assert.match(repository, /r\.changes->>'itemId' = i\.public_id::text/, 'eligibility must bind to the immutable item creation revision');
   assert.match(repository, /submitted_by_participant_id = \$3/, 'only the submitter may withdraw a candidate');
-  for (const page of [bookerPage, participantPage]) {
+  for (const page of [participantPage]) {
     assert.match(page, /name="consent" type="checkbox" required/, 'consent must be an unchecked required control');
     assert.match(page, /Nothing is published until Olrig Bank reviews it/, 'the UI must explain the moderation boundary');
   }
+  assert.doesNotMatch(bookerPage, /name="consent" type="checkbox"/, 'advanced contribution controls are intentionally inactive in the focused Booker view');
   assert.match(bookerApi, /input\.consent===true/, 'Booker consent must be passed as an explicit boolean');
   assert.match(participantApi, /input\.consent===true/, 'participant consent must be passed as an explicit boolean');
 });

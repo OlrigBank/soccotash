@@ -9,13 +9,14 @@ const participantApiUrl=new URL('../../src/pages/api/planner/participant/[token]
 
 test('Bookers and editors receive local one-time QR capability controls',async()=>{
   const [bookerPage,participantPage,bookerApi,participantApi]=await Promise.all([bookerPageUrl,participantPageUrl,bookerApiUrl,participantApiUrl].map(url=>readFile(url,'utf8')));
-  for(const page of [bookerPage,participantPage]){
+  for(const page of [participantPage]){
     assert.match(page,/Create AI collaboration link/);
     assert.match(page,/data-download-ai-qr/);
     assert.match(page,/Copy AI link/);
     assert.match(page,/It will not be shown again/);
     assert.match(page,/data-revoke-ai-capability/);
   }
+  assert.doesNotMatch(bookerPage,/Create AI collaboration link/,'advanced AI controls are intentionally inactive in the focused Booker view');
   assert.match(participantPage,/canEdit&&<section[^>]+ai-sharing-heading/);
   for(const api of [bookerApi,participantApi]){
     assert.match(api,/QRCode\.toDataURL/);

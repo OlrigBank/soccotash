@@ -23,12 +23,16 @@ test('both private guest routes expose the accessible mobile day-view contract',
     readFile(new URL('../../src/pages/planner/invite/[token].astro', import.meta.url), 'utf8'),
     readFile(new URL('../../src/styles/global.css', import.meta.url), 'utf8'),
   ]);
-  for (const page of [booker, participant]) {
+  for (const page of [participant]) {
     assert.match(page, /Astro\.url\.searchParams\.get\('day'\)/);
     assert.match(page, /planner-day-selector[\s\S]*aria-current/);
     assert.match(page, /planner-item--compact/);
     assert.match(page, /planner-editor[\s\S]*<summary>Edit/);
   }
+  assert.match(booker, /Astro\.url\.searchParams\.get\('day'\)/);
+  assert.match(booker, /planner-day-selector[\s\S]*aria-current/);
+  assert.match(booker, /scheduled-activity-list/);
+  assert.match(booker, /data-open-item/);
   assert.match(styles, /\.planner-day-view \.planner-day\.is-selected \{ display:block; \}/);
   assert.match(styles, /min-height:44px/);
   assert.match(styles, /@media print[\s\S]*\.planner-day-view \.planner-day \{ display:block !important; \}/);

@@ -24,7 +24,7 @@ test('print and sharing views preserve credential and itinerary privacy boundari
   assert.match(sharePage,/private, no-store/,'shared credentials must never be publicly cached');
   assert.doesNotMatch(sharePage,/reservationNote|participants|bookingId|guest_email/,'the shared route must not render wider private data');
   for(const page of [bookerPrint,participantPrint]){assert.match(page,/includeReservationNotes=\{true\}/,'authenticated print views may include practical reservation notes');assert.match(page,/noindex,nofollow,noarchive/,'print views must not be indexed')}
-  assert.match(bookerPage,/Create share link/,'the Booker needs an explicit share creation control');
+  assert.doesNotMatch(bookerPage,/Create share link/,'advanced sharing controls are intentionally inactive in the focused Booker view');
   assert.doesNotMatch(participantPage,/Create share link/,'invited participants must not manage external sharing');
   assert.match(api,/createShareLink[\s\S]*revokeShareLink/,'share lifecycle must remain behind Booker authorization');
   assert.doesNotMatch(api,/console\.(?:error|warn)\([^\n]*token/,'share credentials must not enter logs');

@@ -54,12 +54,23 @@ export type PlanItem = {
   startTime: string | null;
   endTime: string | null;
   locationText: string | null;
+  sourceUrl: string | null;
   localGuideEntryId: string | null;
   localGuideSlug: string | null;
   status: PlanItemStatus;
   position: number;
   reservationNote: string | null;
   visibility: PlanItemVisibility;
+};
+
+export type PlanCandidateActivity = {
+  id: string;
+  title: string;
+  description: string;
+  sourceUrl: string | null;
+  localGuideEntryId: string | null;
+  localGuideSlug: string | null;
+  position: number;
 };
 
 export type PlanDay = {
@@ -88,6 +99,7 @@ export type HolidayPlan = {
   createdAt: string;
   updatedAt: string;
   days: PlanDay[];
+  candidates: PlanCandidateActivity[];
   revisions: PlanRevision[];
 };
 

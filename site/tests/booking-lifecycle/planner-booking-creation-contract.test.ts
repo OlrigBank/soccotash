@@ -37,9 +37,9 @@ test('booking-linked planner creation retains private booking authorization and 
   assert.match(adminPage, /Copy example into Booker plan/, 'administrators need the copy action at booking level');
   assert.match(bookerPlanner, /resolveBookingAccessCredential\(token/, 'the workspace must resolve the private booking credential');
   assert.match(bookerPlanner, /private, no-store/, 'private plan pages must never be publicly cached');
-  assert.match(bookerPlanner, /data-day-move="up"/, 'day ordering must be keyboard operable');
+  assert.match(bookerPlanner, /planner-day-selector/, 'booking dates must remain keyboard operable');
   assert.match(bookerPlanner, /data-item-move="up"/, 'item ordering must be keyboard operable');
-  assert.match(bookerPlanner, /data-move-to-day/, 'items must be movable between plan days');
+  assert.match(bookerPlanner, /data-candidate-day/, 'candidate activities must be assignable to plan days');
   assert.match(bookerApi, /isSameOrigin\(request\)/, 'Booker mutations need same-origin protection');
   assert.match(bookerApi, /bookingId: access\.bookingId/, 'mutations must carry the resolved booking identity');
   assert.match(repository, /result\.rows\[0\]\.plan_type !== 'booking_linked'/, 'the lock must reject Booker access to example plans');

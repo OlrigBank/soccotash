@@ -3281,6 +3281,59 @@ body.has-booking-drawer { overflow: hidden; }
   min-width: 0;
 }
 
+/* Guest Holiday Planner workspace */
+.guest-planner-sections { display:grid; gap:1rem; }
+.guest-planner-day-tabs { margin:0 0 1rem; padding:.75rem 1rem .35rem; border:1px solid var(--line); border-radius:.85rem; background:#fff; }
+.guest-planner-day-tabs > p { display:flex; justify-content:space-between; gap:1rem; margin:0 0 .55rem; }
+.guest-planner-day-tabs > p span { color:var(--muted); font-size:.8rem; }
+.guest-planner-day-tabs .planner-day-selector { display:flex; gap:.5rem; max-width:100%; margin:0; padding:.15rem 0 .65rem; overflow-x:auto; overscroll-behavior-inline:contain; scrollbar-width:auto; }
+.guest-planner-day-tabs .planner-day-selector a { display:grid; place-items:center; flex:0 0 auto; min-width:5.2rem; min-height:48px; padding:.5rem .8rem; border:1px solid #bdb4a6; border-radius:.45rem; color:inherit; text-align:center; text-decoration:none; }
+.guest-planner-day-tabs .planner-day-selector a[aria-current] { border:2px solid currentColor; background:var(--surface); font-weight:800; }
+.guest-planner-day-tabs .planner-day-selector a:focus-visible,.guest-planner-day-tabs .planner-day-selector a:hover { border-color:currentColor; }
+.guest-planner-day-tabs .planner-day-selector small { display:block; font-size:.72rem; }
+.guest-planner-section { border:1px solid var(--line); border-radius:.85rem; background:#fff; overflow:visible; }
+.guest-planner-section > summary { display:flex; justify-content:space-between; gap:1rem; padding:1rem 1.15rem; cursor:pointer; }
+.guest-planner-section > summary span { color:var(--muted); font-size:.86rem; }
+.guest-planner-section__body { min-width:0; padding:0 1rem 1rem; }
+.guest-guide-category,.guest-guide-category-root { border-top:1px solid var(--line); }
+.guest-guide-category > summary,.guest-guide-category-root > summary { min-height:44px; padding:.8rem 0; cursor:pointer; font-weight:800; text-transform:capitalize; }
+.guest-guide-category-choices { display:grid; grid-template-columns:repeat(auto-fit,minmax(10rem,1fr)); gap:.5rem; padding-bottom:.8rem; }
+.guest-guide-category-choices button { min-height:44px; padding:.65rem .8rem; border:1px solid var(--line); border-radius:.5rem; background:#fff; text-align:left; text-transform:capitalize; }
+.guest-guide-entry-list { display:grid; gap:.4rem; margin:0 0 .8rem; padding:0; list-style:none; }
+.guest-guide-entry-list li { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:.55rem; min-height:44px; padding:.45rem .6rem; border:1px solid var(--line); border-radius:.5rem; }
+.planner-drag-handle { display:grid; place-items:center; flex:0 0 auto; width:32px; height:40px; padding:0; border:0; border-radius:.35rem; background:transparent; color:var(--muted); font-size:1.35rem; line-height:1; cursor:grab; touch-action:none; }
+button.planner-drag-handle:hover,button.planner-drag-handle:focus-visible { background:var(--surface); color:var(--ink); }
+.guest-planner-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.candidate-activity-list,.scheduled-activity-list { display:grid; gap:.6rem; margin:0; padding:0; list-style:none; }
+.candidate-activity-list > li { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:.55rem; padding:.75rem; border:1px solid var(--line); border-radius:.65rem; background:#fcfbf8; }
+.scheduled-activity-list > li { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.55rem; padding:.75rem; border:1px solid var(--line); border-radius:.65rem; background:#fcfbf8; }
+.candidate-activity-list li > div { display:grid; gap:.15rem; min-width:0; }
+.candidate-priority { display:grid; place-items:center; width:2rem; height:2rem; border-radius:999px; background:var(--accent); color:#fff; font-weight:800; }
+.planner-action-menu { position:relative; justify-self:end; }
+.planner-action-menu > summary { display:grid; place-items:center; width:44px; height:44px; border:1px solid var(--line); border-radius:50%; cursor:pointer; font-size:1.5rem; line-height:1; list-style:none; }
+.planner-action-menu > summary::-webkit-details-marker { display:none; }
+.planner-action-menu > div { position:absolute; z-index:10; right:0; top:calc(100% + .3rem); display:grid; gap:.25rem; width:min(15rem,calc(100vw - 3rem)); padding:.5rem; border:1px solid var(--line); border-radius:.65rem; background:#fff; box-shadow:0 .6rem 1.8rem rgba(17,32,36,.18); }
+.planner-action-menu button,.planner-action-menu label { width:100%; min-height:44px; padding:.6rem .75rem; border:0; border-radius:.4rem; background:transparent; text-align:left; }
+.planner-action-menu button:hover,.planner-action-menu button:focus-visible { background:var(--surface); }
+.planner-action-menu label { display:grid; gap:.25rem; font-size:.78rem; }
+.planner-action-menu .is-destructive { color:#8d2020; }
+.guest-planner-empty { padding:1rem; border:1px dashed var(--line); border-radius:.6rem; color:var(--muted); }
+.guest-plan-day { min-width:0; padding-top:1rem; }
+.scheduled-activity-open { display:flex; align-items:center; gap:.7rem; min-height:44px; padding:.5rem; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.scheduled-activity-open time { font-variant-numeric:tabular-nums; color:var(--muted); }
+.guest-planner-dialog { width:min(38rem,calc(100% - 2rem)); max-height:calc(100dvh - 2rem); padding:1.2rem; border:1px solid var(--line); border-radius:.9rem; }
+.guest-planner-dialog::backdrop { background:rgba(17,32,36,.5); }
+.guest-planner-dialog form { display:grid; gap:.85rem; }
+.guest-planner-dialog label { display:grid; gap:.35rem; font-weight:700; }
+.dialog-close { justify-self:end; width:44px; height:44px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:1.4rem; }
+[draggable="true"] { cursor:grab; }
+@media(max-width:700px){
+  .guest-planner-day-tabs > p { align-items:stretch; flex-direction:column; gap:.15rem; }
+  .guest-planner-section > summary,.guest-planner-heading { align-items:stretch; flex-direction:column; }
+  .planner-action-menu { align-self:start; }
+  .guest-guide-entry-list li { align-items:center; }
+}
+
 @media (max-width: 600px) {
   .booker-header__inner,
   .booker-page-header { align-items: stretch; flex-direction: column; }
