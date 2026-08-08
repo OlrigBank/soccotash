@@ -1,59 +1,60 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getProperties } from '../../../lib/booking/config';
+import { BOOKING_STATUSES, type BookingStatus } from '../../../lib/booking/lifecycle';
 import { getProvisionalBookingRequests } from '../../../lib/booking/repository';
 export const prerender = false;
-const showInactive = Astro.url.searchParams.get('showInactive') === '1';
-const requests = await getProvisionalBookingRequests(100, showInactive);
+const statusOptions = Object.entries(BOOKING_STATUSES) as [BookingStatus, (typeof BOOKING_STATUSES)[BookingStatus]][];
+const requestedStatuses = Astro.url.searchParams.getAll('status').filter((status): status is BookingStatus => status in BOOKING_STATUSES);
+const selectedStatuses = new Set(requestedStatuses);
+const allRequests = await getProvisionalBookingRequests(100, true);
+const requests = selectedStatuses.size > 0
+  ? allRequests.filter((request) => selectedStatuses.has(request.status as BookingStatus))
+  : allRequests.filter((request) => !['declined', 'expired'].includes(request.status));
 const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
-const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 const deleted = Astro.url.searchParams.get('deleted') === '1';
 const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit payment required' : status === 'payment_reported' ? 'payment reported — verification required' : status === 'confirmed' ? 'confirmed' : status.replaceAll('_', ' ');
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
     <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, confirmed direct bookings and Booker conversations.</p></div>
-    <div class="pricing-header-actions">
-      <a class="admin-button admin-button--secondary" href={showInactive ? '/admin/bookings/' : '/admin/bookings/?showInactive=1'}>
-        {showInactive ? 'Hide declined and expired' : 'Show declined and expired'}
-      </a>
-    </div>
+    <details class="booking-status-filter">
+      <summary class="admin-button admin-button--secondary">{selectedStatuses.size ? `Statuses (${selectedStatuses.size})` : 'Booking statuses'}</summary>
+      <form method="get" class="booking-status-filter__panel">
+        <fieldset><legend>Show booking statuses</legend>{statusOptions.map(([value, metadata]) => (
+          <label><input type="checkbox" name="status" value={value} checked={selectedStatuses.has(value)} /> {metadata.label}</label>
+        ))}</fieldset>
+        <div class="pricing-header-actions"><button class="admin-button" type="submit">Apply</button><a class="admin-button admin-button--secondary" href="/admin/bookings/">Clear</a></div>
+        <small>No selection shows current bookings and hides declined and expired bookings.</small>
+      </form>
+    </details>
   </header>
   {deleted && <div class="pricing-message is-success" role="status">The booking request and its offer history were deleted.</div>}
-  {!showInactive && <p class="admin-filter-note">Declined and expired offers are hidden from this list.</p>}
+  {selectedStatuses.size === 0 && <p class="admin-filter-note">Declined and expired bookings are hidden. Use Booking statuses to change the list.</p>}
   <section class="admin-panel">
     {requests.length ? (
-      <div class="admin-table-wrap"><table><thead><tr><th>Bottom-line price</th><th>Stay</th><th>Booker</th><th>Party</th><th>Status</th><th>Received</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      <div class="admin-table-wrap"><table class="booking-entry-table"><thead><tr><th>Stay</th><th>Booker</th><th>Status</th></tr></thead><tbody>
         {requests.map((request) => {
-          const price = request.latestOfferTotalPence ?? request.guestTotalPence;
-          const currency = request.latestOfferCurrency ?? request.pricingCurrency ?? 'GBP';
-          const fullyPaid = Boolean(request.fullPaymentVerified || (request.depositVerified && request.balanceVerified));
           const balanceReported = request.currentPaymentStatus === 'reported' && request.currentPaymentStage === 'balance';
           const initialReported = request.currentPaymentStatus === 'reported' && request.currentPaymentStage !== 'balance';
-          const balanceState = request.balanceDueOn
-            ? request.balanceDueOn < new Date().toISOString().slice(0, 10) ? 'overdue' : request.balanceDueOn === new Date().toISOString().slice(0, 10) ? 'due today' : `due ${request.balanceDueOn}`
-            : 'due date not recorded';
-          const source = request.latestOfferTotalPence !== null ? (
-            fullyPaid ? 'Confirmed direct booking · fully paid'
-              : balanceReported ? 'Confirmed · balance verification required'
-                : request.status === 'confirmed' ? `Confirmed · ${money(request.balanceDuePence ?? 0, currency)} balance ${balanceState}`
-                  : initialReported ? 'Payment reported — verify before confirmation'
-                    : request.status === 'payment_pending' ? 'Accepted offer — payment due' : 'Latest offer'
-          ) : request.guestTotalPence !== null ? `Published plan v${request.pricingPlanVersion}` : 'Manual review required';
           const paymentDecisionRequired = initialReported || balanceReported;
           const actionHref = paymentDecisionRequired ? `/admin/bookings/${request.reference}/payment/` : `/admin/bookings/${request.reference}/`;
-          const actionLabel = balanceReported ? 'Verify balance' : initialReported ? 'Verify payment' : request.unreadMessageCount > 0 ? 'Open messages' : request.status === 'confirmed' ? 'View' : 'Review';
-          return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']}>
-            <td>{price === null ? <span class="muted">Price to be agreed</span> : <><strong>{money(price, currency)}</strong><small>{source}</small></>}</td>
-            <td><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></td>
+          return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']} data-booking-href={actionHref}>
+            <td><a class="booking-entry-primary-link" href={actionHref} aria-label={`Open booking for ${request.name}`}><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></a></td>
             <td><strong>{request.name}</strong>{request.unreadMessageCount > 0 && <span class="booking-unread-badge">{request.unreadMessageCount} new</span>}{(request.email || request.telephone) && <small>{request.email && <a href={`mailto:${request.email}`}>{request.email}</a>}{request.email && request.telephone ? ' · ' : ''}{request.telephone || ''}</small>}</td>
-            <td>{request.guests} guest{request.guests === 1 ? '' : 's'}{request.pets ? ` · ${request.pets} pet${request.pets === 1 ? '' : 's'}` : ''}</td>
             <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
-            <td>{new Date(request.createdAt).toLocaleString('en-GB')}</td>
-            <td><div class="pricing-header-actions"><a class="admin-button admin-button--small" href={actionHref}>{actionLabel}</a><a class="admin-button admin-button--small admin-button--secondary" href={`/admin/bookings/${request.reference}/access/`}>Access</a></div></td>
           </tr>;
         })}
       </tbody></table></div>
-    ) : <div class="pricing-empty-page"><h2>No bookings to show</h2><p>{showInactive ? 'No booking requests have been recorded yet.' : 'There are no active, offered or confirmed bookings. Declined and expired offers remain available through the filter above.'}</p></div>}
+    ) : <div class="pricing-empty-page"><h2>No bookings to show</h2><p>{selectedStatuses.size ? 'No bookings match the selected statuses.' : 'There are no current bookings. Declined and expired bookings remain available through the status filter.'}</p></div>}
   </section>
 </AdminLayout>
+<script>
+  document.querySelectorAll<HTMLTableRowElement>('[data-booking-href]').forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('a,button,input,select,textarea')) return;
+      const href = row.dataset.bookingHref;
+      if (href) window.location.assign(href);
+    });
+  });
+</script>

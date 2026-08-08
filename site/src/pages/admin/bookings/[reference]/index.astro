@@ -466,6 +466,7 @@ if (arrangementAssigned) {
         <>
           <a class="admin-button admin-button--secondary" href={bookerManageUrl} target="_blank" rel="noopener noreferrer">Open Booker page</a>
           <button class="admin-button admin-button--secondary" type="button" data-copy-booker-link={bookerManageUrl}>Copy Booker link</button>
+          <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/access/`}>Access</a>
           <span data-copy-booker-status aria-live="polite"></span>
         </>
       )}
