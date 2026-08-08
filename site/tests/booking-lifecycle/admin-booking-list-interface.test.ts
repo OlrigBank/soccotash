@@ -17,6 +17,13 @@ test('booking entries open with one click while access remains on the review pag
   assert.match(listPage, /booking-status-filter/);
   assert.match(listPage, /name="status"/);
   assert.match(listPage, /BOOKING_STATUSES/);
+  assert.match(listPage, /!metadata\.legacy/);
   assert.doesNotMatch(listPage, /Show declined and expired/);
-  assert.match(reviewPage, /Copy Booker link[\s\S]*\/access\/`}>Access</);
+  assert.doesNotMatch(reviewPage, /Copy Booker link[\s\S]{0,300}>Access</);
+  assert.match(reviewPage, /<summary>Access<\/summary>[\s\S]*\/access\/`}>Manage Booker access</);
+  assert.match(reviewPage, /booking-management-actions/);
+  assert.match(reviewPage, /booking-reservation-panel[\s\S]*data-open-reservation-drawer/);
+  assert.match(reviewPage, /<details id="holiday-planner" class="booking-management-panel/);
+  assert.match(reviewPage, /<details class="booking-management-panel" open=/);
+  assert.match(reviewPage, /showReservationButton=\{false\}/);
 });

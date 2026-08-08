@@ -3027,6 +3027,71 @@ body.has-booking-drawer { overflow: hidden; }
   color: var(--muted);
 }
 
+.booking-management-actions {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  padding: .2rem .1rem .65rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.booking-management-actions > * {
+  flex: 0 0 auto;
+}
+
+.booking-reservation-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.booking-reservation-panel h2,
+.booking-reservation-panel p {
+  margin-block: .25rem;
+}
+
+.booking-management-panel {
+  margin-block: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface, #fff);
+}
+
+.booking-management-panel > summary {
+  min-height: 56px;
+  padding: 1rem 1.15rem;
+  cursor: pointer;
+  list-style-position: inside;
+  font-weight: 800;
+}
+
+.booking-management-panel__body {
+  padding: 0 1.15rem 1.15rem;
+}
+
+.booking-management-panel__body > .booking-conversation {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .booking-messaging-page-header {
+    display: block;
+  }
+  .booking-management-actions {
+    margin-top: 1rem;
+  }
+  .booking-reservation-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .booking-reservation-panel > .admin-button {
+    width: 100%;
+  }
+}
+
 .booking-unread-badge {
   display: inline-flex;
   align-items: center;

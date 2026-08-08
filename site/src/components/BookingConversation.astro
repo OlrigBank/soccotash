@@ -15,6 +15,8 @@ interface Props {
   messageNotice?: string;
   messageError?: string;
   reservationButtonLabel?: string;
+  showHeader?: boolean;
+  showReservationButton?: boolean;
 }
 
 const {
@@ -31,6 +33,8 @@ const {
   messageNotice = '',
   messageError = '',
   reservationButtonLabel = 'Reservation',
+  showHeader = true,
+  showReservationButton = true,
 } = Astro.props;
 
 const lastMessageId = messages.at(-1)?.id || '0';
@@ -51,17 +55,17 @@ const notificationText = (message: BookingMessage) => {
   data-booking-status={bookingStatus}
   data-reservation-version={reservationVersion}
 >
-  <header class="booking-conversation__header">
+  {showHeader && <header class="booking-conversation__header">
     <div>
       <p class="eyebrow">Messages</p>
       <h1>{heading}</h1>
       <p>{intro}</p>
     </div>
-    <button class="booking-reservation-button" type="button" data-open-reservation-drawer>
+    {showReservationButton && <button class="booking-reservation-button" type="button" data-open-reservation-drawer>
       <span>{reservationButtonLabel}</span>
       <span aria-hidden="true">›</span>
-    </button>
-  </header>
+    </button>}
+  </header>}
 
   {messageNotice && <div class="booking-conversation__notice is-success" role="status">{messageNotice}</div>}
   {messageError && <div class="booking-conversation__notice is-error" role="alert">{messageError}</div>}

@@ -460,13 +460,12 @@ if (arrangementAssigned) {
       <p class="eyebrow">Booking management</p>
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
-    <div class="pricing-header-actions">
+    <div class="pricing-header-actions booking-management-actions" aria-label="Booking actions">
       <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>Preview Booker page</a>
       {bookerManageUrl && (
         <>
           <a class="admin-button admin-button--secondary" href={bookerManageUrl} target="_blank" rel="noopener noreferrer">Open Booker page</a>
           <button class="admin-button admin-button--secondary" type="button" data-copy-booker-link={bookerManageUrl}>Copy Booker link</button>
-          <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/access/`}>Access</a>
           <span data-copy-booker-status aria-live="polite"></span>
         </>
       )}
@@ -474,9 +473,24 @@ if (arrangementAssigned) {
     </div>
   </header>
 
-  <section id="holiday-planner" class="admin-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
-    <p class="eyebrow">Booking-linked Holiday Planner</p>
-    <h2 id="holiday-planner-heading">{holidayPlan?.title ?? 'Create an empty plan for this booking'}</h2>
+  <section class="admin-panel booking-reservation-panel" aria-labelledby="reservation-panel-heading">
+    <div><p class="eyebrow">Reservation</p><h2 id="reservation-panel-heading">{propertyName}</h2><p>{dateLabel(booking.arrival)} to {dateLabel(booking.departure)} · <span class={`status-badge status-${booking.status}`}>{booking.status.replaceAll('_', ' ')}</span></p></div>
+    <button class="admin-button" type="button" data-open-reservation-drawer>Open reservation</button>
+  </section>
+
+  <details class="booking-management-panel">
+    <summary>Access</summary>
+    <div class="booking-management-panel__body">
+      <h2>Booker access</h2>
+      <p>Review the private Booker link, rotate it if it may have been exposed, or revoke access when the booking page should no longer be available.</p>
+      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/access/`}>Manage Booker access</a>
+    </div>
+  </details>
+
+  <details id="holiday-planner" class="booking-management-panel booking-planner-card">
+    <summary>Booking-linked Holiday Planner</summary>
+    <div class="booking-management-panel__body" id="holiday-planner-heading">
+    <h2>{holidayPlan?.title ?? 'Create an empty plan for this booking'}</h2>
     {holidayPlan ? (
       <>
         <p>Private booking plan · {holidayPlan.startsOn} to {holidayPlan.endsOn} · revision {holidayPlan.revision}</p>
@@ -496,22 +510,31 @@ if (arrangementAssigned) {
     )}
     {Astro.url.searchParams.get('planner') === 'created' && <p class="admin-alert admin-alert--success" role="status">The private booking plan was created and the Booker is its owner.</p>}
     {Astro.url.searchParams.get('planner') === 'example-copied' && <p class="admin-alert admin-alert--success" role="status">The published example was copied into the independent Booker plan.</p>}
-  </section>
+    </div>
+  </details>
 
-  <BookingConversation
-    messages={messages}
-    viewer="administrator"
-    heading={`Conversation with ${booking.name}`}
-    intro={`Messages are sent as ${Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.`}
-    pollingUrl={`/api/admin/bookings/${reference}/messages`}
-    bookingStatus={booking.status}
-    reservationVersion={reservationVersion}
-    notificationAvailable={notificationAvailable}
-    notificationLabel={whatsappNotificationAvailable ? 'Also send a WhatsApp booking notification' : `Also email a copy${booking.email ? ` to ${booking.email}` : ''}`}
-    messageNotice={notice}
-    messageError={messageError}
-    reservationButtonLabel="Reservation"
-  />
+  <details class="booking-management-panel" open={Boolean(notice || messageError)}>
+    <summary>Messages</summary>
+    <div class="booking-management-panel__body">
+      <h2>Conversation with {booking.name}</h2>
+      <p class="admin-panel-intro">Messages are sent as {Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.</p>
+      <BookingConversation
+        messages={messages}
+        viewer="administrator"
+        heading={`Conversation with ${booking.name}`}
+        intro={`Messages are sent as ${Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.`}
+        pollingUrl={`/api/admin/bookings/${reference}/messages`}
+        bookingStatus={booking.status}
+        reservationVersion={reservationVersion}
+        notificationAvailable={notificationAvailable}
+        notificationLabel={whatsappNotificationAvailable ? 'Also send a WhatsApp booking notification' : `Also email a copy${booking.email ? ` to ${booking.email}` : ''}`}
+        messageNotice={notice}
+        messageError={messageError}
+        showHeader={false}
+        showReservationButton={false}
+      />
+    </div>
+  </details>
 
   <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
   <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError || reservationOpen ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">

@@ -4,8 +4,10 @@ import { getProperties } from '../../../lib/booking/config';
 import { BOOKING_STATUSES, type BookingStatus } from '../../../lib/booking/lifecycle';
 import { getProvisionalBookingRequests } from '../../../lib/booking/repository';
 export const prerender = false;
-const statusOptions = Object.entries(BOOKING_STATUSES) as [BookingStatus, (typeof BOOKING_STATUSES)[BookingStatus]][];
-const requestedStatuses = Astro.url.searchParams.getAll('status').filter((status): status is BookingStatus => status in BOOKING_STATUSES);
+const statusOptions = (Object.entries(BOOKING_STATUSES) as [BookingStatus, (typeof BOOKING_STATUSES)[BookingStatus]][])
+  .filter(([, metadata]) => !metadata.legacy);
+const selectableStatuses = new Set(statusOptions.map(([status]) => status));
+const requestedStatuses = Astro.url.searchParams.getAll('status').filter((status): status is BookingStatus => selectableStatuses.has(status as BookingStatus));
 const selectedStatuses = new Set(requestedStatuses);
 const allRequests = await getProvisionalBookingRequests(100, true);
 const requests = selectedStatuses.size > 0
