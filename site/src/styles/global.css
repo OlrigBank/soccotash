@@ -3142,6 +3142,153 @@ body.has-booking-drawer { overflow: hidden; }
   white-space: nowrap;
 }
 
+/* Private Booker workspace */
+.booker-area {
+  min-width: 320px;
+  margin: 0;
+  overflow-x: clip;
+  background: #f7f3ec;
+}
+
+.booker-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.booker-header {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.94);
+}
+
+.booker-header__inner,
+.booker-shell > main,
+.booker-footer {
+  width: min(1120px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.booker-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 76px;
+}
+
+.booker-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .7rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.booker-brand > span:last-child { display: grid; }
+.booker-brand small { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+.booker-brand strong { font-size: 1rem; }
+
+.booker-public-link {
+  color: var(--accent-dark);
+  font-size: .88rem;
+  font-weight: 800;
+}
+
+.booker-shell > main {
+  flex: 1;
+  padding-block: clamp(1.25rem, 4vw, 3rem);
+}
+
+.booker-footer {
+  padding-block: 1.25rem;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.booker-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.booker-page-header h1 { margin: .2rem 0; }
+.booker-page-header p:last-child { margin-bottom: 0; color: var(--muted); }
+
+.booker-workspace-list {
+  display: grid;
+  gap: .8rem;
+}
+
+.booker-workspace-list > a {
+  display: grid;
+  gap: .2rem;
+  min-height: 84px;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+}
+
+.booker-workspace-list > a:hover,
+.booker-workspace-list > a:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(111,78,55,.15);
+}
+
+.booker-workspace-list span {
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.booker-workspace-list small { color: var(--muted); }
+
+.customer-reservation-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.customer-reservation-page > .booking-reservation-drawer__header {
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+}
+
+.customer-reservation-page > .booking-reservation-drawer__body {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  padding: 0;
+  overflow: visible;
+}
+
+.customer-reservation-page .booking-drawer-section,
+.customer-reservation-page .booking-drawer-section > *,
+.customer-reservation-page .customer-booking-details,
+.customer-reservation-page .customer-booking-details > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.customer-reservation-page .admin-table-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .booker-header__inner,
+  .booker-page-header { align-items: stretch; flex-direction: column; }
+  .booker-header__inner { padding-block: .75rem; }
+  .booker-public-link { align-self: flex-start; }
+  .booker-page-header > .button { width: 100%; }
+}
+
 .customer-booking-payment-options {
   display: grid;
   gap: 1rem;
