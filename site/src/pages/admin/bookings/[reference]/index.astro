@@ -123,7 +123,7 @@ if (Astro.request.method === 'POST') {
         expectedRevision: Number(form.get('expectedRevision')),
         actor: { type: 'administrator', adminUserId: Astro.locals.adminUser!.id },
       });
-      return Astro.redirect(`/admin/bookings/${reference}/?planner=example-copied#holiday-planner`);
+      return Astro.redirect(`/admin/bookings/${reference}/planner/?planner=example-copied#holiday-planner`);
     } catch (plannerError) {
       error = plannerError instanceof PlannerError ? plannerError.message : 'The example plan could not be copied.';
     }
@@ -133,14 +133,14 @@ if (Astro.request.method === 'POST') {
         bookingReference: reference,
         actor: { type: 'administrator', adminUserId: Astro.locals.adminUser!.id },
       });
-      return Astro.redirect(`/admin/bookings/${reference}/?planner=created#holiday-planner`);
+      return Astro.redirect(`/admin/bookings/${reference}/planner/?planner=created#holiday-planner`);
     } catch (plannerError) {
       error = plannerError instanceof PlannerError ? plannerError.message : 'The holiday plan could not be created.';
     }
   } else if (action === 'withdraw-whatsapp-consent') {
     await withdrawProvisionalBookingWhatsAppConsent(reference, 'administrator');
     await audit(Astro.locals.adminUser!.id, 'booking.whatsapp_consent_withdrawn', { bookingReference: reference });
-    return Astro.redirect(`/admin/bookings/${reference}/?consent=withdrawn`);
+    return Astro.redirect(`/admin/bookings/${reference}/reservation/?consent=withdrawn`);
   } else if (action === 'send-message') {
     const body = cleanText(form.get('messageBody'), 5000);
     const notificationRequested = form.get('sendMessageEmail') === 'yes';
@@ -201,7 +201,7 @@ if (Astro.request.method === 'POST') {
         notificationAvailable,
         notificationStatus,
       });
-      return Astro.redirect(`/admin/bookings/${reference}/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
+      return Astro.redirect(`/admin/bookings/${reference}/messages/?message=sent&messageEmail=${notificationRequested ? notificationStatus : 'not-requested'}`);
     }
   } else if (action === 'cancel-booking') {
     const cancellationReason = cleanText(form.get('cancellationReason'), 1000);
@@ -326,7 +326,7 @@ if (Astro.request.method === 'POST') {
         emailRequested,
       });
 
-      if (!emailRequested) return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=skipped`);
+      if (!emailRequested) return Astro.redirect(`/admin/bookings/${reference}/reservation/?published=1&email=skipped`);
 
       try {
         if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
@@ -351,7 +351,7 @@ if (Astro.request.method === 'POST') {
           channel: delivery.channel,
           status: delivery.status,
         });
-        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=${delivery.status}`);
+        return Astro.redirect(`/admin/bookings/${reference}/reservation/?published=1&email=${delivery.status}`);
       } catch (sendError) {
         await markBookingOfferFailed(attempt.id, sendError);
         await audit(Astro.locals.adminUser!.id, 'booking.offer_email_failed', {
@@ -360,7 +360,7 @@ if (Astro.request.method === 'POST') {
           recipient: booking.email,
           error: sendError instanceof Error ? sendError.message : String(sendError),
         });
-        return Astro.redirect(`/admin/bookings/${reference}/?published=1&email=failed`);
+        return Astro.redirect(`/admin/bookings/${reference}/reservation/?published=1&email=failed`);
       }
     }
   } else {
@@ -394,7 +394,6 @@ const hiddenClosedOfferCount = offers.length - visibleOffers.length;
 const published = Astro.url.searchParams.get('published') === '1';
 const arrangementAssigned = Astro.url.searchParams.get('arrangement') === 'assigned';
 const datesSuggested = Astro.url.searchParams.get('dates') === 'suggested';
-const reservationOpen = Astro.url.searchParams.get('reservation') === 'open';
 const arrangementError = Astro.url.searchParams.get('arrangementError');
 const publishEmailStatus = Astro.url.searchParams.get('email');
 const contactStatus = Astro.url.searchParams.get('contact');
@@ -420,6 +419,20 @@ const reservationVersion = reservationSnapshot
   ? `${reservationSnapshot.bookingStatus}:${reservationSnapshot.customerStatus}:${reservationSnapshot.offerId || ''}:${reservationSnapshot.publishedAt || ''}:${reservationSnapshot.arrival}:${reservationSnapshot.departure}:${reservationSnapshot.bespokeSuggestedArrival || ''}`
   : booking.status;
 let notice = '';
+const workspace = Astro.url.searchParams.get('workspace');
+const workspaceTitle = workspace === 'reservation'
+  ? 'Reservation'
+  : workspace === 'messages'
+    ? 'Messages'
+    : workspace === 'planner'
+      ? 'Holiday Planner'
+      : workspace === 'cancel'
+        ? 'Cancel booking'
+        : workspace === 'delete'
+          ? 'Delete booking'
+      : workspace === 'history'
+        ? 'Administration history'
+        : 'Booking management';
 if (arrangementAssigned) {
   notice = `${propertyName} was assigned successfully. The dates are now reserved provisionally and an offer can be prepared.`;
 } else if (datesSuggested) {
@@ -454,13 +467,14 @@ if (arrangementAssigned) {
   notice = 'The Booker contact details were updated.';
 }
 ---
-<AdminLayout title={`Messages · ${booking.name}`}>
+<AdminLayout title={`${workspaceTitle} · ${booking.name}`}>
   <header class="admin-page-header booking-messaging-page-header">
     <div>
       <p class="eyebrow">Booking management</p>
       <p>{propertyName} · {dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</p>
     </div>
     <div class="pricing-header-actions booking-management-actions" aria-label="Booking actions">
+      {workspace ? <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/`}>Back to booking</a> : <>
       <a class="admin-button" href={`/admin/bookings/${booking.reference}/customer-view/`}>Preview Booker page</a>
       {bookerManageUrl && (
         <>
@@ -470,26 +484,32 @@ if (arrangementAssigned) {
         </>
       )}
       <a class="admin-button admin-button--secondary" href="/admin/bookings/">Back to bookings</a>
+      </>}
     </div>
   </header>
 
-  <section class="admin-panel booking-reservation-panel" aria-labelledby="reservation-panel-heading">
-    <div><p class="eyebrow">Reservation</p><h2 id="reservation-panel-heading">{propertyName}</h2><p>{dateLabel(booking.arrival)} to {dateLabel(booking.departure)} · <span class={`status-badge status-${booking.status}`}>{booking.status.replaceAll('_', ' ')}</span></p></div>
-    <button class="admin-button" type="button" data-open-reservation-drawer>Open reservation</button>
-  </section>
+  {!workspace && <nav class="booking-workspace-groups" aria-label="Booking workspaces">
+    <section aria-labelledby="booking-workspaces-heading">
+      <h2 id="booking-workspaces-heading">Booking workspaces</h2>
+      <div class="booking-workspace-list">
+        <a href={`/admin/bookings/${booking.reference}/reservation/`}><span>Reservation</span><strong>{propertyName}</strong><small>{dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</small></a>
+        <a href={`/admin/bookings/${booking.reference}/access/`}><span>Access</span><strong>Booker access</strong><small>Manage the private booking link</small></a>
+        <a href={`/admin/bookings/${booking.reference}/messages/`}><span>Messages</span><strong>Conversation with {booking.name}</strong><small>{messages.length} message{messages.length===1?'':'s'}</small></a>
+        <a href={`/admin/bookings/${booking.reference}/planner/`}><span>Holiday Planner</span><strong>{holidayPlan?.title ?? 'Booking-linked plan'}</strong><small>{holidayPlan ? `${holidayPlan.days.length} planned day${holidayPlan.days.length===1?'':'s'}` : 'Available after confirmation'}</small></a>
+        <a href={`/admin/bookings/${booking.reference}/history/`}><span>Administration</span><strong>Administration history</strong><small>Offers, payments, notifications and audit</small></a>
+      </div>
+    </section>
+    <section class="booking-workspace-group--lifecycle" aria-labelledby="booking-lifecycle-heading">
+      <h2 id="booking-lifecycle-heading">Booking lifecycle</h2>
+      <div class="booking-workspace-list">
+        <a class="booking-workspace-action--caution" href={`/admin/bookings/${booking.reference}/cancel/`}><span>Lifecycle action</span><strong>Cancel booking</strong><small>Release the dates while retaining the booking record</small></a>
+        <a class="booking-workspace-action--danger" href={`/admin/bookings/${booking.reference}/delete/`}><span>Danger zone</span><strong>Delete booking</strong><small>Permanently remove an eligible booking request</small></a>
+      </div>
+    </section>
+  </nav>}
 
-  <details class="booking-management-panel">
-    <summary>Access</summary>
-    <div class="booking-management-panel__body">
-      <h2>Booker access</h2>
-      <p>Review the private Booker link, rotate it if it may have been exposed, or revoke access when the booking page should no longer be available.</p>
-      <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/access/`}>Manage Booker access</a>
-    </div>
-  </details>
-
-  <details id="holiday-planner" class="booking-management-panel booking-planner-card">
-    <summary>Booking-linked Holiday Planner</summary>
-    <div class="booking-management-panel__body" id="holiday-planner-heading">
+  {workspace==='planner' && <section id="holiday-planner" class="admin-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
+    <div id="holiday-planner-heading">
     <h2>{holidayPlan?.title ?? 'Create an empty plan for this booking'}</h2>
     {holidayPlan ? (
       <>
@@ -511,11 +531,10 @@ if (arrangementAssigned) {
     {Astro.url.searchParams.get('planner') === 'created' && <p class="admin-alert admin-alert--success" role="status">The private booking plan was created and the Booker is its owner.</p>}
     {Astro.url.searchParams.get('planner') === 'example-copied' && <p class="admin-alert admin-alert--success" role="status">The published example was copied into the independent Booker plan.</p>}
     </div>
-  </details>
+  </section>}
 
-  <details class="booking-management-panel" open={Boolean(notice || messageError)}>
-    <summary>Messages</summary>
-    <div class="booking-management-panel__body">
+  {workspace==='messages' && <section class="admin-panel booking-messages-page">
+    <div>
       <h2>Conversation with {booking.name}</h2>
       <p class="admin-panel-intro">Messages are sent as {Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.</p>
       <BookingConversation
@@ -534,13 +553,11 @@ if (arrangementAssigned) {
         showReservationButton={false}
       />
     </div>
-  </details>
+  </section>}
 
-  <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer booking-reservation-drawer--admin" data-reservation-drawer data-open-on-load={error || contactError || reservationOpen ? 'yes' : 'no'} aria-hidden="true" aria-label="Reservation and offer controls">
+  {workspace==='reservation' && <aside class="booking-reservation-drawer booking-reservation-drawer--admin booking-reservation-drawer--page is-open" aria-label="Reservation and offer controls">
     <header class="booking-reservation-drawer__header">
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
-      <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
     </header>
     <div class="booking-reservation-drawer__body">
       {error && <div class="pricing-message is-error" role="alert">{error}</div>}
@@ -663,15 +680,14 @@ if (arrangementAssigned) {
         {priorOffer?.terms && <><h4>Current terms</h4><p class="booking-terms-copy">{priorOffer.terms}</p></>}
       </section>}
     </div>
-  </aside>
+  </aside>}
 
-  <details class="booking-administration" open={showClosedOffers}>
-    <summary>Administration and history</summary>
+  {workspace==='history' && <section class="booking-administration booking-administration--page" aria-label="Administration history">
     <div class="booking-administration__body">
       {offers.length > 0 && <section class="admin-panel">
         <div class="booking-review-summary__heading">
           <div><h2>Offer history</h2>{hiddenClosedOfferCount > 0 && !showClosedOffers && <p class="admin-panel-intro">{hiddenClosedOfferCount} declined or expired offer{hiddenClosedOfferCount === 1 ? ' is' : 's are'} hidden.</p>}</div>
-          <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/${showClosedOffers ? '' : '?showClosedOffers=1'}`}>
+          <a class="admin-button admin-button--secondary" href={`/admin/bookings/${booking.reference}/history/${showClosedOffers ? '' : '?showClosedOffers=1'}`}>
             {showClosedOffers ? 'Hide declined and expired offers' : 'Show declined and expired offers'}
           </a>
         </div>
@@ -722,8 +738,10 @@ if (arrangementAssigned) {
           </tr>)}
         </tbody></table></div>
       </section>}
+    </div>
+  </section>}
 
-      <section class="admin-panel booking-delete-panel">
+  {workspace==='cancel' && <section class="admin-panel booking-delete-panel booking-lifecycle-page">
         <div>
           <p class="eyebrow">Booking lifecycle</p>
           <h2>Cancel booking</h2>
@@ -743,9 +761,9 @@ if (arrangementAssigned) {
           </label>
           <button class="admin-button admin-button--danger" type="submit" disabled={!canCancel}>Cancel booking</button>
         </form>
-      </section>
+  </section>}
 
-      <section class="admin-panel booking-delete-panel">
+  {workspace==='delete' && <section class="admin-panel booking-delete-panel booking-lifecycle-page">
         <div>
           <p class="eyebrow">Danger zone</p>
           <h2>Delete booking request</h2>
@@ -771,9 +789,7 @@ if (arrangementAssigned) {
             {canDeleteAcceptanceTest ? 'Delete acceptance-test booking' : 'Delete booking request'}
           </button>
         </form>
-      </section>
-    </div>
-  </details>
+  </section>}
 </AdminLayout>
 
 <script>

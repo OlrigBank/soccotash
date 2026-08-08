@@ -76,7 +76,7 @@ test('the Bespoke Reservation panel hands date review to the contextual calendar
 
   assert.match(bookingPage, /Review requested dates in calendar/);
   assert.match(bookingPage, /month=\$\{booking\.arrival\.slice\(0, 7\)\}.*property=bespoke-arrangement.*booking=\$\{reference\}/);
-  assert.match(bookingPage, /reservationOpen \? 'yes' : 'no'/);
+  assert.match(bookingPage, /workspace==='reservation'/);
   assert.match(calendarPage, /Bespoke stay date review/);
   assert.match(calendarPage, /Nearest open same-length stay/);
   assert.match(calendarPage, /Suggest dates and return to booking/);
@@ -84,7 +84,7 @@ test('the Bespoke Reservation panel hands date review to the contextual calendar
   assert.match(calendarPage, /data-select-bespoke-arrival/);
   assert.match(dateRoute, /isSameOrigin\(request\)/);
   assert.match(dateRoute, /booking\.bespoke_dates_suggested/);
-  assert.match(dateRoute, /reservation=open&dates=suggested/);
+  assert.match(dateRoute, /\/reservation\/\?dates=suggested/);
   assert.match(repository, /applyAvailabilityOverrides: true/);
   assert.match(repository, /duration_mismatch/);
   assert.match(repository, /bespoke_dates_suggested/);

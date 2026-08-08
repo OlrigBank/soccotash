@@ -1930,6 +1930,7 @@ main {
   margin: 1rem 0 0;
 }
 .booking-detail-list > div {
+  min-width: 0;
   padding: 0.75rem 0;
   border-top: 1px solid var(--line);
 }
@@ -1942,7 +1943,8 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.booking-detail-list dd { margin: 0; }
+.booking-detail-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.booking-detail-list code { overflow-wrap: anywhere; }
 .booking-detail-list__wide { grid-column: 1 / -1; }
 .booking-price-table table { width: 100%; border-collapse: collapse; }
 .booking-price-table td,
@@ -2909,6 +2911,7 @@ body.has-booking-drawer { overflow: hidden; }
 .booking-terms-copy { white-space: pre-wrap; }
 .booking-administration {
   width: min(1100px, 100%);
+  min-width: 0;
   margin: 1rem auto 0;
   border: 1px solid var(--line);
   border-radius: 0.9rem;
@@ -2920,8 +2923,8 @@ body.has-booking-drawer { overflow: hidden; }
   font-weight: 800;
 }
 .booking-administration[open] > summary { border-bottom: 1px solid var(--line); }
-.booking-administration__body { display: grid; gap: 1rem; padding: 1rem; }
-.booking-administration__body .admin-panel { margin: 0; }
+.booking-administration__body { display: grid; min-width: 0; gap: 1rem; padding: 1rem; }
+.booking-administration__body .admin-panel { min-width: 0; margin: 0; }
 @media (max-width: 760px) {
   .booking-messaging-page-header,
   .booking-conversation__header,
@@ -3041,39 +3044,80 @@ body.has-booking-drawer { overflow: hidden; }
   flex: 0 0 auto;
 }
 
-.booking-reservation-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+.booking-workspace-groups {
+  display: grid;
+  gap: 2rem;
 }
 
-.booking-reservation-panel h2,
-.booking-reservation-panel p {
-  margin-block: .25rem;
+.booking-workspace-groups h2 {
+  margin: 0 0 .8rem;
+  font-size: 1.05rem;
 }
 
-.booking-management-panel {
-  margin-block: 1rem;
+.booking-workspace-group--lifecycle {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.booking-workspace-list {
+  display: grid;
+  gap: .8rem;
+}
+
+.booking-workspace-list > a {
+  display: grid;
+  gap: .2rem;
+  min-height: 76px;
+  padding: 1rem 1.15rem;
   border: 1px solid var(--line);
   border-radius: .5rem;
   background: var(--surface, #fff);
+  color: inherit;
+  text-decoration: none;
 }
 
-.booking-management-panel > summary {
-  min-height: 56px;
-  padding: 1rem 1.15rem;
-  cursor: pointer;
-  list-style-position: inside;
+.booking-workspace-list > a:hover,
+.booking-workspace-list > a:focus-visible {
+  border-color: var(--admin-accent, #41694e);
+  box-shadow: 0 0 0 2px rgba(65,105,78,.15);
+}
+
+.booking-workspace-list span {
+  color: var(--muted);
+  font-size: .78rem;
   font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
-.booking-management-panel__body {
-  padding: 0 1.15rem 1.15rem;
+.booking-workspace-list small { color: var(--muted); }
+
+.booking-workspace-list > .booking-workspace-action--caution {
+  border-color: #b78a42;
 }
 
-.booking-management-panel__body > .booking-conversation {
-  margin: 0;
+.booking-workspace-list > .booking-workspace-action--danger {
+  border-color: #a4493d;
+  background: #fff8f7;
+}
+
+.booking-workspace-action--danger strong,
+.booking-workspace-action--danger span {
+  color: #842b22;
+}
+
+.booking-reservation-drawer--page {
+  position: static;
+  width: min(1100px, 100%);
+  max-height: none;
+  margin-inline: auto;
+  transform: none;
+  box-shadow: none;
+  visibility: visible;
+}
+
+.booking-reservation-drawer--page .booking-reservation-drawer__body {
+  overflow: visible;
 }
 
 @media (max-width: 700px) {
@@ -3082,13 +3126,6 @@ body.has-booking-drawer { overflow: hidden; }
   }
   .booking-management-actions {
     margin-top: 1rem;
-  }
-  .booking-reservation-panel {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .booking-reservation-panel > .admin-button {
-    width: 100%;
   }
 }
 
