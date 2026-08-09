@@ -180,6 +180,8 @@ const conversationError = messageError || responseError;
     </header>
 
     <div class="booking-reservation-drawer__body">
+      {view === 'reservation' && conversationNotice && <div class="booking-conversation__notice is-success" role="status">{conversationNotice}</div>}
+      {view === 'reservation' && conversationError && <div class="booking-conversation__notice is-error" role="alert">{conversationError}</div>}
       <section class="booking-drawer-section booking-drawer-status">
         <div>
           <h3>{statusHeading}</h3>

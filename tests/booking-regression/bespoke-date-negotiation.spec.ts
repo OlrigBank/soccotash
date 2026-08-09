@@ -92,19 +92,19 @@ test.describe('bespoke blocked-date negotiation', () => {
     await bookingRow.getByRole('link', { name: /Review|Open/ }).first().click();
     const reference = new URL(adminPage.url()).pathname.split('/').filter(Boolean).at(-1)!;
 
-    await adminPage.getByRole('button', { name: 'Reservation' }).click();
+    await adminPage.getByRole('link', { name: /Reservation/ }).click();
     await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
     await expect(adminPage.getByText(`Requested: ${ARRIVAL} to ${DEPARTURE}`)).toBeVisible();
     await adminPage.getByRole('button', { name: 'Suggest dates and return to booking' }).click();
     await expect(adminPage.getByText("Awaiting the Booker's date decision")).toBeVisible();
 
     await page.reload();
-    await page.locator('[data-open-reservation-drawer]').click();
+    await page.getByRole('link', { name: /Reservation/ }).click();
     await expect(page.getByRole('heading', { name: 'Olrig Bank has suggested a change to your request' })).toBeVisible();
     await page.getByRole('button', { name: 'Keep my original dates' }).click();
     await expect(page.getByText('Your original dates were kept')).toBeVisible();
 
-    await adminPage.goto(`/admin/bookings/${reference}/?reservation=open`);
+    await adminPage.goto(`/admin/bookings/${reference}/reservation/`);
     await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
     for (const property of ['Main House', 'Cottage']) {
       const reason = adminPage.getByLabel(`Reason for allowing bespoke stays at ${property} on ${ARRIVAL}`);
@@ -117,13 +117,13 @@ test.describe('bespoke blocked-date negotiation', () => {
     await adminPage.getByRole('link', { name: 'Return to booking without changes' }).click();
     await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank' });
     await adminPage.getByRole('button', { name: 'Assign arrangement' }).click();
-    await adminPage.getByRole('button', { name: 'Reservation' }).click();
+    await adminPage.getByRole('link', { name: /Reservation/ }).click();
     await adminPage.getByLabel('Amount (£)').fill('100.00');
     await adminPage.getByRole('button', { name: 'Publish offer' }).click();
     await expect(adminPage.getByRole('status').filter({ hasText: 'The offer is published on the Booker booking page.' })).toBeVisible();
 
     await page.goto(bookerUrl);
-    await page.locator('[data-open-reservation-drawer]').click();
+    await page.getByRole('link', { name: /Reservation/ }).click();
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
     await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
