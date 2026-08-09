@@ -560,6 +560,7 @@ if (arrangementAssigned) {
       <div><p class="eyebrow">Reservation</p><h2>{booking.name}</h2></div>
     </header>
     <div class="booking-reservation-drawer__body">
+      {notice && <div class="pricing-message" role="status">{notice}</div>}
       {error && <div class="pricing-message is-error" role="alert">{error}</div>}
 
       <section class="booking-drawer-section booking-drawer-status">

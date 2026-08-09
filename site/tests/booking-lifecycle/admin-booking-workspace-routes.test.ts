@@ -37,6 +37,7 @@ test('each booking workspace owns one isolated, directly visible content region'
   assert.match(page, /\/planner\/\?planner=created/);
   assert.match(page, /\/messages\/\?message=sent/);
   assert.match(page, /\/reservation\/\?published=1/);
+  assert.match(page, /workspace==='reservation'[\s\S]*notice && <div class="pricing-message" role="status">/);
 });
 
 test('workspace pages return to booking management and lifecycle actions are visually separated', async () => {

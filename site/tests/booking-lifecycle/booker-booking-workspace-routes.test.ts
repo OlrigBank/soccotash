@@ -35,6 +35,8 @@ test('the booking home exposes isolated Reservation, Chat and Holiday Planner wo
   assert.match(component, /view === 'messages'/);
   assert.match(component, /showReservationButton=\{view === 'combined'\}/);
   assert.match(component, /view === 'combined' \? 'booking-reservation-drawer' : 'customer-reservation-page'/);
+  assert.match(component, /view === 'reservation' && conversationNotice/);
+  assert.match(component, /view === 'reservation' && conversationError/);
   assert.match(component, /<h3>Your stay<\/h3>/);
 });
 
