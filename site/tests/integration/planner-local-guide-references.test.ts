@@ -30,12 +30,14 @@ test('backfills stable guide IDs, survives slug changes and rejects unresolved m
   const directory=new URL('../../db/',import.meta.url);const files=(await readdir(directory)).filter(name=>name.endsWith('.sql')).sort();
   const beforeReference=files.filter(name=>name<'035_planner_local_guide_entry_references.sql');
   const referenceMigration=await readFile(new URL('035_planner_local_guide_entry_references.sql',directory),'utf8');
+  const afterReference=files.filter(name=>name>'035_planner_local_guide_entry_references.sql');
   try{
     await control.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public`);
     await control.query(`CREATE SCHEMA ${quoteIdentifier(schema)}`);await control.query(`CREATE SCHEMA ${quoteIdentifier(badSchema)}`);
     for(const filename of beforeReference){const sql=await readFile(new URL(filename,directory),'utf8');await database.query(sql);await badDatabase.query(sql)}
     const seeded=await seedPlan(database,'kendalcastle');
     await database.query(referenceMigration);
+    for(const filename of afterReference){const sql=await readFile(new URL(filename,directory),'utf8');await database.query(sql)}
     const initial=await getHolidayPlan(seeded.planId,database);const item=initial!.days[0].items[0];
     assert.match(item.localGuideEntryId!,/^[0-9a-f-]{36}$/);assert.equal(item.localGuideSlug,'kendalcastle');
 
