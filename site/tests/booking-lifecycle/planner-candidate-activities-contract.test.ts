@@ -17,6 +17,8 @@ test('candidate activities have durable ordering, safe sources and dated booking
   assert.match(migration, /REFERENCES local_guide_entries\(id\) ON DELETE RESTRICT/);
   assert.match(migration, /NOT EXISTS \(SELECT 1 FROM plan_days/);
   assert.match(repository, /addPlanCandidateActivity/);
+  assert.match(repository, /addPlanGuideCandidates/);
+  assert.match(repository, /guide_category_candidates_added/);
   assert.match(repository, /movePlanCandidateActivity/);
   assert.match(repository, /removePlanCandidateActivity/);
   assert.match(repository, /schedulePlanCandidateActivity/);
@@ -26,22 +28,23 @@ test('candidate activities have durable ordering, safe sources and dated booking
 });
 
 test('guest planner exposes the three focused sections and accessible alternatives to dragging', async () => {
-  const [page, api] = await Promise.all([readFile(pageUrl, 'utf8'), readFile(apiUrl, 'utf8')]);
+  const [page, api, treeBranch] = await Promise.all([readFile(pageUrl, 'utf8'), readFile(apiUrl, 'utf8'),readFile(new URL('../../src/components/LocalGuideTreeBranch.astro',import.meta.url),'utf8')]);
   assert.match(page, /<strong>Local Guide<\/strong>/);
   assert.match(page, /<strong>Candidate activities<\/strong>/);
   assert.match(page, /<strong>Your plan<\/strong>/);
-  assert.match(page, /target="_blank" rel="noopener noreferrer"/);
-  assert.match(page, /data-guide-selected/);
-  assert.match(page, /data-guide-category-root open/);
-  assert.match(page, /data-select-guide-category/);
-  assert.match(page, /planner-drag-handle/);
-  assert.match(page, /Drag \$\{entry\.title\} to candidates, or select to add it/);
+  assert.match(page, /<LocalGuideTree nodes=\{guideTree\} plannerMode/);
+  assert.match(page, /buildLocalGuideTree/);
+  assert.match(treeBranch, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(treeBranch, /data-local-guide-category=\{node\.id\}/);
+  assert.match(treeBranch, /planner-drag-handle/);
+  assert.match(treeBranch, /Drag \$\{entry\.title\} to candidates, or select to add it/);
+  assert.match(treeBranch, /data-guide-category-drag/);
+  assert.match(treeBranch, /data-add-guide-category/);
+  assert.match(treeBranch, /Add all \{countLabel\} to candidates/);
   assert.match(page, /data-item-id=\{item\.id\}>[\s\S]*planner-drag-handle/);
   assert.match(page, /action:'placeItem'/);
   assert.match(page, /data-day-drop=\{day\.id\}/);
   assert.match(page, /action:'scheduleCandidate'[\s\S]*dayId:tab\.dataset\.dayDrop/);
-  assert.match(page, /guideRoot\.open=false;guideSelected\.open=true/);
-  assert.match(page, /guideSelected\.open\|\|!guideContent\.childElementCount/);
   assert.match(page, /data-candidate-move="up"/);
   assert.match(page, /data-schedule-candidate/);
   assert.match(page, /data-return-item/);
@@ -50,7 +53,8 @@ test('guest planner exposes the three focused sections and accessible alternativ
   assert.match(page, /data-remove-item/);
   assert.match(page, /<dialog[\s\S]*Add a candidate activity/);
   assert.doesNotMatch(page, /PlannerParticipants|PlannerSharing|PlannerAiCollaboration|PlannerGuideContribution/);
-  for (const action of ['addCandidate', 'moveCandidate', 'removeCandidate', 'scheduleCandidate', 'returnItemToCandidates', 'placeItem']) {
+  assert.match(page, /action:'addGuideCategoryCandidates'/);
+  for (const action of ['addCandidate', 'addGuideCategoryCandidates', 'moveCandidate', 'removeCandidate', 'scheduleCandidate', 'returnItemToCandidates', 'placeItem']) {
     assert.match(api, new RegExp(`case '${action}'`));
   }
 });

@@ -666,6 +666,61 @@ export async function addPlanCandidateActivity(input: {
   return { candidateId: result.value, revision: result.revision };
 }
 
+export async function addPlanGuideCandidates(input: {
+  planId: string;
+  expectedRevision: number;
+  localGuideEntryIds: string[];
+  actor: PlannerRevisionActor;
+}, database: Database = getPool()): Promise<{ addedCount: number; revision: number }> {
+  const guideIds = [...new Set(input.localGuideEntryIds.map((id) =>
+    validatePublicId(id, 'Local Guide entry identifier')))];
+  if (!guideIds.length || guideIds.length > 100) {
+    throw new PlannerError('VALIDATION_ERROR', 'The selected Local Guide category is unavailable.');
+  }
+  const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor,
+    async ({ client, internalId }) => {
+      const published = await client.query<{
+        id: string; public_id: string; title: string; summary: string;
+      }>(`SELECT e.id::text,e.public_id::text,r.title,r.summary
+        FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
+        WHERE e.public_id=ANY($1::uuid[]) AND e.status='published'`, [guideIds]);
+      const byPublicId = new Map(published.rows.map((row) => [row.public_id, row]));
+      const existing = await client.query<{ local_guide_entry_id: string }>(`SELECT local_guide_entry_id::text FROM plan_candidate_activities
+        WHERE holiday_plan_id=$1 AND local_guide_entry_id IS NOT NULL
+        UNION SELECT i.local_guide_entry_id::text FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id
+        WHERE d.holiday_plan_id=$1 AND i.local_guide_entry_id IS NOT NULL`, [internalId]);
+      const existingIds = new Set(existing.rows.map((row) => row.local_guide_entry_id));
+      const lastPosition = await client.query<{ position: number }>(
+        'SELECT COALESCE(max(position),0)::int position FROM plan_candidate_activities WHERE holiday_plan_id=$1',
+        [internalId],
+      );
+      let position = Number(lastPosition.rows[0].position);
+      const added: string[] = [];
+      for (const guideId of guideIds) {
+        const guide = byPublicId.get(guideId);
+        if (!guide || existingIds.has(guide.id)) continue;
+        position += 10;
+        await client.query(
+          `INSERT INTO plan_candidate_activities
+            (holiday_plan_id,title,description,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
+           VALUES($1,$2,$3,$4,$5,$6,$6)`,
+          [internalId, guide.title, guide.summary, guide.id, position, actorAdminUserId(input.actor)],
+        );
+        added.push(guideId);
+      }
+      if (!added.length) {
+        throw new PlannerError('VALIDATION_ERROR', 'Every activity in this category is already in your candidates or plan.');
+      }
+      return {
+        value: added.length,
+        action: 'guide_category_candidates_added',
+        summary: `Added ${added.length} Local Guide activities to candidates.`,
+        changes: { localGuideEntryIds: added, addedCount: added.length },
+      };
+    });
+  return { addedCount: result.value, revision: result.revision };
+}
+
 export async function movePlanCandidateActivity(input: {
   planId: string; candidateId: string; expectedRevision: number; direction: 'up'|'down'; actor: PlannerRevisionActor;
 }, database: Database = getPool()): Promise<number> {

@@ -1,0 +1,28 @@
+---
+import LocalGuideTreeBranch from './LocalGuideTreeBranch.astro';
+import type { LocalGuideTreeNode } from '../lib/local-guide/tree.ts';
+
+interface Props { node: LocalGuideTreeNode; depth: number; plannerMode?: boolean; }
+const { node, depth, plannerMode = false } = Astro.props;
+const countLabel = `${node.recommendationCount} ${node.recommendationCount === 1 ? 'recommendation' : 'recommendations'}`;
+---
+
+<li class="local-guide-tree__branch" style={`--tree-depth:${depth}`} draggable={plannerMode ? 'true' : undefined} data-guide-category-drag={plannerMode ? node.id : undefined}>
+  <details data-local-guide-category={node.id}>
+    <summary>
+      <span class="local-guide-tree__folder" aria-hidden="true"></span>
+      {plannerMode && <span class="local-guide-tree__category-grip" aria-hidden="true" title="Drag category to candidates">⠿</span>}
+      <span class="local-guide-tree__category"><strong>{node.label}</strong>{depth === 0 && node.description ? <small>{node.description}</small> : null}</span>
+      <small class="local-guide-tree__count">{countLabel}</small>
+    </summary>
+    <div class="local-guide-tree__children">
+      {plannerMode && <button type="button" class="local-guide-tree__add-category" data-add-guide-category={node.id}>Add all {countLabel} to candidates</button>}
+      {node.children.length > 0 && <ul>{node.children.map((child) => <LocalGuideTreeBranch node={child} depth={depth + 1} plannerMode={plannerMode} />)}</ul>}
+      {node.entries.length > 0 && <ul class="local-guide-tree__entries">
+        {node.entries.map((entry) => plannerMode
+          ? <li draggable="true" data-guide-drag={entry.id}><button class="planner-drag-handle" type="button" data-add-guide={entry.id} aria-label={`Drag ${entry.title} to candidates, or select to add it`} title="Drag to candidates or select to add">⠿</button><a href={`/local-guide/${entry.slug}/`} target="_blank" rel="noopener noreferrer">{entry.title}</a></li>
+          : <li><a href={`/local-guide/${entry.slug}/`}>{entry.title}</a></li>)}
+      </ul>}
+    </div>
+  </details>
+</li>
