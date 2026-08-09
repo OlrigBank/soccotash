@@ -643,12 +643,13 @@ export async function addPlanCandidateActivity(input: {
     const guide = await selectableGuideReference(client, input.localGuideEntryId);
     let title: string; let description: string; let sourceUrl: string | null;
     if (guide) {
-      const published = await client.query<{ title: string; summary: string }>(
-        `SELECT r.title, r.summary FROM local_guide_entries e
+      const published = await client.query<{ title: string; summary: string; external_link: string | null }>(
+        `SELECT r.title, r.summary, r.external_link FROM local_guide_entries e
           JOIN local_guide_revisions r ON r.id=e.published_revision_id
          WHERE e.id=$1 AND e.status='published'`, [guide.internalId]);
       if (!published.rowCount) throw new PlannerError('VALIDATION_ERROR', 'The selected Local Guide entry is unavailable.');
-      title = published.rows[0].title; description = published.rows[0].summary; sourceUrl = null;
+      title = published.rows[0].title; description = published.rows[0].summary;
+      sourceUrl = validateSourceUrl(published.rows[0].external_link);
     } else {
       title = requireText(input.title ?? '', 'Activity title', 200);
       description = input.description?.trim() ?? '';
@@ -680,8 +681,8 @@ export async function addPlanGuideCandidates(input: {
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor,
     async ({ client, internalId }) => {
       const published = await client.query<{
-        id: string; public_id: string; title: string; summary: string;
-      }>(`SELECT e.id::text,e.public_id::text,r.title,r.summary
+        id: string; public_id: string; title: string; summary: string; external_link: string | null;
+      }>(`SELECT e.id::text,e.public_id::text,r.title,r.summary,r.external_link
         FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
         WHERE e.public_id=ANY($1::uuid[]) AND e.status='published'`, [guideIds]);
       const byPublicId = new Map(published.rows.map((row) => [row.public_id, row]));
@@ -702,9 +703,10 @@ export async function addPlanGuideCandidates(input: {
         position += 10;
         await client.query(
           `INSERT INTO plan_candidate_activities
-            (holiday_plan_id,title,description,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
-           VALUES($1,$2,$3,$4,$5,$6,$6)`,
-          [internalId, guide.title, guide.summary, guide.id, position, actorAdminUserId(input.actor)],
+            (holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$7)`,
+          [internalId, guide.title, guide.summary, validateSourceUrl(guide.external_link), guide.id, position,
+            actorAdminUserId(input.actor)],
         );
         added.push(guideId);
       }
@@ -1477,13 +1479,24 @@ function validatedItem(input: ItemInput) {
     reservationNote: optionalText(input.reservationNote, 'Reservation note', 3000), visibility };
 }
 
+async function orderDayItemsBySchedule(client: PoolClient, dayId: string | number): Promise<void> {
+  const ordered = await client.query<{ id: string | number }>(
+    `SELECT id FROM plan_items WHERE plan_day_id=$1
+      ORDER BY start_time IS NULL, start_time NULLS LAST, position, id FOR UPDATE`, [dayId],
+  );
+  await client.query('UPDATE plan_items SET position=position+1000000 WHERE plan_day_id=$1', [dayId]);
+  for (let index = 0; index < ordered.rows.length; index += 1) {
+    await client.query('UPDATE plan_items SET position=$2 WHERE id=$1', [ordered.rows[index].id, (index + 1) * 10]);
+  }
+}
+
 export async function updatePlanItem(input: ItemInput & {
   planId: string; itemId: string; expectedRevision: number; actor: PlannerRevisionActor;
 }, database: Database = getPool()): Promise<number> {
   const item = validatedItem(input);
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
-    const existing = await client.query<{ status: PlanItemStatus }>(
-      `SELECT i.status FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id
+    const existing = await client.query<{ status: PlanItemStatus; plan_day_id: string | number }>(
+      `SELECT i.status,i.plan_day_id FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id
        WHERE i.public_id=$1::uuid AND d.holiday_plan_id=$2 FOR UPDATE`,
       [validatePublicId(input.itemId, 'Plan item identifier'), internalId]);
     if (!existing.rowCount) throw new PlannerError('NOT_FOUND', 'Plan item not found.');
@@ -1492,6 +1505,7 @@ export async function updatePlanItem(input: ItemInput & {
       end_time=$6::time,location_text=$7,source_url=$8,status=$9,reservation_note=$10,visibility=$11,
       updated_by_admin_user_id=$12,updated_at=NOW() WHERE public_id=$1::uuid`,
       [input.itemId,item.title,item.description,item.itemType,item.startTime,item.endTime,item.locationText,item.sourceUrl,item.status,item.reservationNote,item.visibility,actorAdminUserId(input.actor)]);
+    await orderDayItemsBySchedule(client, existing.rows[0].plan_day_id);
     return { value: undefined, action:'item_updated', summary:`Updated item “${item.title}”.`, changes:{itemId:input.itemId,status:item.status} };
   }); return result.revision;
 }
@@ -1524,8 +1538,11 @@ export async function movePlanItem(input:{planId:string;itemId:string;targetDayI
       const target=siblings[input.position==='up'?index-1:index+1]; if(!target) throw new PlannerError('VALIDATION_ERROR','Plan item cannot move further.');
       await client.query('UPDATE plan_items SET position=2147483647 WHERE id=$1',[current.id]); await client.query('UPDATE plan_items SET position=$2 WHERE id=$1',[target.id,current.position]); await client.query('UPDATE plan_items SET position=$2 WHERE id=$1',[current.id,target.position]);
     }else{
+      const sourceDayId=current.plan_day_id;
       const next=await client.query<{position:number}>('SELECT COALESCE(max(position)+10,10)::int position FROM plan_items WHERE plan_day_id=$1',[targetDay.rows[0].id]);
       await client.query('UPDATE plan_items SET plan_day_id=$2,position=$3,updated_at=NOW() WHERE id=$1',[current.id,targetDay.rows[0].id,next.rows[0].position]);
+      await orderDayItemsBySchedule(client,sourceDayId);
+      await orderDayItemsBySchedule(client,targetDay.rows[0].id);
     }
     return {value:undefined,action:'item_moved',summary:'Moved a plan item.',changes:{itemId:input.itemId,targetDayId:input.targetDayId,position:input.position}};
   });return result.revision;
