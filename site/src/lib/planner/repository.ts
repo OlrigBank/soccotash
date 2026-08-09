@@ -121,10 +121,111 @@ export async function getBookingLinkedPlanByBookingReference(
     `SELECT p.public_id::text
        FROM holiday_plans p
        JOIN provisional_bookings b ON b.id = p.booking_id
-      WHERE b.public_id = $1::uuid AND p.plan_type = 'booking_linked'`,
+      WHERE b.public_id = $1::uuid AND p.plan_type = 'booking_linked' AND p.plan_role='original'`,
     [validatePublicId(bookingReference, 'Booking reference')],
   );
   return result.rowCount ? getHolidayPlan(result.rows[0].public_id, database) : null;
+}
+
+export type BookingPlanFamilyEntry = {
+  id: string; title: string; guestName: string | null; role: 'original'|'guest_copy';
+  revision: number; startsOn: string | null; endsOn: string | null; dayCount: number;
+  updatedAt: string; accessActive: boolean; lastAccessedAt: string | null;
+};
+
+export async function listBookingPlanFamily(bookingReference:string,database:Pick<Pool,'query'>=getPool()):Promise<BookingPlanFamilyEntry[]>{
+  const result=await database.query<any>(`SELECT p.public_id::text,p.title,p.guest_display_name,p.plan_role,p.revision,
+    p.starts_on,p.ends_on,p.updated_at,count(DISTINCT d.id)::int day_count,
+    bool_or(pp.access_token_hash IS NOT NULL AND pp.revoked_at IS NULL) access_active,max(pp.last_accessed_at) last_accessed_at
+    FROM holiday_plans p JOIN provisional_bookings b ON b.id=p.booking_id
+    LEFT JOIN plan_days d ON d.holiday_plan_id=p.id
+    LEFT JOIN plan_participants pp ON pp.holiday_plan_id=p.id AND pp.participant_type='guest'
+    WHERE b.public_id=$1::uuid AND p.plan_type='booking_linked' AND p.archived_at IS NULL
+    GROUP BY p.id ORDER BY (p.plan_role='guest_copy'),p.created_at`,[validatePublicId(bookingReference,'Booking reference')]);
+  return result.rows.map((row:any)=>({id:row.public_id,title:row.title,guestName:row.guest_display_name,role:row.plan_role,
+    revision:row.revision,startsOn:date(row.starts_on),endsOn:date(row.ends_on),dayCount:row.day_count,updatedAt:iso(row.updated_at),
+    accessActive:Boolean(row.access_active),lastAccessedAt:row.last_accessed_at?iso(row.last_accessed_at):null}));
+}
+
+export async function replaceGuestPlanCredential(input:{bookingReference:string;planId:string;actor:BookerPlanActor},database:Database=getPool()):Promise<{token:string}>{
+  const credential=createParticipantCredential();const client=await database.connect();try{await client.query('BEGIN');
+    const plan=await client.query<any>(`SELECT p.id,p.booking_id,p.guest_display_name FROM holiday_plans p JOIN provisional_bookings b ON b.id=p.booking_id
+      WHERE b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_role='guest_copy' AND p.archived_at IS NULL FOR UPDATE OF p`,
+      [validatePublicId(input.bookingReference,'Booking reference'),validatePublicId(input.planId,'Plan identifier')]);
+    if(!plan.rowCount||String(plan.rows[0].booking_id)!==input.actor.bookingId)throw new PlannerError('NOT_FOUND','Guest plan not found.');
+    const updated=await client.query(`UPDATE plan_participants SET access_token_hash=$2,revoked_at=NULL,accepted_at=NULL,last_accessed_at=NULL
+      WHERE holiday_plan_id=$1 AND participant_type='guest'`,[plan.rows[0].id,credential.hash]);if(!updated.rowCount)throw new PlannerError('NOT_FOUND','Guest plan access not found.');
+    await client.query(`DELETE FROM guest_plan_sessions WHERE participant_id IN (SELECT id FROM plan_participants WHERE holiday_plan_id=$1 AND participant_type='guest')`,[plan.rows[0].id]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'customer','holiday_guest_plan_link_replaced',$2::jsonb)`,[plan.rows[0].booking_id,JSON.stringify({planId:input.planId,guestName:plan.rows[0].guest_display_name})]);
+    await client.query('COMMIT');return{token:credential.token};
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}
+
+export async function resetGuestPlanPassword(input:{bookingReference:string;planId:string;actor:BookerPlanActor},database:Database=getPool()):Promise<void>{
+  const client=await database.connect();try{await client.query('BEGIN');
+    const result=await client.query<any>(`UPDATE plan_participants pp SET guest_password_hash=NULL,guest_password_set_at=NULL FROM holiday_plans p,provisional_bookings b
+      WHERE pp.holiday_plan_id=p.id AND p.booking_id=b.id AND b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_role='guest_copy'
+        AND p.booking_id=$3 AND pp.participant_type='guest' RETURNING pp.id,p.booking_id,p.guest_display_name`,
+      [validatePublicId(input.bookingReference,'Booking reference'),validatePublicId(input.planId,'Plan identifier'),input.actor.bookingId]);
+    if(!result.rowCount)throw new PlannerError('NOT_FOUND','Guest plan not found.');
+    await client.query('DELETE FROM guest_plan_sessions WHERE participant_id=$1',[result.rows[0].id]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'customer','holiday_guest_plan_password_reset',$2::jsonb)`,
+      [result.rows[0].booking_id,JSON.stringify({planId:input.planId,guestName:result.rows[0].guest_display_name})]);
+    await client.query('COMMIT');
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}
+
+export async function revokeGuestPlanCredential(input:{bookingReference:string;planId:string;actor:BookerPlanActor},database:Database=getPool()):Promise<void>{
+  const client=await database.connect();try{await client.query('BEGIN');
+    const result=await client.query<any>(`UPDATE plan_participants pp SET access_token_hash=NULL,revoked_at=NOW() FROM holiday_plans p,provisional_bookings b
+      WHERE pp.holiday_plan_id=p.id AND p.booking_id=b.id AND b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_role='guest_copy'
+        AND p.booking_id=$3 AND pp.participant_type='guest' AND pp.revoked_at IS NULL RETURNING p.booking_id,p.guest_display_name`,
+      [validatePublicId(input.bookingReference,'Booking reference'),validatePublicId(input.planId,'Plan identifier'),input.actor.bookingId]);
+    if(!result.rowCount)throw new PlannerError('NOT_FOUND','Active guest plan link not found.');
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'customer','holiday_guest_plan_link_revoked',$2::jsonb)`,
+      [result.rows[0].booking_id,JSON.stringify({planId:input.planId,guestName:result.rows[0].guest_display_name})]);
+    await client.query('COMMIT');
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}
+
+export async function deleteGuestPlan(input:{bookingReference:string;planId:string;actor:BookerPlanActor},database:Database=getPool()):Promise<void>{
+  const client=await database.connect();try{await client.query('BEGIN');
+    const plan=await client.query<any>(`SELECT p.id,p.booking_id,p.guest_display_name FROM holiday_plans p JOIN provisional_bookings b ON b.id=p.booking_id
+      WHERE b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_role='guest_copy' AND p.booking_id=$3 FOR UPDATE OF p`,
+      [validatePublicId(input.bookingReference,'Booking reference'),validatePublicId(input.planId,'Plan identifier'),input.actor.bookingId]);
+    if(!plan.rowCount)throw new PlannerError('NOT_FOUND','Guest plan not found.');
+    await client.query('DELETE FROM holiday_plans WHERE id=$1',[plan.rows[0].id]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'customer','holiday_guest_plan_deleted',$2::jsonb)`,
+      [plan.rows[0].booking_id,JSON.stringify({planId:input.planId,guestName:plan.rows[0].guest_display_name})]);
+    await client.query('COMMIT');
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}
+
+export async function getBookingFamilyPlan(bookingReference:string,planId:string,database:Pick<Pool,'query'>=getPool()):Promise<HolidayPlan|null>{
+  const result=await database.query<{public_id:string}>(`SELECT p.public_id::text FROM holiday_plans p JOIN provisional_bookings b ON b.id=p.booking_id
+    WHERE b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_type='booking_linked' AND p.archived_at IS NULL`,
+    [validatePublicId(bookingReference,'Booking reference'),validatePublicId(planId,'Plan identifier')]);
+  return result.rowCount?getHolidayPlan(result.rows[0].public_id,database):null;
+}
+
+export async function duplicateBookingPlanForGuest(input:{bookingReference:string;sourcePlanId:string;guestName:string;actor:BookerPlanActor},database:Database=getPool()):Promise<{planId:string;token:string}>{
+  const guestName=requireText(input.guestName,'Guest name',160);const credential=createParticipantCredential();const client=await database.connect();
+  try{await client.query('BEGIN');const source=await client.query<any>(`SELECT p.* FROM holiday_plans p JOIN provisional_bookings b ON b.id=p.booking_id
+    WHERE b.public_id=$1::uuid AND p.public_id=$2::uuid AND p.plan_type='booking_linked' AND p.plan_role='original' AND p.archived_at IS NULL FOR SHARE OF p`,
+    [validatePublicId(input.bookingReference,'Booking reference'),validatePublicId(input.sourcePlanId,'Plan identifier')]);
+    if(!source.rowCount||String(source.rows[0].booking_id)!==input.actor.bookingId)throw new PlannerError('NOT_FOUND','Source holiday plan not found.');const original=source.rows[0];
+    const created=await client.query<{id:string|number;public_id:string}>(`INSERT INTO holiday_plans(plan_type,booking_id,title,description,publication_status,visibility,starts_on,ends_on,duration_days,revision,plan_role,source_plan_id,guest_display_name)
+      VALUES('booking_linked',$1,$2,$3,'draft','private',$4,$5,$6,1,'guest_copy',$7,$8) RETURNING id,public_id::text`,
+      [original.booking_id,`${guestName}'s holiday plan`,original.description,original.starts_on,original.ends_on,original.duration_days,original.id,guestName]);const targetId=String(created.rows[0].id);
+    const days=await client.query<any>('SELECT * FROM plan_days WHERE holiday_plan_id=$1 ORDER BY position',[original.id]);for(const day of days.rows){const copied=await client.query<{id:string|number}>(`INSERT INTO plan_days(holiday_plan_id,day_date,title,summary,position) VALUES($1,$2,$3,$4,$5) RETURNING id`,[targetId,day.day_date,day.title,day.summary,day.position]);await client.query(`INSERT INTO plan_items(plan_day_id,title,description,item_type,start_time,end_time,location_text,source_url,local_guide_entry_id,status,position,reservation_note,visibility)
+      SELECT $1,title,description,item_type,start_time,end_time,location_text,source_url,local_guide_entry_id,status,position,NULL,'participants' FROM plan_items WHERE plan_day_id=$2 AND visibility<>'private' ORDER BY position`,[copied.rows[0].id,day.id])}
+    await client.query(`INSERT INTO plan_candidate_activities(holiday_plan_id,title,description,source_url,local_guide_entry_id,position)
+      SELECT $1,title,description,source_url,local_guide_entry_id,position FROM plan_candidate_activities WHERE holiday_plan_id=$2 ORDER BY position`,[targetId,original.id]);
+    await client.query(`INSERT INTO plan_participants(holiday_plan_id,role,participant_type,booking_id,display_name,access_token_hash) VALUES($1,'editor','guest',$2,$3,$4)`,[targetId,original.booking_id,guestName,credential.hash]);
+    await recordRevision(client,targetId,1,input.actor,'guest_plan_created',`Created an independent holiday plan for ${guestName}.`,{sourcePlanId:input.sourcePlanId,guestName});
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'customer','holiday_guest_plan_created',$2::jsonb)`,[original.booking_id,JSON.stringify({planId:created.rows[0].public_id,sourcePlanId:input.sourcePlanId,guestName})]);
+    await client.query('COMMIT');return{planId:created.rows[0].public_id,token:credential.token};
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
 }
 
 export async function createBookingLinkedPlan(
@@ -147,7 +248,7 @@ export async function createBookingLinkedPlan(
     if (input.actor.type === 'booker' && input.actor.bookingId !== String(row.id)) {
       throw new PlannerError('NOT_FOUND', 'Eligible booking not found.');
     }
-    const existing = await client.query('SELECT 1 FROM holiday_plans WHERE booking_id = $1', [row.id]);
+    const existing = await client.query("SELECT 1 FROM holiday_plans WHERE booking_id = $1 AND plan_role = 'original'", [row.id]);
     if (existing.rowCount) throw new PlannerError('VALIDATION_ERROR', 'This booking already has a holiday plan.');
     const administratorId = input.actor.type === 'administrator' ? input.actor.adminUserId : null;
     const title = `${row.name}'s holiday plan`;
