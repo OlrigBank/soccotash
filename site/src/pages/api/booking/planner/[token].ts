@@ -4,7 +4,7 @@ import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
   addPlanCandidateActivity, addPlanDay, addPlanGuideCandidates, addPlanItem, changePlanParticipantRole, createPlanAiCapability, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
-  invitePlanParticipant, movePlanCandidateActivity, movePlanDay, movePlanItem, placePlanItem, removePlanCandidateActivity, returnPlanItemToCandidates, revokePlanAiCapability, revokePlanShareLink, schedulePlanCandidateActivity,
+  getBookingFamilyPlan, invitePlanParticipant, movePlanCandidateActivity, movePlanDay, movePlanItem, placePlanItem, removePlanCandidateActivity, returnPlanItemToCandidates, revokePlanAiCapability, revokePlanShareLink, schedulePlanCandidateActivity,
   offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
@@ -23,7 +23,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!isSameOrigin(request)) return Response.json({ error: 'Cross-site request forbidden.' }, { status: 403 });
   const access = await resolveBookingAccessCredential(text(params.token), { recordUse: true, recordDenied: true });
   if (!access.allowed) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
-  const plan = await getBookingLinkedPlanByBookingReference(access.reference);
+  const requestedPlan=new URL(request.url).searchParams.get('plan');
+  const plan = requestedPlan?await getBookingFamilyPlan(access.reference,requestedPlan):await getBookingLinkedPlanByBookingReference(access.reference);
   if (!plan) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
   const input = await request.json().catch(() => null) as Input | null;
   if (!input) return Response.json({ error: 'A valid JSON request is required.' }, { status: 400 });

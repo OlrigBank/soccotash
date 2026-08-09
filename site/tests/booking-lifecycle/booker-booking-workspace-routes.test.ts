@@ -76,5 +76,5 @@ test('private Holiday Planner pages use the Booker layout', async () => {
     assert.match(page, /BookerLayout/);
     assert.doesNotMatch(page, /BaseLayout/);
   }
-  assert.match(pages[0], /Back to booking/);
+  assert.match(pages[0], /Back to planning dashboard/);
 });

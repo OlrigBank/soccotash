@@ -2,7 +2,8 @@
 import BookerLayout from '../../../../../layouts/BookerLayout.astro';
 import LocalGuideTree from '../../../../../components/LocalGuideTree.astro';
 import { resolveBookingAccessCredential } from '../../../../../lib/booking/booking-access.ts';
-import { getBookingLinkedPlanByBookingReference } from '../../../../../lib/planner/repository.ts';
+import { resolveGuestPlanSession } from '../../../../../lib/planner/guest-password.ts';
+import { getBookingFamilyPlan, getBookingLinkedPlanByBookingReference, getHolidayPlan } from '../../../../../lib/planner/repository.ts';
 import { getPlannerGuideEntries } from '../../../../../lib/planner/local-guide.ts';
 import { londonDate, plannerDayLabel, selectPlannerDay } from '../../../../../lib/planner/day-selection.ts';
 import { getLocalGuideCategories } from '../../../../../lib/navigation.ts';
@@ -11,15 +12,19 @@ import { buildLocalGuideTree } from '../../../../../lib/local-guide/tree.ts';
 export const prerender=false;
 Astro.response.headers.set('Cache-Control','private, no-store');
 const token=String(Astro.params.token||'');
-const access=await resolveBookingAccessCredential(token,{recordUse:true,recordDenied:true});
-if(!access.allowed)return new Response('Holiday plan not found.',{status:404});
-const plan=await getBookingLinkedPlanByBookingReference(access.reference);
+const guestMode=Astro.url.pathname.startsWith('/planner/guest/')||Astro.url.searchParams.get('guest')==='1';
+const participantAccess=guestMode?await resolveGuestPlanSession(token,Astro.cookies,true):null;
+const access=guestMode?null:await resolveBookingAccessCredential(token,{recordUse:true,recordDenied:true});
+if(guestMode?!participantAccess:!access?.allowed)return new Response('Holiday plan not found.',{status:404});
+const bookingReference=access?.allowed?access.reference:null;
+const requestedPlan=Astro.url.searchParams.get('plan');
+const plan=participantAccess?await getHolidayPlan(participantAccess.planId):requestedPlan?await getBookingFamilyPlan(bookingReference!,requestedPlan):await getBookingLinkedPlanByBookingReference(bookingReference!);
 if(!plan)return new Response('Holiday plan not found.',{status:404});
 const guides=await getPlannerGuideEntries();
 const guideTree=buildLocalGuideTree(getLocalGuideCategories(),guides.map(guide=>({id:guide.id,slug:guide.slug,title:guide.title,categoryId:guide.category})));
 const selectedDay=selectPlannerDay(plan.days,Astro.url.searchParams.get('day'));
 const plannerView=Astro.url.searchParams.get('view')==='schedule'?'schedule':'list';
-const plannerHref=(view:'list'|'schedule',dayId=selectedDay?.id)=>`/booking/manage/${token}/planner/?${new URLSearchParams({...dayId&&{day:dayId},view}).toString()}`;
+const plannerHref=(view:'list'|'schedule',dayId=selectedDay?.id)=>`${guestMode?`/planner/guest/${token}/`:`/booking/manage/${token}/planner/`}?${new URLSearchParams({...guestMode&&{guest:'1'},...requestedPlan&&{plan:requestedPlan},...dayId&&{day:dayId},view}).toString()}`;
 const dayHref=(dayId:string)=>plannerHref(plannerView,dayId);
 const currentLondonDate=londonDate();
 const guideFor=(id:string|null)=>id?guides.find((guide)=>guide.id===id):null;
@@ -31,13 +36,14 @@ const scheduleEndHour=Math.max(21,...timedItems.map(item=>Math.ceil(timeMinutes(
 const scheduleHours=Array.from({length:scheduleEndHour-scheduleStartHour+1},(_,index)=>scheduleStartHour+index);
 const scheduleTop=(value:string)=>`${((timeMinutes(value)!-scheduleStartHour*60)/60)*72}px`;
 const scheduleHeight=(start:string,end:string)=>`${Math.max(36,((timeMinutes(end)!-timeMinutes(start)!)/60)*72)}px`;
+const pageTitle=guestMode&&participantAccess?`${participantAccess.displayName}'s Holiday Planner`:'Holiday Planner';
 ---
-<BookerLayout title="Holiday Planner" description="Build your private holiday plan." robots="noindex,nofollow,noarchive">
+<BookerLayout title={pageTitle} description="Build your private holiday plan." robots="noindex,nofollow,noarchive" showHeader={!guestMode}>
   <header class="hero booking-planner-hero">
     <p class="eyebrow">Your private Holiday Planner</p>
-    <h1>Holiday Planner</h1>
+    <h1>{pageTitle}</h1>
     <p>{plan.startsOn} to {plan.endsOn} · revision <strong data-revision>{plan.revision}</strong></p>
-    <a class="button button--secondary" href={`/booking/manage/${token}/`}>Back to booking</a>
+    {!guestMode&&<a class="button button--secondary" href={`/booking/manage/${token}/holiday-planner/`}>Back to planning dashboard</a>}
   </header>
 
   <div id="planner-message" class="pricing-message" role="status" aria-live="polite" tabindex="-1" hidden></div>
@@ -123,7 +129,7 @@ const scheduleHeight=(start:string,end:string)=>`${Math.max(36,((timeMinutes(end
   <dialog class="guest-planner-dialog" data-item-dialog><form method="dialog" data-item-form><button class="dialog-close" value="cancel" aria-label="Close">×</button><h2>Activity details</h2><input name="itemId" type="hidden" /><label>Title<input name="title" required maxlength="200" /></label><label>Webpage URL<input name="sourceUrl" type="url" maxlength="2000" /></label><a data-open-item-url target="_blank" rel="noopener noreferrer">Open link in a new tab ↗</a><label>Description<textarea name="description" rows="5" maxlength="10000"></textarea></label><label>Type<select name="itemType">{['activity','journey','meal','reservation','free_time','other'].map(value=><option value={value}>{value.replace('_',' ')}</option>)}</select></label><label>Starts<input name="startTime" type="time" /></label><label>Ends<input name="endTime" type="time" /></label><label>Location<input name="locationText" maxlength="500" /></label><label>Status<select name="status">{['idea','proposed','agreed','booked','completed','cancelled'].map(value=><option value={value}>{value}</option>)}</select></label><label>Reservation note<textarea name="reservationNote" rows="3" maxlength="3000"></textarea></label><button class="button" value="submit">Save activity</button></form></dialog>
 </BookerLayout>
 
-<script is:inline define:vars={{endpoint:`/api/booking/planner/${token}/`,initialRevision:plan.revision}}>
+<script is:inline define:vars={{endpoint:guestMode?`/api/planner/participant/${token}/`:`/api/booking/planner/${token}/${requestedPlan?`?plan=${requestedPlan}`:''}`,initialRevision:plan.revision}}>
 let revision=initialRevision;const message=document.querySelector('#planner-message');const conflict=document.querySelector('[data-planner-conflict]');
 function show(text,error=false){message.hidden=false;message.textContent=text;message.className=`pricing-message ${error?'is-error':''}`;message.focus()}
 async function action(payload){const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...payload,expectedRevision:revision})});const data=await response.json().catch(()=>({}));if(!response.ok){if(data.code==='STALE_REVISION'){conflict.hidden=false;conflict.querySelector('[data-conflict-revision]').textContent=`The latest plan is revision ${data.currentRevision}. Reload before trying again.`}throw new Error(data.error||'The change could not be completed.')}revision=data.revision??revision;document.querySelector('[data-revision]').textContent=revision;return data}

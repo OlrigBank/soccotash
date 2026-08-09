@@ -1,0 +1,36 @@
+---
+import BookerLayout from '../../../layouts/BookerLayout.astro';
+import { isSameOrigin } from '../../../lib/admin/auth.ts';
+import { guestPasswordIsSet, resolveGuestPlanSession, setInitialGuestPassword, signInGuestPlan } from '../../../lib/planner/guest-password.ts';
+export const prerender=false;
+Astro.response.headers.set('Cache-Control','private, no-store');
+const token=String(Astro.params.token||'');
+let passwordSet=await guestPasswordIsSet(token);
+if(passwordSet===null)return new Response('Holiday plan not found.',{status:404});
+if(await resolveGuestPlanSession(token,Astro.cookies,true)){
+  const target=new URL(`/booking/manage/${token}/planner/`,Astro.url);for(const [key,value] of Astro.url.searchParams)target.searchParams.append(key,value);target.searchParams.set('guest','1');return Astro.rewrite(target);
+}
+let error='';
+if(Astro.request.method==='POST'){
+  if(!isSameOrigin(Astro.request))return new Response('Forbidden',{status:403});
+  const form=await Astro.request.formData();const password=String(form.get('password')||'');
+  try{
+    if(!passwordSet){const confirmation=String(form.get('passwordConfirmation')||'');if(password!==confirmation)error='The passwords do not match.';else if(await setInitialGuestPassword(token,password,Astro.cookies))return Astro.redirect(Astro.url.pathname+Astro.url.search,303);else error='The password could not be set.'}
+    else if(await signInGuestPlan(token,password,Astro.cookies))return Astro.redirect(Astro.url.pathname+Astro.url.search,303);
+    else error='The password was not recognised.';
+  }catch(cause){error=cause instanceof Error?cause.message:'The password could not be saved.'}
+  passwordSet=await guestPasswordIsSet(token);
+}
+---
+<BookerLayout title={passwordSet?'Open Holiday Planner':'Secure your Holiday Planner'} description="Private guest holiday planner access." robots="noindex,nofollow,noarchive" showHeader={false} analytics={false}>
+  <section class="login-panel guest-plan-password">
+    <p class="eyebrow">Private Holiday Planner</p><h1>{passwordSet?'Open your Holiday Planner':'Choose your password'}</h1>
+    <p>{passwordSet?'Enter the password you chose for this plan.':'Set a password before opening your plan for the first time.'}</p>
+    {error&&<div class="admin-alert" role="alert">{error}</div>}
+    <form method="post" class="admin-form">
+      <label>Password<input name="password" type="password" autocomplete={passwordSet?'current-password':'new-password'} minlength="12" required autofocus/></label>
+      {!passwordSet&&<label>Confirm password<input name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required/></label>}
+      <button class="admin-button" type="submit">{passwordSet?'Open plan':'Set password and open plan'}</button>
+    </form>
+  </section>
+</BookerLayout>

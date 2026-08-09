@@ -1,23 +1,25 @@
 import type { APIRoute } from 'astro';
 import QRCode from 'qrcode';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
-import { resolveParticipantCredential } from '../../../../lib/planner/participant-access.ts';
+import { resolveGuestPlanSession } from '../../../../lib/planner/guest-password.ts';
 import {
-  addPlanDay, addPlanItem, createPlanAiCapability, getHolidayPlan, movePlanDay, movePlanItem, offerGuideContribution, removePlanDay,
-  removePlanItem, revokePlanAiCapability, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
+  addPlanCandidateActivity, addPlanDay, addPlanGuideCandidates, addPlanItem, createPlanAiCapability, getHolidayPlan, movePlanCandidateActivity, movePlanDay, movePlanItem, offerGuideContribution, placePlanItem, removePlanCandidateActivity, removePlanDay,
+  removePlanItem, returnPlanItemToCandidates, revokePlanAiCapability, schedulePlanCandidateActivity, setPlanItemGuideReference, updateBookingLinkedPlan, updatePlanDay, updatePlanItem, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
+import { getCategoryById,getDescendantCategoryIds } from '../../../../lib/navigation.ts';
+import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
 
 export const prerender=false;
 type Input=Record<string,unknown>;
 const text=(value:unknown)=>String(value??'');
 const nullable=(value:unknown)=>text(value).trim()||null;
 
-export const POST:APIRoute=async({params,request})=>{
+export const POST:APIRoute=async({params,request,cookies})=>{
   if(!isSameOrigin(request))return Response.json({error:'Cross-site request forbidden.'},{status:403});
-  const access=await resolveParticipantCredential(text(params.token),true);
+  const access=await resolveGuestPlanSession(text(params.token),cookies,true);
   if(!access)return Response.json({error:'Holiday plan not found.'},{status:404});
   if(access.role==='viewer')return Response.json({error:'This invitation has view-only access.'},{status:403});
   const plan=await getHolidayPlan(access.planId);
@@ -44,6 +46,13 @@ export const POST:APIRoute=async({params,request})=>{
       case'removeDay':result={revision:await removePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,actor})};break;
       case'moveDay':if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Move direction is invalid.');result={revision:await movePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
       case'addItem':{result=await addPlanItem({...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor});break}
+      case'addCandidate':result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),actor});break;
+      case'addGuideCategoryCandidates':{const categoryId=text(input.categoryId);if(!getCategoryById(categoryId)||categoryId==='home')throw new PlannerError('VALIDATION_ERROR','The selected Local Guide category is unavailable.');const ids=new Set([categoryId,...getDescendantCategoryIds(categoryId)]);result=await addPlanGuideCandidates({planId:plan.id,expectedRevision,localGuideEntryIds:(await getPlannerGuideEntries()).filter(g=>ids.has(g.category)).map(g=>g.id),actor});break}
+      case'moveCandidate':if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Candidate move direction is invalid.');result={revision:await movePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
+      case'removeCandidate':result={revision:await removePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})};break;
+      case'scheduleCandidate':result=await schedulePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),dayId:text(input.dayId),expectedRevision,actor});break;
+      case'returnItemToCandidates':result=await returnPlanItemToCandidates({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor});break;
+      case'placeItem':if(!['before','after'].includes(text(input.placement)))throw new PlannerError('VALIDATION_ERROR','Plan item placement is invalid.');result={revision:await placePlanItem({planId:plan.id,itemId:text(input.itemId),relativeItemId:text(input.relativeItemId),placement:text(input.placement) as 'before'|'after',expectedRevision,actor})};break;
       case'updateItem':result={revision:await updatePlanItem({...item(input),planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})};break;
       case'removeItem':result={revision:await removePlanItem({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})};break;
       case'setGuideReference':{result={revision:await setPlanItemGuideReference({planId:plan.id,itemId:text(input.itemId),localGuideEntryId:nullable(input.localGuideEntryId),expectedRevision,actor})};break}
@@ -64,4 +73,4 @@ export const POST:APIRoute=async({params,request})=>{
     return Response.json({error:'The planner action could not be completed.'},{status:500});
   }
 };
-function item(input:Input){return{title:text(input.title),description:text(input.description),itemType:text(input.itemType)as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),status:text(input.status)as any,reservationNote:nullable(input.reservationNote),visibility:'participants'as const}}
+function item(input:Input){return{title:text(input.title),description:text(input.description),itemType:text(input.itemType)as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),sourceUrl:nullable(input.sourceUrl),status:text(input.status)as any,reservationNote:nullable(input.reservationNote),visibility:'participants'as const}}

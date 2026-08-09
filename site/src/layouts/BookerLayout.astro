@@ -7,6 +7,7 @@ const {
   description = 'Your private booking page.',
   robots = 'noindex,nofollow,noarchive',
   analytics = true,
+  showHeader = true,
 } = Astro.props;
 const currentYear = new Date().getFullYear();
 ---
@@ -25,7 +26,7 @@ const currentYear = new Date().getFullYear();
   <body class="booker-area">
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="booker-shell">
-      <header class="booker-header">
+      <header class="booker-header" hidden={!showHeader}>
         <div class="booker-header__inner">
           <a class="booker-brand" href={Astro.url.pathname.match(/^\/booking\/manage\/[^/]+/)?.[0] + '/'} aria-label="Your booking home">
             <span class="brand-mark" aria-hidden="true">OB</span>
