@@ -27,7 +27,7 @@ test('each booking workspace owns one isolated, directly visible content region'
 
   assert.doesNotMatch(page, /workspace===['"](?:messages|planner|history)['"][^\n]*<details/);
   assert.match(page, /workspace==='cancel'[\s\S]*value="cancel-booking"/);
-  assert.match(page, /workspace==='delete'[\s\S]*value="delete-booking"/);
+  assert.match(page, /workspace==='delete'[\s\S]*value=\{markedForDeletion\?'restore-from-deletion':'mark-for-deletion'\}/);
   assert.match(page, /workspace==='history'[\s\S]*Offer history[\s\S]*Notification audit[\s\S]*Payment history/);
   const historyStart = page.indexOf("workspace==='history'");
   const cancelStart = page.indexOf("workspace==='cancel'", historyStart);

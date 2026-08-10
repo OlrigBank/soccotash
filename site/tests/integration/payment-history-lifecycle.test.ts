@@ -50,7 +50,7 @@ test('retains every payment attempt through deposit, balance, stale decisions an
       reportManualBankTransfer,
       verifyReportedPayment,
     } = await import('../../src/lib/booking/payment-lifecycle.ts');
-    const { cancelBooking } = await import('../../src/lib/booking/cancellation-lifecycle.ts');
+    const { cancelBookingByBookerToken } = await import('../../src/lib/booking/cancellation-lifecycle.ts');
     const { getPool } = await import('../../src/lib/booking/db.ts');
     applicationPool = getPool();
 
@@ -141,7 +141,7 @@ test('retains every payment attempt through deposit, balance, stale decisions an
     assert.equal(await reportManualBankTransfer(cancellationToken), 'payment_reported');
     const openBalance = (await getBookingPaymentHistory(cancellable.rows[0].public_id))[0];
     assert.equal(openBalance.status, 'reported');
-    assert.equal(await cancelBooking(cancellable.rows[0].public_id, 'Acceptance test cancellation.'), 'cancelled');
+    assert.equal(await cancelBookingByBookerToken(cancellationToken, 'Acceptance test cancellation.'), 'cancelled');
     const cancelledHistory = await getBookingPaymentHistory(cancellable.rows[0].public_id);
     assert.equal(cancelledHistory[0].status, 'cancelled');
     assert.ok(cancelledHistory[0].cancelledAt);

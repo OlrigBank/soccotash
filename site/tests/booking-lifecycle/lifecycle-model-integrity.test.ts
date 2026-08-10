@@ -19,7 +19,7 @@ test('cancelled is terminal and legacy statuses are never new transition targets
   assert.equal(BOOKING_TRANSITION_RULES.some((rule) => rule.to === 'offer_accepted' || rule.to === 'approved'), false);
 });
 
-test('every active booking state supports controlled cancellation by either authorised actor', () => {
+test('Booker can cancel every active state while administrator stops at payment reporting', () => {
   const activeStatuses = [
     'pending',
     'offered',
@@ -30,8 +30,7 @@ test('every active booking state supports controlled cancellation by either auth
     'approved',
   ];
 
-  for (const from of activeStatuses) {
-    for (const actor of ['administrator', 'booker']) {
+  for (const actor of ['booker'] as const) for (const from of activeStatuses) {
       const cancellation = BOOKING_TRANSITION_RULES.find((rule) => (
         rule.from === from
         && rule.action === 'cancel_booking'
@@ -42,8 +41,8 @@ test('every active booking state supports controlled cancellation by either auth
       assert.equal(cancellation.calendarEffect, 'release');
       assert.deepEqual(cancellation.requirements, ['confirmation', 'reason']);
       assert.equal(cancellation.activityEvent, 'booking_cancelled');
-    }
   }
+  for(const from of ['pending','offered','offer_accepted','payment_pending'])assert.ok(BOOKING_TRANSITION_RULES.some(rule=>rule.from===from&&rule.action==='cancel_booking'&&rule.actor==='administrator'));
 });
 
 test('payment reporting never confirms a booking without administrator verification', () => {
@@ -65,4 +64,11 @@ test('only guarded deletion rules remove a record instead of selecting a next st
     'offered/delete_request',
     'pending/delete_request',
   ]);
+});
+
+test('administrator cancellation stops when payment is reported while Booker cancellation remains available', () => {
+  for (const status of ['payment_reported','confirmed','approved']) {
+    assert.equal(BOOKING_TRANSITION_RULES.some(rule=>rule.from===status&&rule.action==='cancel_booking'&&rule.actor==='administrator'),false);
+    assert.equal(BOOKING_TRANSITION_RULES.some(rule=>rule.from===status&&rule.action==='cancel_booking'&&rule.actor==='booker'),true);
+  }
 });

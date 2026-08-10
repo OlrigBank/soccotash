@@ -738,7 +738,7 @@ async function mutatePlan<T>(
 
 export async function addPlanCandidateActivity(input: {
   planId: string; expectedRevision: number; title?: string; description?: string;
-  sourceUrl?: string | null; localGuideEntryId?: string | null; actor: PlannerRevisionActor;
+  sourceUrl?: string | null; localGuideEntryId?: string | null; retainForGuide?: boolean; actor: PlannerRevisionActor;
 }, database: Database = getPool()): Promise<{ candidateId: string; revision: number }> {
   const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
     const guide = await selectableGuideReference(client, input.localGuideEntryId);
@@ -752,16 +752,20 @@ export async function addPlanCandidateActivity(input: {
       title = published.rows[0].title; description = published.rows[0].summary;
       sourceUrl = validateSourceUrl(published.rows[0].external_link);
     } else {
+      if(input.actor.type!=='administrator'&&typeof input.retainForGuide!=='boolean')throw new PlannerError('VALIDATION_ERROR','Choose whether this activity may be saved for Local Guide review.');
       title = requireText(input.title ?? '', 'Activity title', 200);
       description = input.description?.trim() ?? '';
       if (description.length > 10000) throw new PlannerError('VALIDATION_ERROR', 'Activity description is too long.');
       sourceUrl = validateSourceUrl(input.sourceUrl, true);
     }
-    const created = await client.query<{ public_id: string }>(
+    const created = await client.query<{ id:string|number;public_id: string }>(
       `INSERT INTO plan_candidate_activities
-         (holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
-       VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6)
-       RETURNING public_id::text`, [internalId,title,description,sourceUrl,guide?.internalId??null,actorAdminUserId(input.actor)]);
+         (holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id,local_guide_retention_opt_out,local_guide_retention_decided_at)
+       VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6,$7,CASE WHEN $5::bigint IS NULL THEN NOW() ELSE NULL END)
+       RETURNING id,public_id::text`, [internalId,title,description,sourceUrl,guide?.internalId??null,actorAdminUserId(input.actor),guide?false:input.retainForGuide===false]);
+    if(!guide&&input.actor.type!=='administrator'&&input.retainForGuide===true){const submitter=await contributionSubmitter(client,internalId,input.actor);
+      await client.query(`INSERT INTO guide_contribution_candidates(holiday_plan_id,plan_candidate_activity_id,submitted_by_participant_id,offered_title,offered_description,consent_version,consent_statement,attribution_permitted)
+        VALUES($1,$2,$3,$4,$5,'local-guide-candidate-retention-v2','This custom activity may be retained privately for possible Local Guide review unless I opt out.',FALSE)`,[internalId,created.rows[0].id,submitter.id,title,description]);}
     return { value: created.rows[0].public_id, action: 'candidate_activity_added',
       summary: `Added candidate activity “${title}”.`, changes: { candidateId: created.rows[0].public_id, localGuideEntryId: input.localGuideEntryId ?? null } };
   });
@@ -861,8 +865,9 @@ export async function schedulePlanCandidateActivity(input:{
     const candidate=await client.query<any>('SELECT * FROM plan_candidate_activities WHERE public_id=$1::uuid AND holiday_plan_id=$2 FOR UPDATE',[validatePublicId(input.candidateId,'Candidate activity identifier'),internalId]);
     const day=await client.query<{id:string|number}>('SELECT id FROM plan_days WHERE public_id=$1::uuid AND holiday_plan_id=$2',[validatePublicId(input.dayId,'Plan day identifier'),internalId]);
     if(!candidate.rowCount||!day.rowCount)throw new PlannerError('NOT_FOUND','Candidate activity or plan day not found.');
-    const row=candidate.rows[0];const created=await client.query<{public_id:string}>(`INSERT INTO plan_items(plan_day_id,title,description,item_type,source_url,local_guide_entry_id,status,position,visibility,created_by_admin_user_id,updated_by_admin_user_id)
-      VALUES($1,$2,$3,'activity',$4,$5,'idea',COALESCE((SELECT max(position)+10 FROM plan_items WHERE plan_day_id=$1),10),'participants',$6,$6) RETURNING public_id::text`,[day.rows[0].id,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    const row=candidate.rows[0];const created=await client.query<{id:string|number;public_id:string}>(`INSERT INTO plan_items(plan_day_id,title,description,item_type,source_url,local_guide_entry_id,status,position,visibility,created_by_admin_user_id,updated_by_admin_user_id)
+      VALUES($1,$2,$3,'activity',$4,$5,'idea',COALESCE((SELECT max(position)+10 FROM plan_items WHERE plan_day_id=$1),10),'participants',$6,$6) RETURNING id,public_id::text`,[day.rows[0].id,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    await client.query('UPDATE guide_contribution_candidates SET plan_item_id=$2,plan_candidate_activity_id=NULL WHERE plan_candidate_activity_id=$1',[row.id,created.rows[0].id]);
     await client.query('DELETE FROM plan_candidate_activities WHERE id=$1',[row.id]);
     return{value:created.rows[0].public_id,action:'candidate_activity_scheduled',summary:`Scheduled “${row.title}”.`,changes:{candidateId:input.candidateId,itemId:created.rows[0].public_id,dayId:input.dayId}};
   });return{itemId:result.value,revision:result.revision};
@@ -872,8 +877,9 @@ export async function returnPlanItemToCandidates(input:{planId:string;itemId:str
   const result=await mutatePlan(database,input.planId,input.expectedRevision,input.actor,async({client,internalId})=>{
     const item=await client.query<any>(`SELECT i.* FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id WHERE i.public_id=$1::uuid AND d.holiday_plan_id=$2 FOR UPDATE OF i`,[validatePublicId(input.itemId,'Plan item identifier'),internalId]);
     if(!item.rowCount)throw new PlannerError('NOT_FOUND','Plan item not found.');const row=item.rows[0];
-    const created=await client.query<{public_id:string}>(`INSERT INTO plan_candidate_activities(holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id)
-      VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6) RETURNING public_id::text`,[internalId,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    const created=await client.query<{id:string|number;public_id:string}>(`INSERT INTO plan_candidate_activities(holiday_plan_id,title,description,source_url,local_guide_entry_id,position,created_by_admin_user_id,updated_by_admin_user_id,local_guide_retention_opt_out,local_guide_retention_decided_at)
+      VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6,FALSE,CASE WHEN $5::bigint IS NULL THEN NOW() ELSE NULL END) RETURNING id,public_id::text`,[internalId,row.title,row.description,row.source_url,row.local_guide_entry_id,actorAdminUserId(input.actor)]);
+    await client.query('UPDATE guide_contribution_candidates SET plan_candidate_activity_id=$2,plan_item_id=NULL WHERE plan_item_id=$1',[row.id,created.rows[0].id]);
     await client.query('DELETE FROM plan_items WHERE id=$1',[row.id]);
     return{value:created.rows[0].public_id,action:'plan_item_returned_to_candidates',summary:`Returned “${row.title}” to candidate activities.`,changes:{itemId:input.itemId,candidateId:created.rows[0].public_id}};
   });return{candidateId:result.value,revision:result.revision};
