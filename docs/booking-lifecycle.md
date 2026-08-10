@@ -60,9 +60,6 @@ This document presents the executable rules used to decide whether a booking lif
 | `offered` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `offer_accepted` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `payment_pending` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
-| `payment_reported` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
-| `confirmed` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
-| `approved` | `cancel_booking` | Administrator | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `pending` | `cancel_booking` | Booker | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `offered` | `cancel_booking` | Booker | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |
 | `offer_accepted` | `cancel_booking` | Booker | `cancelled` | Release | Confirmation, Reason | `booking_cancelled` |

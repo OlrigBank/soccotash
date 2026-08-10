@@ -615,6 +615,9 @@ export type ProvisionalBookingRequest = {
   latestOfferCurrency: string | null;
   latestOfferSentAt: string | null;
   unreadMessageCount: number;
+  deletionRequestedAt?: string | null;
+  deletionReason?: string | null;
+  deletionRequestedByName?: string | null;
 };
 
 function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
@@ -641,15 +644,18 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
     createdAt: new Date(row.createdAt).toISOString(),
     latestOfferSentAt: row.latestOfferSentAt ? new Date(row.latestOfferSentAt).toISOString() : null,
     unreadMessageCount: Number(row.unreadMessageCount || 0),
+    deletionRequestedAt: row.deletionRequestedAt ? new Date(row.deletionRequestedAt).toISOString() : null,
+    deletionReason: row.deletionReason || null,
   } as ProvisionalBookingRequest;
 }
 
 export async function getProvisionalBookingRequests(
   limit = 100,
   includeInactive = false,
+  deletionScope: 'active' | 'marked' | 'all' = 'active',
 ): Promise<ProvisionalBookingRequest[]> {
   await expireElapsedBookingOffers();
-  const rows = await queryProvisionalBookingRequestRows(getPool(), limit, includeInactive);
+  const rows = await queryProvisionalBookingRequestRows(getPool(), limit, includeInactive, deletionScope);
   return rows.map(normaliseBookingRow);
 }
 
@@ -678,6 +684,8 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.deposit_pence AS "depositPence", pb.deposit_due_at AS "depositDueAt",
             pb.balance_due_pence AS "balanceDuePence", pb.balance_due_on::text AS "balanceDueOn",
             pb.payment_terms_snapshot AS "paymentTermsSnapshot", pb.created_at AS "createdAt",
+            pb.deletion_requested_at AS "deletionRequestedAt", pb.deletion_reason AS "deletionReason",
+            deletion_admin.display_name AS "deletionRequestedByName",
             payment_summary."currentPaymentPublicId", payment_summary."currentPaymentStage",
             payment_summary."currentPaymentStatus", payment_summary."depositVerified",
             payment_summary."balanceVerified", payment_summary."fullPaymentVerified",
@@ -688,6 +696,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
               WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
        FROM provisional_bookings pb
        LEFT JOIN pricing_plans pp ON pp.id = pb.pricing_plan_id
+       LEFT JOIN admin_users deletion_admin ON deletion_admin.id=pb.deletion_requested_by_admin_user_id
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at
            FROM booking_offers
@@ -713,14 +722,31 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
   return result.rowCount ? normaliseBookingRow(result.rows[0]) : null;
 }
 
-export async function deleteProvisionalBookingRequest(reference: string): Promise<boolean> {
-  const result = await getPool().query(
-    `DELETE FROM provisional_bookings
-      WHERE public_id = $1::uuid
-        AND status IN ('pending', 'offered')`,
-    [reference],
-  );
-  return Boolean(result.rowCount);
+export async function markBookingForDeletion(input:{reference:string;adminUserId:string;reason:string}):Promise<boolean>{
+  const reason=input.reason.trim().slice(0,1000);if(!reason)return false;const client=await getPool().connect();
+  try{await client.query('BEGIN');const selected=await client.query<any>(`SELECT id,status FROM provisional_bookings WHERE public_id=$1::uuid AND deletion_requested_at IS NULL FOR UPDATE`,[input.reference]);
+    if(!selected.rowCount){await client.query('ROLLBACK');return false}const booking=selected.rows[0];
+    await client.query(`UPDATE provisional_bookings SET deletion_requested_at=NOW(),deletion_requested_by_admin_user_id=$2,deletion_reason=$3,
+      customer_access_token_revoked_at=COALESCE(customer_access_token_revoked_at,NOW()) WHERE id=$1`,[booking.id,input.adminUserId,reason]);
+    await client.query(`UPDATE booking_offers SET access_token_hash=NULL,token_revoked_at=COALESCE(token_revoked_at,NOW()) WHERE provisional_booking_id=$1`,[booking.id]);
+    await client.query(`UPDATE holiday_plans SET deletion_requested_at=NOW(),deletion_booking_id=$1 WHERE booking_id=$1`,[booking.id]);
+    await client.query(`UPDATE plan_participants SET access_token_hash=NULL,revoked_at=COALESCE(revoked_at,NOW()) WHERE booking_id=$1`,[booking.id]);
+    await client.query(`DELETE FROM guest_plan_sessions WHERE participant_id IN (SELECT id FROM plan_participants WHERE booking_id=$1)`,[booking.id]);
+    await client.query(`UPDATE plan_share_links SET revoked_at=COALESCE(revoked_at,NOW()) WHERE holiday_plan_id IN (SELECT id FROM holiday_plans WHERE booking_id=$1)`,[booking.id]);
+    await client.query(`UPDATE plan_ai_capabilities SET revoked_at=COALESCE(revoked_at,NOW()) WHERE holiday_plan_id IN (SELECT id FROM holiday_plans WHERE booking_id=$1)`,[booking.id]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'administrator','booking_marked_for_deletion',$2::jsonb)`,[booking.id,JSON.stringify({adminUserId:input.adminUserId,reason,status:booking.status})]);
+    await client.query('COMMIT');return true;
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+}
+
+export async function restoreBookingFromDeletion(input:{reference:string;adminUserId:string;reason:string}):Promise<boolean>{
+  const reason=input.reason.trim().slice(0,1000);if(!reason)return false;const client=await getPool().connect();
+  try{await client.query('BEGIN');const restored=await client.query<any>(`UPDATE provisional_bookings SET deletion_requested_at=NULL,
+      deletion_requested_by_admin_user_id=NULL,deletion_reason=NULL WHERE public_id=$1::uuid AND deletion_requested_at IS NOT NULL RETURNING id,status`,[input.reference]);
+    if(!restored.rowCount){await client.query('ROLLBACK');return false}await client.query(`UPDATE holiday_plans SET deletion_requested_at=NULL,deletion_booking_id=NULL WHERE booking_id=$1`,[restored.rows[0].id]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,'administrator','booking_restored_from_deletion',$2::jsonb)`,[restored.rows[0].id,JSON.stringify({adminUserId:input.adminUserId,reason,status:restored.rows[0].status})]);
+    await client.query('COMMIT');return true;
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
 }
 
 export async function withdrawProvisionalBookingWhatsAppConsent(reference: string, _source: 'booker' | 'administrator'): Promise<boolean> {
@@ -1201,12 +1227,12 @@ export async function getCustomerBookingPage(token: string, recordView = true): 
   const resolved = await getPool().query(
     `SELECT pb.public_id::text AS reference
        FROM provisional_bookings pb
-      WHERE pb.customer_access_token = $1
+      WHERE pb.customer_access_token = $1 AND pb.deletion_requested_at IS NULL
      UNION
      SELECT pb.public_id::text AS reference
        FROM booking_offers bo
-       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-      WHERE bo.access_token_hash = $2
+      JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+      WHERE bo.access_token_hash = $2 AND pb.deletion_requested_at IS NULL
      LIMIT 1`,
     [token, tokenHash],
   );

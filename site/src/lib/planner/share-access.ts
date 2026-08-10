@@ -16,7 +16,8 @@ export async function resolvePlanShareCredential(token:string,recordUse=false,da
        FROM plan_share_links s JOIN holiday_plans hp ON hp.id=s.holiday_plan_id
        JOIN provisional_bookings pb ON pb.id=hp.booking_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>NOW()
-        AND hp.plan_type='booking_linked' AND hp.archived_at IS NULL`,[hash(token)]);
+        AND hp.plan_type='booking_linked' AND hp.archived_at IS NULL AND hp.deletion_requested_at IS NULL
+        AND pb.deletion_requested_at IS NULL`,[hash(token)]);
   if(!result.rowCount)return null;
   if(bookingAccessState({departure:result.rows[0].departure,revokedAt:result.rows[0].booking_access_revoked_at,expiryDays:getBookingAccessExpiryDays()})!=='active')return null;
   if(recordUse)await database.query('UPDATE plan_share_links SET last_accessed_at=NOW() WHERE id=$1',[result.rows[0].share_id]);

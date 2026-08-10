@@ -34,7 +34,8 @@ export async function resolveParticipantCredential(
        JOIN holiday_plans hp ON hp.id = pp.holiday_plan_id
        JOIN provisional_bookings pb ON pb.id = pp.booking_id
       WHERE pp.access_token_hash = $1 AND pp.participant_type = 'guest'
-        AND pp.revoked_at IS NULL AND hp.archived_at IS NULL`,
+        AND pp.revoked_at IS NULL AND hp.archived_at IS NULL AND hp.deletion_requested_at IS NULL
+        AND pb.deletion_requested_at IS NULL`,
     [tokenHash(token)],
   );
   if (!result.rowCount) return null;

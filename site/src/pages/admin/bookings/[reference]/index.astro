@@ -5,16 +5,16 @@ import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import {
   createBookingOfferAttempt,
-  deleteProductionAcceptanceTestBooking,
-  deleteProvisionalBookingRequest,
   getBookingActivity,
   getBookingOffers,
   getCustomerBookingPageByReference,
   getProvisionalBookingRequest,
   markBookingOfferFailed,
   markBookingOfferSent,
+  markBookingForDeletion,
   publishBookingOffer,
   recordBookingActivity,
+  restoreBookingFromDeletion,
   withdrawProvisionalBookingWhatsAppConsent,
   type BookingOfferLine,
 } from '../../../../lib/booking/repository';
@@ -56,11 +56,7 @@ const bookerManageUrl = booking.customerAccessToken
   : '';
 const isUnassignedBespoke = booking.propertyId === 'bespoke-arrangement';
 const canOffer = (booking.status === 'pending' || booking.status === 'offered') && !isUnassignedBespoke;
-const canDeleteNormally = booking.status === 'pending' || booking.status === 'offered';
-const isAcceptanceTestBooking = booking.name.startsWith('Production Acceptance Test');
-const canDeleteAcceptanceTest = isAcceptanceTestBooking
-  && ['payment_pending', 'payment_reported', 'confirmed', 'approved', 'cancelled'].includes(booking.status);
-const canDelete = canDeleteNormally || canDeleteAcceptanceTest;
+const markedForDeletion=Boolean(booking.deletionRequestedAt);
 const canCancel = listAllowedBookingTransitions(booking.status, 'administrator')
   .some((transition) => transition.action === 'cancel_booking');
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
@@ -115,7 +111,17 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
-  if (action === 'copy-example-plan') {
+  if(action==='mark-for-deletion'){
+    if(form.get('confirmDelete')!=='yes')error='Confirm that this booking should be marked for deletion.';
+    else if(!cleanText(form.get('deletionReason'),1000))error='Give a reason for marking this booking for deletion.';
+    else if(await markBookingForDeletion({reference,adminUserId:Astro.locals.adminUser!.id,reason:cleanText(form.get('deletionReason'),1000)}))return Astro.redirect('/admin/bookings/?marked=1');
+    else error='The booking could not be marked for deletion.';
+  } else if(action==='restore-from-deletion'){
+    if(await restoreBookingFromDeletion({reference,adminUserId:Astro.locals.adminUser!.id,reason:cleanText(form.get('restoreReason'),1000)}))return Astro.redirect('/admin/bookings/?deletion=marked&restored=1');
+    else error='Give a reason and try restoring the booking again.';
+  } else if(markedForDeletion){
+    error='Restore this booking before making other changes.';
+  } else if (action === 'copy-example-plan') {
     try {
       await copyPublishedExampleIntoBookingPlan({
         bookingReference: reference,
@@ -247,34 +253,6 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(
           `/admin/bookings/${reference}/?cancelled=1&email=${notification.status}`,
         );
-      }
-    }
-  } else if (action === 'delete-booking') {
-    const confirmedReference = cleanText(form.get('confirmReference'), 36);
-    if (!canDelete) {
-      error = `A request with status “${booking.status}” cannot be deleted from this screen.`;
-    } else if (form.get('confirmDelete') !== 'yes') {
-      error = 'Confirm that you understand this will permanently delete the request.';
-    } else if (canDeleteAcceptanceTest && confirmedReference !== reference) {
-      error = 'Enter the complete booking reference to confirm acceptance-test cleanup.';
-    } else {
-      const deleted = canDeleteAcceptanceTest
-        ? await deleteProductionAcceptanceTestBooking(reference, confirmedReference)
-        : await deleteProvisionalBookingRequest(reference);
-      if (!deleted) {
-        error = 'The booking request could not be deleted. It may have changed status or failed the acceptance-test safeguards.';
-      } else {
-        await audit(Astro.locals.adminUser!.id, canDeleteAcceptanceTest ? 'booking.acceptance_test_deleted' : 'booking.request_deleted', {
-          bookingReference: reference,
-          propertyId: booking.propertyId,
-          arrival: booking.arrival,
-          departure: booking.departure,
-          bookerName: booking.name,
-          bookerEmail: booking.email,
-          previousStatus: booking.status,
-          exceptionalAcceptanceCleanup: canDeleteAcceptanceTest,
-        });
-        return Astro.redirect('/admin/bookings/?deleted=1');
       }
     }
   } else if (action === 'publish-offer') {
@@ -429,7 +407,7 @@ const workspaceTitle = workspace === 'reservation'
       : workspace === 'cancel'
         ? 'Cancel booking'
         : workspace === 'delete'
-          ? 'Delete booking'
+          ? (markedForDeletion?'Restore booking':'Mark for deletion')
       : workspace === 'history'
         ? 'Administration history'
         : 'Booking management';
@@ -468,6 +446,7 @@ if (arrangementAssigned) {
 }
 ---
 <AdminLayout title={`${workspaceTitle} · ${booking.name}`}>
+  {markedForDeletion&&<div class="admin-alert"><strong>Marked for deletion.</strong> This record is hidden from ordinary views. Status and calendar effects are unchanged. Restore it before making other changes.</div>}
   <header class="admin-page-header booking-messaging-page-header">
     <div>
       <p class="eyebrow">Booking management</p>
@@ -503,7 +482,7 @@ if (arrangementAssigned) {
       <h2 id="booking-lifecycle-heading">Booking lifecycle</h2>
       <div class="booking-workspace-list">
         <a class="booking-workspace-action--caution" href={`/admin/bookings/${booking.reference}/cancel/`}><span>Lifecycle action</span><strong>Cancel booking</strong><small>Release the dates while retaining the booking record</small></a>
-        <a class="booking-workspace-action--danger" href={`/admin/bookings/${booking.reference}/delete/`}><span>Danger zone</span><strong>Delete booking</strong><small>Permanently remove an eligible booking request</small></a>
+        <a class="booking-workspace-action--danger" href={`/admin/bookings/${booking.reference}/delete/`}><span>Retention</span><strong>{markedForDeletion?'Restore booking':'Mark for deletion'}</strong><small>{markedForDeletion?'Return this record to visible bookings':'Remove from ordinary views without permanent deletion'}</small></a>
       </div>
     </section>
   </nav>}
@@ -767,28 +746,18 @@ if (arrangementAssigned) {
   {workspace==='delete' && <section class="admin-panel booking-delete-panel booking-lifecycle-page">
         <div>
           <p class="eyebrow">Danger zone</p>
-          <h2>Delete booking request</h2>
-          <p>{canDelete
-            ? canDeleteAcceptanceTest
-              ? 'This labelled acceptance-test record can be removed using the exceptional cleanup safeguards below.'
-              : 'Permanently remove this request, its conversation, offer history and provisional calendar block.'
-            : `Requests with status “${booking.status}” cannot be deleted from this screen.`}</p>
+          <h2>{markedForDeletion?'Restore booking':'Mark booking for deletion'}</h2>
+          <p>{markedForDeletion?'Return this record and its independent holiday plans to administration views. Private access links remain revoked.':'Hide this booking from ordinary views and mark every Booker and guest plan for deletion. The booking status and calendar effect will not change.'}</p>
         </div>
         <form method="post" class="booking-delete-form" data-confirm-delete>
-          <input type="hidden" name="action" value="delete-booking" />
-          {canDeleteAcceptanceTest && (
-            <label>
-              Enter the complete booking reference
-              <input type="text" name="confirmReference" pattern="[0-9a-fA-F-]{36}" autocomplete="off" required />
-            </label>
-          )}
-          <label class="booking-delete-confirm">
-            <input type="checkbox" name="confirmDelete" value="yes" required disabled={!canDelete} />
-            <span>I understand that this permanently deletes the request and conversation.</span>
-          </label>
-          <button class="admin-button admin-button--danger" type="submit" disabled={!canDelete}>
-            {canDeleteAcceptanceTest ? 'Delete acceptance-test booking' : 'Delete booking request'}
-          </button>
+          <input type="hidden" name="action" value={markedForDeletion?'restore-from-deletion':'mark-for-deletion'} />
+          <label>{markedForDeletion?'Reason for restoration':'Reason for deletion mark'}<textarea name={markedForDeletion?'restoreReason':'deletionReason'} rows="4" maxlength="1000" required></textarea></label>
+          {!markedForDeletion&&<p class="admin-alert">{['payment_reported','confirmed','approved'].includes(booking.status)?'This active booking will continue to hold its dates. Marking is not cancellation.':'No booking lifecycle or calendar status will change.'}</p>}
+          {!markedForDeletion&&<label class="booking-delete-confirm">
+            <input type="checkbox" name="confirmDelete" value="yes" required={!markedForDeletion} />
+            <span>I understand this hides the booking but does not cancel it or release dates.</span>
+          </label>}
+          <button class:list={['admin-button',!markedForDeletion&&'admin-button--danger']} type="submit">{markedForDeletion?'Restore to visible bookings':'Mark for deletion'}</button>
         </form>
   </section>}
 </AdminLayout>
@@ -846,7 +815,7 @@ if (arrangementAssigned) {
   lines?.addEventListener('input', updateTotal);
   updateTotal();
   document.querySelector('[data-confirm-delete]')?.addEventListener('submit', (event) => {
-    if (!window.confirm('Permanently delete this booking request, conversation and offer history?')) event.preventDefault();
+    if (!window.confirm('Mark this booking and all its holiday plans for deletion?')) event.preventDefault();
   });
   document.querySelector('#add-offer-line')?.addEventListener('click', () => {
     if (!(lines instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) return;

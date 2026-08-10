@@ -43,7 +43,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'addItem': {
         result=await addPlanItem({ ...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor }); break;
       }
-      case 'addCandidate': result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),actor});break;
+      case 'addCandidate': result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),retainForGuide:input.retainForGuide===true,actor});break;
       case 'addGuideCategoryCandidates': {
         const categoryId = text(input.categoryId);
         if (!getCategoryById(categoryId) || categoryId === 'home') {

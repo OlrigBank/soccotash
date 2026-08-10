@@ -223,6 +223,7 @@ export async function queryProvisionalBookingRequestRows(
   database: QueryExecutor,
   limit: number,
   includeInactive: boolean,
+  deletionScope: 'active' | 'marked' | 'all' = 'active',
 ): Promise<Record<string, any>[]> {
   const result = await database.query(
     `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
@@ -230,6 +231,7 @@ export async function queryProvisionalBookingRequestRows(
             pb.guest_message AS message, pb.status, pb.pricing_currency AS "pricingCurrency",
             pb.guest_total_pence AS "guestTotalPence", pb.pricing_plan_version AS "pricingPlanVersion",
             pb.quoted_at AS "quotedAt", pb.created_at AS "createdAt",
+            pb.deletion_requested_at AS "deletionRequestedAt", pb.deletion_reason AS "deletionReason",
             latest_offer.total_pence AS "latestOfferTotalPence",
             latest_offer.currency AS "latestOfferCurrency",
             latest_offer.sent_at AS "latestOfferSentAt",
@@ -258,13 +260,16 @@ export async function queryProvisionalBookingRequestRows(
            BOOL_OR(bp.stage = 'full_payment' AND bp.status = 'verified') AS "fullPaymentVerified"
          FROM booking_payments bp WHERE bp.provisional_booking_id = pb.id
        ) payment_summary ON TRUE
-      WHERE $2::boolean OR NOT (pb.status = ANY($3::text[]))
+      WHERE ($2::boolean OR NOT (pb.status = ANY($3::text[])))
+        AND ($4::text='all' OR ($4::text='active' AND pb.deletion_requested_at IS NULL)
+          OR ($4::text='marked' AND pb.deletion_requested_at IS NOT NULL))
       ORDER BY pb.created_at DESC
       LIMIT $1`,
     [
       Math.max(1, Math.min(500, Math.round(limit))),
       includeInactive,
       [...INACTIVE_BOOKING_STATUSES],
+      deletionScope,
     ],
   );
   return result.rows;

@@ -9,30 +9,35 @@ const statusOptions = (Object.entries(BOOKING_STATUSES) as [BookingStatus, (type
 const selectableStatuses = new Set(statusOptions.map(([status]) => status));
 const requestedStatuses = Astro.url.searchParams.getAll('status').filter((status): status is BookingStatus => selectableStatuses.has(status as BookingStatus));
 const selectedStatuses = new Set(requestedStatuses);
-const allRequests = await getProvisionalBookingRequests(100, true);
+const deletionQueue=Astro.url.searchParams.get('deletion')==='marked';
+const allRequests = await getProvisionalBookingRequests(100, true,deletionQueue?'marked':'active');
 const requests = selectedStatuses.size > 0
   ? allRequests.filter((request) => selectedStatuses.has(request.status as BookingStatus))
-  : allRequests.filter((request) => !['declined', 'expired'].includes(request.status));
+  : deletionQueue ? allRequests : allRequests.filter((request) => !['declined', 'expired'].includes(request.status));
 const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
-const deleted = Astro.url.searchParams.get('deleted') === '1';
+const marked = Astro.url.searchParams.get('marked') === '1';
+const restored = Astro.url.searchParams.get('restored') === '1';
 const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit payment required' : status === 'payment_reported' ? 'payment reported — verification required' : status === 'confirmed' ? 'confirmed' : status.replaceAll('_', ' ');
 ---
 <AdminLayout title="Bookings">
   <header class="admin-page-header">
-    <div><p class="eyebrow">Administration</p><h1>Bookings</h1><p>Review provisional requests, confirmed direct bookings and Booker conversations.</p></div>
+    <div><p class="eyebrow">Administration</p><h1>{deletionQueue?'Marked for deletion':'Bookings'}</h1><p>{deletionQueue?'Recover records removed from ordinary views. No permanent purge is available.':'Review provisional requests, confirmed direct bookings and Booker conversations.'}</p></div>
     <details class="booking-status-filter">
       <summary class="admin-button admin-button--secondary">{selectedStatuses.size ? `Statuses (${selectedStatuses.size})` : 'Booking statuses'}</summary>
       <form method="get" class="booking-status-filter__panel">
         <fieldset><legend>Show booking statuses</legend>{statusOptions.map(([value, metadata]) => (
           <label><input type="checkbox" name="status" value={value} checked={selectedStatuses.has(value)} /> {metadata.label}</label>
         ))}</fieldset>
-        <div class="pricing-header-actions"><button class="admin-button" type="submit">Apply</button><a class="admin-button admin-button--secondary" href="/admin/bookings/">Clear</a></div>
-        <small>No selection shows current bookings and hides declined and expired bookings.</small>
+        {deletionQueue&&<input type="hidden" name="deletion" value="marked" />}
+        <div class="pricing-header-actions"><button class="admin-button" type="submit">Apply</button><a class="admin-button admin-button--secondary" href={deletionQueue?'/admin/bookings/?deletion=marked':'/admin/bookings/'}>Clear</a></div>
+        <small>{deletionQueue?'No selection shows every booking marked for deletion.':'No selection shows current bookings and hides declined and expired bookings.'}</small>
       </form>
     </details>
   </header>
-  {deleted && <div class="pricing-message is-success" role="status">The booking request and its offer history were deleted.</div>}
-  {selectedStatuses.size === 0 && <p class="admin-filter-note">Declined and expired bookings are hidden. Use Booking statuses to change the list.</p>}
+  <p><a class="admin-button admin-button--secondary" href={deletionQueue?'/admin/bookings/':'/admin/bookings/?deletion=marked'}>{deletionQueue?'Back to visible bookings':'Marked for deletion'}</a></p>
+  {marked && <div class="pricing-message is-success" role="status">The booking and its holiday plans were marked for deletion.</div>}
+  {restored && <div class="pricing-message is-success" role="status">The booking and its holiday plans were restored to visible administration.</div>}
+  {!deletionQueue&&selectedStatuses.size === 0 && <p class="admin-filter-note">Declined and expired bookings are hidden. Use Booking statuses to change the list.</p>}
   <section class="admin-panel">
     {requests.length ? (
       <div class="admin-table-wrap"><table class="booking-entry-table"><thead><tr><th>Stay</th><th>Booker</th><th>Status</th></tr></thead><tbody>

@@ -45,20 +45,20 @@ export async function resolveBookingAccessCredential(
               pb.departure::text, pb.customer_access_token_revoked_at AS revoked_at,
               'booking'::text AS source, NULL::text AS offer_id, 1 AS priority
          FROM provisional_bookings pb
-        WHERE pb.customer_access_token = $1
+        WHERE pb.customer_access_token = $1 AND pb.deletion_requested_at IS NULL
        UNION ALL
        SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
               pb.departure::text, COALESCE(pb.customer_access_token_revoked_at, NOW()) AS revoked_at,
               'previous_booking'::text AS source, NULL::text AS offer_id, 2 AS priority
          FROM provisional_bookings pb
-        WHERE pb.customer_access_revoked_token_hash = $2
+        WHERE pb.customer_access_revoked_token_hash = $2 AND pb.deletion_requested_at IS NULL
        UNION ALL
        SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
               pb.departure::text, bo.token_revoked_at AS revoked_at,
               'offer'::text AS source, bo.id::text AS offer_id, 3 AS priority
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-        WHERE bo.access_token_hash = $2
+        WHERE bo.access_token_hash = $2 AND pb.deletion_requested_at IS NULL
      )
      SELECT * FROM candidate ORDER BY priority LIMIT 1`,
     [token, hash],

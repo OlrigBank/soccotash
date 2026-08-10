@@ -41,7 +41,8 @@ export async function resolveAiCapabilityCredential(
        JOIN holiday_plans hp ON hp.id = c.holiday_plan_id
        JOIN provisional_bookings pb ON pb.id = hp.booking_id
       WHERE c.token_hash = $1 AND c.revoked_at IS NULL AND c.expires_at > NOW()
-        AND hp.plan_type = 'booking_linked' AND hp.archived_at IS NULL`,
+        AND hp.plan_type = 'booking_linked' AND hp.archived_at IS NULL AND hp.deletion_requested_at IS NULL
+        AND pb.deletion_requested_at IS NULL`,
     [tokenHash(token)],
   );
   if (!result.rowCount) return null;
@@ -82,7 +83,8 @@ export async function authorizeAiCapabilityRequest(
          JOIN holiday_plans hp ON hp.id=c.holiday_plan_id
          JOIN provisional_bookings pb ON pb.id=hp.booking_id
         WHERE c.token_hash=$1 AND c.revoked_at IS NULL
-          AND hp.plan_type='booking_linked' AND hp.archived_at IS NULL
+          AND hp.plan_type='booking_linked' AND hp.archived_at IS NULL AND hp.deletion_requested_at IS NULL
+          AND pb.deletion_requested_at IS NULL
         FOR UPDATE OF c`,
       [tokenHash(token)],
     );
