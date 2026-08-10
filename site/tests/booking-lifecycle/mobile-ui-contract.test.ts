@@ -26,3 +26,11 @@ test('shared layouts retain the phone navigation and viewport contracts', async 
   assert.match(styles, /-webkit-overflow-scrolling: touch/, 'wide data surfaces must scroll naturally on touch devices');
   assert.match(styles, /\.planner-form[\s\S]*grid-template-columns: minmax\(0, 1fr\)/, 'planner forms must collapse to one column');
 });
+
+test('public responsive shell uses repaint-safe horizontal overflow', async () => {
+  const baseLayout = await readFile(baseLayoutUrl, 'utf8');
+
+  assert.match(baseLayout, /body\s*{[^}]*overflow-x:\s*hidden/, 'the page must contain horizontal overflow without Chromium clip repaint failures');
+  assert.match(baseLayout, /\.mobile-first-shell\s*{[^}]*overflow-x:\s*hidden/, 'the responsive shell must retain repaint-safe horizontal overflow');
+  assert.doesNotMatch(baseLayout, /(?:body|\.mobile-first-shell)\s*{[^}]*overflow-x:\s*clip/, 'the public shell must not reintroduce the resize-dependent Chromium repaint failure');
+});

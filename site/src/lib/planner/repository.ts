@@ -1291,6 +1291,7 @@ export async function moderateGuideContribution(input: {
       resultRevisionId=String(revision.rows[0].id);await client.query(`UPDATE local_guide_entries SET working_revision_id=$2,lock_version=$3,updated_by_admin_user_id=$4,updated_at=NOW() WHERE id=$1`,[resultEntryId,resultRevisionId,next,input.actor.adminUserId]);
     }
     if(input.decision==='accept')await client.query(`INSERT INTO local_guide_events(local_guide_entry_id,revision_number,actor_type,admin_user_id,source,action,details) SELECT $1,r.revision_number,'contribution',$3,'planner_contribution','contribution_accepted',$4::jsonb FROM local_guide_revisions r WHERE r.id=$2`,[resultEntryId!,resultRevisionId!,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,resultType})]);
+    if(input.decision==='accept')await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[input.actor.adminUserId]);
     await client.query(
       `UPDATE guide_contribution_candidates
           SET status = $2, reviewed_title = $3, reviewed_description = $4,

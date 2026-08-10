@@ -2,14 +2,14 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import LocalGuideTree from '../../components/LocalGuideTree.astro';
 import { getLocalGuideEntries } from '../../lib/content';
-import { getLocalGuideCategories } from '../../lib/navigation';
 import { buildLocalGuideTree } from '../../lib/local-guide/tree.ts';
+import { categoriesAsNavigation,listPublishedLocalGuideCategories } from '../../lib/local-guide/workspace.ts';
 import { listPublishedExamplePlans } from '../../lib/planner/repository.ts';
 
-const entries = await getLocalGuideEntries();
+const [entries,categories] = await Promise.all([getLocalGuideEntries(),listPublishedLocalGuideCategories()]);
 const examplePlans = await listPublishedExamplePlans();
 Astro.response.headers.set('Cache-Control', 'no-store');
-const tree = buildLocalGuideTree(getLocalGuideCategories(), entries);
+const tree = buildLocalGuideTree(categoriesAsNavigation(categories), entries);
 
 ---
 

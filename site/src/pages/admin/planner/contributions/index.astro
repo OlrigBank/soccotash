@@ -2,10 +2,10 @@
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
 import { listGuideContributionModerationQueue } from '../../../../lib/planner/repository.ts';
-import { getLocalGuideCategories } from '../../../../lib/navigation.ts';
+import { listWorkingLocalGuideCategories } from '../../../../lib/local-guide/workspace.ts';
 export const prerender=false;
-const [candidates,guides]=await Promise.all([listGuideContributionModerationQueue(),getPlannerGuideEntries()]);
-const categories=getLocalGuideCategories();const pending=candidates.filter(c=>c.status==='pending');const decided=candidates.filter(c=>['accepted','rejected'].includes(c.status));
+const [candidates,guides,categories]=await Promise.all([listGuideContributionModerationQueue(),getPlannerGuideEntries(),listWorkingLocalGuideCategories()]);
+const pending=candidates.filter(c=>c.status==='pending');const decided=candidates.filter(c=>['accepted','rejected'].includes(c.status));
 const format=(value:string)=>new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/London'}).format(new Date(value));
 ---
 <AdminLayout title="Local Guide contributions">

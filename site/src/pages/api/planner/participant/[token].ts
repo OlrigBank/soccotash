@@ -9,7 +9,7 @@ import {
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
-import { getCategoryById,getDescendantCategoryIds } from '../../../../lib/navigation.ts';
+import { listPublishedLocalGuideCategories } from '../../../../lib/local-guide/workspace.ts';
 import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
 
 export const prerender=false;
@@ -47,7 +47,7 @@ export const POST:APIRoute=async({params,request,cookies})=>{
       case'moveDay':if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Move direction is invalid.');result={revision:await movePlanDay({planId:plan.id,dayId:text(input.dayId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
       case'addItem':{result=await addPlanItem({...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor});break}
       case'addCandidate':result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),retainForGuide:input.retainForGuide===true,actor});break;
-      case'addGuideCategoryCandidates':{const categoryId=text(input.categoryId);if(!getCategoryById(categoryId)||categoryId==='home')throw new PlannerError('VALIDATION_ERROR','The selected Local Guide category is unavailable.');const ids=new Set([categoryId,...getDescendantCategoryIds(categoryId)]);result=await addPlanGuideCandidates({planId:plan.id,expectedRevision,localGuideEntryIds:(await getPlannerGuideEntries()).filter(g=>ids.has(g.category)).map(g=>g.id),actor});break}
+      case'addGuideCategoryCandidates':{const categoryId=text(input.categoryId);const categories=await listPublishedLocalGuideCategories();if(!categories.some(item=>item.id===categoryId)||categoryId==='home')throw new PlannerError('VALIDATION_ERROR','The selected Local Guide category is unavailable.');const descendants:string[]=[];const visit=(parent:string)=>{for(const item of categories.filter(candidate=>candidate.parent===parent)){descendants.push(item.id);visit(item.id)}};visit(categoryId);const ids=new Set([categoryId,...descendants]);result=await addPlanGuideCandidates({planId:plan.id,expectedRevision,localGuideEntryIds:(await getPlannerGuideEntries()).filter(g=>ids.has(g.category)).map(g=>g.id),actor});break}
       case'moveCandidate':if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Candidate move direction is invalid.');result={revision:await movePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
       case'removeCandidate':result={revision:await removePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})};break;
       case'scheduleCandidate':result=await schedulePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),dayId:text(input.dayId),expectedRevision,actor});break;
