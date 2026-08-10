@@ -20,6 +20,7 @@ interface Props {
   emailStatus?: 'sent' | 'failed' | 'skipped' | null;
   messageNotificationAvailable?: boolean;
   payments?: BookingPayment[];
+  view?: 'combined' | 'messages' | 'reservation';
 }
 
 const {
@@ -36,6 +37,7 @@ const {
   emailStatus = null,
   messageNotificationAvailable = false,
   payments = [],
+  view = 'combined',
 } = Astro.props;
 
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
@@ -149,7 +151,7 @@ const conversationError = messageError || responseError;
     <a href={`/admin/bookings/${offer.bookingReference}/`}>Return to the booking conversation</a>
   </div>}
 
-  <BookingConversation
+  {(view === 'combined' || view === 'messages') && <BookingConversation
     messages={messages}
     viewer="booker"
     heading={adminPreview ? `Booker conversation: ${offer.guestName}` : 'Conversation with Olrig Bank'}
@@ -163,33 +165,23 @@ const conversationError = messageError || responseError;
     messageNotice={conversationNotice}
     messageError={conversationError}
     reservationButtonLabel={cancelled ? 'Booking record' : confirmed ? 'Reservation & payments' : paymentReported ? 'Payment verification' : paymentPending ? 'Payment & reservation' : requestPending ? 'Request details' : 'Offer & reservation'}
-  />
+    showReservationButton={view === 'combined'}
+  />}
 
-  {!adminPreview && <section class="customer-booking-card customer-booking-access-card">
-    <div>
-      <p class="eyebrow">Your private booking page</p>
-      <h2>Save this page address</h2>
-      <p>Bookmark this page or keep its address somewhere safe. Messages, offers and later booking changes stay here; email is optional.</p>
-      <p class="customer-booking-security-note">Anyone with this link can view and respond to the booking, so do not share it publicly.</p>
-    </div>
-    <div class="customer-booking-access-actions">
-      <button class="customer-booking-submit" type="button" data-copy-booking-link>Copy page address</button>
-      <button class="customer-booking-submit customer-booking-refresh" type="button" data-refresh-booking-page>Check for updates</button>
-      <span class="customer-booking-copy-status" data-copy-booking-status aria-live="polite"></span>
-    </div>
-  </section>}
-
-  <div class="booking-drawer-backdrop" data-reservation-backdrop></div>
-  <aside class="booking-reservation-drawer" data-reservation-drawer aria-hidden="true" aria-label="Reservation details">
+  {(view === 'combined' || view === 'reservation') && <>
+  {view === 'combined' && <div class="booking-drawer-backdrop" data-reservation-backdrop></div>}
+  <aside class:list={[view === 'combined' ? 'booking-reservation-drawer' : 'customer-reservation-page']} data-reservation-drawer={view === 'combined' ? true : undefined} aria-hidden={view === 'combined' ? 'true' : 'false'} aria-label="Reservation details">
     <header class="booking-reservation-drawer__header">
       <div>
         <p class="eyebrow">Reservation</p>
         <h2>{propertyName}</h2>
       </div>
-      <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>
+      {view === 'combined' && <button type="button" class="booking-drawer-close" data-close-reservation-drawer aria-label="Close reservation details">×</button>}
     </header>
 
     <div class="booking-reservation-drawer__body">
+      {view === 'reservation' && conversationNotice && <div class="booking-conversation__notice is-success" role="status">{conversationNotice}</div>}
+      {view === 'reservation' && conversationError && <div class="booking-conversation__notice is-error" role="alert">{conversationError}</div>}
       <section class="booking-drawer-section booking-drawer-status">
         <div>
           <h3>{statusHeading}</h3>
@@ -200,6 +192,7 @@ const conversationError = messageError || responseError;
 
       <section class="booking-drawer-section">
         <p class="eyebrow">Stay details</p>
+        <h3>Your stay</h3>
         <dl class="customer-booking-details">
           <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
           <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
@@ -424,18 +417,5 @@ const conversationError = messageError || responseError;
 
       <p class="customer-booking-help">Use the conversation as the primary contact method for questions, changes and later amendment requests.</p>
     </div>
-  </aside>
+  </aside></>}
 </section>
-
-<script>
-  document.querySelector<HTMLButtonElement>('[data-copy-booking-link]')?.addEventListener('click', async () => {
-    const status = document.querySelector<HTMLElement>('[data-copy-booking-status]');
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      if (status) status.textContent = 'Page address copied.';
-    } catch {
-      if (status) status.textContent = 'Use your browser address bar to copy this page address.';
-    }
-  });
-  document.querySelector<HTMLButtonElement>('[data-refresh-booking-page]')?.addEventListener('click', () => window.location.reload());
-</script>

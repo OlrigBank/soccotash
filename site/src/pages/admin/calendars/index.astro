@@ -162,7 +162,7 @@ if (bespokeBooking && requestedNights > 0) {
       <label>Departure<input name="departure" type="date" value={addDays(nearestOpenArrival || bespokeBooking.arrival, requestedNights)} readonly required /></label>
       <button class="admin-button" type="submit">Suggest dates and return to booking</button>
     </form>
-    <a class="admin-button admin-button--secondary" href={`/admin/bookings/${bespokeBooking.reference}/?reservation=open`}>Return to booking without changes</a>
+    <a class="admin-button admin-button--secondary" href={`/admin/bookings/${bespokeBooking.reference}/reservation/`}>Return to booking without changes</a>
   </section>}
 
   <section class="admin-panel admin-calendar-controls">

@@ -7,6 +7,8 @@ import pg from 'pg';
 import {
   addPlanDay,
   addPlanItem,
+  addPlanCandidateActivity,
+  addPlanGuideCandidates,
   archiveExamplePlan,
   createExamplePlan,
   createBookingLinkedPlan,
@@ -26,15 +28,18 @@ import {
   listPlanAiCapabilities,
   movePlanDay,
   movePlanItem,
+  movePlanCandidateActivity,
   moderateGuideContribution,
   offerGuideContribution,
   publishExamplePlan,
   removePlanDay,
   removePlanItem,
+  returnPlanItemToCandidates,
   revokePlanParticipant,
   revokePlanAiCapability,
   revokePlanShareLink,
   setPlanItemGuideReference,
+  schedulePlanCandidateActivity,
   updateExamplePlan,
   updateBookingLinkedPlan,
   changePlanParticipantRole,
@@ -390,7 +395,8 @@ test('persists structured plans and makes every mutation an atomic revision', as
     assert.equal(bookingPlan.startsOn, '2026-10-10');
     assert.equal(bookingPlan.endsOn, '2026-10-13');
     assert.equal(bookingPlan.durationDays, 4);
-    assert.equal(bookingPlan.days.length, 0);
+    assert.equal(bookingPlan.days.length, 4);
+    assert.deepEqual(bookingPlan.days.map(day => day.date), ['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-13']);
     assert.equal(bookingPlan.revisions[0].actorType, 'guest');
     assert.equal(bookingPlan.revisions[0].action, 'booking_plan_created');
     assert.equal((await getBookingLinkedPlanByBookingReference(bookingRow.public_id, applicationPool))?.id, bookingPlan.id);
@@ -430,7 +436,7 @@ test('persists structured plans and makes every mutation an atomic revision', as
       actor: { type: 'booker', bookingId: bookingRow.id },
     }, applicationPool);
     assert.equal(copiedBookingPlan.revision, 2);
-    assert.equal(copiedBookingPlan.days.length, 1);
+    assert.equal(copiedBookingPlan.days.length, 4);
     assert.equal(copiedBookingPlan.days[0].date, '2026-10-10');
     assert.notEqual(copiedBookingPlan.days[0].id, publicDay.dayId);
     assert.notEqual(copiedBookingPlan.days[0].items[0].id, publicItem.itemId);
@@ -809,11 +815,52 @@ test('persists structured plans and makes every mutation an atomic revision', as
         WHERE provisional_booking_id = $1 AND event_type = 'holiday_plan_created'`, [adminBooking.rows[0].id],
     );
     assert.deepEqual(adminActivity.rows, [{ actor: 'administrator', admin_user_id: actor.adminUserId }]);
+    const customCandidate = await addPlanCandidateActivity({
+      planId: adminCreatedPlan.id, expectedRevision: 1, title: 'Visit a pottery',
+      description: 'Check opening hours.', sourceUrl: 'https://example.com/pottery', actor,
+    }, applicationPool);
+    const guideCandidate = await addPlanCandidateActivity({
+      planId: adminCreatedPlan.id, expectedRevision: customCandidate.revision,
+      localGuideEntryId: guideIds.fellfoot, actor,
+    }, applicationPool);
+    const categoryCandidates = await addPlanGuideCandidates({
+      planId: adminCreatedPlan.id, expectedRevision: guideCandidate.revision,
+      localGuideEntryIds: [guideIds.fellfoot, guideIds.kendalcastle], actor,
+    }, applicationPool);
+    assert.equal(categoryCandidates.addedCount, 1);
+    assert.equal((await getHolidayPlan(adminCreatedPlan.id, applicationPool))?.candidates.length, 3);
+    await assert.rejects(
+      addPlanGuideCandidates({
+        planId: adminCreatedPlan.id, expectedRevision: categoryCandidates.revision,
+        localGuideEntryIds: [guideIds.fellfoot, guideIds.kendalcastle], actor,
+      }, applicationPool),
+      (error: unknown) => error instanceof PlannerError && error.code === 'VALIDATION_ERROR',
+    );
+    const reorderedRevision = await movePlanCandidateActivity({
+      planId: adminCreatedPlan.id, candidateId: guideCandidate.candidateId,
+      expectedRevision: categoryCandidates.revision, direction: 'up', actor,
+    }, applicationPool);
+    const scheduled = await schedulePlanCandidateActivity({
+      planId: adminCreatedPlan.id, candidateId: customCandidate.candidateId,
+      dayId: adminCreatedPlan.days[0].id, expectedRevision: reorderedRevision, actor,
+    }, applicationPool);
+    const scheduledPlan = await getHolidayPlan(adminCreatedPlan.id, applicationPool);
+    assert.equal(scheduledPlan?.days[0].items[0].sourceUrl, 'https://example.com/pottery');
+    assert.equal(scheduledPlan?.candidates.length, 2);
+    const returned = await returnPlanItemToCandidates({
+      planId: adminCreatedPlan.id, itemId: scheduled.itemId,
+      expectedRevision: scheduled.revision, actor,
+    }, applicationPool);
+    const returnedPlan = await getHolidayPlan(adminCreatedPlan.id, applicationPool);
+    assert.equal(returnedPlan?.candidates.length, 3);
+    assert.equal(returnedPlan?.candidates.find(candidate => candidate.id === returned.candidateId)?.sourceUrl,
+      'https://example.com/pottery');
+    assert.equal(returnedPlan?.days[0].items.length, 0);
     assert.equal(await unpublishExamplePlan({ planId: publishable.id, expectedRevision: 9, actor }, applicationPool), 10);
     await assert.rejects(
       copyPublishedExampleIntoBookingPlan({
         bookingReference: adminBooking.rows[0].public_id, sourcePlanId: publishable.id,
-        expectedRevision: adminCreatedPlan.revision, actor,
+        expectedRevision: returnedPlan!.revision, actor,
       }, applicationPool),
       (error: unknown) => error instanceof PlannerError && error.code === 'NOT_FOUND',
     );

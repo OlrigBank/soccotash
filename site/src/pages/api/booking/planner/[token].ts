@@ -3,14 +3,16 @@ import QRCode from 'qrcode';
 import { isSameOrigin } from '../../../../lib/admin/auth.ts';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access.ts';
 import {
-  addPlanDay, addPlanItem, changePlanParticipantRole, createPlanAiCapability, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
-  invitePlanParticipant, movePlanDay, movePlanItem, revokePlanAiCapability, revokePlanShareLink,
+  addPlanCandidateActivity, addPlanDay, addPlanGuideCandidates, addPlanItem, changePlanParticipantRole, createPlanAiCapability, createPlanShareLink, getBookingLinkedPlanByBookingReference, getHolidayPlan,
+  getBookingFamilyPlan, invitePlanParticipant, movePlanCandidateActivity, movePlanDay, movePlanItem, placePlanItem, removePlanCandidateActivity, returnPlanItemToCandidates, revokePlanAiCapability, revokePlanShareLink, schedulePlanCandidateActivity,
   offerGuideContribution, removePlanDay, removePlanItem, setPlanItemGuideReference, updateBookingLinkedPlan,
   updatePlanDay, updatePlanItem, revokePlanParticipant, withdrawGuideContribution,
 } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
+import { getCategoryById, getDescendantCategoryIds } from '../../../../lib/navigation.ts';
+import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
 
 export const prerender = false;
 type Input = Record<string, unknown>;
@@ -21,7 +23,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!isSameOrigin(request)) return Response.json({ error: 'Cross-site request forbidden.' }, { status: 403 });
   const access = await resolveBookingAccessCredential(text(params.token), { recordUse: true, recordDenied: true });
   if (!access.allowed) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
-  const plan = await getBookingLinkedPlanByBookingReference(access.reference);
+  const requestedPlan=new URL(request.url).searchParams.get('plan');
+  const plan = requestedPlan?await getBookingFamilyPlan(access.reference,requestedPlan):await getBookingLinkedPlanByBookingReference(access.reference);
   if (!plan) return Response.json({ error: 'Holiday plan not found.' }, { status: 404 });
   const input = await request.json().catch(() => null) as Input | null;
   if (!input) return Response.json({ error: 'A valid JSON request is required.' }, { status: 400 });
@@ -40,6 +43,27 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'addItem': {
         result=await addPlanItem({ ...item(input),planId:plan.id,dayId:text(input.dayId),expectedRevision,localGuideEntryId:nullable(input.localGuideEntryId),actor }); break;
       }
+      case 'addCandidate': result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),actor});break;
+      case 'addGuideCategoryCandidates': {
+        const categoryId = text(input.categoryId);
+        if (!getCategoryById(categoryId) || categoryId === 'home') {
+          throw new PlannerError('VALIDATION_ERROR', 'The selected Local Guide category is unavailable.');
+        }
+        const categoryIds = new Set([categoryId, ...getDescendantCategoryIds(categoryId)]);
+        const guideIds = (await getPlannerGuideEntries())
+          .filter((guide) => categoryIds.has(guide.category))
+          .map((guide) => guide.id);
+        result = await addPlanGuideCandidates({
+          planId: plan.id, expectedRevision, localGuideEntryIds: guideIds, actor,
+        });
+        break;
+      }
+      case 'moveCandidate':
+        if(!['up','down'].includes(text(input.direction)))throw new PlannerError('VALIDATION_ERROR','Candidate move direction is invalid.');
+        result={revision:await movePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,direction:text(input.direction) as 'up'|'down',actor})};break;
+      case 'removeCandidate': result={revision:await removePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),expectedRevision,actor})};break;
+      case 'scheduleCandidate': result=await schedulePlanCandidateActivity({planId:plan.id,candidateId:text(input.candidateId),dayId:text(input.dayId),expectedRevision,actor});break;
+      case 'returnItemToCandidates': result=await returnPlanItemToCandidates({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor});break;
       case 'updateItem': result={revision:await updatePlanItem({...item(input),planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
       case 'removeItem': result={revision:await removePlanItem({planId:plan.id,itemId:text(input.itemId),expectedRevision,actor})}; break;
       case 'setGuideReference': {
@@ -48,6 +72,9 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'moveItem':
         if(!['up','down','end'].includes(text(input.position))) throw new PlannerError('VALIDATION_ERROR','Item position is invalid.');
         result={revision:await movePlanItem({planId:plan.id,itemId:text(input.itemId),targetDayId:text(input.targetDayId),expectedRevision,position:text(input.position) as 'up'|'down'|'end',actor})}; break;
+      case 'placeItem':
+        if(!['before','after'].includes(text(input.placement)))throw new PlannerError('VALIDATION_ERROR','Item placement is invalid.');
+        result={revision:await placePlanItem({planId:plan.id,itemId:text(input.itemId),relativeItemId:text(input.relativeItemId),placement:text(input.placement) as 'before'|'after',expectedRevision,actor})};break;
       case 'inviteParticipant': result=await invitePlanParticipant({planId:plan.id,expectedRevision,displayName:text(input.displayName),email:text(input.email),role:text(input.role) as any,actor}); break;
       case 'changeParticipantRole': result={revision:await changePlanParticipantRole({planId:plan.id,participantId:text(input.participantId),expectedRevision,role:text(input.role) as any,actor})}; break;
       case 'revokeParticipant': result={revision:await revokePlanParticipant({planId:plan.id,participantId:text(input.participantId),expectedRevision,actor})}; break;
@@ -76,4 +103,4 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 };
 
-function item(input:Input){return {title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),status:text(input.status) as any,reservationNote:nullable(input.reservationNote),visibility:'participants' as const};}
+function item(input:Input){return {title:text(input.title),description:text(input.description),itemType:text(input.itemType) as any,startTime:nullable(input.startTime),endTime:nullable(input.endTime),locationText:nullable(input.locationText),sourceUrl:nullable(input.sourceUrl),status:text(input.status) as any,reservationNote:nullable(input.reservationNote),visibility:'participants' as const};}

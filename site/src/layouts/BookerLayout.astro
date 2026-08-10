@@ -1,0 +1,42 @@
+---
+import Analytics from '../components/Analytics.astro';
+import '../styles/global.css';
+
+const {
+  title = 'Your booking',
+  description = 'Your private booking page.',
+  robots = 'noindex,nofollow,noarchive',
+  analytics = true,
+  showHeader = true,
+} = Astro.props;
+const currentYear = new Date().getFullYear();
+---
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f7f3ec" />
+    <meta name="robots" content={robots} />
+    <title>{title} | Private booking</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {analytics && <Analytics />}
+  </head>
+  <body class="booker-area">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="booker-shell">
+      <header class="booker-header" hidden={!showHeader}>
+        <div class="booker-header__inner">
+          <a class="booker-brand" href={Astro.url.pathname.match(/^\/booking\/manage\/[^/]+/)?.[0] + '/'} aria-label="Your booking home">
+            <span class="brand-mark" aria-hidden="true">OB</span>
+            <span><small>Private area</small><strong>Your booking</strong></span>
+          </a>
+          <a class="booker-public-link" href="/" target="_blank" rel="noopener noreferrer">Visit Olrig Bank website <span aria-hidden="true">↗</span></a>
+        </div>
+      </header>
+      <main id="main-content" tabindex="-1"><slot /></main>
+      <footer class="booker-footer"><p>Private booking service · © {currentYear} Olrig Bank</p></footer>
+    </div>
+  </body>
+</html>

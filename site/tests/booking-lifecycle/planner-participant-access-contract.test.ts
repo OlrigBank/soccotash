@@ -18,7 +18,8 @@ test('planner participant invitations and role boundaries remain private and ser
   assert.match(access, /createHash\('sha256'\)/, 'participant tokens must be hashed before lookup');
   assert.doesNotMatch(repository, /INSERT INTO plan_participants[\s\S]{0,500}access_token[^_]/, 'the raw token must not be inserted');
   assert.match(repository, /role <> 'owner'/, 'the sole owner cannot be changed or revoked through invitation actions');
-  assert.match(ownerPage, /It will not be shown again/, 'the one-time invitation credential needs a clear handoff');
+  assert.doesNotMatch(ownerPage, /It will not be shown again/, 'advanced invitation controls are intentionally inactive in the focused Booker view');
+  assert.match(repository, /invitePlanParticipant/, 'the preserved invitation service remains available for later reactivation');
   assert.match(participantPage, /private, no-store/, 'participant workspaces must not be cached');
   assert.match(participantPage, /noindex,nofollow,noarchive/, 'participant workspaces must not be indexed');
   assert.match(participantApi, /access\.role==='viewer'/, 'viewer mutation denial must be server-side');

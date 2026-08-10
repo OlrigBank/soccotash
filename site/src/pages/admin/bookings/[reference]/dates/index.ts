@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ params, request, locals, redirect }) => {
     if (result === 'duration_mismatch') return redirect(`${calendarReturn}&result=duration-mismatch`, 303);
     if (result !== 'updated') return redirect(`${calendarReturn}&result=booking-stale`, 303);
     await audit(locals.adminUser!.id, 'booking.bespoke_dates_suggested', { bookingReference: reference, arrival, departure });
-    return redirect(`/admin/bookings/${reference}/?reservation=open&dates=suggested`, 303);
+    return redirect(`/admin/bookings/${reference}/reservation/?dates=suggested`, 303);
   } catch (error) {
     console.error('Bespoke date update failed', error);
     return redirect(`${calendarReturn}&result=date-update-failed`, 303);

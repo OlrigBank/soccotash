@@ -1,0 +1,32 @@
+---
+import LocalGuideTreeBranch from './LocalGuideTreeBranch.astro';
+import type { LocalGuideTreeNode } from '../lib/local-guide/tree.ts';
+
+interface Props { nodes: LocalGuideTreeNode[]; plannerMode?: boolean; storageKey?: string; }
+const { nodes, plannerMode = false, storageKey = 'olrig-bank:local-guide:disclosures:v1' } = Astro.props;
+---
+
+<div class:list={['local-guide-tree', plannerMode && 'local-guide-tree--planner']} data-local-guide-tree data-local-guide-storage-key={storageKey}>
+  <ul>{nodes.map((node) => <LocalGuideTreeBranch node={node} depth={0} plannerMode={plannerMode} />)}</ul>
+</div>
+
+<script>
+  for (const tree of document.querySelectorAll<HTMLElement>('[data-local-guide-tree]')) {
+    const storageKey = tree.dataset.localGuideStorageKey ?? 'olrig-bank:local-guide:disclosures:v1';
+    const disclosures = [...tree.querySelectorAll<HTMLDetailsElement>('details[data-local-guide-category]')];
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]');
+      if (Array.isArray(stored)) {
+        const openIds = new Set(stored.filter((value): value is string => typeof value === 'string'));
+        for (const disclosure of disclosures) disclosure.open = openIds.has(disclosure.dataset.localGuideCategory ?? '');
+      }
+    } catch {
+      sessionStorage.removeItem(storageKey);
+    }
+    const remember = () => {
+      const openIds = disclosures.filter((disclosure) => disclosure.open).map((disclosure) => disclosure.dataset.localGuideCategory);
+      try { sessionStorage.setItem(storageKey, JSON.stringify(openIds)); } catch { /* Native disclosures remain fully usable. */ }
+    };
+    for (const disclosure of disclosures) disclosure.addEventListener('toggle', remember);
+  }
+</script>

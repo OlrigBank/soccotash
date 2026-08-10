@@ -1,0 +1,11 @@
+---
+export const prerender = false;
+const workspace = String(Astro.params.workspace || '');
+if (!['reservation', 'messages', 'planner', 'cancel', 'delete', 'history'].includes(workspace)) {
+  return new Response('Booking workspace not found.', { status: 404 });
+}
+const target = new URL(`/admin/bookings/${Astro.params.reference}/`, Astro.url);
+for (const [key, value] of Astro.url.searchParams) target.searchParams.append(key, value);
+target.searchParams.set('workspace', workspace);
+return Astro.rewrite(target);
+---

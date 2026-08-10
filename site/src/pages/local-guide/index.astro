@@ -1,23 +1,16 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import OfferingCard from '../../components/OfferingCard.astro';
+import LocalGuideTree from '../../components/LocalGuideTree.astro';
 import { getLocalGuideEntries } from '../../lib/content';
-import { getDescendantCategoryIds, getLocalGuideCategories } from '../../lib/navigation';
+import { getLocalGuideCategories } from '../../lib/navigation';
+import { buildLocalGuideTree } from '../../lib/local-guide/tree.ts';
 import { listPublishedExamplePlans } from '../../lib/planner/repository.ts';
 
 const entries = await getLocalGuideEntries();
 const examplePlans = await listPublishedExamplePlans();
 Astro.response.headers.set('Cache-Control', 'no-store');
-const categories = getLocalGuideCategories().filter((category) => category.parent === 'home');
+const tree = buildLocalGuideTree(getLocalGuideCategories(), entries);
 
-function countForCategory(categoryId: string) {
-  const ids = new Set([categoryId, ...getDescendantCategoryIds(categoryId)]);
-  return entries.filter((entry) => ids.has(entry.data.category || '')).length;
-}
-
-function recommendationLabel(count: number) {
-  return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`;
-}
 ---
 
 <BaseLayout title="Local Guide" description="Local recommendations near Olrig Bank and Kendal.">
@@ -26,24 +19,9 @@ function recommendationLabel(count: number) {
     <p>Ideas for eating out, walks, activities, events and days out from Olrig Bank.</p>
   </section>
 
-  <section class="prose category-section">
-    <h2>Browse by category</h2>
-    <div class="grid">
-      {categories.map((category) => {
-        const count = countForCategory(category.id);
-        return (
-          <article class="card category-card">
-            <a class="card-link" href={`/local-guide/${category.id}/`}>
-              <div class="card-content">
-                <h3>{category.label}</h3>
-                {category.description ? <p>{category.description}</p> : null}
-                <p class="category-count">{recommendationLabel(count)}</p>
-              </div>
-            </a>
-          </article>
-        );
-      })}
-    </div>
+  <section class="section-block local-guide-browser" aria-labelledby="local-guide-browser-heading">
+    <div class="section-heading"><h2 id="local-guide-browser-heading">Browse the guide</h2><p>Open any folders that interest you. They stay open until you close them.</p></div>
+    {tree.length > 0 ? <LocalGuideTree nodes={tree} /> : <div class="prose"><p>No recommendations are currently published.</p></div>}
   </section>
 
   {examplePlans.length > 0 && <section class="section-block" aria-labelledby="example-plans-heading">
@@ -51,13 +29,4 @@ function recommendationLabel(count: number) {
     <div class="grid">{examplePlans.map((plan) => <article class="card"><a class="card-link" href={`/holiday-plans/${plan.publicSlug}/`}><div class="card-content"><h3>{plan.title}</h3><p>{plan.description}</p><p class="category-count">{plan.dayCount} {plan.dayCount === 1 ? 'day' : 'days'}</p></div></a></article>)}</div>
   </section>}
 
-  <section class="section-block">
-    <div class="section-heading">
-      <h2>All recommendations</h2>
-      <p>{recommendationLabel(entries.length)} in the guide.</p>
-    </div>
-    <div class="grid">
-      {entries.map((entry) => <OfferingCard entry={entry} />)}
-    </div>
-  </section>
 </BaseLayout>
