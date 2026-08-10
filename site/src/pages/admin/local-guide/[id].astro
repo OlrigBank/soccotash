@@ -1,11 +1,11 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getLocalGuideEntry,listLocalGuideRevisions } from '../../../lib/local-guide/repository.ts';
-import { getLocalGuideCategories } from '../../../lib/navigation.ts';
+import { listWorkingLocalGuideCategories } from '../../../lib/local-guide/workspace.ts';
 import { renderSafeLocalGuideMarkdown } from '../../../lib/local-guide/markdown.ts';
 export const prerender=false;
 const entry=await getLocalGuideEntry(Astro.params.id??''); if(!entry)return Astro.redirect('/admin/local-guide/');
-const revisions=await listLocalGuideRevisions(entry.id);const working=entry.workingRevision!;const archived=entry.status==='archived';const categories=getLocalGuideCategories();const preview=renderSafeLocalGuideMarkdown(working.markdownBody);
+const revisions=await listLocalGuideRevisions(entry.id);const working=entry.workingRevision!;const archived=entry.status==='archived';const categories=await listWorkingLocalGuideCategories();const preview=renderSafeLocalGuideMarkdown(working.markdownBody);
 const hasUnpublishedChanges=entry.workingRevisionId!==entry.publishedRevisionId;
 ---
 <AdminLayout title={working.title}>
@@ -26,7 +26,7 @@ const hasUnpublishedChanges=entry.workingRevisionId!==entry.publishedRevisionId;
  {!archived&&<section class="admin-panel"><h2>Publication</h2>{hasUnpublishedChanges&&entry.status==='published'&&<div class="admin-alert">The working revision contains unpublished changes. The public page still shows the previously published revision.</div>}<details><summary>Advanced URL settings</summary><p>Titles can change without changing this URL. Changing it creates a permanent redirect from the previous URL.</p><form id="slug-guide" class="planner-form"><label>Public URL slug<input name="slug" value={entry.slug}/></label><button class="admin-button admin-button--secondary">Change public URL</button></form></details><div class="planner-form-actions">{(entry.status!=='published'||hasUnpublishedChanges)&&<button class="admin-button" data-action="publish">Publish working revision</button>}{entry.status==='published'&&<button class="admin-button admin-button--secondary" data-action="unpublish">Unpublish current entry</button>}<button class="admin-button admin-button--danger" data-action="archive">Archive entry</button></div></section>}
  <section class="admin-panel"><h2>Revision history</h2><ol>{revisions.map(r=><li><strong>Revision {r.revisionNumber}: {r.title}</strong> · {r.action} · {new Date(r.createdAt).toLocaleString('en-GB')} {r.id!==working.id&&!archived&&<button class="admin-button admin-button--secondary" data-restore={r.id}>Restore as new revision</button>}<details><summary>Compare content</summary><pre>{JSON.stringify({title:r.title,summary:r.summary,category:r.categoryId,image:r.imagePath,externalLink:r.externalLink,recommended:r.recommended,markdown:r.markdownBody},null,2)}</pre></details></li>)}</ol></section>
 </AdminLayout>
-<script define:vars={{entryId:entry.id,initialVersion:entry.lockVersion}}>
+<script is:inline define:vars={{entryId:entry.id,initialVersion:entry.lockVersion}}>
 let expectedVersion=initialVersion;
 const m=document.querySelector('#guide-message');
 async function act(body){const r=await fetch('/api/admin/local-guide/action/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entryId,expectedVersion,...body})});const d=await r.json();if(!r.ok){if(m instanceof HTMLElement){m.hidden=false;m.textContent=d.code==='STALE_VERSION'?`${d.error} Current version: ${d.currentVersion}. Reload to recover.`:d.error;m.className='admin-alert admin-alert--error'}return null}return d.entry}

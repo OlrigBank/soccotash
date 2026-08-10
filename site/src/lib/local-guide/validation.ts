@@ -1,4 +1,3 @@
-import { getLocalGuideCategories } from '../navigation.ts';
 import { LocalGuideError, type LocalGuideActor, type LocalGuideContentInput } from './types.ts';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -25,9 +24,6 @@ export function validateAdminActor(actor: LocalGuideActor): LocalGuideActor {
 export function validateSlug(value: string): string {
   const slug = text(value, 'Slug', 200, true).toLowerCase();
   if (!slugPattern.test(slug)) throw new LocalGuideError('VALIDATION_ERROR', 'Slug is invalid.');
-  if (getLocalGuideCategories().some((category) => category.id.toLowerCase() === slug)) {
-    throw new LocalGuideError('SLUG_CONFLICT', 'Slug conflicts with a Local Guide category route.');
-  }
   return slug;
 }
 
@@ -51,9 +47,6 @@ export function validateContent(input: LocalGuideContentInput): Required<Omit<Lo
   categoryLabel: string | null; imagePath: string | null; externalLink: string | null; legacyText: string | null;
 } {
   const categoryId = text(input.categoryId, 'Category', 200, true);
-  if (!getLocalGuideCategories().some((category) => category.id === categoryId)) {
-    throw new LocalGuideError('VALIDATION_ERROR', 'Category is not application-managed.');
-  }
   const imagePath = text(input.imagePath, 'Image path', 1000) || null;
   if (imagePath && !(imagePath.startsWith('/') || /^https:\/\//i.test(imagePath))) {
     throw new LocalGuideError('VALIDATION_ERROR', 'Image path must be root-relative or use HTTPS.');

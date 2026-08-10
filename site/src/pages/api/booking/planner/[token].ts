@@ -11,7 +11,7 @@ import {
 import { PlannerError } from '../../../../lib/planner/types.ts';
 import { acceptAiProposal, getAiProposal, rejectAiProposal } from '../../../../lib/planner/ai-proposals.ts';
 import { validateAiProposalDecision } from '../../../../lib/planner/ai-proposal-decisions.ts';
-import { getCategoryById, getDescendantCategoryIds } from '../../../../lib/navigation.ts';
+import { listPublishedLocalGuideCategories } from '../../../../lib/local-guide/workspace.ts';
 import { getPlannerGuideEntries } from '../../../../lib/planner/local-guide.ts';
 
 export const prerender = false;
@@ -46,10 +46,11 @@ export const POST: APIRoute = async ({ params, request }) => {
       case 'addCandidate': result=await addPlanCandidateActivity({planId:plan.id,expectedRevision,title:text(input.title),description:text(input.description),sourceUrl:nullable(input.sourceUrl),localGuideEntryId:nullable(input.localGuideEntryId),retainForGuide:input.retainForGuide===true,actor});break;
       case 'addGuideCategoryCandidates': {
         const categoryId = text(input.categoryId);
-        if (!getCategoryById(categoryId) || categoryId === 'home') {
+        const categories=await listPublishedLocalGuideCategories();const category=categories.find(item=>item.id===categoryId);
+        if (!category || categoryId === 'home') {
           throw new PlannerError('VALIDATION_ERROR', 'The selected Local Guide category is unavailable.');
         }
-        const categoryIds = new Set([categoryId, ...getDescendantCategoryIds(categoryId)]);
+        const descendants:string[]=[];const visit=(parent:string)=>{for(const item of categories.filter(candidate=>candidate.parent===parent)){descendants.push(item.id);visit(item.id)}};visit(categoryId);const categoryIds = new Set([categoryId,...descendants]);
         const guideIds = (await getPlannerGuideEntries())
           .filter((guide) => categoryIds.has(guide.category))
           .map((guide) => guide.id);

@@ -2,24 +2,26 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import OfferingCard from '../../components/OfferingCard.astro';
 import { entrySummary, getEntriesForCategory, type LocalGuideEntry } from '../../lib/content';
-import { getCategoryById, getChildCategories } from '../../lib/navigation';
+import type { NavItem } from '../../lib/navigation';
 import { resolvePublishedLocalGuideSlug } from '../../lib/local-guide/repository.ts';
+import { categoriesAsNavigation,listPublishedLocalGuideCategories } from '../../lib/local-guide/workspace.ts';
 import { renderSafeLocalGuideMarkdown } from '../../lib/local-guide/markdown.ts';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
 
 const slug = Astro.params.slug ?? '';
+const categories=categoriesAsNavigation(await listPublishedLocalGuideCategories());const getCategoryById=(id:string)=>categories.find(category=>category.id===id);const getChildCategories=(id:string)=>categories.filter(category=>category.parent===id);
 const category = getCategoryById(slug);
 let kind: 'category' | 'entry' = category && category.id !== 'home' ? 'category' : 'entry';
 let title = '';
 let description = '';
 let categoryEntries: LocalGuideEntry[] = [];
-let childCategories: ReturnType<typeof getChildCategories> = [];
+let childCategories: NavItem[] = [];
 let childCounts = new Map<string, number>();
 let entry: LocalGuideEntry | null = null;
 let summary = '';
-let entryCategory: ReturnType<typeof getCategoryById>;
+let entryCategory: NavItem|undefined;
 let bodyHtml = '';
 let notFound = false;
 

@@ -92,6 +92,8 @@ async function addEvent(client: PoolClient, entryId: string, revisionNumber: num
 }
 
 async function insertRevision(client: PoolClient, entryId: string, revisionNumber: number, content: ReturnType<typeof validateContent>, actor: LocalGuideActor, action: string) {
+  const category = await client.query(`SELECT id FROM local_guide_categories WHERE id=$1 AND NOT working_deleted`, [content.categoryId]);
+  if (!category.rowCount) throw new LocalGuideError('VALIDATION_ERROR', 'Category is unavailable in the working draft.');
   return client.query<{ id: string | number }>(
     `INSERT INTO local_guide_revisions
       (local_guide_entry_id, revision_number, title, summary, markdown_body, category_id, category_label,
@@ -168,6 +170,8 @@ export async function createLocalGuideDraft(input: {
 }, database: Database = getPool()): Promise<LocalGuideEntry> {
   const slug = validateSlug(input.slug); const content = validateContent(input.content); const actor = validateAdminActor(input.actor);
   const publicId = await inTransaction(database, async (client) => {
+    const categorySlug = await client.query(`SELECT 1 FROM local_guide_categories WHERE id=$1 AND NOT working_deleted`, [slug]);
+    if (categorySlug.rowCount) throw new LocalGuideError('SLUG_CONFLICT', 'Slug conflicts with a Local Guide category route.');
     const created = await client.query(
       `INSERT INTO local_guide_entries
         (canonical_slug, legacy_content_id, legacy_id, created_by_admin_user_id, updated_by_admin_user_id)
@@ -178,6 +182,7 @@ export async function createLocalGuideDraft(input: {
     const inserted = await insertRevision(client, entryId, 1, content, actor, 'created');
     await client.query(`UPDATE local_guide_entries SET working_revision_id=$2 WHERE id=$1`, [entryId, inserted.rows[0].id]);
     await addEvent(client, entryId, 1, actor, 'created');
+    await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[actor.adminUserId]);
     return created.rows[0].public_id;
   });
   return (await getLocalGuideEntry(publicId, database))!;
@@ -198,6 +203,7 @@ export async function editLocalGuideDraft(input: {
       [entry.id, inserted.rows[0].id, revisionNumber, actor.adminUserId],
     );
     await addEvent(client, String(entry.id), revisionNumber, actor, 'edited');
+    await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[actor.adminUserId]);
   });
   return (await getLocalGuideEntry(input.entryId, database))!;
 }
@@ -242,6 +248,7 @@ export async function archiveLocalGuideEntry(input: { entryId: string; expectedV
        updated_by_admin_user_id=$3, updated_at=NOW() WHERE id=$1`, [entry.id, nextVersion, actor.adminUserId],
     );
     await addEvent(client, String(entry.id), nextVersion, actor, 'archived');
+    await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[actor.adminUserId]);
   });
   return (await getLocalGuideEntry(input.entryId, database))!;
 }
@@ -252,10 +259,13 @@ export async function changeLocalGuideSlug(input: { entryId: string; expectedVer
     const entry = await lockedEntry(client, input.entryId, input.expectedVersion);
     if (entry.status === 'archived') throw new LocalGuideError('INVALID_TRANSITION', 'Archived entries are read-only.');
     if (entry.canonical_slug === slug) throw new LocalGuideError('VALIDATION_ERROR', 'The canonical slug is unchanged.');
+    const categorySlug=await client.query(`SELECT 1 FROM local_guide_categories WHERE id=$1 AND NOT working_deleted`,[slug]);
+    if(categorySlug.rowCount)throw new LocalGuideError('SLUG_CONFLICT','Slug conflicts with a Local Guide category route.');
     const nextVersion = input.expectedVersion + 1;
     await client.query(`UPDATE local_guide_entries SET canonical_slug=$2, lock_version=$3, updated_by_admin_user_id=$4, updated_at=NOW() WHERE id=$1`, [entry.id, slug, nextVersion, actor.adminUserId]);
     await client.query(`INSERT INTO local_guide_slug_aliases (old_slug, local_guide_entry_id, created_by_admin_user_id) VALUES ($1,$2,$3)`, [entry.canonical_slug, entry.id, actor.adminUserId]);
     await addEvent(client, String(entry.id), nextVersion, actor, 'slug_changed', { from: entry.canonical_slug, to: slug });
+    await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[actor.adminUserId]);
   });
   return (await getLocalGuideEntry(input.entryId, database))!;
 }
@@ -284,6 +294,7 @@ export async function restoreLocalGuideRevision(input: {
       [entry.id, inserted.rows[0].id, revisionNumber, actor.adminUserId],
     );
     await addEvent(client, String(entry.id), revisionNumber, actor, 'revision_restored', { sourceRevisionId: String(row.id), sourceRevisionNumber: row.revision_number });
+    await client.query(`UPDATE local_guide_workspace SET lock_version=lock_version+1,updated_by_admin_user_id=$1,updated_at=NOW() WHERE singleton`,[actor.adminUserId]);
   });
   return (await getLocalGuideEntry(input.entryId, database))!;
 }
