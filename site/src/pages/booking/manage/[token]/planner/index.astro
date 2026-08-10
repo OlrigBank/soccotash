@@ -6,7 +6,7 @@ import { resolveGuestPlanSession } from '../../../../../lib/planner/guest-passwo
 import { getBookingFamilyPlan, getBookingLinkedPlanByBookingReference, getHolidayPlan } from '../../../../../lib/planner/repository.ts';
 import { getPlannerGuideEntries } from '../../../../../lib/planner/local-guide.ts';
 import { londonDate, plannerDayLabel, selectPlannerDay } from '../../../../../lib/planner/day-selection.ts';
-import { getLocalGuideCategories } from '../../../../../lib/navigation.ts';
+import { categoriesAsNavigation,listPublishedLocalGuideCategories } from '../../../../../lib/local-guide/workspace.ts';
 import { buildLocalGuideTree } from '../../../../../lib/local-guide/tree.ts';
 
 export const prerender=false;
@@ -21,7 +21,7 @@ const requestedPlan=Astro.url.searchParams.get('plan');
 const plan=participantAccess?await getHolidayPlan(participantAccess.planId):requestedPlan?await getBookingFamilyPlan(bookingReference!,requestedPlan):await getBookingLinkedPlanByBookingReference(bookingReference!);
 if(!plan)return new Response('Holiday plan not found.',{status:404});
 const guides=await getPlannerGuideEntries();
-const guideTree=buildLocalGuideTree(getLocalGuideCategories(),guides.map(guide=>({id:guide.id,slug:guide.slug,title:guide.title,categoryId:guide.category})));
+const guideCategories=await listPublishedLocalGuideCategories();const guideTree=buildLocalGuideTree(categoriesAsNavigation(guideCategories),guides.map(guide=>({id:guide.id,slug:guide.slug,title:guide.title,categoryId:guide.category})));
 const selectedDay=selectPlannerDay(plan.days,Astro.url.searchParams.get('day'));
 const plannerView=Astro.url.searchParams.get('view')==='schedule'?'schedule':'list';
 const plannerHref=(view:'list'|'schedule',dayId=selectedDay?.id)=>`${guestMode?`/planner/guest/${token}/`:`/booking/manage/${token}/planner/`}?${new URLSearchParams({...guestMode&&{guest:'1'},...requestedPlan&&{plan:requestedPlan},...dayId&&{day:dayId},view}).toString()}`;

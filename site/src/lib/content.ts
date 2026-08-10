@@ -1,10 +1,11 @@
-import { getCategoryById, getDescendantCategoryIds } from './navigation';
+import type { NavItem } from './navigation';
 import { listPublishedLocalGuideEntries } from './local-guide/repository.ts';
+import { categoriesAsNavigation,listPublishedLocalGuideCategories } from './local-guide/workspace.ts';
 import type { LocalGuidePublishedEntry } from './local-guide/types.ts';
 
 export type LocalGuideEntry = LocalGuidePublishedEntry & {
   urlSlug: string;
-  categoryInfo: ReturnType<typeof getCategoryById>;
+  categoryInfo: NavItem|undefined;
   data: {
     slug: string;
     title: string;
@@ -30,11 +31,11 @@ const categoryFallbackSummaries: Record<string, string> = {
   festivals: 'A festival or recurring event associated with Kendal.', home: 'Information connected with Olrig Bank.',
 };
 
-function publicEntry(entry: LocalGuidePublishedEntry): LocalGuideEntry {
+function publicEntry(entry: LocalGuidePublishedEntry,categories:NavItem[]): LocalGuideEntry {
   return {
     ...entry,
     urlSlug: entry.slug,
-    categoryInfo: getCategoryById(entry.categoryId),
+    categoryInfo: categories.find(category=>category.id===entry.categoryId),
     data: {
       slug: entry.slug, title: entry.title, summary: entry.summary, category: entry.categoryId,
       categoryLabel: entry.categoryLabel, image: entry.imagePath, externalLink: entry.externalLink,
@@ -44,12 +45,13 @@ function publicEntry(entry: LocalGuidePublishedEntry): LocalGuideEntry {
 }
 
 export async function getLocalGuideEntries() {
-  return (await listPublishedLocalGuideEntries()).map(publicEntry);
+  const [entries,categories]=await Promise.all([listPublishedLocalGuideEntries(),listPublishedLocalGuideCategories()]);const navigation=categoriesAsNavigation(categories);
+  return entries.map(entry=>publicEntry(entry,navigation));
 }
 
 export async function getEntriesForCategory(categoryId: string, includeDescendants = true) {
-  const entries = await getLocalGuideEntries();
-  const categoryIds = new Set([categoryId, ...(includeDescendants ? getDescendantCategoryIds(categoryId) : [])]);
+  const [entries,categories]=await Promise.all([getLocalGuideEntries(),listPublishedLocalGuideCategories()]);const descendants:string[]=[];const visit=(parent:string)=>{for(const category of categories.filter(item=>item.parent===parent)){descendants.push(category.id);visit(category.id)}};if(includeDescendants)visit(categoryId);
+  const categoryIds = new Set([categoryId,...descendants]);
   return entries.filter((entry) => categoryIds.has(entry.categoryId));
 }
 

@@ -10,9 +10,10 @@ test('Local Guide administration uses protected lifecycle actions and optimistic
   assert.match(api,/locals\.adminUser/);
   assert.match(api,/STALE_VERSION/);
   for(const action of ['create','edit','publish','unpublish','archive','slug','restore']) assert.match(api,new RegExp(`case '${action}'`));
-  assert.match(list,/name="status"/); assert.match(list,/name="category"/);
-  assert.match(list,/Advanced URL settings/);
-  assert.match(list,/data-generated-slug/);
+  assert.match(list,/Local Guide draft/); assert.match(list,/local-guide-admin-tree/);
+  assert.match(list,/name="categoryId"/);
+  assert.match(list,/data-entry-dialog/);
+  assert.match(list,/data-publish-guide/);
   assert.match(list,/const slugify=/);
   assert.match(editor,/renderSafeLocalGuideMarkdown/);
   assert.match(editor,/Public entry preview/);
