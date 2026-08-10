@@ -66,7 +66,7 @@ test('cancels an active booking while preserving its record and reason', async (
        )
        VALUES (
          'olrig-bank', CURRENT_DATE + 60, CURRENT_DATE + 63, 2,
-         'Cancellation Integration Test', 'booker@example.com', 'confirmed'
+         'Cancellation Integration Test', 'booker@example.com', 'payment_pending'
        )
        RETURNING id::text, public_id::text, customer_access_token,
                  arrival::text, departure::text`,
@@ -92,6 +92,15 @@ test('cancels an active booking while preserving its record and reason', async (
        ) VALUES ($1, $2, 'deposit', 30000, 'GBP', 'bank_transfer', 'verified', NOW(), NOW()),
                 ($1, $2, 'balance', 90000, 'GBP', 'bank_transfer', 'reported', NOW(), NULL)`,
       [booking.id, offer.rows[0].id],
+    );
+    await applicationPool.query(
+      `INSERT INTO calendar_availability_overrides
+         (property_id, available_on, reason, provisional_booking_id)
+       VALUES
+         ('olrig-bank', $2::date, 'Owned cancellation test night one', $1),
+         ('olrig-bank', $2::date + 1, 'Owned cancellation test night two', $1),
+         ('cottage', $2::date, 'Unrelated override that must remain', NULL)`,
+      [booking.id, booking.arrival],
     );
 
     assert.equal(await cancelBooking(booking.public_id, '   '), 'reason_required');
@@ -123,7 +132,7 @@ test('cancels an active booking while preserving its record and reason', async (
     const activity = await applicationPool.query(
       `SELECT actor, event_type, details
          FROM booking_activity
-        WHERE provisional_booking_id = $1
+        WHERE provisional_booking_id = $1 AND event_type = 'booking_cancelled'
         ORDER BY id`,
       [booking.id],
     );
@@ -133,8 +142,27 @@ test('cancels an active booking while preserving its record and reason', async (
     assert.equal(activity.rows[0].details.reason, reason);
     assert.equal(
       activity.rows[0].details.lifecycleRule,
-      'confirmed.cancel_booking.administrator',
+      'payment_pending.cancel_booking.administrator',
     );
+
+    const remainingOverrides = await applicationPool.query(
+      `SELECT property_id, available_on::text, provisional_booking_id::text
+         FROM calendar_availability_overrides
+        ORDER BY property_id, available_on`,
+    );
+    assert.deepEqual(remainingOverrides.rows, [{
+      property_id: 'cottage',
+      available_on: booking.arrival,
+      provisional_booking_id: null,
+    }], 'cancellation removes every override owned by the booking and preserves unrelated overrides');
+    const overrideActivity = await applicationPool.query(
+      `SELECT details FROM booking_activity
+        WHERE provisional_booking_id = $1
+          AND event_type = 'booking_availability_overrides_restored'`,
+      [booking.id],
+    );
+    assert.equal(overrideActivity.rowCount, 1);
+    assert.equal(overrideActivity.rows[0].details.overrides.length, 2);
 
     const message = await applicationPool.query(
       `SELECT sender_type, sender_name, body, booker_read_at, admin_read_at
@@ -185,7 +213,7 @@ test('cancels an active booking while preserving its record and reason', async (
          property_id, arrival, departure, guests, guest_name, guest_email, status
        ) VALUES (
          'olrig-bank', CURRENT_DATE + 80, CURRENT_DATE + 83, 2,
-         'Atomic Cancellation Test', 'atomic@example.invalid', 'confirmed'
+         'Atomic Cancellation Test', 'atomic@example.invalid', 'payment_pending'
        ) RETURNING id::text, public_id::text`,
     );
     await applicationPool.query(`
@@ -218,7 +246,7 @@ test('cancels an active booking while preserving its record and reason', async (
       [atomic.rows[0].id],
     );
     assert.deepEqual(atomicEvidence.rows[0], {
-      status: 'confirmed',
+      status: 'payment_pending',
       activity_count: 0,
       message_count: 0,
     });
