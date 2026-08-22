@@ -26,7 +26,7 @@ export const POST:APIRoute=async({request,locals})=>{
         if((await getPlannerGuideEntries()).some(entry=>entry.slug===slug))throw new PlannerError('VALIDATION_ERROR','That Local Guide slug already exists.');
       }else throw new PlannerError('VALIDATION_ERROR','Accepted contributions need a valid result type.');
     }
-    return Response.json(await moderateGuideContribution({candidateId:text(input.candidateId),decision:decision as 'accept'|'reject',reviewedTitle:text(input.reviewedTitle),reviewedDescription:text(input.reviewedDescription),reviewedLocationText:nullable(input.reviewedLocationText),reviewedCategoryId:text(input.reviewedCategoryId),resultType:resultType??undefined,resultGuideSlug:resultGuideSlug??undefined,moderationNotes:text(input.moderationNotes),actor}));
+    return Response.json(await moderateGuideContribution({candidateId:text(input.candidateId),decision:decision as 'accept'|'reject',reviewedTitle:text(input.reviewedTitle),reviewedDescription:text(input.reviewedDescription),reviewedLocationText:nullable(input.reviewedLocationText),reviewedSourceUrl:nullable(input.reviewedSourceUrl),reviewedCategoryId:text(input.reviewedCategoryId),resultType:resultType??undefined,resultGuideSlug:resultGuideSlug??undefined,moderationNotes:text(input.moderationNotes),actor}));
   }catch(error){
     if(error instanceof PlannerError)return Response.json({error:error.message,code:error.code},{status:error.code==='NOT_FOUND'?404:400});
     console.error('Guide contribution moderation failed',{candidateId:text(input.candidateId),decision:text(input.decision),adminUserId:actor.adminUserId});

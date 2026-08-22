@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'yaml';
 
@@ -35,6 +35,26 @@ export type LocalGuideBaseline = {
 };
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const sha256Pattern = /^[a-f0-9]{64}$/;
+
+export function validateRetiredLocalGuideBaseline(value: unknown): LocalGuideBaseline {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Retired Local Guide baseline must be an object.');
+  const baseline = value as Partial<LocalGuideBaseline>;
+  if (baseline.version !== 1 || !Number.isInteger(baseline.entryCount) || !Array.isArray(baseline.entries)) {
+    throw new Error('Retired Local Guide baseline has an invalid version or entry count.');
+  }
+  if (baseline.entries.length !== baseline.entryCount) throw new Error('Retired Local Guide baseline entry count is inconsistent.');
+  const slugs = new Set<string>();
+  for (const entry of baseline.entries) {
+    if (!entry || typeof entry !== 'object' || !slugPattern.test(entry.slug) || !sha256Pattern.test(entry.bodySha256)) {
+      throw new Error('Retired Local Guide baseline contains an invalid entry.');
+    }
+    const slug = entry.slug.toLocaleLowerCase('en-GB');
+    if (slugs.has(slug)) throw new Error(`Retired Local Guide baseline duplicates slug ${entry.slug}.`);
+    slugs.add(slug);
+  }
+  return baseline as LocalGuideBaseline;
+}
 
 function requiredString(value: unknown, field: string, filename: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${filename}: ${field} is required.`);
@@ -114,13 +134,25 @@ export async function buildLocalGuideBaseline(siteRoot = process.cwd()): Promise
 async function main() {
   const siteRoot = process.cwd();
   const outputPath = path.join(siteRoot, 'src', 'data', 'local-guide-baseline.json');
-  const generated = `${JSON.stringify(await buildLocalGuideBaseline(siteRoot), null, 2)}\n`;
   if (process.argv.includes('--check')) {
+    const contentDirectory = path.join(siteRoot, 'src', 'content', 'local-guide');
+    const sourceRetired = await access(contentDirectory).then(() => false).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return true;
+      throw error;
+    });
+    if (sourceRetired) {
+      const existing = await readFile(outputPath, 'utf8');
+      const baseline = validateRetiredLocalGuideBaseline(JSON.parse(existing));
+      console.log(`Local Guide Markdown is retired; committed baseline evidence is valid for ${baseline.entryCount} entries.`);
+      return;
+    }
+    const generated = `${JSON.stringify(await buildLocalGuideBaseline(siteRoot), null, 2)}\n`;
     const existing = await readFile(outputPath, 'utf8').catch(() => '');
     if (existing !== generated) throw new Error('Local Guide baseline is stale. Run npm run generate:local-guide-baseline.');
     console.log('Local Guide baseline is current.');
     return;
   }
+  const generated = `${JSON.stringify(await buildLocalGuideBaseline(siteRoot), null, 2)}\n`;
   await writeFile(outputPath, generated, 'utf8');
   console.log(`Wrote ${outputPath}.`);
 }
