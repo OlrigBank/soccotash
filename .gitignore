@@ -42,3 +42,4 @@ backups/
 
 # Local Airbnb calendar snapshots may contain reservation metadata.
 airbnb-*.ics
+/docs/source-material/oddsods/

@@ -115,6 +115,7 @@ export type GuideContributionCandidate = {
   offeredTitle: string;
   offeredDescription: string;
   offeredLocationText: string | null;
+  offeredSourceUrl: string | null;
   attributionPermitted: boolean;
   attributionName: string | null;
   status: 'pending' | 'withdrawn' | 'under_review' | 'accepted' | 'rejected';
@@ -128,6 +129,7 @@ export type GuideContributionModerationCandidate = GuideContributionCandidate & 
   reviewedTitle: string | null;
   reviewedDescription: string | null;
   reviewedLocationText: string | null;
+  reviewedSourceUrl: string | null;
   resultType: 'new_entry_draft' | 'suggested_update' | null;
   resultGuideSlug: string | null;
   reviewedCategoryId: string | null;
