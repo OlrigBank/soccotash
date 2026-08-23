@@ -14,13 +14,12 @@ test('collaborative activity and stale-write recovery remain visible without exp
   ]);
   assert.match(repository, /participant\.display_name/, 'activity must resolve invited participant identity');
   assert.match(repository, /owner\.display_name/, 'Booker activity must resolve the owner identity');
-  for (const page of [participantPage]) {
+  for (const page of [bookerPage, participantPage]) {
     assert.match(page, /Recent activity/, 'authorized workspaces need visible recent activity');
     assert.match(page, /slice\(-10\)\.reverse\(\)/, 'recent activity must be bounded and newest first');
     assert.match(page, /data-planner-conflict/, 'stale writes need a visible conflict alert');
     assert.match(page, /Reload latest plan/, 'conflicts need an explicit keyboard-operable recovery');
   }
-  assert.doesNotMatch(bookerPage, /Recent activity/, 'advanced activity history is intentionally inactive in the focused Booker view');
   assert.match(bookerPage, /data-planner-conflict/, 'Booker stale writes still need a visible conflict alert');
   assert.match(bookerPage, /Reload latest plan/, 'Booker conflicts still need explicit recovery');
   for (const api of [bookerApi, participantApi]) {
