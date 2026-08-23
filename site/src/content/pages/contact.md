@@ -12,7 +12,7 @@ To ask about availability or discuss a possible stay, please contact **Jenna**. 
 
 - Your preferred dates
 - The number of guests
-- Whether you are interested in Olrig Bank, Olrig Bank Max, or The Cottage at Olrig Bank independently
+- Whether you are interested in [Olrig Bank](/listings/main-house/), [Olrig Bank Max](/listings/event/), or [The Cottage at Olrig Bank](/listings/cottage/) independently
 - Any particular requirements for the visit
 
 ## Contact Jenna
