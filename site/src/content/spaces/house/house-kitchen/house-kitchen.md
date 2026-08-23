@@ -3,7 +3,7 @@ title: House Kitchen
 slug: house-kitchen
 spaceGroup: house
 spaceType: kitchen
-summary: Kitchen space for preparing meals during a stay in the main house.
+summary: Kitchen space for preparing meals during a stay at Olrig Bank.
 image: /media/images/spaces/house/house-kitchen/house-kitchen-1.jpeg
 gallery:
   - /media/images/spaces/house/house-kitchen/house-kitchen-2.jpeg

@@ -2,6 +2,9 @@ name: Bespoke booking browser regression
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - development
   push:
     branches:
       - live-smoke-test

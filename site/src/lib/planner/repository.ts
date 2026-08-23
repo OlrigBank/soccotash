@@ -764,8 +764,8 @@ export async function addPlanCandidateActivity(input: {
        VALUES($1,$2,$3,$4,$5,COALESCE((SELECT max(position)+10 FROM plan_candidate_activities WHERE holiday_plan_id=$1),10),$6,$6,$7,CASE WHEN $5::bigint IS NULL THEN NOW() ELSE NULL END)
        RETURNING id,public_id::text`, [internalId,title,description,sourceUrl,guide?.internalId??null,actorAdminUserId(input.actor),guide?false:input.retainForGuide===false]);
     if(!guide&&input.actor.type!=='administrator'&&input.retainForGuide===true){const submitter=await contributionSubmitter(client,internalId,input.actor);
-      await client.query(`INSERT INTO guide_contribution_candidates(holiday_plan_id,plan_candidate_activity_id,submitted_by_participant_id,offered_title,offered_description,consent_version,consent_statement,attribution_permitted)
-        VALUES($1,$2,$3,$4,$5,'local-guide-candidate-retention-v2','This custom activity may be retained privately for possible Local Guide review unless I opt out.',FALSE)`,[internalId,created.rows[0].id,submitter.id,title,description]);}
+      await client.query(`INSERT INTO guide_contribution_candidates(holiday_plan_id,plan_candidate_activity_id,submitted_by_participant_id,offered_title,offered_description,offered_source_url,consent_version,consent_statement,attribution_permitted)
+        VALUES($1,$2,$3,$4,$5,$6,'local-guide-candidate-retention-v2','This custom activity may be retained privately for possible Local Guide review unless I opt out.',FALSE)`,[internalId,created.rows[0].id,submitter.id,title,description,sourceUrl]);}
     return { value: created.rows[0].public_id, action: 'candidate_activity_added',
       summary: `Added candidate activity “${title}”.`, changes: { candidateId: created.rows[0].public_id, localGuideEntryId: input.localGuideEntryId ?? null } };
   });
@@ -1118,8 +1118,8 @@ export async function offerGuideContribution(input: {
   try {
     const result = await mutatePlan(database, input.planId, input.expectedRevision, input.actor, async ({ client, internalId }) => {
       const submitter = await contributionSubmitter(client, internalId, input.actor);
-      const item = await client.query<{ id: string | number; title: string }>(
-        `SELECT i.id, i.title FROM plan_items i
+      const item = await client.query<{ id: string | number; title: string; source_url: string | null }>(
+        `SELECT i.id, i.title, i.source_url FROM plan_items i
           JOIN plan_days d ON d.id = i.plan_day_id
          WHERE i.public_id = $1::uuid AND d.holiday_plan_id = $2 AND i.local_guide_entry_id IS NULL
            AND EXISTS (
@@ -1135,12 +1135,12 @@ export async function offerGuideContribution(input: {
       const created = await client.query<{ public_id: string }>(
         `INSERT INTO guide_contribution_candidates
            (holiday_plan_id, plan_item_id, submitted_by_participant_id, offered_title,
-            offered_description, offered_location_text, consent_version, consent_statement,
+            offered_description, offered_location_text, offered_source_url, consent_version, consent_statement,
             attribution_permitted, attribution_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING public_id::text`,
         [internalId, item.rows[0].id, submitter.id, offeredTitle, offeredDescription,
-          offeredLocationText, GUIDE_CONTRIBUTION_CONSENT_VERSION, GUIDE_CONTRIBUTION_CONSENT_STATEMENT, input.attributionPermitted,
+          offeredLocationText, item.rows[0].source_url, GUIDE_CONTRIBUTION_CONSENT_VERSION, GUIDE_CONTRIBUTION_CONSENT_STATEMENT, input.attributionPermitted,
           input.attributionPermitted ? submitter.displayName : null],
       );
       return {
@@ -1185,7 +1185,7 @@ export async function listGuideContributions(
   const result = await database.query<any>(
     `SELECT c.public_id::text, i.public_id::text AS item_id,
             c.submitted_by_participant_id::text, pp.display_name AS submitted_by_name,
-            c.offered_title, c.offered_description, c.offered_location_text,
+            c.offered_title, c.offered_description, c.offered_location_text, c.offered_source_url,
             c.attribution_permitted, c.attribution_name, c.status, c.consented_at, c.withdrawn_at
        FROM guide_contribution_candidates c
        JOIN holiday_plans hp ON hp.id = c.holiday_plan_id
@@ -1198,6 +1198,7 @@ export async function listGuideContributions(
     id: row.public_id, itemId: row.item_id, submittedByParticipantId: row.submitted_by_participant_id,
     submittedByName: row.submitted_by_name, offeredTitle: row.offered_title,
     offeredDescription: row.offered_description, offeredLocationText: row.offered_location_text,
+    offeredSourceUrl: row.offered_source_url,
     attributionPermitted: row.attribution_permitted, attributionName: row.attribution_name,
     status: row.status, consentedAt: iso(row.consented_at), withdrawnAt: row.withdrawn_at ? iso(row.withdrawn_at) : null,
   }));
@@ -1209,10 +1210,10 @@ export async function listGuideContributionModerationQueue(
   const result = await database.query<any>(
     `SELECT c.public_id::text, i.public_id::text AS item_id,
             c.submitted_by_participant_id::text, pp.display_name AS submitted_by_name,
-            c.offered_title, c.offered_description, c.offered_location_text,
+            c.offered_title, c.offered_description, c.offered_location_text, c.offered_source_url,
             c.consent_version, c.consent_statement, c.attribution_permitted, c.attribution_name,
             c.status, c.consented_at, c.withdrawn_at, c.reviewed_title, c.reviewed_description,
-            c.reviewed_location_text, c.reviewed_category_id, c.result_type, c.result_guide_slug, c.moderation_notes,
+            c.reviewed_location_text, c.reviewed_source_url, c.reviewed_category_id, c.result_type, c.result_guide_slug, c.moderation_notes,
             result_entry.public_id::text AS result_entry_id, c.result_local_guide_revision_id::text,
             au.display_name AS reviewed_by_name, c.reviewed_at
        FROM guide_contribution_candidates c
@@ -1226,11 +1227,12 @@ export async function listGuideContributionModerationQueue(
     id: row.public_id, itemId: row.item_id, submittedByParticipantId: row.submitted_by_participant_id,
     submittedByName: row.submitted_by_name, offeredTitle: row.offered_title,
     offeredDescription: row.offered_description, offeredLocationText: row.offered_location_text,
+    offeredSourceUrl: row.offered_source_url,
     attributionPermitted: row.attribution_permitted, attributionName: row.attribution_name,
     status: row.status, consentedAt: iso(row.consented_at), withdrawnAt: row.withdrawn_at ? iso(row.withdrawn_at) : null,
     consentVersion: row.consent_version, consentStatement: row.consent_statement,
     reviewedTitle: row.reviewed_title, reviewedDescription: row.reviewed_description,
-    reviewedLocationText: row.reviewed_location_text, resultType: row.result_type,
+    reviewedLocationText: row.reviewed_location_text, reviewedSourceUrl: row.reviewed_source_url, resultType: row.result_type,
     resultGuideSlug: row.result_guide_slug, moderationNotes: row.moderation_notes,
     reviewedCategoryId:row.reviewed_category_id,resultLocalGuideEntryId:row.result_entry_id,
     resultLocalGuideRevisionId:row.result_local_guide_revision_id,
@@ -1244,6 +1246,7 @@ export async function moderateGuideContribution(input: {
   reviewedTitle?: string;
   reviewedDescription?: string;
   reviewedLocationText?: string | null;
+  reviewedSourceUrl?: string | null;
   resultType?: 'new_entry_draft' | 'suggested_update';
   resultGuideSlug?: string;
   reviewedCategoryId?: string;
@@ -1256,6 +1259,7 @@ export async function moderateGuideContribution(input: {
   const reviewedDescription = input.decision === 'accept' ? (input.reviewedDescription?.trim() ?? '') : null;
   if (reviewedDescription !== null && reviewedDescription.length > 5000) throw new PlannerError('VALIDATION_ERROR', 'Reviewed description is too long.');
   const reviewedLocationText = input.decision === 'accept' ? optionalText(input.reviewedLocationText, 'Reviewed location', 500) : null;
+  const reviewedSourceUrl = input.decision === 'accept' ? validateSourceUrl(input.reviewedSourceUrl) : null;
   const resultType = input.decision === 'accept' && ['new_entry_draft', 'suggested_update'].includes(input.resultType ?? '') ? input.resultType! : null;
   const resultGuideSlug = input.decision === 'accept' ? validateGuideSlug(input.resultGuideSlug) : null;
   const reviewedCategoryId = input.decision === 'accept' && input.resultType === 'new_entry_draft'
@@ -1278,8 +1282,8 @@ export async function moderateGuideContribution(input: {
     if (input.decision === 'accept' && resultType === 'new_entry_draft') {
       const created=await client.query<{id:string|number}>(`INSERT INTO local_guide_entries(canonical_slug,status,created_by_admin_user_id,updated_by_admin_user_id) VALUES($1,'draft',$2,$2) RETURNING id`,[resultGuideSlug,input.actor.adminUserId]);
       resultEntryId=String(created.rows[0].id);
-      const revision=await client.query<{id:string|number}>(`INSERT INTO local_guide_revisions(local_guide_entry_id,revision_number,title,summary,markdown_body,category_id,actor_type,admin_user_id,source,action,change_summary)
-        VALUES($1,1,$2,$3,$4,$5,'contribution',$6,'planner_contribution','contribution_accepted',$7::jsonb) RETURNING id`,[resultEntryId,reviewedTitle,reviewedDescription?.slice(0,1000)??'',reviewedDescription??'',reviewedCategoryId,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,consentVersion:row.consent_version,consentedAt:row.consented_at,attributionPermitted:row.attribution_permitted,attributionName:row.attribution_name})]);
+      const revision=await client.query<{id:string|number}>(`INSERT INTO local_guide_revisions(local_guide_entry_id,revision_number,title,summary,markdown_body,category_id,external_link,actor_type,admin_user_id,source,action,change_summary)
+        VALUES($1,1,$2,$3,$4,$5,$6,'contribution',$7,'planner_contribution','contribution_accepted',$8::jsonb) RETURNING id`,[resultEntryId,reviewedTitle,reviewedDescription?.slice(0,1000)??'',reviewedDescription??'',reviewedCategoryId,reviewedSourceUrl,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,consentVersion:row.consent_version,consentedAt:row.consented_at,attributionPermitted:row.attribution_permitted,attributionName:row.attribution_name})]);
       resultRevisionId=String(revision.rows[0].id);
       await client.query(`UPDATE local_guide_entries SET working_revision_id=$2 WHERE id=$1`,[resultEntryId,resultRevisionId]);
     } else if (input.decision === 'accept') {
@@ -1287,7 +1291,7 @@ export async function moderateGuideContribution(input: {
       if(!target.rowCount)throw new PlannerError('VALIDATION_ERROR','The Local Guide update target is unavailable.');
       const base=target.rows[0];resultEntryId=String(base.local_guide_entry_id??base.id);const next=base.lock_version+1;
       const revision=await client.query<{id:string|number}>(`INSERT INTO local_guide_revisions(local_guide_entry_id,revision_number,title,summary,markdown_body,category_id,category_label,image_path,external_link,recommended,legacy_text,actor_type,admin_user_id,source,action,change_summary)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'contribution',$12,'planner_contribution','contribution_accepted',$13::jsonb) RETURNING id`,[resultEntryId,next,reviewedTitle,reviewedDescription?.slice(0,1000)??'',reviewedDescription??'',base.category_id,base.category_label,base.image_path,base.external_link,base.recommended,base.legacy_text,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,consentVersion:row.consent_version,consentedAt:row.consented_at,attributionPermitted:row.attribution_permitted,attributionName:row.attribution_name})]);
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'contribution',$12,'planner_contribution','contribution_accepted',$13::jsonb) RETURNING id`,[resultEntryId,next,reviewedTitle,reviewedDescription?.slice(0,1000)??'',reviewedDescription??'',base.category_id,base.category_label,base.image_path,reviewedSourceUrl??base.external_link,base.recommended,base.legacy_text,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,consentVersion:row.consent_version,consentedAt:row.consented_at,attributionPermitted:row.attribution_permitted,attributionName:row.attribution_name})]);
       resultRevisionId=String(revision.rows[0].id);await client.query(`UPDATE local_guide_entries SET working_revision_id=$2,lock_version=$3,updated_by_admin_user_id=$4,updated_at=NOW() WHERE id=$1`,[resultEntryId,resultRevisionId,next,input.actor.adminUserId]);
     }
     if(input.decision==='accept')await client.query(`INSERT INTO local_guide_events(local_guide_entry_id,revision_number,actor_type,admin_user_id,source,action,details) SELECT $1,r.revision_number,'contribution',$3,'planner_contribution','contribution_accepted',$4::jsonb FROM local_guide_revisions r WHERE r.id=$2`,[resultEntryId!,resultRevisionId!,input.actor.adminUserId,JSON.stringify({candidateId:input.candidateId,resultType})]);
@@ -1295,13 +1299,13 @@ export async function moderateGuideContribution(input: {
     await client.query(
       `UPDATE guide_contribution_candidates
           SET status = $2, reviewed_title = $3, reviewed_description = $4,
-              reviewed_location_text = $5, result_type = $6, result_guide_slug = $7,
-              moderation_notes = $8, reviewed_by_admin_user_id = $9, reviewed_category_id=$10,
-              result_local_guide_entry_id=$11,result_local_guide_revision_id=$12,
+              reviewed_location_text = $5, reviewed_source_url = $6, result_type = $7, result_guide_slug = $8,
+              moderation_notes = $9, reviewed_by_admin_user_id = $10, reviewed_category_id=$11,
+              result_local_guide_entry_id=$12,result_local_guide_revision_id=$13,
               reviewed_at = NOW(), updated_at = NOW()
         WHERE public_id = $1::uuid`,
       [input.candidateId, input.decision === 'accept' ? 'accepted' : 'rejected', reviewedTitle,
-        reviewedDescription, reviewedLocationText, resultType, resultGuideSlug, notes, input.actor.adminUserId,reviewedCategoryId,resultEntryId!,resultRevisionId!],
+        reviewedDescription, reviewedLocationText, reviewedSourceUrl, resultType, resultGuideSlug, notes, input.actor.adminUserId,reviewedCategoryId,resultEntryId!,resultRevisionId!],
     );
     const action = input.decision === 'accept' ? 'guide_contribution_accepted' : 'guide_contribution_rejected';
     const summary = input.decision === 'accept'

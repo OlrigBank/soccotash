@@ -14,9 +14,9 @@ Jenna will confirm the access arrangements, check-in and departure times for you
 
 Off-road parking is available at Olrig Bank. Please park considerately so that access remains clear for other guests and the property.
 
-## Main House, Cottage and garden
+## Olrig Bank, The Cottage and garden
 
-The Main House and Cottage can be booked separately or together. When they are occupied by separate bookings, the large garden is a shared space. Please be considerate of other guests and supervise children in the garden.
+[Olrig Bank](/listings/olrig-bank/), [Olrig Bank Max](/listings/event/) and [The Cottage at Olrig Bank](/listings/cottage/) are distinct stay options. The Cottage is offered independently only on selected dates. When Olrig Bank and The Cottage are occupied by separate bookings, the large garden is a shared space. Please be considerate of other guests and supervise children in the garden.
 
 ## Wi-Fi, heating and appliances
 

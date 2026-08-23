@@ -17,7 +17,7 @@ production deployment or production data is in scope.
 - the public home page and primary booking navigation;
 - the principal public pages and their main headings;
 - the live booking calendar loading successfully;
-- interactive switching between Main House and Bespoke stay;
+- interactive switching between Olrig Bank and Bespoke stay;
 - interactive movement to the next calendar period;
 - the PR #45 rule requiring an email address or telephone number;
 - safe handling of an unknown route.

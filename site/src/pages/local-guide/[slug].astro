@@ -64,7 +64,13 @@ try {
 function recommendationLabel(count: number) { return `${count} ${count === 1 ? 'recommendation' : 'recommendations'}`; }
 ---
 
-<BaseLayout title={title} description={description}>
+<BaseLayout
+  title={title}
+  description={description}
+  robots={notFound || Astro.response.status === 503 ? 'noindex,nofollow' : ''}
+  socialImage={entry?.imagePath}
+  socialImageAlt={entry?.title}
+>
   {Astro.response.status === 503 ? <section class="hero"><h1>Local Guide unavailable</h1><p>Please try again shortly.</p></section> : notFound ? <section class="hero"><h1>Page not found</h1><p>The requested page could not be found.</p></section> : kind === 'category' && category ? (
     <div><section class="hero"><h1>{category.label}</h1><p>{category.description || recommendationLabel(categoryEntries.length)}</p></section>
       {childCategories.length ? <section class="prose category-section"><h2>Explore this category</h2><div class="grid">{childCategories.map((child) => <article class="card category-card"><a class="card-link" href={`/local-guide/${child.id}/`}><div class="card-content"><h3>{child.label}</h3>{child.description ? <p>{child.description}</p> : null}<p class="category-count">{recommendationLabel(childCounts.get(child.id) ?? 0)}</p></div></a></article>)}</div></section> : null}

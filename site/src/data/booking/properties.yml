@@ -1,23 +1,23 @@
 properties:
   - id: main-house
-    name: Main House
-    listingSlug: main-house
+    name: Olrig Bank
+    listingSlug: olrig-bank
     airbnbCalendarEnv: AIRBNB_MAIN_HOUSE_ICAL_URLS
     minimumNights: 2
     maximumGuests: 10
     enabled: true
   - id: cottage
-    name: Cottage
+    name: The Cottage at Olrig Bank
     listingSlug: cottage
     airbnbCalendarEnv: AIRBNB_COTTAGE_ICAL_URLS
     minimumNights: 2
     maximumGuests: 4
     enabled: true
   - id: whole-property
-    name: Olrig Bank
+    name: Olrig Bank Max
     listingSlug: event
     availabilityPropertyId: main-house
-    availabilityNote: Availability is based on the Main House calendar. Jenna will confirm that the Cottage and whole-property arrangements are also available.
+    availabilityNote: Availability is based on the Olrig Bank calendar. Jenna will confirm that the additional two-bedroom accommodation is also available.
     minimumNights: 2
     maximumGuests: 12
     enabled: true

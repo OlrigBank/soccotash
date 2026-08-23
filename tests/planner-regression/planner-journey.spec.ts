@@ -29,27 +29,24 @@ test.describe('local Docker Holiday Planner regression',()=>{
 
   test('creates, shares and safely applies an external AI proposal',async({browser,page})=>{
     await page.goto(`/booking/manage/${TOKEN}/`);
-    await expect(page.getByRole('heading',{name:'Plan your stay together'})).toBeVisible();
+    await page.getByRole('link',{name:/Holiday Planner/}).click();
+    await expect(page.getByRole('heading',{name:'Planning dashboard'})).toBeVisible();
     await page.getByRole('button',{name:'Create my holiday plan'}).click();
     await expect(page.getByRole('status')).toContainText('private holiday plan has been created');
-    await page.getByRole('link',{name:'Open holiday planner'}).click();
-    await expect(page.getByRole('heading',{level:1,name:`${BOOKER}'s holiday plan`})).toBeVisible();
-
-    await page.getByRole('heading',{name:'Add day'}).locator('..').getByLabel('Title').fill('Arrival day');
-    const addDay=page.locator('#add-day-form');
-    await addDay.getByLabel('Date').fill('2099-09-10');
-    await addDay.getByLabel('Summary').fill('Settle in and explore Kendal.');
-    await addDay.getByRole('button',{name:'Add day'}).click();
+    await page.getByRole('link',{name:'Open plan'}).click();
+    await expect(page.getByRole('heading',{level:1,name:'Holiday Planner'})).toBeVisible();
     await expect(page.getByRole('heading',{name:'Day 1'})).toBeVisible();
-    await expect(page.locator('.planner-day .day-form').getByLabel('Title')).toHaveValue('Arrival day');
-
-    const day=page.locator('.planner-day').first();
-    await day.getByText('Add an item').click();
-    const addItem=day.locator('.add-item-form');
-    await addItem.getByLabel('Title').fill('Walk to Kendal Castle');
-    await addItem.getByLabel('Plan note').fill('Take the quiet riverside route.');
-    await addItem.getByRole('button',{name:'Add item'}).click();
-    await expect(page.getByRole('heading',{name:/Walk to Kendal Castle/})).toBeVisible();
+    await page.getByRole('button',{name:'Add my own activity'}).click();
+    const candidateDialog=page.locator('[data-candidate-dialog]');
+    await candidateDialog.getByLabel('Title').fill('Walk to Kendal Castle');
+    await candidateDialog.getByLabel('Webpage URL').fill('https://example.test/kendal-castle');
+    await candidateDialog.getByLabel('Description').fill('Take the quiet riverside route.');
+    await candidateDialog.getByLabel(/Do not save this activity/).check();
+    await candidateDialog.getByRole('button',{name:'Add to candidates'}).click();
+    const candidate=page.locator('[data-candidate-id]').filter({hasText:'Walk to Kendal Castle'});
+    await candidate.locator('summary[aria-label="Actions for Walk to Kendal Castle"]').click();
+    await candidate.getByRole('button',{name:'Add to selected day'}).click();
+    await expect(page.getByRole('button',{name:/Walk to Kendal Castle/})).toBeVisible();
 
     const inviteForm=page.locator('#invite-participant-form');
     await inviteForm.getByLabel('Name').fill('Planner Editor');
@@ -90,7 +87,7 @@ test.describe('local Docker Holiday Planner regression',()=>{
     await page.getByRole('button',{name:'Apply selected operations'}).click();
     await expect(page.getByText('Proposal accepted.')).toBeVisible();
     await page.getByRole('link',{name:'Back to planner'}).click();
-    await expect(page.getByRole('heading',{name:/Kendal market/})).toBeVisible();
+    await expect(page.getByRole('button',{name:/Kendal market/})).toBeVisible();
 
     const evidence=await withDatabase(async client=>(await client.query(`SELECT p.status,r.actor_type,r.source,
       p.decided_by_participant_id IS NOT NULL AS attributed FROM plan_ai_proposals p JOIN holiday_plans hp ON hp.id=p.holiday_plan_id
