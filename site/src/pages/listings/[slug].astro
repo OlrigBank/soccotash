@@ -3,6 +3,7 @@ import { getCollection, render, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Space from '../../components/Space.astro';
 import { getProperties } from '../../lib/booking/config';
+import { vacationRentalStructuredData, serializeStructuredData } from '../../lib/vacation-rental-structured-data';
 
 export const prerender = true;
 
@@ -62,6 +63,23 @@ const roomPresentation = (space: CollectionEntry<'spaces'>) => {
       : space.data.summary,
   };
 };
+const productionSite = Astro.site ?? new URL('https://olrig-bank.com');
+const listingImages = [
+  entry.data.image,
+  ...selectedSpaces.flatMap((space) => [space.data.image, ...(space.data.gallery ?? [])]),
+].filter((path): path is string => Boolean(path));
+const structuredData = vacationRentalStructuredData({
+  site: productionSite,
+  slug: entry.data.slug ?? entry.id,
+  identifier: `olrig-bank:${bookingProperty?.id ?? entry.id}`,
+  name: entry.data.title,
+  description: entry.data.description ?? entry.data.summary ?? entry.data.title,
+  sleeps: entry.data.sleeps,
+  bedrooms: entry.data.bedrooms,
+  bathrooms: entry.data.bathrooms,
+  imagePaths: listingImages,
+  hasGarden: entry.data.spaces.includes('garden'),
+});
 ---
 
 <BaseLayout
@@ -70,6 +88,13 @@ const roomPresentation = (space: CollectionEntry<'spaces'>) => {
   socialImage={entry.data.image}
   socialImageAlt={entry.data.imageAlt ?? entry.data.title}
 >
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={serializeStructuredData(structuredData)}
+  ></script>
+
   <section class="hero">
     {entry.data.heroEyebrow ? <p class="eyebrow">{entry.data.heroEyebrow}</p> : null}
     <h1>{entry.data.heroTitle ?? entry.data.title}</h1>

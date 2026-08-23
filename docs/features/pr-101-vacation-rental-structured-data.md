@@ -48,3 +48,14 @@ for a Google rich result.
 - Hotel Center integration.
 - Review rich-result markup.
 - Guaranteeing enhanced search presentation.
+
+## Eligibility boundary
+
+Schema.org markup does not by itself make these pages eligible for Google's
+vacation-rental presentation. Google's current documentation also requires an
+eligible Hotel Center integration, precise latitude and longitude, and at
+least eight qualifying photographs covering bedrooms, bathrooms and common
+areas. The site does not currently hold approved coordinates, so this feature
+must not invent them or claim eligibility. Those external requirements should
+be revisited only when verified data and the appropriate Google programme
+access are available.
