@@ -1,9 +1,9 @@
 ---
 slug: "home"
 title: "Olrig Bank"
-description: "Stay at Olrig Bank in Kendal and explore the Main House, Cottage and local recommendations."
+description: "Stay at Olrig Bank in Kendal, add two further bedrooms when needed, or explore The Cottage at Olrig Bank and local recommendations."
 heroTitle: "Stay at Olrig Bank in Kendal"
-heroText: "Choose the Main House, the Cottage or the whole property for a relaxed stay close to Kendal town centre and the Lake District."
+heroText: "Choose Olrig Bank, add two further bedrooms for a larger group, or book The Cottage at Olrig Bank independently for a relaxed stay close to Kendal town centre and the Lake District."
 ---
 
 Olrig Bank offers flexible accommodation for families, friends and returning guests. Explore the available stay options, look through the rooms and shared spaces, and use the local guide to plan time in Kendal and the surrounding area.

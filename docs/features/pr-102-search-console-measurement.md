@@ -21,8 +21,8 @@ to Google and establish a repeatable evidence record for later improvements.
 2. Verify the preferred `https://olrigbank.co.uk` property and relevant domain
    ownership in Google Search Console.
 3. Submit the production sitemap.
-4. Inspect and request indexing for the home, listings index, Main House and
-   Cottage pages.
+4. Inspect and request indexing for the home, listings index, Olrig Bank and
+   The Cottage at Olrig Bank pages.
 5. Record deployment date, inspected URLs and initial coverage state without
    storing account credentials in the repository.
 6. Define a periodic report containing:
@@ -41,7 +41,7 @@ to Google and establish a repeatable evidence record for later improvements.
 
 1. The production release checklist passes for all epic outputs.
 2. The production sitemap is accepted or any actionable error is documented.
-3. Main House URL inspection sees the intended canonical and rendered content.
+3. Olrig Bank URL inspection sees the intended canonical and rendered content.
 4. The measurement template records a reproducible baseline.
 5. No Search Console credentials, tokens or exports containing private data are
    committed.

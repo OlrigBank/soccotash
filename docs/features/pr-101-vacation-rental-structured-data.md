@@ -10,7 +10,7 @@
 
 ## Objective
 
-Expose verified Main House listing facts as machine-readable JSON-LD without
+Expose verified Olrig Bank listing facts as machine-readable JSON-LD without
 inventing amenities, publishing private information or promising eligibility
 for a Google rich result.
 
@@ -37,7 +37,7 @@ for a Google rich result.
 ## Acceptance criteria
 
 1. JSON-LD parses as valid JSON and validates against the selected vocabulary.
-2. Structured facts agree with the visible Main House page.
+2. Structured facts agree with the visible Olrig Bank page.
 3. No email address, phone number, exact private data or booking token leaks.
 4. No rating, review, accessibility or secure-garden claim is invented.
 5. Absolute URLs use the production canonical origin.

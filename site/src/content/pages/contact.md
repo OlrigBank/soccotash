@@ -12,7 +12,7 @@ To ask about availability or discuss a possible stay, please contact **Jenna**. 
 
 - Your preferred dates
 - The number of guests
-- Whether you are interested in the Main House, Cottage or the whole property
+- Whether you are interested in Olrig Bank, Olrig Bank with two additional bedrooms, bathroom and WC, or The Cottage at Olrig Bank independently
 - Any particular requirements for the visit
 
 ## Contact Jenna

@@ -106,7 +106,7 @@ test.describe('bespoke blocked-date negotiation', () => {
 
     await adminPage.goto(`/admin/bookings/${reference}/reservation/`);
     await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
-    for (const property of ['Main House', 'Cottage']) {
+    for (const property of ['Olrig Bank', 'The Cottage at Olrig Bank']) {
       const reason = adminPage.getByLabel(`Reason for allowing bespoke stays at ${property} on ${ARRIVAL}`);
       await reason.fill('Automated regression: honour the requested blocked night');
       adminPage.once('dialog', (dialog) => dialog.accept());

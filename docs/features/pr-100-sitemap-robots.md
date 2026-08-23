@@ -31,7 +31,7 @@ clear instructions that do not expose private operational routes.
 ## Acceptance criteria
 
 1. The sitemap is valid XML and uses absolute canonical HTTPS URLs.
-2. Main House and Cottage listing URLs are present once each.
+2. Olrig Bank and The Cottage at Olrig Bank listing URLs are present once each.
 3. No secret token, private booking, administration or API URL is present.
 4. `robots.txt` is plain text, available at the site root and references the
    production sitemap.

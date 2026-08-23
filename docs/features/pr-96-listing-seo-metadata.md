@@ -9,7 +9,7 @@
 
 ## Objective
 
-Allow a public listing to retain its short operational name while supplying a
+Allow a public listing to retain its public accommodation name while supplying a
 unique search title, meta description and descriptive page heading.
 
 ## Implementation
@@ -20,12 +20,12 @@ unique search title, meta description and descriptive page heading.
 3. Update the listing route to pass the SEO title and description to
    `BaseLayout` while rendering the listing identity and hero heading
    separately.
-4. Add the initial Main House values:
+4. Add the initial Olrig Bank values:
 
    ```text
-   seoTitle: Large Group & Family Holiday House in Kendal
-   description: Spacious self-catering holiday accommodation for 8–10 guests in Kendal, with four bedrooms, a large garden and off-road parking near the Lake District.
-   heroEyebrow: Main House at Olrig Bank
+   seoTitle: Olrig Bank — Large Group and Family Holiday House in Kendal
+   description: Spacious self-catering holiday accommodation for 8–10 guests in Kendal, with four bedrooms, two bathrooms, a large garden and off-road parking near the Lake District.
+   heroEyebrow: Olrig Bank
    heroTitle: Large group and family holiday house in Kendal
    ```
 
@@ -34,9 +34,9 @@ unique search title, meta description and descriptive page heading.
 
 ## Acceptance criteria
 
-1. `/listings/main-house/` has a unique descriptive document title and meta
+1. The stable `/listings/main-house/` Olrig Bank URL has a unique descriptive document title and meta
    description in its initial HTML.
-2. Listing cards still display `Main House`, not the full SEO title.
+2. Listing cards display `Olrig Bank`, not the full SEO title.
 3. The visible heading is useful and not duplicated into multiple `h1` elements.
 4. Missing optional fields fall back to current behaviour.
 5. Schema and rendering tests cover supplied and fallback metadata.
@@ -44,6 +44,6 @@ unique search title, meta description and descriptive page heading.
 
 ## Out of scope
 
-- Main House long-form copy and FAQ.
+- Olrig Bank long-form copy and FAQ.
 - Canonical, social or structured metadata.
 - Sitemap and crawler submission.

@@ -1,22 +1,22 @@
-# Proposed PR #97 — Main House Search-Intent Content and FAQ
+# Proposed PR #97 — Olrig Bank Search-Intent Content and FAQ
 
 ## Status
 
 - Parent branch: `agent/getting-olrig-bank-to-go-viral-epic`
-- Feature branch: `agent/pr-97-main-house-search-content`
+- Feature branch: `agent/pr-97-olrig-bank-search-content`
 - Intended merge target: `agent/getting-olrig-bank-to-go-viral-epic`
 - Depends on: PR #96
 - Database changes: none expected
 
 ## Objective
 
-Replace the Main House's minimal listing copy with accurate, immediately visible
+Replace Olrig Bank's minimal listing copy with accurate, immediately visible
 content that answers guest questions and naturally expresses the agreed search
 proposition.
 
 ## Implementation
 
-1. Add the epic's agreed sections to `main-house.md`:
+1. Add the epic's agreed sections to the internally named `main-house.md` listing:
    - spacious group accommodation in Kendal;
    - walking into Kendal and exploring the Lake District;
    - large garden and off-road parking; and
@@ -43,4 +43,4 @@ proposition.
 
 - New keyword-specific landing pages.
 - Review publication or rating markup.
-- Cottage long-form SEO content beyond existing accurate links.
+- The Cottage at Olrig Bank long-form SEO content beyond existing accurate links.

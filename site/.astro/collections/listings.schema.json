@@ -11,6 +11,22 @@
     "summary": {
       "type": "string"
     },
+    "seoTitle": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 320
+    },
+    "heroEyebrow": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "heroTitle": {
+      "type": "string",
+      "maxLength": 160
+    },
     "image": {
       "type": "string"
     },

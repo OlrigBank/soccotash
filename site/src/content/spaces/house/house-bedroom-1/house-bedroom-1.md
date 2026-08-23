@@ -3,7 +3,7 @@ title: House Bedroom 1
 slug: house-bedroom-1
 spaceGroup: house
 spaceType: bedroom
-summary: Bedroom in the main house.
+summary: Bedroom at Olrig Bank.
 image: /media/images/spaces/house/house-bedroom-1/house-bedroom-1-1.jpeg
 gallery:
   - /media/images/spaces/house/house-bedroom-1/house-bedroom-1-2.jpeg

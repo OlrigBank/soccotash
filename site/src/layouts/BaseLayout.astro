@@ -11,7 +11,7 @@ const {
   analytics = true,
 } = Astro.props;
 
-const pageTitle = title === 'Olrig Bank' ? title : `${title} | Olrig Bank`;
+const pageTitle = title.includes('Olrig Bank') ? title : `${title} | Olrig Bank`;
 const activePath = Astro.url.pathname;
 const currentYear = new Date().getFullYear();
 ---

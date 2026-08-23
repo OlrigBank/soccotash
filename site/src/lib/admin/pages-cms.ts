@@ -22,7 +22,7 @@ export const PAGES_CMS_SECTIONS: PagesCmsSection[] = [
   {
     title: 'Listings',
     description:
-      'Edit the Main House, Cottage and whole-property or large-group listing content.',
+      'Edit the Olrig Bank, additional-accommodation and independently offered Cottage listing content.',
     buttonLabel: 'Open Listings',
     href: `${branchUrl}/collection/listings`,
   },
