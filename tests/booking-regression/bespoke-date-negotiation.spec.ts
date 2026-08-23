@@ -43,7 +43,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await withDatabase(async (client) => {
       const plan = await client.query(
         `INSERT INTO pricing_plans (property_id, name, status, currency, version, published_at)
-         VALUES ('whole-property', $1, 'published', 'GBP', 1, NOW()) RETURNING id`,
+         VALUES ('main-house', $1, 'published', 'GBP', 1, NOW()) RETURNING id`,
         [PRICING_PLAN_NAME],
       );
       await client.query(

@@ -23,6 +23,8 @@ or modifying an existing local pricing configuration.
    fixture cleanup.
 4. Run the booking browser regression for pull requests to `development`, using
    its existing disposable PostgreSQL service, migrations and administrator.
+   Its payment-term fixture must use `main-house`, matching the Olrig Bank
+   arrangement assigned by the journey before the offer is published.
 5. Keep the booking regression's loopback and explicit mutation safety gates.
 
 ## Acceptance criteria
