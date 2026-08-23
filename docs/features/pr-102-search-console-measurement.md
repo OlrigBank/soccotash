@@ -8,6 +8,7 @@
 - Depends on: PR #96–#101
 - Database changes: none expected
 - External action: authorised Google Search Console access will be required
+- Implementation state: local release verification and measurement records in progress
 
 ## Objective
 
@@ -54,3 +55,12 @@ to Google and establish a repeatable evidence record for later improvements.
 - Paid search advertising.
 - Automated changes based solely on position fluctuations.
 - Keyword landing pages unsupported by measured intent.
+
+## Implementation boundary
+
+The repository can provide deterministic production checks, operating
+instructions and a privacy-safe baseline template. Property verification,
+sitemap submission and URL inspection must be completed interactively by an
+authorised Olrig Bank user after the epic is deployed to production. Pending
+external actions must remain visibly marked as pending; they must not be
+reported as complete based on local or Docker results.
