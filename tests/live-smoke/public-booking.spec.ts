@@ -60,7 +60,7 @@ test.describe('soccotash public live smoke tests', () => {
     await expect(page.getByLabel('Arrival')).toBeEditable();
     await expect(page.getByLabel('Departure')).toBeEditable();
 
-    await arrangement.selectOption({ label: 'Main House' });
+    await arrangement.selectOption({ label: 'Olrig Bank' });
     await expect(page.getByText(/Minimum stay: 2 nights\./)).toBeVisible();
     await expect(page.locator('[data-calendar-picker]')).toBeVisible();
     await expect(

@@ -2,6 +2,8 @@ import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
 
 const allowedDomains = [
+  { hostname: 'olrig-bank.com', protocol: 'https' },
+  { hostname: 'www.olrig-bank.com', protocol: 'https' },
   { hostname: 'olrigbank.co.uk', protocol: 'https' },
   { hostname: 'www.olrigbank.co.uk', protocol: 'https' },
 ];
@@ -18,7 +20,7 @@ if (process.env.RENDER_EXTERNAL_HOSTNAME) {
 }
 
 export default defineConfig({
-  site: 'https://olrigbank.co.uk',
+  site: 'https://olrig-bank.com',
   trailingSlash: 'always',
   output: 'server',
   adapter: node({ mode: 'standalone' }),

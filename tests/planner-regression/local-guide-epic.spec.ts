@@ -72,29 +72,29 @@ test.describe('Local Guide database migration epic',()=>{
         VALUES('olrig-bank','2099-10-10','2099-10-14',2,$1,$2,'confirmed',$3)`,[BOOKER,EMAIL,TOKEN]);
     });
 
-    await page.goto(`/booking/manage/${TOKEN}/`);await page.getByRole('button',{name:'Create my holiday plan'}).click();
-    await page.getByRole('link',{name:'Open holiday planner'}).click();
-    await page.getByRole('heading',{name:'Add day'}).locator('..').getByLabel('Title').fill('Local discoveries');
-    await page.locator('#add-day-form').getByLabel('Date').fill('2099-10-10');
-    await page.locator('#add-day-form').getByRole('button',{name:'Add day'}).click();
-    const day=page.locator('.planner-day').first();await day.getByText('Add an item').click();
-    await day.locator('.add-item-form').getByLabel('Title').fill(TITLE);
-    await day.locator('.add-item-form').getByLabel('Plan note').fill('A quiet route beside the River Kent.');
-    await day.locator('.add-item-form').getByRole('button',{name:'Add item'}).click();
-    const contribution=page.locator('.contribution-form').first();
-    await expect(contribution.getByLabel('Title')).toHaveValue(TITLE);
-    await contribution.getByLabel(/Share this specific recommendation/).check();
-    await contribution.getByLabel(/credit me by name/).check();
-    await contribution.getByRole('button',{name:'Offer for review'}).click();
-    await expect(page.locator('[data-contribution-history]')).toContainText(`${TITLE} · pending`);
+    await page.goto(`/booking/manage/${TOKEN}/`);await page.getByRole('link',{name:/Holiday Planner/}).click();
+    await expect(page.getByRole('heading',{name:'Planning dashboard'})).toBeVisible();
+    await page.getByRole('button',{name:'Create my holiday plan'}).click();
+    await page.getByRole('link',{name:'Open plan'}).click();
+    await page.getByRole('button',{name:'Add my own activity'}).click();
+    const candidateDialog=page.locator('[data-candidate-dialog]');
+    await candidateDialog.getByLabel('Title').fill(TITLE);
+    await candidateDialog.getByLabel('Webpage URL').fill('https://example.test/riverside');
+    await candidateDialog.getByLabel('Description').fill('A quiet route beside the River Kent.');
+    await candidateDialog.getByRole('button',{name:'Add to candidates'}).click();
+    const candidate=page.locator('[data-candidate-id]').filter({hasText:TITLE});
+    await candidate.locator(`summary[aria-label="Actions for ${TITLE}"]`).click();
+    await candidate.getByRole('button',{name:'Add to selected day'}).click();
 
     const adminContext=await browser.newContext();const admin=await adminContext.newPage();
     await admin.goto('/admin/login/');await admin.getByLabel('Email address').fill(ADMIN_EMAIL);
     await admin.getByLabel('Password').fill(ADMIN_PASSWORD);await admin.getByRole('button',{name:'Sign in'}).click();
-    await admin.goto('/admin/local-guide/');await admin.getByLabel('Title').fill("Café & Cycle Sprog's Family Rides");
+    await admin.goto('/admin/local-guide/');await admin.getByRole('button',{name:'Create entry'}).click();
+    await admin.getByLabel('Title',{exact:true}).fill("Café & Cycle Sprog's Family Rides");
     await expect(admin.getByLabel('Public URL slug')).toHaveValue('cafe-cycle-sprogs-family-rides');
-    await admin.locator('summary',{hasText:'Advanced URL settings'}).click();await admin.getByLabel('Public URL slug').fill('chosen-family-rides');
-    await admin.getByLabel('Title').fill('A completely different title');await expect(admin.getByLabel('Public URL slug')).toHaveValue('chosen-family-rides');
+    await admin.getByLabel('Public URL slug').fill('chosen-family-rides');
+    await admin.getByLabel('Title',{exact:true}).fill('A completely different title');await expect(admin.getByLabel('Public URL slug')).toHaveValue('chosen-family-rides');
+    await admin.getByRole('button',{name:'Close'}).click();
     await admin.goto('/admin/planner/contributions/');const review=admin.locator('.contribution-review').filter({hasText:TITLE});
     await review.getByLabel('Local Guide slug').fill(ORIGINAL_SLUG);
     await review.getByLabel('Category for new entry').selectOption('activities');
@@ -122,9 +122,11 @@ test.describe('Local Guide database migration epic',()=>{
     expect(await (await request.get(`/local-guide/${ORIGINAL_SLUG}/`)).text()).toContain(UPDATED_TITLE);
     const guideIdentity=await withDatabase(async client=>(await client.query(`SELECT id::text,public_id::text FROM local_guide_entries WHERE canonical_slug=$1`,[ORIGINAL_SLUG])).rows[0]);
 
-    await page.reload();const item=page.locator('.planner-item').filter({hasText:TITLE});
-    await item.locator('[data-guide]').selectOption(guideIdentity.public_id);await item.getByRole('button',{name:'Apply guide'}).click();
-    await expect(page.getByRole('link',{name:UPDATED_TITLE})).toHaveAttribute('href',`/local-guide/${ORIGINAL_SLUG}/`);
+    await page.reload();await page.getByRole('button',{name:TITLE}).click();
+    const activityDialog=page.locator('[data-item-dialog]');await activityDialog.getByLabel('Olrig Bank Local Guide').selectOption(guideIdentity.public_id);
+    const guideResponse=page.waitForResponse(response=>response.url().includes(`/api/booking/planner/${TOKEN}/`)&&response.request().method()==='POST');
+    await activityDialog.getByRole('button',{name:'Apply guide reference'}).click();expect((await guideResponse).status()).toBe(200);
+    await expect(page.getByRole('link',{name:`Open the Local Guide entry for ${TITLE} in a new tab`})).toHaveAttribute('href',`/local-guide/${ORIGINAL_SLUG}/`);
     const stableId=await withDatabase(async client=>(await client.query(`SELECT i.local_guide_entry_id::text FROM plan_items i JOIN plan_days d ON d.id=i.plan_day_id JOIN holiday_plans p ON p.id=d.holiday_plan_id JOIN provisional_bookings b ON b.id=p.booking_id WHERE b.guest_email=$1 AND i.title=$2`,[EMAIL,TITLE])).rows[0].local_guide_entry_id);
     expect(stableId).toBe(guideIdentity.id);
 
@@ -132,7 +134,7 @@ test.describe('Local Guide database migration epic',()=>{
     await confirmedAction('Change public URL');await expect(admin.locator('code')).toHaveText(RENAMED_SLUG);
     const alias=await request.get(`/local-guide/${ORIGINAL_SLUG}/`,{maxRedirects:0});expect(alias.status()).toBe(301);
     expect(alias.headers().location).toBe(`/local-guide/${RENAMED_SLUG}/`);
-    await page.reload();await expect(page.getByRole('link',{name:UPDATED_TITLE})).toHaveAttribute('href',`/local-guide/${RENAMED_SLUG}/`);
+    await page.reload();await expect(page.getByRole('link',{name:`Open the Local Guide entry for ${TITLE} in a new tab`})).toHaveAttribute('href',`/local-guide/${RENAMED_SLUG}/`);
 
     await confirmedAction('Unpublish current entry');
     await expect(admin.getByText('unpublished').first()).toBeVisible();

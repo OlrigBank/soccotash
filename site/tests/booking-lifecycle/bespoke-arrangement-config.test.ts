@@ -11,3 +11,10 @@ test('allows one-night bespoke requests without changing ordinary stay minimums'
   assert.equal(getProperty('cottage')?.minimumNights, 2);
   assert.equal(getProperty('whole-property')?.minimumNights, 2);
 });
+
+test('uses the agreed public accommodation names without changing stable identifiers', () => {
+  assert.equal(getProperty('main-house')?.name, 'Olrig Bank');
+  assert.equal(getProperty('main-house')?.listingSlug, 'olrig-bank');
+  assert.equal(getProperty('whole-property')?.name, 'Olrig Bank Max');
+  assert.equal(getProperty('cottage')?.name, 'The Cottage at Olrig Bank');
+});

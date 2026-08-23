@@ -10,7 +10,7 @@
 
 ## Objective
 
-Expose verified Main House listing facts as machine-readable JSON-LD without
+Expose verified Olrig Bank listing facts as machine-readable JSON-LD without
 inventing amenities, publishing private information or promising eligibility
 for a Google rich result.
 
@@ -37,7 +37,7 @@ for a Google rich result.
 ## Acceptance criteria
 
 1. JSON-LD parses as valid JSON and validates against the selected vocabulary.
-2. Structured facts agree with the visible Main House page.
+2. Structured facts agree with the visible Olrig Bank page.
 3. No email address, phone number, exact private data or booking token leaks.
 4. No rating, review, accessibility or secure-garden claim is invented.
 5. Absolute URLs use the production canonical origin.
@@ -48,3 +48,14 @@ for a Google rich result.
 - Hotel Center integration.
 - Review rich-result markup.
 - Guaranteeing enhanced search presentation.
+
+## Eligibility boundary
+
+Schema.org markup does not by itself make these pages eligible for Google's
+vacation-rental presentation. Google's current documentation also requires an
+eligible Hotel Center integration, precise latitude and longitude, and at
+least eight qualifying photographs covering bedrooms, bathrooms and common
+areas. The site does not currently hold approved coordinates, so this feature
+must not invent them or claim eligibility. Those external requirements should
+be revisited only when verified data and the appropriate Google programme
+access are available.
