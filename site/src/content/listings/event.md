@@ -1,11 +1,11 @@
 ---
-title: "Olrig Bank with two additional bedrooms, bathroom and WC"
+title: "Olrig Bank Max"
 slug: "event"
-summary: "Add two bedrooms, one bathroom and one separate WC to Olrig Bank for a larger family or group stay."
+summary: "A spacious Kendal holiday house for up to 12 adults, with six bedrooms, three bathrooms and one separate WC."
 image: "/media/images/listings/olrigbank.png"
-sleeps: "Sleeps up to 12"
+sleeps: "Sleeps 12 adults"
 bedrooms: "6 bedrooms"
-bathrooms: "3 bathrooms plus 1 separate WC"
+bathrooms: "3 bathrooms & 1 WC"
 spaces:
   - house-hall
   - house-lounge
@@ -15,23 +15,19 @@ spaces:
   - house-bedroom-2
   - house-bedroom-3
   - house-bedroom-4
-  - house-bathroom-1
-  - house-bathroom-2
   - cottage-bedroom-1
   - cottage-bedroom-2
+  - house-bathroom-1
   - cottage-bathroom-1
+  - house-bathroom-2
   - cottage-wc-1
   - cottage-landing-1
-  - cottage-mezzanine-1
-  - cottage-hall-1
-  - cottage-kitchen-1
-  - cottage-lounge-1
   - garden
 featured: false
 ---
 
-Olrig Bank can be booked with two additional bedrooms, one additional bathroom and one separate WC to provide more space and flexibility for a larger family or group. Guests have use of both accommodation areas and the garden.
+Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen, landing and access to the large garden.
 
-The availability calendar for this option follows the Olrig Bank calendar because the additional accommodation is not separately combined with it on Airbnb. Jenna will confirm that The Cottage at Olrig Bank and the combined arrangement are available before accepting a request.
+Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Please include the number and ages of children when enquiring so that Jenna can confirm a suitable arrangement.
 
-Stays with the additional accommodation are arranged by enquiry so that dates, guest numbers, room arrangements and any particular requirements can be confirmed in advance. Contact Jenna with the details of the stay you are considering.
+Olrig Bank Max stays are arranged by enquiry so that dates, the number of adults and children, room arrangements and any particular requirements can be confirmed in advance. Contact Jenna with the details of the stay you are considering.

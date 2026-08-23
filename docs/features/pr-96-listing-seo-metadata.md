@@ -24,7 +24,7 @@ unique search title, meta description and descriptive page heading.
 
    ```text
    seoTitle: Olrig Bank — Large Group and Family Holiday House in Kendal
-   description: Spacious self-catering holiday accommodation for 8–10 guests in Kendal, with four bedrooms, two bathrooms, a large garden and off-road parking near the Lake District.
+   description: Spacious Kendal holiday accommodation sleeping eight adults in four bedrooms, with two bathrooms, a large garden and flexible options for children.
    heroEyebrow: Olrig Bank
    heroTitle: Large group and family holiday house in Kendal
    ```

@@ -3,9 +3,11 @@ import { render, type CollectionEntry } from 'astro:content';
 
 interface Props {
   space: CollectionEntry<'spaces'>;
+  displayTitle?: string;
+  displaySummary?: string;
 }
 
-const { space } = Astro.props;
+const { space, displayTitle = space.data.title, displaySummary = space.data.summary } = Astro.props;
 const { Content } = await render(space);
 const primaryImage = space.data.image || space.data.gallery?.[0];
 
@@ -31,10 +33,10 @@ const facts = [
 ---
 
 <article class="space-card">
-  {primaryImage ? <img src={primaryImage} alt={space.data.title} loading="lazy" /> : null}
+  {primaryImage ? <img src={primaryImage} alt={displayTitle} loading="lazy" /> : null}
   <div class="space-card-content">
-    <h3>{space.data.title}</h3>
-    {space.data.summary ? <p>{space.data.summary}</p> : null}
+    <h3>{displayTitle}</h3>
+    {displaySummary ? <p>{displaySummary}</p> : null}
     {facts.length ? <p class="space-facts">{facts.join(' · ')}</p> : null}
     {space.data.features.length ? (
       <ul class="space-features">

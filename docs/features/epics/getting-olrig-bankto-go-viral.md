@@ -35,7 +35,7 @@ guests naturally use when searching:
 - large holiday house in Kendal;
 - group accommodation in Kendal;
 - family holiday accommodation;
-- self-catering accommodation for 8–10 guests;
+- self-catering accommodation for eight adults, with flexible options for children;
 - Kendal accommodation with a large garden and off-road parking;
 - accommodation within walking distance of Kendal town centre; and
 - group accommodation near Windermere and the Lake District.
@@ -76,7 +76,7 @@ The authoritative public accommodation model is:
 | Public offering | Bedrooms | Bathrooms | Separate WC |
 | --- | ---: | ---: | ---: |
 | Olrig Bank | 4 | 2 | — |
-| Olrig Bank with two additional bedrooms, bathroom and WC | 6 | 3 | 1 |
+| Olrig Bank Max | 6 | 3 | 1 |
 | The Cottage at Olrig Bank, when offered independently | 2 | 1 | 1 |
 
 The existing `/listings/main-house/` URL remains stable initially. Its slug is
@@ -92,7 +92,7 @@ Olrig Bank — Large Group and Family Holiday House in Kendal
 ### Proposed meta description
 
 ```text
-Spacious self-catering holiday accommodation for 8–10 guests in Kendal, with four bedrooms, two bathrooms, a large garden and off-road parking near the Lake District.
+Spacious Kendal holiday accommodation sleeping eight adults in four bedrooms, with two bathrooms, a large garden and flexible options for children.
 ```
 
 ### Proposed page presentation
@@ -114,7 +114,7 @@ page content.
 ### Spacious group accommodation in Kendal
 
 Olrig Bank is a spacious Victorian holiday house for families
-and groups staying in Kendal. Sleeping 8–10 guests across four bedrooms, it
+and groups staying in Kendal. Sleeping eight adults across four bedrooms, it
 provides generous communal rooms where everyone can eat, relax and spend time
 together.
 
@@ -158,9 +158,9 @@ before booking.
 
 ### How many guests can stay at Olrig Bank?
 
-Olrig Bank normally accommodates groups of 8–10 guests across four
-bedrooms. Guests should ask Olrig Bank to confirm the arrangement for their
-group.
+Olrig Bank sleeps eight adults across four bedrooms. Extra children can
+sometimes be accommodated using the sofa bed, cots or blow-up beds brought by
+guests. Guests should ask Olrig Bank to confirm the arrangement for their group.
 
 ### Can guests walk into Kendal town centre?
 

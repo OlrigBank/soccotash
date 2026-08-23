@@ -28,13 +28,18 @@ test('public listing facts and labels follow the agreed accommodation model', as
   ]);
 
   assert.match(olrigBank, /title: "Olrig Bank"/);
+  assert.match(olrigBank, /sleeps: "Sleeps 8 adults"/);
   assert.match(olrigBank, /bedrooms: "4 bedrooms"/);
   assert.match(olrigBank, /bathrooms: "2 bathrooms"/);
   assert.doesNotMatch(olrigBank, /Main House/);
 
-  assert.match(combined, /title: "Olrig Bank with two additional bedrooms, bathroom and WC"/);
+  assert.match(combined, /title: "Olrig Bank Max"/);
+  assert.match(combined, /sleeps: "Sleeps 12 adults"/);
   assert.match(combined, /bedrooms: "6 bedrooms"/);
-  assert.match(combined, /bathrooms: "3 bathrooms plus 1 separate WC"/);
+  assert.match(combined, /bathrooms: "3 bathrooms & 1 WC"/);
+  const combinedDescription = combined.split('---').at(-1) ?? '';
+  assert.doesNotMatch(combinedDescription, /\bCottage\b|\bcottage\b/);
+  assert.match(combined, /Olrig Bank Max sleeps 12 adults in six bedrooms/);
 
   assert.match(cottage, /title: "The Cottage at Olrig Bank"/);
   assert.match(cottage, /bedrooms: "2 bedrooms"/);

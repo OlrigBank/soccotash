@@ -44,6 +44,7 @@ const listings = defineCollection({
     heroEyebrow: z.string().max(120).optional(),
     heroTitle: z.string().max(160).optional(),
     image: z.string().optional(),
+    imageAlt: z.string().max(240).optional(),
     gallery: z.array(z.string()).optional().default([]),
     sleeps: z.string().optional(),
     bedrooms: z.string().optional(),

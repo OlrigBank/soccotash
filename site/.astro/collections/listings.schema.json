@@ -30,6 +30,10 @@
     "image": {
       "type": "string"
     },
+    "imageAlt": {
+      "type": "string",
+      "maxLength": 240
+    },
     "gallery": {
       "default": [],
       "type": "array",
