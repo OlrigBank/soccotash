@@ -9,7 +9,7 @@ large group and family accommodation in Kendal.
 The initial discovery target is the existing canonical Olrig Bank page:
 
 ```text
-https://olrigbank.co.uk/listings/main-house/
+https://olrig-bank.com/listings/olrig-bank/
 ```
 
 The work must present useful, accurate guest information in crawlable HTML. It
@@ -47,7 +47,7 @@ These phrases are writing inputs, not a block to be copied repeatedly.
 The Olrig Bank page is already server-rendered by Astro and can be crawled. It
 currently provides:
 
-- the stable URL `/listings/main-house/`;
+- the preferred URL `/listings/olrig-bank/`;
 - a browser title based on its listing metadata;
 - a visible Olrig Bank heading;
 - a short summary;
@@ -59,7 +59,7 @@ currently provides:
 The content is accurate but too brief and generically titled to explain the
 complete guest proposition to search engines or prospective guests.
 
-The site configuration declares `https://olrigbank.co.uk` as its production
+The site configuration declares `https://olrig-bank.com` as its production
 site. The current public shell has description metadata but does not yet expose
 an explicit canonical link or complete social-sharing metadata. No generated
 XML sitemap or public `robots.txt` crawler discovery file has been identified.
@@ -79,9 +79,10 @@ The authoritative public accommodation model is:
 | Olrig Bank Max | 6 | 3 | 1 |
 | The Cottage at Olrig Bank, when offered independently | 2 | 1 | 1 |
 
-The existing `/listings/main-house/` URL remains stable initially. Its slug is
-an implementation detail and must not cause the retired label to reappear in
-guest-facing copy.
+The preferred public URL is `/listings/olrig-bank/`. The former
+`/listings/main-house/` URL must permanently redirect to it so existing links
+and bookmarks continue to work without retaining the retired label as the
+canonical URL.
 
 ### Proposed document title
 
@@ -188,7 +189,7 @@ Important pages must link to Olrig Bank through ordinary `<a href>` links
 with concise, descriptive text. Proposed home-page wording is:
 
 ```markdown
-Explore our [large group and family holiday house in Kendal](/listings/main-house/)
+Explore our [large group and family holiday house in Kendal](/listings/olrig-bank/)
 or our [spacious Kendal holiday cottage with a garden and parking](/listings/cottage/).
 ```
 

@@ -30,7 +30,7 @@ const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathroo
 const bookingProperty = getProperties().find((property) => property.listingSlug === entry.data.slug);
 const bookingHref = bookingProperty ? `/book/?property=${encodeURIComponent(bookingProperty.id)}` : '/book/';
 const roomTitles: Record<string, Record<string, string>> = {
-  'main-house': {
+  'olrig-bank': {
     'house-bedroom-1': 'Bedroom 1',
     'house-bedroom-2': 'Bedroom 2',
     'house-bedroom-3': 'Bedroom 3',
@@ -64,7 +64,12 @@ const roomPresentation = (space: CollectionEntry<'spaces'>) => {
 };
 ---
 
-<BaseLayout title={entry.data.seoTitle ?? entry.data.title} description={entry.data.description ?? entry.data.summary}>
+<BaseLayout
+  title={entry.data.seoTitle ?? entry.data.title}
+  description={entry.data.description ?? entry.data.summary}
+  socialImage={entry.data.image}
+  socialImageAlt={entry.data.imageAlt ?? entry.data.title}
+>
   <section class="hero">
     {entry.data.heroEyebrow ? <p class="eyebrow">{entry.data.heroEyebrow}</p> : null}
     <h1>{entry.data.heroTitle ?? entry.data.title}</h1>

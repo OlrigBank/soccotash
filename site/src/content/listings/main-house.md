@@ -1,6 +1,6 @@
 ---
 title: "Olrig Bank"
-slug: "main-house"
+slug: "olrig-bank"
 summary: "A spacious Victorian house sleeping eight adults, with flexible options for children, family gatherings and group stays in Kendal."
 seoTitle: "Olrig Bank — Large Group and Family Holiday House in Kendal"
 description: "Spacious Kendal holiday accommodation sleeping eight adults in four bedrooms, with two bathrooms, a large garden and flexible options for children."

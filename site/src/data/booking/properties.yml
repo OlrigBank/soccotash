@@ -1,7 +1,7 @@
 properties:
   - id: main-house
     name: Olrig Bank
-    listingSlug: main-house
+    listingSlug: olrig-bank
     airbnbCalendarEnv: AIRBNB_MAIN_HOUSE_ICAL_URLS
     minimumNights: 2
     maximumGuests: 10

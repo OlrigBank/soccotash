@@ -8,6 +8,6 @@ heroText: "Choose accommodation for eight or 12 adults, or book The Cottage at O
 
 Olrig Bank offers flexible accommodation for families, friends and returning guests. Explore the available stay options, look through the rooms and shared spaces, and use the local guide to plan time in Kendal and the surrounding area.
 
-Discover [Olrig Bank, our large group and family holiday house in Kendal](/listings/main-house/), choose [Olrig Bank Max for up to 12 adults](/listings/event/), or explore [The Cottage at Olrig Bank for an independent stay](/listings/cottage/).
+Discover [Olrig Bank, our large group and family holiday house in Kendal](/listings/olrig-bank/), choose [Olrig Bank Max for up to 12 adults](/listings/event/), or explore [The Cottage at Olrig Bank for an independent stay](/listings/cottage/).
 
 For availability or help choosing the right part of the property, [contact Jenna](/contact/).

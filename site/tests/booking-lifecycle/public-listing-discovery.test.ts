@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
-const listingPaths = ['/listings/main-house/', '/listings/event/', '/listings/cottage/'];
+const listingPaths = ['/listings/olrig-bank/', '/listings/event/', '/listings/cottage/'];
 
 test('the home page contains descriptive standard links to every accommodation', async () => {
   const home = await source('src/content/pages/home.md');

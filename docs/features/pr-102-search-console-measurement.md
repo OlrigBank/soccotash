@@ -18,7 +18,7 @@ to Google and establish a repeatable evidence record for later improvements.
 
 1. Add a release runbook covering production HTML, canonical, metadata,
    structured-data, sitemap and robots checks.
-2. Verify the preferred `https://olrigbank.co.uk` property and relevant domain
+2. Verify the preferred `https://olrig-bank.com` property and relevant domain
    ownership in Google Search Console.
 3. Submit the production sitemap.
 4. Inspect and request indexing for the home, listings index, Olrig Bank and

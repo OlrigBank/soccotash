@@ -28,6 +28,7 @@ test('public listing facts and labels follow the agreed accommodation model', as
   ]);
 
   assert.match(olrigBank, /title: "Olrig Bank"/);
+  assert.match(olrigBank, /slug: "olrig-bank"/);
   assert.match(olrigBank, /sleeps: "Sleeps 8 adults"/);
   assert.match(olrigBank, /bedrooms: "4 bedrooms"/);
   assert.match(olrigBank, /bathrooms: "2 bathrooms"/);

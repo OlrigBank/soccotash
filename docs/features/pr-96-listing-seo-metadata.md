@@ -34,7 +34,7 @@ unique search title, meta description and descriptive page heading.
 
 ## Acceptance criteria
 
-1. The stable `/listings/main-house/` Olrig Bank URL has a unique descriptive document title and meta
+1. The preferred `/listings/olrig-bank/` Olrig Bank URL has a unique descriptive document title and meta
    description in its initial HTML.
 2. Listing cards display `Olrig Bank`, not the full SEO title.
 3. The visible heading is useful and not duplicated into multiple `h1` elements.

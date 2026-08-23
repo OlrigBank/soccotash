@@ -29,7 +29,7 @@ accurate, attractive metadata when listing pages are shared.
 ## Acceptance criteria
 
 1. The Olrig Bank canonical remains exactly
-   `https://olrigbank.co.uk/listings/main-house/`.
+   `https://olrig-bank.com/listings/olrig-bank/`.
 2. Query parameters do not create alternate canonicals.
 3. Social metadata agrees with visible title, description and image.
 4. Canonical and social URLs are absolute HTTPS URLs.
