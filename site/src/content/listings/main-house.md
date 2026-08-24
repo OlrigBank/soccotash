@@ -3,7 +3,13 @@ title: Olrig Bank
 slug: olrig-bank
 summary: A spacious Victorian house sleeping eight adults, with flexible options
   for children, family gatherings and group stays in Kendal.
+seoTitle: Olrig Bank — Large Group and Family Holiday House in Kendal
+description: Spacious Kendal holiday accommodation sleeping eight adults in four
+  bedrooms, with two bathrooms, a large garden and flexible options for children.
+heroEyebrow: Olrig Bank
+heroTitle: Large group and family holiday house in Kendal
 image: /media/images/listings/house.jpeg
+imageAlt: The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam
 sleeps: Sleeps 8 adults
 bedrooms: 4 bedrooms
 bathrooms: 2 bathrooms
@@ -51,7 +57,7 @@ Extra children can sometimes be accommodated using the sofa bed, cots or blow-up
 
 ### How many guests can stay at Olrig Bank?
 
-Olrig Bank sleeps eight guests across four bedrooms. Need more accommodation? Olrig Bank Max sleeps twelve guests across 6 bedrooms and offers an third bathroom and separate WC. Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Guests should make a bespoke request to Olrig Bank to confirm the arrangement for their group.
+Olrig Bank sleeps eight adults across four bedrooms. Need more accommodation? Olrig Bank Max sleeps twelve adults across six bedrooms and offers a third bathroom and separate WC. Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Guests should make a bespoke request to Olrig Bank to confirm the arrangement for their group.
 
 ### Can guests walk into Kendal town centre?
 

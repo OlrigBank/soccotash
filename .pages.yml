@@ -180,9 +180,24 @@ content:
   - name: summary
     label: Summary
     type: text
+  - name: seoTitle
+    label: SEO title
+    type: string
+  - name: description
+    label: Meta description
+    type: text
+  - name: heroEyebrow
+    label: Hero eyebrow
+    type: string
+  - name: heroTitle
+    label: Hero title
+    type: string
   - name: image
     label: Image
     type: image
+  - name: imageAlt
+    label: Image alternative text
+    type: string
   - name: gallery
     label: Gallery
     type: image

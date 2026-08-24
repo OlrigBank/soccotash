@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import YAML from 'yaml';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
+
+function listingData(markdown: string): Record<string, unknown> {
+  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  assert.ok(match, 'Listing must begin with YAML front matter.');
+  return YAML.parse(match[1]) as Record<string, unknown>;
+}
 
 test('Olrig Bank presents the agreed search content and guest qualifications', async () => {
   const listing = await source('src/content/listings/main-house.md');
@@ -37,15 +44,19 @@ test('Olrig Bank exposes five visible FAQ answers in Markdown', async () => {
 });
 
 test('listing hero images support descriptive alternative text with a title fallback', async () => {
-  const [schema, route, listing] = await Promise.all([
+  const [schema, route, listing, pages] = await Promise.all([
     source('src/content.config.ts'),
     source('src/pages/listings/[slug].astro'),
     source('src/content/listings/main-house.md'),
+    source('../.pages.yml'),
   ]);
 
   assert.match(schema, /imageAlt: z\.string\(\)\.max\(240\)\.optional\(\)/);
   assert.match(route, /alt=\{entry\.data\.imageAlt \?\? entry\.data\.title\}/);
-  assert.match(listing, /imageAlt: "The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam"/);
+  assert.equal(listingData(listing).imageAlt, 'The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam');
+  for (const field of ['seoTitle', 'description', 'heroEyebrow', 'heroTitle', 'imageAlt']) {
+    assert.match(pages, new RegExp(`- name: ${field}\\b`));
+  }
 });
 
 test('Olrig Bank and Olrig Bank Max present numbered bedrooms and floor-specific bathrooms', async () => {
