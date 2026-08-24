@@ -7,6 +7,7 @@
 - Intended merge target: `agent/managing-occupancy-epic`
 - Database changes: yes
 - Public interface changes: none
+- Implementation status: candidate complete on the feature branch
 
 ## Objective
 
@@ -44,3 +45,28 @@ availability so the host can construct flexible bespoke arrangements safely.
 - Accepting an offer or creating resource reservations.
 - Automatically deciding which bundle suits a party.
 - Publishing new accommodation listings.
+
+## Implemented candidate
+
+- Migration `050_accommodation_resources.sql` introduces stable resources,
+  resource bundles, property compatibility mappings and administrator events.
+- Seeded bundles deterministically represent Olrig Bank (capacity 8), Olrig
+  Bank Max (capacity 12), the independent Cottage (capacity 4), and a blank
+  host-approved bespoke starting point.
+- Rear bedrooms and facilities retain their Cottage availability dependency;
+  the independent Cottage additionally requires its independent living space.
+- The compatibility mapping is deliberately not connected to booking blocks,
+  availability queries or reservations in this feature.
+- `/admin/accommodation/` lets authorised administrators maintain resource
+  descriptions/capacities and create or update host-approved bundles. Seeded
+  standard bundles and all stable keys remain read-only.
+- Resource and bundle changes are validated transactionally and recorded with
+  administrator identity and structured audit details.
+
+## Verification
+
+- `npm run check`
+- `npm run build`
+- `npm run test:booking-lifecycle` — 58 passing
+- `npm run test:booking-integration` against local Docker PostgreSQL — 17 passing
+- `git diff --check`
