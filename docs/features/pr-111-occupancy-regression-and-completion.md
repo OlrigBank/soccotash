@@ -7,6 +7,7 @@
 - Intended merge target: `agent/managing-occupancy-epic`
 - Database changes: cleanup only if verified safe
 - Production behaviour changes: hardening and completed coverage
+- Implementation status: candidate complete on the feature branch
 
 ## Objective
 
@@ -48,3 +49,30 @@ end-to-end regression coverage, migration evidence and operational guidance.
 - Introducing automatic standard booking acceptance.
 - Search-engine work involving private booking information.
 - Expanding occupancy rules beyond demonstrated operational needs.
+
+## Implemented candidate
+
+- Added executable privacy contracts for shared Planner, AI, public response,
+  analytics, indexing and authenticated private-route boundaries.
+- Extended resource-allocation integration coverage to prove cancellation
+  release, booking hard deletion, dependent cleanup and unrelated-booking
+  isolation.
+- Added a fresh-versus-migrated schema equivalence test, including the explicit
+  legacy `guests → adults` assumption.
+- Updated the controlled booking browser regression for category counts,
+  disposable administrator/pricing isolation, offered allocation visibility,
+  accepted resource reservation and cancellation release.
+- Rebuilt and deployed the branch into local Docker and ran the full booking and
+  Planner browser suites.
+- Added the epic completion report and separated future direct standard booking
+  work from this epic.
+
+## Verification
+
+- `npm run check`
+- `npm run test:booking-lifecycle` — 60 passing
+- `npm run test:booking-integration` — 19 passing against Docker PostgreSQL
+- `npm run test:booking-regression` — 1 passing local Docker Chromium journey
+- `npm run test:planner-regression` — 3 passing local Docker Chromium journeys
+- Docker image check/build and local health check passed
+- `git diff --check`

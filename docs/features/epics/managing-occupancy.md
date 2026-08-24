@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for review.
+Complete. See [completion evidence](../managing-occupancy-epic-completion.md).
 
 ## Purpose
 
@@ -327,8 +327,8 @@ edge cases.
   booking as a whole.
 - The initial inventory of availability-affecting spaces available for bespoke
   allocation.
-- Whether concurrent unaccepted bespoke offers should temporarily hold
-  resources or merely warn the administrator about competing proposals.
+- Production policy values for the remaining operational thresholds must be
+  agreed before those policies are published.
 
 ## Out of scope
 
