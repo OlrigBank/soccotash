@@ -8,6 +8,8 @@ import {
   sendEmail,
   type EmailSendResult,
 } from '../email/sender';
+import { formatPartyComposition } from './party-composition';
+import type { OfferAllocation } from '../accommodation/allocation.ts';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -40,6 +42,7 @@ export async function sendBookingOfferEmail(input: {
   validUntil: string | null;
   subject: string;
   manageUrl: string;
+  allocation?: OfferAllocation | null;
 }): Promise<EmailSendResult> {
   const linesText = input.lineItems
     .map((line) => `${line.label}: ${formatCurrency(line.amountPence, input.currency)}${line.detail ? `\n  ${line.detail}` : ''}`)
@@ -52,7 +55,8 @@ export async function sendBookingOfferEmail(input: {
     '',
     `${input.propertyName}`,
     `${formatDate(input.booking.arrival)} to ${formatDate(input.booking.departure)}`,
-    `${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? `, ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}`,
+    formatPartyComposition(input.booking),
+    ...(input.allocation ? ['', `Offered accommodation: ${input.allocation.arrangementName}`, `Approved adult sleeping capacity: ${input.allocation.approvedSleepingCapacity}`, input.allocation.explanatoryNotes || '', input.allocation.alternativeSleepingNotes || ''] : []),
     '',
     linesText,
     `Total offer: ${formatCurrency(input.totalPence, input.currency)}`,
@@ -87,8 +91,9 @@ export async function sendBookingOfferEmail(input: {
       <div style="background:#f5f6f1;border-radius:12px;padding:18px;margin:22px 0;">
         <h2 style="margin:0 0 8px;font-size:22px;">${escapeHtml(input.propertyName)}</h2>
         <p style="margin:0 0 4px;">${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}</p>
-        <p style="margin:0;">${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? ` · ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}</p>
+        <p style="margin:0;">${formatPartyComposition(input.booking, ' · ')}</p>
       </div>
+      ${input.allocation?`<div style="background:#f5f6f1;border-radius:12px;padding:18px;margin:22px 0;"><h2 style="margin:0 0 8px;font-size:19px;">Offered accommodation: ${escapeHtml(input.allocation.arrangementName)}</h2><p>Approved adult sleeping capacity: ${input.allocation.approvedSleepingCapacity}</p>${input.allocation.explanatoryNotes?`<p>${escapeHtml(input.allocation.explanatoryNotes)}</p>`:''}${input.allocation.alternativeSleepingNotes?`<p>${escapeHtml(input.allocation.alternativeSleepingNotes)}</p>`:''}</div>`:''}
       <table style="width:100%;border-collapse:collapse;">${tableRows}
         <tr><td style="padding-top:14px;font-size:18px;"><strong>Total offer</strong></td><td style="padding:14px 0 0 20px;text-align:right;font-size:20px;white-space:nowrap;"><strong>${escapeHtml(formatCurrency(input.totalPence, input.currency))}</strong></td></tr>
       </table>
@@ -185,7 +190,7 @@ export async function sendManagementOfferResponseEmail(input: {
     '',
     `${input.propertyName}`,
     `${formatDate(input.offer.arrival)} to ${formatDate(input.offer.departure)}`,
-    `${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? `, ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}`,
+    formatPartyComposition(input.offer),
     `${accepted ? 'Accepted offer total' : 'Offer total'}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
     `Booker email: ${input.offer.guestEmail || 'Not supplied'}`,
     `Booker telephone: ${input.offer.guestTelephone || 'None supplied'}`,
@@ -196,7 +201,7 @@ export async function sendManagementOfferResponseEmail(input: {
   const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;color:#17323a;">
     <h1>${accepted ? 'Offer accepted — payment required' : 'Booking offer declined'}</h1>
     <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? `has accepted the offer and the booking is awaiting the required ${escapeHtml(paymentLabel)} by manual bank transfer.` : 'has declined the booking offer.'}</p>
-    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${input.offer.guests} guest${input.offer.guests === 1 ? '' : 's'}${input.offer.pets ? ` · ${input.offer.pets} pet${input.offer.pets === 1 ? '' : 's'}` : ''}<br>${accepted ? 'Accepted offer total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
+    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${formatPartyComposition(input.offer, ' · ')}<br>${accepted ? 'Accepted offer total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
     <p>Booker email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Booker telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
     <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
   </body></html>`;

@@ -47,14 +47,19 @@ const properties = getProperties();
       <label for="departure">Departure</label>
       <input id="departure" name="departure" type="date" required />
     </div>
-    <div class="booking-field">
-      <label for="guests">Guests</label>
-      <input id="guests" name="guests" type="number" min="1" value="2" required />
-    </div>
+    <div class="booking-field"><label for="adults">Adults <small>Age 13 or over on arrival</small></label><input id="adults" name="adults" type="number" min="1" value="2" required /></div>
+    <div class="booking-field"><label for="children">Children <small>Ages 2–12 on arrival</small></label><input id="children" name="children" type="number" min="0" value="0" required /></div>
+    <div class="booking-field"><label for="infants">Infants <small>Under 2 on arrival</small></label><input id="infants" name="infants" type="number" min="0" value="0" required /></div>
     <div class="booking-field">
       <label for="pets">Pets</label>
-      <input id="pets" name="pets" type="number" min="0" max="10" value="0" required />
+      <input id="pets" name="pets" type="number" min="0" value="0" required />
     </div>
+    <div class="booking-field booking-field-wide" data-pet-details hidden>
+      <p><strong>Tell us about each pet</strong></p>
+      <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
+      <div data-pet-detail-rows></div>
+    </div>
+    <p class="booking-rule" data-party-summary aria-live="polite">Your party includes 2 adults.</p>
     <p class="booking-rule" data-booking-rule></p>
     <button class="button" type="button" data-check-availability>Check availability</button>
     <p class="booking-status" role="status" aria-live="polite" data-booking-status>
@@ -111,7 +116,13 @@ const properties = getProperties();
   const propertySelect = form?.querySelector<HTMLSelectElement>('[name="propertyId"]');
   const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
   const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
-  const guests = form?.querySelector<HTMLInputElement>('[name="guests"]');
+  const adults = form?.querySelector<HTMLInputElement>('[name="adults"]');
+  const children = form?.querySelector<HTMLInputElement>('[name="children"]');
+  const infants = form?.querySelector<HTMLInputElement>('[name="infants"]');
+  const pets = form?.querySelector<HTMLInputElement>('[name="pets"]');
+  const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
+  const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
+  const partySummary = root?.querySelector<HTMLElement>('[data-party-summary]');
   const quotePanel = root?.querySelector<HTMLElement>('[data-booking-quote]');
   const calendarMonths = root?.querySelector<HTMLElement>('[data-calendar-months]');
   const calendarPicker = root?.querySelector<HTMLElement>('[data-calendar-picker]');
@@ -121,6 +132,22 @@ const properties = getProperties();
   const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
   const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const bookingAvailabilityNote = root?.querySelector<HTMLElement>('[data-booking-availability-note]');
+
+  function renderPetDetails() {
+    if (!petDetails || !petDetailRows) return;
+    const count = Math.max(0, Number(pets?.value || 0));
+    petDetails.hidden = count === 0;
+    const previous = [...petDetailRows.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value || 'dog', otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value || '', breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value || '', size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value || '', serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked || false }));
+    petDetailRows.replaceChildren();
+    for (let index = 0; index < count; index += 1) {
+      const saved = previous[index] || { species: 'dog', otherSpecies: '', breed: '', size: '', serviceAnimal: false };
+      const row = document.createElement('fieldset'); row.dataset.petRow = String(index); row.className = 'booking-pet-detail';
+      row.innerHTML = `<legend>Pet ${index + 1}</legend><label>Species<select data-pet-species required><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label><label data-pet-other-label hidden>Other species<input data-pet-other maxlength="80"></label><label>Breed (optional)<input data-pet-breed maxlength="80"></label><label>Size (optional)<select data-pet-size><option value="">Not specified</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><label class="booking-consent"><input type="checkbox" data-pet-service><span>This pet is a service animal</span></label>`;
+      const species = row.querySelector<HTMLSelectElement>('[data-pet-species]')!; const other = row.querySelector<HTMLInputElement>('[data-pet-other]')!; const otherLabel = row.querySelector<HTMLElement>('[data-pet-other-label]')!;
+      species.value = saved.species; other.value = saved.otherSpecies; row.querySelector<HTMLInputElement>('[data-pet-breed]')!.value = saved.breed; row.querySelector<HTMLSelectElement>('[data-pet-size]')!.value = saved.size; row.querySelector<HTMLInputElement>('[data-pet-service]')!.checked = saved.serviceAnimal;
+      const toggleOther = () => { otherLabel.hidden = species.value !== 'other'; other.required = species.value === 'other'; if (species.value !== 'other') other.value = ''; }; species.addEventListener('change', toggleOther); toggleOther(); petDetailRows.append(row);
+    }
+  }
 
   const MONTHS_SHOWN = 2;
   const MAX_MONTH_OFFSET = 22;
@@ -192,18 +219,14 @@ const properties = getProperties();
   }
 
   function applyPropertyRules() {
-    const { minimumNights, maximumGuests } = selectedRules();
+    const { minimumNights } = selectedRules();
     const bespokeStay = isBespokeStay();
-    if (guests) {
-      guests.max = String(maximumGuests);
-      if (Number(guests.value) > maximumGuests) guests.value = String(maximumGuests);
-    }
     if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
     const availabilityNote = propertySelect?.selectedOptions[0]?.dataset.availabilityNote || '';
     if (rule) {
       rule.textContent = bespokeStay
-        ? `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}. Enter your preferred dates to start a conversation with Olrig Bank; current availability is not checked for this request.`
-        : `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Maximum guests: ${maximumGuests}.${availabilityNote ? ` ${availabilityNote}` : ''}`;
+        ? `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Enter your preferred dates to start a conversation with Olrig Bank; current availability is not checked for this request.`
+        : `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Your party will be assessed against the published occupancy policy.${availabilityNote ? ` ${availabilityNote}` : ''}`;
     }
     if (calendarPicker) calendarPicker.hidden = bespokeStay;
     if (checkButton) checkButton.textContent = bespokeStay ? 'Continue with request' : 'Check availability';
@@ -214,6 +237,16 @@ const properties = getProperties();
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
+  }
+
+  function updatePartySummary() {
+    if (!partySummary) return;
+    const parts = [
+      [Number(adults?.value || 0), 'adult'],
+      [Number(children?.value || 0), 'child'],
+      [Number(infants?.value || 0), 'infant'],
+    ].filter(([count]) => Number(count) > 0).map(([count, label]) => `${count} ${label}${Number(count) === 1 ? '' : label === 'child' ? 'ren' : 's'}`);
+    partySummary.textContent = `Your party includes ${parts.join(', ') || 'no occupants yet'}.`;
   }
 
   function rangesOverlap(start: string, end: string, block: AvailabilityBlock): boolean {
@@ -458,8 +491,10 @@ const properties = getProperties();
   });
   arrival?.addEventListener('change', () => void syncSelectionFromInputs('arrival'));
   departure?.addEventListener('change', () => void syncSelectionFromInputs('departure'));
-  for (const input of form?.querySelectorAll<HTMLInputElement>('[name="guests"], [name="pets"]') ?? []) {
+  for (const input of form?.querySelectorAll<HTMLInputElement>('[name="adults"], [name="children"], [name="infants"], [name="pets"]') ?? []) {
     input.addEventListener('input', () => {
+      if (input.name === 'pets') renderPetDetails();
+      updatePartySummary();
       if (contact) contact.hidden = true;
       clearReviewedQuote();
       if (status) status.textContent = 'Booking details changed. Check availability and price again.';
@@ -481,6 +516,7 @@ const properties = getProperties();
   }
 
   applyPropertyRules();
+  updatePartySummary();
   void loadVisibleCalendar();
 
   async function readJson(response: Response): Promise<Record<string, any>> {
@@ -508,7 +544,7 @@ const properties = getProperties();
       String(data.get('propertyId') || ''),
       String(data.get('arrival') || ''),
       String(data.get('departure') || ''),
-      String(data.get('guests') || ''),
+      String(data.get('adults') || ''), String(data.get('children') || '0'), String(data.get('infants') || '0'),
       String(data.get('pets') || '0'),
     ].join('|');
   }
@@ -550,8 +586,13 @@ const properties = getProperties();
       renderSubmitReview(body);
       return;
     }
+    const standardGuests = Number(body.occupancyAssessment?.standardThresholds?.guests);
+    const occupancyGuidance = Number.isInteger(standardGuests)
+      ? `<p>Standard arrangement: up to ${standardGuests} guest${standardGuests === 1 ? '' : 's'} (adults and children). Your submitted party remains subject to review.</p>`
+      : '';
     quotePanel.innerHTML = `
       <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Provisional cost</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
+      ${occupancyGuidance}
       <table><tbody>${quoteRows(body)}<tr class="booking-quote-total"><th>Total for ${Number(body.nights) || 0} nights</th><th>${money(body.guestTotalPence)}</th></tr></tbody></table>
       <p>This provisional amount will be recorded on your private booking page. The server recalculates it when you submit; the booking is not confirmed until an offer is published and you accept it.</p>`;
     renderSubmitReview(body);
@@ -610,7 +651,9 @@ const properties = getProperties();
           propertyId: data.get('propertyId'),
           arrival: start,
           departure: end,
-          guests: Number(data.get('guests')),
+          adults: Number(data.get('adults')),
+          children: Number(data.get('children') || 0),
+          infants: Number(data.get('infants') || 0),
           pets: Number(data.get('pets') || 0),
         }),
       });
@@ -624,7 +667,7 @@ const properties = getProperties();
       reviewedQuoteKey = pricingKey(data);
       reviewedQuote = quoteBody;
       renderQuote(quoteBody);
-      const administratorPriced = propertySelect?.selectedOptions[0]?.dataset.administratorPriced === 'yes';
+      const administratorPriced = quoteBody.administratorPriced === true;
       const nextStep = administratorPriced
         ? 'Complete your details to submit your request.'
         : 'Review the price and complete your details.';
@@ -668,8 +711,11 @@ const properties = getProperties();
     const raw = Object.fromEntries(currentData.entries());
     const payload = {
       ...raw,
-      guests: Number(raw.guests),
+      adults: Number(raw.adults),
+      children: Number(raw.children || 0),
+      infants: Number(raw.infants || 0),
       pets: Number(raw.pets || 0),
+      petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value, otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value, breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value, size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value, serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked })),
       reviewedPricing: reviewedQuote?.pricingAvailable
         ? {
             pricingAvailable: true,
@@ -721,4 +767,5 @@ const properties = getProperties();
       if (checkButton) checkButton.disabled = false;
     }
   });
+  renderPetDetails();
 </script>

@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatPartyComposition } from '../../../lib/booking/party-composition';
 import { getAvailabilityProperties, getProperties } from '../../../lib/booking/config';
 import { nightsBetween } from '../../../lib/booking/dates';
 import { getAdminCalendarEntries, getProvisionalBookingRequest, type AdminCalendarEntry } from '../../../lib/booking/repository';
@@ -151,7 +152,7 @@ if (bespokeBooking && requestedNights > 0) {
     <div>
       <p class="eyebrow">Bespoke stay date review</p>
       <h2>{bespokeBooking.name}</h2>
-      <p>Requested: <strong>{bespokeBooking.arrival} to {bespokeBooking.departure}</strong> · {requestedNights} night{requestedNights === 1 ? '' : 's'} · {bespokeBooking.guests} guest{bespokeBooking.guests === 1 ? '' : 's'}{bespokeBooking.pets ? ` · ${bespokeBooking.pets} pet${bespokeBooking.pets === 1 ? '' : 's'}` : ''}</p>
+      <p>Requested: <strong>{bespokeBooking.arrival} to {bespokeBooking.departure}</strong> · {requestedNights} night{requestedNights === 1 ? '' : 's'} · {formatPartyComposition(bespokeBooking, ' · ')}</p>
       <p>If the requested dates are open, no calendar change is needed. “Allow bespoke” controls appear only on blocked nights within this request. Alternative stays shown here are already open and keep the same duration.</p>
       {nearestOpenArrival
         ? <p>Nearest open same-length stay: <strong>{nearestOpenArrival} to {addDays(nearestOpenArrival, requestedNights)}</strong>.</p>

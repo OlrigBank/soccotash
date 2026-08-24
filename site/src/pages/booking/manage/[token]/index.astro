@@ -1,6 +1,7 @@
 ---
 import BookerLayout from '../../../../layouts/BookerLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
+import BookingOccupancyDetails from '../../../../components/BookingOccupancyDetails.astro';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access';
 import { getProperties } from '../../../../lib/booking/config';
 import {
@@ -40,6 +41,7 @@ import {
 } from '../../../../lib/email/sender';
 import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, deleteGuestPlan, duplicateBookingPlanForGuest, getBookingLinkedPlanByBookingReference, listBookingPlanFamily, listPublishedExamplePlans, replaceGuestPlanCredential, resetGuestPlanPassword, revokeGuestPlanCredential } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { getOccupancyDetails, occupancyDetailsFromForm, replaceOccupancyDetails } from '../../../../lib/booking/occupancy-details';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
@@ -65,6 +67,9 @@ const messageNotificationAvailable = messageEmailConfiguration.configured && man
 let responseError = '';
 let messageError = '';
 let responseResult: CustomerOfferResponseResult | null = null;
+let occupancyDetails = await getOccupancyDetails(offer.bookingReference);
+let occupancyNotice = '';
+let occupancyError = '';
 let holidayPlan = await getBookingLinkedPlanByBookingReference(offer.bookingReference);
 let planFamily = holidayPlan ? await listBookingPlanFamily(offer.bookingReference) : [];
 let newGuestPlanLink = '';
@@ -76,7 +81,14 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
-  if (action === 'reset-guest-plan-password') {
+  if (action === 'save-occupancy-details') {
+    try {
+      occupancyDetails = await replaceOccupancyDetails(offer.bookingReference, occupancyDetailsFromForm(form, offer), 'customer');
+      occupancyNotice = 'Occupant and pet details were saved.';
+    } catch (error) {
+      occupancyError = error instanceof Error && error.message === 'OCCUPANT_COUNT_MISMATCH' ? 'The named occupants exceed the booking party counts.' : 'Check the pet species and describe any “other” species.';
+    }
+  } else if (action === 'reset-guest-plan-password') {
     try{await resetGuestPlanPassword({bookingReference:offer.bookingReference,planId:String(form.get('planId')||''),actor:{type:'booker',bookingId:access.bookingId}});planFamily=await listBookingPlanFamily(offer.bookingReference)}
     catch(error){responseError=error instanceof PlannerError?error.message:'The guest password could not be reset.'}
   } else if (action === 'delete-guest-plan') {
@@ -452,6 +464,7 @@ const bookingLandingUrl = new URL(`/booking/manage/${token}/`, Astro.url).toStri
     payments={payments}
     view={workspace}
   />}
+  {workspace === 'reservation' && <BookingOccupancyDetails details={occupancyDetails} counts={offer} notice={occupancyNotice} error={occupancyError} />}
   {workspace === 'holiday-planner' && <section id="holiday-planner" class="booking-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
     <p class="eyebrow">Holiday Planner</p>
     <h2 id="holiday-planner-heading">Planning dashboard</h2>

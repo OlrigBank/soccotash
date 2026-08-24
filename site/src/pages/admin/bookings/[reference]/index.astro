@@ -1,8 +1,10 @@
 ---
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import BookingConversation from '../../../../components/BookingConversation.astro';
+import BookingOccupancyDetails from '../../../../components/BookingOccupancyDetails.astro';
 import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
+import { formatPartyComposition } from '../../../../lib/booking/party-composition';
 import {
   createBookingOfferAttempt,
   getBookingActivity,
@@ -38,6 +40,9 @@ import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../..
 import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
 import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, getBookingLinkedPlanByBookingReference, listPublishedExamplePlans } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { getOccupancyDetails, occupancyDetailsFromForm, replaceOccupancyDetails } from '../../../../lib/booking/occupancy-details';
+import { listAccommodationModel } from '../../../../lib/accommodation/repository.ts';
+import { getOfferAllocation } from '../../../../lib/accommodation/allocation.ts';
 
 export const prerender = false;
 
@@ -45,6 +50,10 @@ const reference = String(Astro.params.reference || '');
 if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
 let booking = await getProvisionalBookingRequest(reference);
 if (!booking) return new Response('Booking request not found.', { status: 404 });
+let occupancyDetails = await getOccupancyDetails(reference);
+let occupancyNotice = '';
+let occupancyError = '';
+const accommodationModel=await listAccommodationModel();
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
 const emailConfiguration = getEmailConfiguration();
 const whatsappConfiguration = getWhatsAppConfiguration();
@@ -109,6 +118,10 @@ const publishedExamplePlans = holidayPlan && holidayPlan.days.length === 0 ? awa
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
+  if (String(form.get('action') || '') === 'save-occupancy-details') {
+    try { occupancyDetails = await replaceOccupancyDetails(reference, occupancyDetailsFromForm(form, booking), 'administrator'); await audit(Astro.locals.adminUser!.id, 'booking.occupancy_details_updated', { bookingReference: reference, namedOccupants: occupancyDetails.occupants.length, pets: occupancyDetails.pets.length }); occupancyNotice = 'Occupant and pet details were saved.'; }
+    catch (error) { occupancyError = error instanceof Error && error.message === 'OCCUPANT_COUNT_MISMATCH' ? 'The named occupants exceed the booking party counts.' : 'Check the pet species and describe any “other” species.'; }
+  }
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
   if(action==='mark-for-deletion'){
@@ -119,6 +132,8 @@ if (Astro.request.method === 'POST') {
   } else if(action==='restore-from-deletion'){
     if(await restoreBookingFromDeletion({reference,adminUserId:Astro.locals.adminUser!.id,reason:cleanText(form.get('restoreReason'),1000)}))return Astro.redirect('/admin/bookings/?deletion=marked&restored=1');
     else error='Give a reason and try restoring the booking again.';
+  } else if(action==='save-occupancy-details'){
+    // Saved above so the same form data can be parsed before other booking actions.
   } else if(markedForDeletion){
     error='Restore this booking before making other changes.';
   } else if (action === 'copy-example-plan') {
@@ -277,6 +292,7 @@ if (Astro.request.method === 'POST') {
     else if (emailRequested && !whatsappNotificationAvailable && !booking.email) error = 'Add a Booker email address or obtain WhatsApp consent before requesting a notification.';
     else if (emailRequested && !whatsappNotificationAvailable && !validEmail(booking.email)) error = 'The saved Booker email address is not valid.';
     else if (emailRequested && !whatsappNotificationAvailable && !emailConfiguration.configured) error = emailConfiguration.problem || 'Notification delivery is not configured.';
+    else if (booking.originatedAsBespoke && !String(form.get('allocationBundleId')||'') && form.getAll('allocationResourceKeys').length===0) error='Choose an accommodation bundle or resources for this bespoke offer.';
 
     const totalPence = formLines.reduce((sum, line) => sum + line.amountPence, 0);
 
@@ -293,7 +309,13 @@ if (Astro.request.method === 'POST') {
         recipientEmail: booking.email || '',
         subject,
         emailRequested,
+        allocation: booking.originatedAsBespoke ? {
+          bundleId: form.get('allocationBundleId'), resourceKeys: form.getAll('allocationResourceKeys'),
+          arrangementName: form.get('allocationArrangementName'), approvedSleepingCapacity: form.get('approvedSleepingCapacity'),
+          alternativeSleepingNotes: form.get('alternativeSleepingNotes'), explanatoryNotes: form.get('allocationExplanatoryNotes'),
+        } : undefined,
       });
+      const offerAllocation=await getOfferAllocation(attempt.id);
 
       await publishBookingOffer({ offerId: attempt.id, reference });
       await audit(Astro.locals.adminUser!.id, 'booking.offer_published', {
@@ -317,6 +339,7 @@ if (Astro.request.method === 'POST') {
             const sent = await sendBookingOfferEmail({
               booking: notificationBooking, propertyName, currency: notificationBooking.pricingCurrency || 'GBP', lineItems: formLines,
               totalPence, offerMessage, terms, validUntil: validUntil || null, subject, manageUrl,
+              allocation: offerAllocation,
             });
             return { ...sent, recipient: notificationBooking.email };
           } : undefined,
@@ -554,9 +577,10 @@ if (arrangementAssigned) {
           <div><dt>Booker</dt><dd><strong>{booking.name}</strong></dd></div>
           <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
           <div><dt>WhatsApp</dt><dd><span class={`status-badge status-${booking.whatsappConsentStatus}`}>{booking.whatsappConsentStatus.replaceAll('_', ' ')}</span></dd></div>
-          <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Party</dt><dd>{formatPartyComposition(booking, ' · ')}</dd></div>
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
+        {booking.occupancyAssessmentOutcome && <div class="pricing-message" role="status"><strong>Occupancy assessment: {booking.occupancyAssessmentOutcome.replaceAll('_', ' ')}</strong>{booking.occupancyAssessmentReasons.length > 0 && <ul>{booking.occupancyAssessmentReasons.map((reason) => <li>{reason.message}</li>)}</ul>}</div>}
         {isUnassignedBespoke && booking.bespokeSuggestedArrival && booking.bespokeSuggestedDeparture && <div class="pricing-message" role="status">
           <strong>Awaiting the Booker's date decision</strong>
           <p>Suggested: {dateLabel(booking.bespokeSuggestedArrival)} to {dateLabel(booking.bespokeSuggestedDeparture)}. The original request remains {dateLabel(booking.originalArrival || booking.arrival)} to {dateLabel(booking.originalDeparture || booking.departure)}.</p>
@@ -638,6 +662,7 @@ if (arrangementAssigned) {
             </div>)}
           </div>
           <button class="admin-button admin-button--secondary" id="add-offer-line" type="button">Add price line</button>
+          {booking.originatedAsBespoke&&<fieldset class="admin-panel"><legend>Offered accommodation allocation</legend><p>This immutable snapshot is separate from the original requested party. Choose a bundle, or leave the bundle blank and select a custom resource combination.</p><label>Arrangement bundle<select name="allocationBundleId"><option value="">Custom resource combination</option>{accommodationModel.bundles.filter(bundle=>bundle.active&&bundle.resources.length>0).map(bundle=><option value={bundle.id} selected={bundle.propertyIds.includes(booking.propertyId)}>{bundle.displayName} · nominally sleeps {bundle.sleepingCapacity}</option>)}</select></label><label>Booker-facing arrangement name<input name="allocationArrangementName" maxlength="160" placeholder="Uses the selected bundle name when blank"/></label><fieldset><legend>Custom resources (ignored when a bundle is selected)</legend>{accommodationModel.resources.filter(resource=>resource.active).map(resource=><label class="pricing-check"><input type="checkbox" name="allocationResourceKeys" value={resource.stableKey}/>{resource.displayName} · capacity {resource.sleepingCapacity}</label>)}</fieldset><label>Approved adult sleeping capacity<input name="approvedSleepingCapacity" type="number" min="0" value={booking.adults}/></label><label>Alternative sleeping arrangements<textarea name="alternativeSleepingNotes" rows="3" maxlength="2000" placeholder="Required when capacity relies on an arrangement beyond the selected resources"></textarea></label><label>Explanation shown to the Booker<textarea name="allocationExplanatoryNotes" rows="3" maxlength="3000"></textarea></label></fieldset>}
           <label>Message from {Astro.locals.adminUser!.displayName || 'Jenna'}<textarea name="offerMessage" rows="5" maxlength="5000">{offerMessage}</textarea></label>
           <label>Offer valid until<input type="date" name="validUntil" value={validUntil} /></label>
           <label>Additional terms<textarea name="terms" rows="4" maxlength="5000">{terms}</textarea></label>
@@ -661,6 +686,7 @@ if (arrangementAssigned) {
       </section>}
     </div>
   </aside>}
+  {workspace==='reservation' && <BookingOccupancyDetails details={occupancyDetails} counts={booking} admin={true} notice={occupancyNotice} error={occupancyError} />}
 
   {workspace==='history' && <section class="booking-administration booking-administration--page" aria-label="Administration history">
     <div class="booking-administration__body">
@@ -672,7 +698,7 @@ if (arrangementAssigned) {
           </a>
         </div>
         {visibleOffers.length ? <div class="admin-table-wrap"><table><thead><tr><th>Created</th><th>Bottom-line price</th><th>Email copy</th><th>Booker response</th><th>Administrator</th></tr></thead><tbody>
-          {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Jenna'}</td></tr>)}
+          {visibleOffers.map((offer) => <tr><td>{new Date(offer.createdAt).toLocaleString('en-GB')}</td><td><strong>{money(offer.totalPence, offer.currency)}</strong><small>{offer.subject}</small>{offer.allocation&&<small>Allocation: {offer.allocation.arrangementName}</small>}{offer.competingActiveOffers>0&&<small class="pricing-message is-error">Warning policy: {offer.competingActiveOffers} competing active unaccepted offer{offer.competingActiveOffers===1?'':'s'} shares allocated resources for overlapping dates. Acceptance remains first-come, transactionally protected.</small>}{offer.recipientEmail && <small>Recipient: {offer.recipientEmail}</small>}</td><td><span class={`status-badge status-${offer.deliveryStatus}`}>{offer.deliveryStatus.replaceAll('_', ' ')}</span>{offer.deliveryError && <small>{offer.deliveryError}</small>}</td><td><span class={`status-badge status-${offer.customerStatus}`}>{offer.customerStatus}</span>{offer.firstViewedAt && <small>First viewed {new Date(offer.firstViewedAt).toLocaleString('en-GB')}</small>}{offer.acceptedAt && <small>Accepted {new Date(offer.acceptedAt).toLocaleString('en-GB')}</small>}{offer.declinedAt && <small>Declined {new Date(offer.declinedAt).toLocaleString('en-GB')}</small>}</td><td>{offer.adminDisplayName || 'Jenna'}</td></tr>)}
         </tbody></table></div> : <p class="muted">All declined and expired offers are hidden.</p>}
       </section>}
 

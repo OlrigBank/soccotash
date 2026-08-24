@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
+import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import type { Client as PgClient } from 'pg';
 
 const { Client } = pg;
@@ -8,14 +10,16 @@ const DEPARTURE = '2099-08-16';
 const EMAIL = 'playwright-bespoke-regression@example.test';
 const BLOCK_UID_PREFIX = 'playwright-bespoke-regression';
 const PRICING_PLAN_NAME = 'Playwright booking regression payment terms';
-const ADMIN_EMAIL = process.env.BOOKING_REGRESSION_ADMIN_EMAIL || 'playwright-admin@example.test';
-const ADMIN_PASSWORD = process.env.BOOKING_REGRESSION_ADMIN_PASSWORD || 'playwright-admin-password';
+const ADMIN_EMAIL = 'playwright-occupancy-admin@example.test';
+const ADMIN_PASSWORD = 'playwright-occupancy-admin-password';
+let previousPublishedPricingPlanIds: string[] = [];
 
 async function withDatabase<T>(run: (client: PgClient) => Promise<T>): Promise<T> {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try { return await run(client); } finally { await client.end(); }
 }
+async function passwordHash(password:string){const salt=crypto.randomBytes(16),key=await promisify(crypto.scrypt)(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024}) as Buffer;return `scrypt$16384$8$1$${salt.toString('base64url')}$${key.toString('base64url')}`}
 
 async function cleanRegressionData() {
   await withDatabase(async (client) => {
@@ -29,6 +33,7 @@ async function cleanRegressionData() {
       await client.query(`DELETE FROM provisional_bookings WHERE guest_email = $1`, [EMAIL]);
       await client.query(`DELETE FROM booking_blocks WHERE external_uid LIKE $1`, [`${BLOCK_UID_PREFIX}:%`]);
       await client.query(`DELETE FROM pricing_plans WHERE name = $1`, [PRICING_PLAN_NAME]);
+      await client.query(`DELETE FROM admin_users WHERE email = $1`, [ADMIN_EMAIL]);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -41,6 +46,8 @@ test.describe('bespoke blocked-date negotiation', () => {
   test.beforeEach(async () => {
     await cleanRegressionData();
     await withDatabase(async (client) => {
+      await client.query(`INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'Playwright occupancy administrator',$2) ON CONFLICT(email) DO UPDATE SET password_hash=EXCLUDED.password_hash,active=TRUE,updated_at=NOW()`,[ADMIN_EMAIL,await passwordHash(ADMIN_PASSWORD)]);
+      previousPublishedPricingPlanIds=(await client.query(`UPDATE pricing_plans SET status='archived' WHERE property_id='main-house' AND status='published' RETURNING id::text`)).rows.map(row=>row.id);
       const plan = await client.query(
         `INSERT INTO pricing_plans (property_id, name, status, currency, version, published_at)
          VALUES ('main-house', $1, 'published', 'GBP', 1, NOW()) RETURNING id`,
@@ -65,15 +72,15 @@ test.describe('bespoke blocked-date negotiation', () => {
     });
   });
 
-  test.afterEach(async () => { await cleanRegressionData(); });
+  test.afterEach(async () => { await cleanRegressionData();if(previousPublishedPricingPlanIds.length)await withDatabase(client=>client.query(`UPDATE pricing_plans SET status='published' WHERE id=ANY($1::bigint[])`,[previousPublishedPricingPlanIds]));previousPublishedPricingPlanIds=[]; });
 
   test('restores blocked dates after a negotiated bespoke offer is cancelled', async ({ browser, page }) => {
     await page.goto('/book/');
     await page.getByRole('combobox', { name: 'Stay arrangement' }).selectOption('bespoke-arrangement');
-    await page.getByLabel('Arrival').fill(ARRIVAL);
-    await page.getByLabel('Departure').fill(DEPARTURE);
-    await page.getByLabel('Guests').fill('4');
-    await page.getByLabel('Pets').fill('0');
+    await page.locator('#arrival').fill(ARRIVAL);
+    await page.locator('#departure').fill(DEPARTURE);
+    await page.locator('#adults').fill('4');
+    await page.locator('#pets').fill('0');
     await page.getByRole('button', { name: 'Continue with request' }).click();
     await page.getByLabel('Booker name').fill('Playwright Bespoke Regression');
     await page.getByLabel('Booker email').fill(EMAIL);
@@ -124,6 +131,8 @@ test.describe('bespoke blocked-date negotiation', () => {
 
     await page.goto(bookerUrl);
     await page.getByRole('link', { name: /Reservation/ }).click();
+    await expect(page.getByRole('heading',{name:'Olrig Bank'}).last()).toBeVisible();
+    await expect(page.getByText('Approved for 4 adults')).toBeVisible();
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
     await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
@@ -147,8 +156,9 @@ test.describe('bespoke blocked-date negotiation', () => {
         `SELECT property_id FROM booking_blocks WHERE external_uid LIKE $1 ORDER BY property_id`,
         [`${BLOCK_UID_PREFIX}:%`],
       );
-      return { status: booking.rows[0]?.status, overrides: overrides.rowCount, blockers: blockers.rows.map((row) => row.property_id) };
+      const reservations=await client.query(`SELECT status,release_reason FROM accommodation_resource_reservations WHERE provisional_booking_id=(SELECT id FROM provisional_bookings WHERE public_id=$1)`,[reference]);
+      return { status: booking.rows[0]?.status, overrides: overrides.rowCount, blockers: blockers.rows.map((row) => row.property_id),reservations:reservations.rows };
     });
-    expect(state).toEqual({ status: 'cancelled', overrides: 0, blockers: ['cottage', 'main-house'] });
+    expect(state).toEqual({ status: 'cancelled', overrides: 0, blockers: ['cottage', 'main-house'],reservations:[{status:'released',release_reason:'booking_cancelled'}] });
   });
 });

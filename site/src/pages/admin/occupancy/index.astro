@@ -1,0 +1,43 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../lib/booking/config';
+import { listOccupancyPolicies } from '../../../lib/occupancy/repository';
+import { OCCUPANCY_SUBJECTS } from '../../../lib/occupancy/types';
+export const prerender=false;
+const properties=getProperties();
+const property=properties.find(item=>item.id===Astro.url.searchParams.get('property'))??properties[0];
+const policies=property?await listOccupancyPolicies(property.id):[];
+const policy=policies.find(item=>item.id===Astro.url.searchParams.get('policy'))??policies[0]??null;
+const editable=policy?.status==='draft';
+const labels={guests:'Guests (adults + children)',adults:'Adults',children:'Children',infants:'Infants',pets:'Pets',service_animals:'Service animals'} as const;
+---
+<AdminLayout title="Occupancy policies">
+  <header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Occupancy policies</h1><p>Define standard party thresholds, model their consequences and publish a complete policy for each stay arrangement.</p></div><button class="admin-button admin-button--secondary" id="create-policy-new" type="button">Create blank draft</button></header>
+  <section class="admin-panel pricing-toolbar">
+    <label>Stay arrangement<select id="property-select">{properties.map(item=><option value={item.id} selected={item.id===property?.id}>{item.name}</option>)}</select></label>
+    <label>Policy<select id="policy-select" disabled={!policies.length}>{policies.map(item=><option value={item.id} selected={item.id===policy?.id}>{item.name} · {item.status} · v{item.version}</option>)}</select></label>
+    {!policy&&<button class="admin-button" id="create-policy" type="button">Create draft</button>}
+  </section>
+  <p id="occupancy-message" role="status" aria-live="polite"></p>
+  {policy&&<>
+    <section class="admin-panel"><div class="admin-panel-heading"><div><h2>{policy.name}</h2><p><span class:list={['status-badge',`status-${policy.status}`]}>{policy.status}</span> · version {policy.version}</p></div><div>{<button class="admin-button admin-button--secondary" id="duplicate-policy" type="button">Duplicate as draft</button>}{editable&&<button class="admin-button" id="publish-policy" type="button">Publish policy</button>}</div></div>
+      {!editable&&<p>Published and archived policies are read-only. Duplicate this version to make changes.</p>}
+      <div class="pricing-form-row">{OCCUPANCY_SUBJECTS.map(subject=>{const rule=policy.rules.find(item=>item.subject===subject);return <form class="occupancy-rule-form admin-panel" data-subject={subject}><h3>{labels[subject]}</h3><label>Standard maximum<input name="maximumStandardCount" type="number" min="0" value={rule?.maximumStandardCount??''} required disabled={!editable}/></label><label>When exceeded<select name="exceedOutcome" disabled={!editable}><option value="bespoke" selected={rule?.exceedOutcome!=='host_decision_required'}>Bespoke</option><option value="host_decision_required" selected={rule?.exceedOutcome==='host_decision_required'}>Host decision required</option></select></label>{editable&&<button class="small-action" type="submit">Save rule</button>}{!rule&&<p><strong>Not defined</strong> — publication is blocked.</p>}</form>})}</div>
+    </section>
+    <section class="admin-panel"><h2>Model a party</h2><p>Modelling never creates or changes a booking and uses the same evaluator as a published policy.</p><form id="occupancy-model-form" class="pricing-form-row">{['adults','children','infants','pets','serviceAnimals'].map((name,index)=><label>{name.replace(/([A-Z])/g,' $1')}<input name={name} type="number" min={name==='adults'?'1':'0'} value={index===0?'2':'0'} required/></label>)}<button class="admin-button" type="submit">Assess party</button></form><pre id="occupancy-result" hidden></pre></section>
+  </>}
+</AdminLayout>
+<script is:inline define:vars={{propertyId:property?.id??'',policyId:policy?.id??''}}>
+const endpoint='/api/admin/occupancy/action/';const message=document.querySelector('#occupancy-message');
+const act=async payload=>{const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Occupancy request failed.');return data};
+const url=(property,policy='')=>`/admin/occupancy/?property=${encodeURIComponent(property)}${policy?`&policy=${encodeURIComponent(policy)}`:''}`;
+const fail=error=>{if(message)message.textContent=error.message};
+document.querySelector('#property-select')?.addEventListener('change',event=>location.href=url(event.currentTarget.value));
+document.querySelector('#policy-select')?.addEventListener('change',event=>location.href=url(propertyId,event.currentTarget.value));
+document.querySelector('#create-policy')?.addEventListener('click',async()=>{try{const data=await act({action:'createPolicy',propertyId});location.href=url(propertyId,data.policy.id)}catch(error){fail(error)}});
+document.querySelector('#create-policy-new')?.addEventListener('click',async()=>{try{const data=await act({action:'createPolicy',propertyId});location.href=url(propertyId,data.policy.id)}catch(error){fail(error)}});
+document.querySelector('#duplicate-policy')?.addEventListener('click',async()=>{try{const data=await act({action:'duplicatePolicy',policyId});location.href=url(propertyId,data.policy.id)}catch(error){fail(error)}});
+document.querySelector('#publish-policy')?.addEventListener('click',async()=>{if(!confirm('Publish this occupancy policy and archive the current published version?'))return;try{await act({action:'publishPolicy',policyId});location.reload()}catch(error){fail(error)}});
+document.querySelectorAll('.occupancy-rule-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(form);try{await act({action:'updateRule',policyId,subject:form.dataset.subject,maximumStandardCount:Number(data.get('maximumStandardCount')),exceedOutcome:data.get('exceedOutcome')});location.reload()}catch(error){fail(error)}}));
+document.querySelector('#occupancy-model-form')?.addEventListener('submit',async event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));const party=Object.fromEntries(Object.entries(data).map(([key,value])=>[key,Number(value)]));try{const output=await act({action:'simulate',policyId,party});const result=document.querySelector('#occupancy-result');result.hidden=false;result.textContent=`Outcome: ${output.result.outcome}\n${output.result.reasons.map(item=>`• ${item.message}`).join('\n')||'No rule thresholds exceeded.'}`}catch(error){fail(error)}});
+</script>
