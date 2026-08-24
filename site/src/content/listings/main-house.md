@@ -1,16 +1,12 @@
 ---
-title: "Olrig Bank"
-slug: "olrig-bank"
-summary: "A spacious Victorian house sleeping eight adults, with flexible options for children, family gatherings and group stays in Kendal."
-seoTitle: "Olrig Bank — Large Group and Family Holiday House in Kendal"
-description: "Spacious Kendal holiday accommodation sleeping eight adults in four bedrooms, with two bathrooms, a large garden and flexible options for children."
-heroEyebrow: "Olrig Bank"
-heroTitle: "Large group and family holiday house in Kendal"
-image: "/media/images/listings/house.jpeg"
-imageAlt: "The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam"
-sleeps: "Sleeps 8 adults"
-bedrooms: "4 bedrooms"
-bathrooms: "2 bathrooms"
+title: Olrig Bank
+slug: olrig-bank
+summary: A spacious Victorian house sleeping eight adults, with flexible options
+  for children, family gatherings and group stays in Kendal.
+image: /media/images/listings/house.jpeg
+sleeps: Sleeps 8 adults
+bedrooms: 4 bedrooms
+bathrooms: 2 bathrooms
 spaces:
   - house-hall
   - house-lounge
@@ -25,7 +21,6 @@ spaces:
   - garden
 featured: true
 ---
-
 ## Spacious group accommodation in Kendal
 
 Olrig Bank is a spacious Victorian holiday house for families and groups staying in Kendal. Sleeping eight adults across four bedrooms, it provides generous communal rooms where everyone can eat, relax and spend time together.
@@ -56,11 +51,11 @@ Extra children can sometimes be accommodated using the sofa bed, cots or blow-up
 
 ### How many guests can stay at Olrig Bank?
 
-Olrig Bank sleeps eight adults across four bedrooms. Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Guests should ask Olrig Bank to confirm the arrangement for their group.
+Olrig Bank sleeps eight guests across four bedrooms. Need more accommodation? Olrig Bank Max sleeps twelve guests across 6 bedrooms and offers an third bathroom and separate WC. Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Guests should make a bespoke request to Olrig Bank to confirm the arrangement for their group.
 
 ### Can guests walk into Kendal town centre?
 
-Yes. Kendal's shops, cafés, restaurants and pubs are within walking distance of Olrig Bank.
+Yes. Kendal's shops, cafés, restaurants and pubs are within easy walking distance of Olrig Bank.
 
 ### Is parking available?
 
