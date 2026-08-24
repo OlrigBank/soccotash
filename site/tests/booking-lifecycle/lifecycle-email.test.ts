@@ -17,6 +17,8 @@ const booking: ProvisionalBookingRequest = {
   children: 0,
   infants: 0,
   pets: 1,
+  occupancyAssessmentOutcome: 'standard',
+  occupancyAssessmentReasons: [],
   name: 'Notification Recipient Test',
   email: 'booker@example.com',
   telephone: '+44 1234 567890',

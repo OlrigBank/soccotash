@@ -1,4 +1,5 @@
 import type { ProvisionalBookingRequest } from './repository.ts';
+import { formatPartyComposition } from './party-composition.ts';
 import type { PaymentStage } from './payment-lifecycle.ts';
 import {
   BOOKING_TRANSITION_RULES,
@@ -170,7 +171,7 @@ function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
         'The booking is not confirmed. Verify the transfer against the Olrig Bank account.',
         '',
         ...bookingSummary(input),
-        `${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? `, ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}`,
+        formatPartyComposition(input.booking),
         `Booker email: ${input.booking.email || 'Not supplied'}`,
         `Booker telephone: ${input.booking.telephone || 'None supplied'}`,
         '',

@@ -1,5 +1,6 @@
 import type { ProvisionalBookingRequest } from './repository';
 import { getBookingManagementRecipients, sendEmail, type EmailSendResult } from '../email/sender';
+import { formatPartyComposition } from './party-composition';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -69,7 +70,7 @@ export async function sendAdministratorMessageEmail(input: {
     '',
     `${input.propertyName}`,
     `${formatDate(input.booking.arrival)} to ${formatDate(input.booking.departure)}`,
-    `${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? `, ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}`,
+    formatPartyComposition(input.booking),
     `Booker email: ${input.booking.email || 'Not supplied'}`,
     `Booker telephone: ${input.booking.telephone || 'None supplied'}`,
     `Booking reference: ${input.booking.reference}`,
@@ -80,7 +81,7 @@ export async function sendAdministratorMessageEmail(input: {
     <h1>New Booker message</h1>
     <p><strong>${escapeHtml(input.booking.name)}</strong> sent a new message:</p>
     <div style="white-space:pre-wrap;background:#f5f6f1;border-radius:12px;padding:18px;margin:20px 0;">${escapeHtml(input.body)}</div>
-    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}<br>${input.booking.guests} guest${input.booking.guests === 1 ? '' : 's'}${input.booking.pets ? ` · ${input.booking.pets} pet${input.booking.pets === 1 ? '' : 's'}` : ''}</p>
+    <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}<br>${formatPartyComposition(input.booking, ' · ')}</p>
     <p>Booker email: ${escapeHtml(input.booking.email || 'Not supplied')}<br>Booker telephone: ${escapeHtml(input.booking.telephone || 'None supplied')}</p>
     <p><a href="${escapeHtml(input.adminUrl)}">Open the booking conversation</a></p>
     <p>Booking reference: ${escapeHtml(input.booking.reference)}</p>

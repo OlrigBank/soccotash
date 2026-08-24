@@ -44,3 +44,14 @@ export function compatibilityGuestTotal(party: PartyComposition): number {
   const valid = validatePartyComposition(party);
   return valid.adults + valid.children;
 }
+
+export function formatPartyComposition(input: PartyComposition & { pets?: number }, separator = ', '): string {
+  const party = validatePartyComposition(input);
+  const parts = [
+    `${party.adults} adult${party.adults === 1 ? '' : 's'}`,
+    party.children ? `${party.children} child${party.children === 1 ? '' : 'ren'}` : '',
+    party.infants ? `${party.infants} infant${party.infants === 1 ? '' : 's'}` : '',
+    input.pets ? `${input.pets} pet${input.pets === 1 ? '' : 's'}` : '',
+  ];
+  return parts.filter(Boolean).join(separator);
+}

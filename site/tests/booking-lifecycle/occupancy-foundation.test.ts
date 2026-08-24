@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   PartyCompositionError,
   compatibilityGuestTotal,
+  formatPartyComposition,
   partyCompositionFromLegacyGuests,
   validatePartyComposition,
 } from '../../src/lib/booking/party-composition.ts';
@@ -21,6 +22,11 @@ test('party composition defines the transitional guest total unambiguously', () 
     children: 0,
     infants: 0,
   });
+});
+
+test('party composition has one consistent human-readable summary', () => {
+  assert.equal(formatPartyComposition({ adults: 4, children: 2, infants: 1, pets: 2 }), '4 adults, 2 children, 1 infant, 2 pets');
+  assert.equal(formatPartyComposition({ adults: 1, children: 0, infants: 0, pets: 0 }, ' · '), '1 adult');
 });
 
 test('party composition rejects missing adults, negative counts and fractions', () => {

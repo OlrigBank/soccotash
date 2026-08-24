@@ -3,6 +3,7 @@ import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import BookingConversation from '../../../../components/BookingConversation.astro';
 import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
+import { formatPartyComposition } from '../../../../lib/booking/party-composition';
 import {
   createBookingOfferAttempt,
   getBookingActivity,
@@ -554,9 +555,10 @@ if (arrangementAssigned) {
           <div><dt>Booker</dt><dd><strong>{booking.name}</strong></dd></div>
           <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
           <div><dt>WhatsApp</dt><dd><span class={`status-badge status-${booking.whatsappConsentStatus}`}>{booking.whatsappConsentStatus.replaceAll('_', ' ')}</span></dd></div>
-          <div><dt>Party</dt><dd>{booking.guests} guest{booking.guests === 1 ? '' : 's'}{booking.pets ? ` · ${booking.pets} pet${booking.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Party</dt><dd>{formatPartyComposition(booking, ' · ')}</dd></div>
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
+        {booking.occupancyAssessmentOutcome && <div class="pricing-message" role="status"><strong>Occupancy assessment: {booking.occupancyAssessmentOutcome.replaceAll('_', ' ')}</strong>{booking.occupancyAssessmentReasons.length > 0 && <ul>{booking.occupancyAssessmentReasons.map((reason) => <li>{reason.message}</li>)}</ul>}</div>}
         {isUnassignedBespoke && booking.bespokeSuggestedArrival && booking.bespokeSuggestedDeparture && <div class="pricing-message" role="status">
           <strong>Awaiting the Booker's date decision</strong>
           <p>Suggested: {dateLabel(booking.bespokeSuggestedArrival)} to {dateLabel(booking.bespokeSuggestedDeparture)}. The original request remains {dateLabel(booking.originalArrival || booking.arrival)} to {dateLabel(booking.originalDeparture || booking.departure)}.</p>

@@ -228,6 +228,8 @@ export async function queryProvisionalBookingRequestRows(
   const result = await database.query(
     `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.adults, pb.children, pb.infants, pb.pets,
+            pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",
+            pb.occupancy_assessment_reasons AS "occupancyAssessmentReasons",
             pb.guest_name AS name, pb.guest_email AS email, pb.guest_telephone AS telephone,
             pb.guest_message AS message, pb.status, pb.pricing_currency AS "pricingCurrency",
             pb.guest_total_pence AS "guestTotalPence", pb.pricing_plan_version AS "pricingPlanVersion",

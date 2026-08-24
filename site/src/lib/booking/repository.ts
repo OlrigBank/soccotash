@@ -601,6 +601,8 @@ export type ProvisionalBookingRequest = {
   children: number;
   infants: number;
   pets: number;
+  occupancyAssessmentOutcome: 'standard' | 'bespoke' | 'host_decision_required' | null;
+  occupancyAssessmentReasons: Array<{ code: string; message: string }>;
   name: string;
   email: string;
   telephone: string | null;
@@ -652,6 +654,8 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
     children: Number(row.children),
     infants: Number(row.infants),
     pets: Number(row.pets || 0),
+    occupancyAssessmentOutcome: row.occupancyAssessmentOutcome || null,
+    occupancyAssessmentReasons: Array.isArray(row.occupancyAssessmentReasons) ? row.occupancyAssessmentReasons : [],
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
     telephoneE164: row.telephoneE164 || null,
     whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
@@ -697,6 +701,8 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
             pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
             pb.guests, pb.adults, pb.children, pb.infants, pb.pets,
+            pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",
+            pb.occupancy_assessment_reasons AS "occupancyAssessmentReasons",
             pb.guest_name AS name, pb.guest_email AS email,
             pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
             pb.whatsapp_consent_status AS "whatsappConsentStatus",
@@ -1074,6 +1080,8 @@ export type CustomerBookingOffer = {
   children: number;
   infants: number;
   pets: number;
+  occupancyAssessmentOutcome: 'standard' | 'bespoke' | 'host_decision_required' | null;
+  occupancyAssessmentReasons: Array<{ code: string; message: string }>;
   guestName: string;
   guestEmail: string;
   guestTelephone: string | null;
@@ -1133,6 +1141,8 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     children: Number(row.children),
     infants: Number(row.infants),
     pets: Number(row.pets || 0),
+    occupancyAssessmentOutcome: row.occupancyAssessmentOutcome || null,
+    occupancyAssessmentReasons: Array.isArray(row.occupancyAssessmentReasons) ? row.occupancyAssessmentReasons : [],
     guestName: row.guestName,
     guestEmail: row.guestEmail || '',
     guestTelephone: row.guestTelephone,
@@ -1174,6 +1184,8 @@ const customerBookingSelect = `
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
          pb.arrival::text, pb.departure::text, pb.guests,
          pb.adults, pb.children, pb.infants, pb.pets,
+         pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",
+         pb.occupancy_assessment_reasons AS "occupancyAssessmentReasons",
          pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
          pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
          pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
