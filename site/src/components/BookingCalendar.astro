@@ -54,6 +54,11 @@ const properties = getProperties();
       <label for="pets">Pets</label>
       <input id="pets" name="pets" type="number" min="0" value="0" required />
     </div>
+    <div class="booking-field booking-field-wide" data-pet-details hidden>
+      <p><strong>Tell us about each pet</strong></p>
+      <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
+      <div data-pet-detail-rows></div>
+    </div>
     <p class="booking-rule" data-party-summary aria-live="polite">Your party includes 2 adults.</p>
     <p class="booking-rule" data-booking-rule></p>
     <button class="button" type="button" data-check-availability>Check availability</button>
@@ -114,6 +119,9 @@ const properties = getProperties();
   const adults = form?.querySelector<HTMLInputElement>('[name="adults"]');
   const children = form?.querySelector<HTMLInputElement>('[name="children"]');
   const infants = form?.querySelector<HTMLInputElement>('[name="infants"]');
+  const pets = form?.querySelector<HTMLInputElement>('[name="pets"]');
+  const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
+  const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
   const partySummary = root?.querySelector<HTMLElement>('[data-party-summary]');
   const quotePanel = root?.querySelector<HTMLElement>('[data-booking-quote]');
   const calendarMonths = root?.querySelector<HTMLElement>('[data-calendar-months]');
@@ -124,6 +132,22 @@ const properties = getProperties();
   const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
   const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const bookingAvailabilityNote = root?.querySelector<HTMLElement>('[data-booking-availability-note]');
+
+  function renderPetDetails() {
+    if (!petDetails || !petDetailRows) return;
+    const count = Math.max(0, Number(pets?.value || 0));
+    petDetails.hidden = count === 0;
+    const previous = [...petDetailRows.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value || 'dog', otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value || '', breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value || '', size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value || '', serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked || false }));
+    petDetailRows.replaceChildren();
+    for (let index = 0; index < count; index += 1) {
+      const saved = previous[index] || { species: 'dog', otherSpecies: '', breed: '', size: '', serviceAnimal: false };
+      const row = document.createElement('fieldset'); row.dataset.petRow = String(index); row.className = 'booking-pet-detail';
+      row.innerHTML = `<legend>Pet ${index + 1}</legend><label>Species<select data-pet-species required><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label><label data-pet-other-label hidden>Other species<input data-pet-other maxlength="80"></label><label>Breed (optional)<input data-pet-breed maxlength="80"></label><label>Size (optional)<select data-pet-size><option value="">Not specified</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><label class="booking-consent"><input type="checkbox" data-pet-service><span>This pet is a service animal</span></label>`;
+      const species = row.querySelector<HTMLSelectElement>('[data-pet-species]')!; const other = row.querySelector<HTMLInputElement>('[data-pet-other]')!; const otherLabel = row.querySelector<HTMLElement>('[data-pet-other-label]')!;
+      species.value = saved.species; other.value = saved.otherSpecies; row.querySelector<HTMLInputElement>('[data-pet-breed]')!.value = saved.breed; row.querySelector<HTMLSelectElement>('[data-pet-size]')!.value = saved.size; row.querySelector<HTMLInputElement>('[data-pet-service]')!.checked = saved.serviceAnimal;
+      const toggleOther = () => { otherLabel.hidden = species.value !== 'other'; other.required = species.value === 'other'; if (species.value !== 'other') other.value = ''; }; species.addEventListener('change', toggleOther); toggleOther(); petDetailRows.append(row);
+    }
+  }
 
   const MONTHS_SHOWN = 2;
   const MAX_MONTH_OFFSET = 22;
@@ -469,6 +493,7 @@ const properties = getProperties();
   departure?.addEventListener('change', () => void syncSelectionFromInputs('departure'));
   for (const input of form?.querySelectorAll<HTMLInputElement>('[name="adults"], [name="children"], [name="infants"], [name="pets"]') ?? []) {
     input.addEventListener('input', () => {
+      if (input.name === 'pets') renderPetDetails();
       updatePartySummary();
       if (contact) contact.hidden = true;
       clearReviewedQuote();
@@ -690,6 +715,7 @@ const properties = getProperties();
       children: Number(raw.children || 0),
       infants: Number(raw.infants || 0),
       pets: Number(raw.pets || 0),
+      petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value, otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value, breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value, size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value, serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked })),
       reviewedPricing: reviewedQuote?.pricingAvailable
         ? {
             pricingAvailable: true,
@@ -741,4 +767,5 @@ const properties = getProperties();
       if (checkButton) checkButton.disabled = false;
     }
   });
+  renderPetDetails();
 </script>

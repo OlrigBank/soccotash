@@ -11,6 +11,7 @@ import { assessPublishedOccupancy } from '../../lib/occupancy/assessment';
 import { sendEmail } from '../../lib/email/sender';
 import { getPublishedPricingQuote, publicQuotePayload } from '../../lib/pricing/public';
 import type { PricingSimulationInput } from '../../lib/pricing/types';
+import { validateOccupancyDetails } from '../../lib/booking/occupancy-details';
 
 export const prerender = false;
 
@@ -38,6 +39,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
     const guests = compatibilityGuestTotal(party);
     const pets = Number(input.pets || 0);
+    const occupancyDetails = validateOccupancyDetails({ occupants: [], pets: Array.isArray(input.petDetails) ? input.petDetails : [] }, { ...party, pets });
     const name = cleanText(input.name, 120);
     const contact = validateBookerContact({ email: input.email, telephone: input.telephone });
     const { email, telephone } = contact;
@@ -73,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const occupancyAssessment = await assessPublishedOccupancy(property.id, {
-      ...party, pets, serviceAnimals: 0,
+      ...party, pets, serviceAnimals: occupancyDetails.pets.filter((pet) => pet.serviceAnimal).length,
     });
     const pricingInput: PricingSimulationInput = {
       propertyId: property.id,
@@ -134,6 +136,7 @@ export const POST: APIRoute = async ({ request }) => {
       party,
       occupancyAssessment,
       pets,
+      occupancyDetails,
       name,
       email,
       telephone,
@@ -187,6 +190,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (error instanceof Error && error.message === 'DATES_UNAVAILABLE') {
       return Response.json({ error: 'Those dates are no longer available.' }, { status: 409 });
     }
+    if (error instanceof Error && ['INVALID_PET', 'PET_COUNT_MISMATCH'].includes(error.message)) return Response.json({ error: 'Provide the species for each pet and describe any “other” species.' }, { status: 400 });
     console.error(error);
     return Response.json({ error: 'The request could not be saved.' }, { status: 500 });
   }

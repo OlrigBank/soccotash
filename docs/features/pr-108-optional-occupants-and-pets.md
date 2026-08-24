@@ -7,6 +7,7 @@
 - Intended merge target: `agent/managing-occupancy-epic`
 - Database changes: yes
 - Public interface changes: booking request and private booking workspace
+- Implementation status: candidate complete on the feature branch
 
 ## Objective
 
@@ -45,3 +46,26 @@ unnecessarily burdensome.
 - Inviting occupants into the Holiday Planner.
 - Identity verification.
 - Bespoke accommodation allocation.
+
+## Implemented candidate
+
+- Migration `049_optional_occupants_and_pets.sql` adds booking-owned optional
+  occupant and structured pet records without access or contact fields.
+- The public request asks for one species record per declared pet, keeps breed
+  and size optional, and identifies service animals independently.
+- Named occupants are optional and cannot exceed the authoritative adult,
+  child and infant counts. The required Booker occupies one adult place.
+- Booker and administrator reservation workspaces share the same maintenance
+  form and transactional validation.
+- Updates replace the descriptive snapshot atomically and add booking activity;
+  administrator updates also enter the administrator audit log.
+- Service-animal totals participate in the immutable request-time occupancy
+  assessment.
+
+## Verification
+
+- `npm run check`
+- `npm run build`
+- `npm run test:booking-lifecycle` — 57 passing
+- `npm run test:booking-integration` against local Docker PostgreSQL — 16 passing
+- `git diff --check`

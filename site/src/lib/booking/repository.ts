@@ -27,6 +27,7 @@ import {
   type PartyComposition,
 } from './party-composition';
 import type { BookingOccupancyAssessment } from '../occupancy/types';
+import { validateOccupancyDetails, type OccupancyDetailsInput } from './occupancy-details';
 
 export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
@@ -241,6 +242,7 @@ export async function createProvisionalBooking(input: {
   party?: PartyComposition;
   occupancyAssessment?: BookingOccupancyAssessment;
   pets: number;
+  occupancyDetails?: OccupancyDetailsInput;
   name: string;
   email: string;
   telephone?: string;
@@ -251,6 +253,7 @@ export async function createProvisionalBooking(input: {
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<{ reference: string; accessToken: string }> {
   const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
+  const occupancyDetails = validateOccupancyDetails(input.occupancyDetails ?? { occupants: [], pets: [] }, { ...party, pets: input.pets });
   const compatibilityGuests = compatibilityGuestTotal(party);
   await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
@@ -321,6 +324,9 @@ export async function createProvisionalBooking(input: {
        VALUES ($1, 'customer', 'booking_requested')`,
       [result.rows[0].id],
     );
+    for (const [position, pet] of occupancyDetails.pets.entries()) {
+      await client.query(`INSERT INTO booking_pets(provisional_booking_id,species,other_species,breed,size,service_animal,position) VALUES($1,$2,$3,$4,$5,$6,$7)`, [result.rows[0].id, pet.species, pet.otherSpecies, pet.breed, pet.size, pet.serviceAnimal, position]);
+    }
     if (input.message?.trim()) {
       await client.query(
         `INSERT INTO booking_messages (

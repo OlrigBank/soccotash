@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import BookingConversation from '../../../../components/BookingConversation.astro';
+import BookingOccupancyDetails from '../../../../components/BookingOccupancyDetails.astro';
 import { audit, isSameOrigin } from '../../../../lib/admin/auth';
 import { getProperties } from '../../../../lib/booking/config';
 import { formatPartyComposition } from '../../../../lib/booking/party-composition';
@@ -39,6 +40,7 @@ import { getAdminPriceDisplayState, shouldShowOfferPublishedNotice } from '../..
 import { adminContactUpdateErrorMessage } from '../../../../lib/booking/booking-contact';
 import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, getBookingLinkedPlanByBookingReference, listPublishedExamplePlans } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
+import { getOccupancyDetails, occupancyDetailsFromForm, replaceOccupancyDetails } from '../../../../lib/booking/occupancy-details';
 
 export const prerender = false;
 
@@ -46,6 +48,9 @@ const reference = String(Astro.params.reference || '');
 if (!/^[0-9a-f-]{36}$/i.test(reference)) return Astro.redirect('/admin/bookings/');
 let booking = await getProvisionalBookingRequest(reference);
 if (!booking) return new Response('Booking request not found.', { status: 404 });
+let occupancyDetails = await getOccupancyDetails(reference);
+let occupancyNotice = '';
+let occupancyError = '';
 const propertyName = getProperties().find((property) => property.id === booking?.propertyId)?.name ?? booking.propertyId;
 const emailConfiguration = getEmailConfiguration();
 const whatsappConfiguration = getWhatsAppConfiguration();
@@ -110,6 +115,10 @@ const publishedExamplePlans = holidayPlan && holidayPlan.days.length === 0 ? awa
 if (Astro.request.method === 'POST') {
   if (!isSameOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
+  if (String(form.get('action') || '') === 'save-occupancy-details') {
+    try { occupancyDetails = await replaceOccupancyDetails(reference, occupancyDetailsFromForm(form, booking), 'administrator'); await audit(Astro.locals.adminUser!.id, 'booking.occupancy_details_updated', { bookingReference: reference, namedOccupants: occupancyDetails.occupants.length, pets: occupancyDetails.pets.length }); occupancyNotice = 'Occupant and pet details were saved.'; }
+    catch (error) { occupancyError = error instanceof Error && error.message === 'OCCUPANT_COUNT_MISMATCH' ? 'The named occupants exceed the booking party counts.' : 'Check the pet species and describe any “other” species.'; }
+  }
   const action = cleanText(form.get('action'), 40) || 'publish-offer';
 
   if(action==='mark-for-deletion'){
@@ -120,6 +129,8 @@ if (Astro.request.method === 'POST') {
   } else if(action==='restore-from-deletion'){
     if(await restoreBookingFromDeletion({reference,adminUserId:Astro.locals.adminUser!.id,reason:cleanText(form.get('restoreReason'),1000)}))return Astro.redirect('/admin/bookings/?deletion=marked&restored=1');
     else error='Give a reason and try restoring the booking again.';
+  } else if(action==='save-occupancy-details'){
+    // Saved above so the same form data can be parsed before other booking actions.
   } else if(markedForDeletion){
     error='Restore this booking before making other changes.';
   } else if (action === 'copy-example-plan') {
@@ -663,6 +674,7 @@ if (arrangementAssigned) {
       </section>}
     </div>
   </aside>}
+  {workspace==='reservation' && <BookingOccupancyDetails details={occupancyDetails} counts={booking} admin={true} notice={occupancyNotice} error={occupancyError} />}
 
   {workspace==='history' && <section class="booking-administration booking-administration--page" aria-label="Administration history">
     <div class="booking-administration__body">
