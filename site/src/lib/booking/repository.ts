@@ -26,6 +26,7 @@ import {
   validatePartyComposition,
   type PartyComposition,
 } from './party-composition';
+import type { BookingOccupancyAssessment } from '../occupancy/types';
 
 export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
@@ -238,6 +239,7 @@ export async function createProvisionalBooking(input: {
   departure: string;
   guests: number;
   party?: PartyComposition;
+  occupancyAssessment?: BookingOccupancyAssessment;
   pets: number;
   name: string;
   email: string;
@@ -279,9 +281,11 @@ export async function createProvisionalBooking(input: {
         whatsapp_consent_number_e164, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
-        customer_access_token)
+        customer_access_token, occupancy_policy_id, occupancy_policy_version,
+        occupancy_assessment_input, occupancy_assessment_outcome, occupancy_assessment_reasons, occupancy_assessed_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-        CASE WHEN $13 = 'active' THEN NOW() END, $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb,$28,$29)
+        CASE WHEN $13 = 'active' THEN NOW() END, $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb,$28,$29,
+        $30,$31,$32::jsonb,$33,$34::jsonb,$35)
        RETURNING id::text, public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, compatibilityGuests,
@@ -304,6 +308,12 @@ export async function createProvisionalBooking(input: {
         input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
         input.pricingQuote ? new Date() : null,
         accessToken,
+        input.occupancyAssessment?.policyId ?? null,
+        input.occupancyAssessment?.policyVersion ?? null,
+        input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.input) : null,
+        input.occupancyAssessment?.result.outcome ?? null,
+        input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.result.reasons) : null,
+        input.occupancyAssessment?.assessedAt ?? null,
       ],
     );
     await client.query(

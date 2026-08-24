@@ -42,9 +42,18 @@ export type OccupancyAssessmentInput = {
 
 export type OccupancyAssessmentReason = {
   code: string;
-  subject: OccupancySubject;
+  subject: OccupancySubject | null;
   outcome: OccupancyExceedOutcome;
   message: string;
+};
+
+export type BookingOccupancyAssessment = {
+  policyId: string | null;
+  policyVersion: number | null;
+  input: OccupancyAssessmentInput;
+  result: OccupancyAssessment;
+  standardThresholds: Partial<Record<OccupancySubject, number>>;
+  assessedAt: string;
 };
 
 export type OccupancyAssessment = {

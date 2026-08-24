@@ -6,7 +6,8 @@ import { createProvisionalBooking, getProvisionalBookingRequest } from '../../li
 import { deliverBookingNotification } from '../../lib/booking/notification-delivery';
 import { WHATSAPP_CONSENT_VERSION, validateWhatsAppConsent } from '../../lib/booking/whatsapp-phone';
 import { bookerContactSubmissionError, validateBookerContact } from '../../lib/booking/booking-contact';
-import { partyCompositionFromLegacyGuests } from '../../lib/booking/party-composition';
+import { compatibilityGuestTotal, validatePartyComposition } from '../../lib/booking/party-composition';
+import { assessPublishedOccupancy } from '../../lib/occupancy/assessment';
 import { sendEmail } from '../../lib/email/sender';
 import { getPublishedPricingQuote, publicQuotePayload } from '../../lib/pricing/public';
 import type { PricingSimulationInput } from '../../lib/pricing/types';
@@ -30,7 +31,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     const arrival = String(input.arrival || '');
     const departure = String(input.departure || '');
-    const guests = Number(input.guests);
+    const party = validatePartyComposition({
+      adults: Number(input.adults ?? input.guests),
+      children: Number(input.children ?? 0),
+      infants: Number(input.infants ?? 0),
+    });
+    const guests = compatibilityGuestTotal(party);
     const pets = Number(input.pets || 0);
     const name = cleanText(input.name, 120);
     const contact = validateBookerContact({ email: input.email, telephone: input.telephone });
@@ -56,12 +62,8 @@ export const POST: APIRoute = async ({ request }) => {
       arrival < today ||
       nights < property.minimumNights ||
       nights > 365 ||
-      !Number.isInteger(guests) ||
-      guests < 1 ||
-      guests > property.maximumGuests ||
       !Number.isInteger(pets) ||
       pets < 0 ||
-      pets > 10 ||
       name.length < 2
     ) {
       return Response.json(
@@ -70,6 +72,9 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    const occupancyAssessment = await assessPublishedOccupancy(property.id, {
+      ...party, pets, serviceAnimals: 0,
+    });
     const pricingInput: PricingSimulationInput = {
       propertyId: property.id,
       arrival,
@@ -80,7 +85,9 @@ export const POST: APIRoute = async ({ request }) => {
       channel: 'direct',
       cancellationPlan: 'flexible',
     };
-    const pricingQuote = property.administratorPriced ? null : await getPublishedPricingQuote(pricingInput);
+    const pricingQuote = property.administratorPriced || occupancyAssessment.result.outcome !== 'standard'
+      ? null
+      : await getPublishedPricingQuote(pricingInput);
     const reviewedPricing = input.reviewedPricing && typeof input.reviewedPricing === 'object'
       ? input.reviewedPricing as Record<string, unknown>
       : null;
@@ -99,9 +106,12 @@ export const POST: APIRoute = async ({ request }) => {
             : 'The published price is no longer available. Review the updated enquiry details and submit again.',
           quote: pricingQuote ? publicQuotePayload(pricingQuote) : {
             pricingAvailable: false,
-            administratorPriced: property.administratorPriced === true,
+            administratorPriced: property.administratorPriced === true || occupancyAssessment.result.outcome !== 'standard',
             eligible: true,
-            message: property.administratorPriced
+            occupancyAssessment: { ...occupancyAssessment.result, standardThresholds: occupancyAssessment.standardThresholds },
+            message: occupancyAssessment.result.outcome !== 'standard'
+              ? occupancyAssessment.result.reasons.map((reason) => reason.message).join(' ')
+              : property.administratorPriced
               ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
               : 'Jenna will confirm the price for this provisional request.',
           },
@@ -121,7 +131,8 @@ export const POST: APIRoute = async ({ request }) => {
       arrival,
       departure,
       guests,
-      party: partyCompositionFromLegacyGuests(guests),
+      party,
+      occupancyAssessment,
       pets,
       name,
       email,
@@ -167,8 +178,12 @@ export const POST: APIRoute = async ({ request }) => {
       guestTotalPence: pricingQuote?.result.guestTotalPence,
       pricingPlanVersion: pricingQuote?.plan.version,
       quote: pricingQuote ? publicQuotePayload(pricingQuote) : null,
+      occupancyOutcome: occupancyAssessment.result.outcome,
     }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && ['INVALID_PARTY_COMPOSITION', 'INVALID_OCCUPANCY_INPUT'].includes((error as Error & { code?: string }).code || error.message)) {
+      return Response.json({ error: 'Please enter at least one adult and non-negative whole-number party counts.' }, { status: 400 });
+    }
     if (error instanceof Error && error.message === 'DATES_UNAVAILABLE') {
       return Response.json({ error: 'Those dates are no longer available.' }, { status: 409 });
     }
