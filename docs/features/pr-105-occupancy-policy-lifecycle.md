@@ -5,6 +5,7 @@
 - Parent branch: `agent/managing-occupancy-epic`
 - Feature branch: `agent/pr-105-occupancy-policy-lifecycle`
 - Intended merge target: `agent/managing-occupancy-epic`
+- Current status: implemented and verified; ready for review
 - Database changes: yes
 - Public interface changes: none
 
@@ -45,3 +46,29 @@ and published using the lifecycle already established for pricing plans.
 - Changing the public booking form.
 - Automatically accepting standard bookings.
 - Allocating rooms or Cottage resources.
+
+## Implemented outcome
+
+- Migration `047_occupancy_policy_lifecycle.sql` adds versioned policies,
+  closed rule records and policy lifecycle events, together with intentionally
+  incomplete review drafts for all four current stay arrangements.
+- The supported rule subjects are adults, children, infants, pets and service
+  animals. Each rule defines a non-negative standard threshold and either a
+  bespoke or host-decision outcome when exceeded.
+- The deterministic evaluator produces stable reason codes and Booker-safe
+  explanations. Missing rules remain unresolved rather than inventing policy.
+- Administrators can create or duplicate drafts, maintain rules, model example
+  parties and publish only a complete five-rule policy.
+- Publication atomically archives the former published policy. Published and
+  archived versions are read-only.
+- The authenticated, same-origin occupancy workspace is available from the
+  administration navigation and requires confirmation before publication.
+
+## Verification
+
+- Booking lifecycle tests: 56 passed.
+- PostgreSQL integration tests: 15 passed, including policy creation, rule
+  completion, modelling, publication, immutability, duplication and archival.
+- Astro check: passed with no errors.
+- Production build: passed.
+- `git diff --check`: passed.
