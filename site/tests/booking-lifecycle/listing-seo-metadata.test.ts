@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import YAML from 'yaml';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
+
+function listingData(markdown: string): Record<string, unknown> {
+  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  assert.ok(match, 'Listing must begin with YAML front matter.');
+  return YAML.parse(match[1]) as Record<string, unknown>;
+}
 
 test('listing content supports server-rendered SEO and presentation metadata', async () => {
   const [schema, route, layout] = await Promise.all([
@@ -26,23 +33,43 @@ test('public listing facts and labels follow the agreed accommodation model', as
     source('src/content/listings/event.md'),
     source('src/content/listings/cottage.md'),
   ]);
+  const olrigBankData = listingData(olrigBank);
+  const combinedData = listingData(combined);
+  const cottageData = listingData(cottage);
 
-  assert.match(olrigBank, /title: "Olrig Bank"/);
-  assert.match(olrigBank, /slug: "olrig-bank"/);
-  assert.match(olrigBank, /sleeps: "Sleeps 8 adults"/);
-  assert.match(olrigBank, /bedrooms: "4 bedrooms"/);
-  assert.match(olrigBank, /bathrooms: "2 bathrooms"/);
+  assert.equal(olrigBankData.title, 'Olrig Bank');
+  assert.equal(olrigBankData.slug, 'olrig-bank');
+  assert.equal(olrigBankData.sleeps, 'Sleeps 8 adults');
+  assert.equal(olrigBankData.bedrooms, '4 bedrooms');
+  assert.equal(olrigBankData.bathrooms, '2 bathrooms');
   assert.doesNotMatch(olrigBank, /Main House/);
 
-  assert.match(combined, /title: "Olrig Bank Max"/);
-  assert.match(combined, /sleeps: "Sleeps 12 adults"/);
-  assert.match(combined, /bedrooms: "6 bedrooms"/);
-  assert.match(combined, /bathrooms: "3 bathrooms & 1 WC"/);
+  assert.equal(combinedData.title, 'Olrig Bank Max');
+  assert.equal(combinedData.sleeps, 'Sleeps 12 adults');
+  assert.equal(combinedData.bedrooms, '6 bedrooms');
+  assert.equal(combinedData.bathrooms, '3 bathrooms & 1 WC');
   const combinedDescription = combined.split('---').at(-1) ?? '';
   assert.doesNotMatch(combinedDescription, /\bCottage\b|\bcottage\b/);
   assert.match(combined, /Olrig Bank Max sleeps 12 adults in six bedrooms/);
 
-  assert.match(cottage, /title: "The Cottage at Olrig Bank"/);
-  assert.match(cottage, /bedrooms: "2 bedrooms"/);
-  assert.match(cottage, /bathrooms: "1 bathroom plus a separate WC"/);
+  assert.equal(cottageData.title, 'The Cottage at Olrig Bank');
+  assert.equal(cottageData.bedrooms, '2 bedrooms');
+  assert.equal(cottageData.bathrooms, '1 bathroom plus a separate WC');
+});
+
+test('listing fact validation accepts Pages CMS YAML formatting', () => {
+  const data = listingData(`---
+title: Olrig Bank Max
+sleeps: Sleeps 12 adults
+bedrooms: 6 bedrooms
+bathrooms: 3 bathrooms & 1 WC
+---
+Description.
+`);
+  assert.deepEqual(data, {
+    title: 'Olrig Bank Max',
+    sleeps: 'Sleeps 12 adults',
+    bedrooms: '6 bedrooms',
+    bathrooms: '3 bathrooms & 1 WC',
+  });
 });
