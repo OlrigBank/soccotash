@@ -1,11 +1,12 @@
 ---
-title: "The Cottage at Olrig Bank"
-slug: "cottage"
-summary: "A self-contained cottage-style part of Olrig Bank with its own entrance and access to the shared garden."
-image: "/media/images/listings/cottage.jpeg"
-sleeps: "Sleeps 4"
-bedrooms: "2 bedrooms"
-bathrooms: "1 bathroom plus a separate WC"
+title: The Cottage at Olrig Bank
+slug: cottage
+summary: A self-contained cottage-style part of Olrig Bank with its own entrance
+  and access to the shared garden.
+image: /media/images/listings/cottage.jpeg
+sleeps: Sleeps 4
+bedrooms: 2 bedrooms
+bathrooms: 1 bathroom plus a separate WC
 spaces:
   - cottage-hall-1
   - cottage-lounge-1
@@ -19,7 +20,6 @@ spaces:
   - garden
 featured: true
 ---
-
 The Cottage at Olrig Bank provides a separate place to stay. It has its own entrance, a lounge and kitchen, two bedrooms, a bathroom, a separate WC, landing and mezzanine area.
 
-It suits families or small groups who want independent accommodation while remaining close to Kendal town centre. The large garden is shared when Olrig Bank and The Cottage at Olrig Bank are occupied by separate bookings.
+It suits families or small groups who want independent accommodation while remaining close to Kendal town centre. Guests have their own parking space and use of the large garden
