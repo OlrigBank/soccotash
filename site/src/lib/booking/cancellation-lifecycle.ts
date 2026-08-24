@@ -3,6 +3,7 @@ import { getPool } from './db.ts';
 import { assertBookingTransitionAllowed } from './lifecycle.ts';
 import { insertBotBookingMessage } from './messaging.ts';
 import { resolveBookingAccessCredential } from './booking-access.ts';
+import { releaseBookingResourceReservations } from '../accommodation/allocation.ts';
 
 export type CancelBookingResult =
   | 'cancelled'
@@ -100,6 +101,7 @@ async function cancelBookingForActor(
         WHERE provisional_booking_id = $1 AND status = 'reported'`,
       [row.id],
     );
+    await releaseBookingResourceReservations(client,String(row.id),'booking_cancelled');
 
     const restoredOverrides = await client.query(
       `DELETE FROM calendar_availability_overrides

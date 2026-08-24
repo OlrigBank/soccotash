@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import test from 'node:test';
+test('standard arrangements have stable deterministic resource bundles',async()=>{const migration=await readFile(new URL('../../db/050_accommodation_resources.sql',import.meta.url),'utf8');
+ for(const key of ['olrig-bank-core','rear-bedroom-5','rear-bedroom-6','rear-bathroom-wc-landing','cottage-independent-living'])assert.match(migration,new RegExp(`'${key}'`));
+ for(const mapping of ["('main-house','olrig-bank')","('whole-property','olrig-bank-max')","('cottage','cottage-independent')"])assert.ok(migration.includes(mapping));
+ assert.match(migration,/Compatibility mapping only/);assert.doesNotMatch(migration,/ALTER TABLE booking_blocks|ALTER TABLE provisional_bookings/);
+});
+test('administrator workspace explains capacity and availability limits',async()=>{const [page,layout]=await Promise.all([readFile(new URL('../../src/pages/admin/accommodation/index.astro',import.meta.url),'utf8'),readFile(new URL('../../src/layouts/AdminLayout.astro',import.meta.url),'utf8')]);assert.match(page,/does not change current availability/);assert.match(page,/not an automatic promise of suitability or availability/);assert.match(page,/Audit history/);assert.match(layout,/\/admin\/accommodation\//)});
+test('resource identifiers are not changed by resource updates',async()=>{const repository=await readFile(new URL('../../src/lib/accommodation/repository.ts',import.meta.url),'utf8');assert.match(repository,/UPDATE accommodation_resources SET display_name=/);assert.doesNotMatch(repository,/SET stable_key/);assert.match(repository,/accommodation_resource_events/)});

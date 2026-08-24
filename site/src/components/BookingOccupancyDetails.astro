@@ -1,0 +1,21 @@
+---
+import type { OccupancyDetails } from '../lib/booking/occupancy-details';
+interface Props { details: OccupancyDetails; counts: { adults:number; children:number; infants:number; pets:number }; admin?: boolean; notice?: string; error?: string }
+const { details, counts, admin=false, notice='', error='' } = Astro.props;
+const byCategory=(category:string)=>details.occupants.filter(item=>item.category===category);
+const occupantSlots=[...Array(Math.max(0,counts.adults-1))].map((_,index)=>({category:'adult',label:`Adult ${index+2}`,value:byCategory('adult')[index]?.preferredName||''})).concat(
+  [...Array(counts.children)].map((_,index)=>({category:'child',label:`Child ${index+1}`,value:byCategory('child')[index]?.preferredName||''})),
+  [...Array(counts.infants)].map((_,index)=>({category:'infant',label:`Infant ${index+1}`,value:byCategory('infant')[index]?.preferredName||''})),
+);
+---
+<section class:list={[admin?'admin-panel':'booking-panel','booking-occupancy-details']} aria-labelledby="occupancy-details-heading">
+  <p class="eyebrow">Who is staying</p><h2 id="occupancy-details-heading">Occupants and pets</h2>
+  <p>The Booker is already identified. Other names are optional and do not give anyone access to this booking or its Holiday Planner.</p>
+  {notice&&<p class="pricing-message" role="status">{notice}</p>}{error&&<p class="pricing-message is-error" role="alert">{error}</p>}
+  <form method="post" class="admin-form"><input type="hidden" name="action" value="save-occupancy-details" />
+    {occupantSlots.length>0&&<fieldset><legend>Optional occupant names</legend><div class="booking-occupant-grid">{occupantSlots.map((slot,index)=><label>{slot.label}<input name={`occupant-${slot.category}-${slot.category==='adult'?index:slot.category==='child'?index-Math.max(0,counts.adults-1):index-Math.max(0,counts.adults-1)-counts.children}`} value={slot.value} maxlength="120" autocomplete="off" /></label>)}</div></fieldset>}
+    {counts.pets>0&&<fieldset><legend>Pet details</legend>{[...Array(counts.pets)].map((_,index)=>{const pet=details.pets[index];return <div class="booking-pet-detail"><strong>Pet {index+1}</strong><label>Species<select name={`pet-species-${index}`} required><option value="dog" selected={pet?.species==='dog'}>Dog</option><option value="cat" selected={pet?.species==='cat'}>Cat</option><option value="other" selected={pet?.species==='other'}>Other</option></select></label><label>Other species<input name={`pet-other-${index}`} value={pet?.otherSpecies||''} maxlength="80" /></label><label>Breed (optional)<input name={`pet-breed-${index}`} value={pet?.breed||''} maxlength="80" /></label><label>Size (optional)<select name={`pet-size-${index}`}><option value="" selected={!pet?.size}>Not specified</option>{['small','medium','large'].map(size=><option value={size} selected={pet?.size===size}>{size}</option>)}</select></label><label class="booking-consent"><input type="checkbox" name={`pet-service-${index}`} value="yes" checked={pet?.serviceAnimal}/><span>Service animal</span></label></div>})}</fieldset>}
+    {counts.pets===0&&<p>No pets are included in this booking request.</p>}
+    <button class:list={[admin?'admin-button':'customer-booking-submit']} type="submit">Save occupants and pets</button>
+  </form>
+</section>

@@ -5,6 +5,7 @@ import type { CustomerBookingOffer } from '../lib/booking/repository';
 import type { BookingPayment } from '../lib/booking/payment-lifecycle';
 import { getCancellationDisplayState, hasAcceptedOfferEvidence } from '../lib/booking/cancellation-display';
 import { listAllowedBookingTransitions } from '../lib/booking/lifecycle';
+import { formatPartyComposition } from '../lib/booking/party-composition';
 
 interface Props {
   offer: CustomerBookingOffer;
@@ -196,7 +197,7 @@ const conversationError = messageError || responseError;
         <dl class="customer-booking-details">
           <div><dt>Arrival</dt><dd>{dateLabel(offer.arrival)}</dd></div>
           <div><dt>Departure</dt><dd>{dateLabel(offer.departure)}</dd></div>
-          <div><dt>Party</dt><dd>{offer.guests} guest{offer.guests === 1 ? '' : 's'}{offer.pets ? ` · ${offer.pets} pet${offer.pets === 1 ? '' : 's'}` : ''}</dd></div>
+          <div><dt>Party</dt><dd>{formatPartyComposition(offer, ' · ')}</dd></div>
           <div><dt>Booker</dt><dd>{offer.guestName}</dd></div>
           <div><dt>Email</dt><dd>{offer.guestEmail || 'Not supplied — email is optional'}</dd></div>
           <div><dt>Telephone</dt><dd>{offer.guestTelephone || 'None supplied'}</dd></div>
@@ -206,6 +207,8 @@ const conversationError = messageError || responseError;
           {(confirmed || cancelled) && offer.acceptedAt && <div><dt>Offer accepted</dt><dd>{new Date(offer.acceptedAt).toLocaleString('en-GB')}</dd></div>}
         </dl>
       </section>
+
+      {offer.allocation&&<section class="booking-drawer-section"><p class="eyebrow">Offered accommodation</p><h3>{offer.allocation.arrangementName}</h3><p><strong>Approved for {offer.allocation.approvedSleepingCapacity} adult{offer.allocation.approvedSleepingCapacity===1?'':'s'}</strong></p>{offer.allocation.explanatoryNotes&&<p>{offer.allocation.explanatoryNotes}</p>}{offer.allocation.alternativeSleepingNotes&&<p><strong>Alternative sleeping arrangements:</strong> {offer.allocation.alternativeSleepingNotes}</p>}<ul>{offer.allocation.resources.map(resource=><li>{resource.name}</li>)}</ul><p>This is the accommodation included in this offer; it is recorded separately from the party originally requested.</p></section>}
 
       {requestPending && offer.propertyId === 'bespoke-arrangement' && offer.bespokeSuggestedArrival && offer.bespokeSuggestedDeparture && <section class="booking-drawer-section customer-booking-date-proposal">
         <p class="eyebrow">Alternative dates suggested</p>
