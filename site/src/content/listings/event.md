@@ -25,8 +25,9 @@ spaces:
   - garden
 featured: false
 ---
-Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and access to the large garden.
+Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and, of course, access to the large garden.
 
-Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Please include the number and ages of children when enquiring so that Jenna can confirm a suitable arrangement.
+Olrig Bank Max stays can be booked immediately when your requested dates are available and your requirements fall within the scope of this type of stay.  
+  
+Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests.  When that is the case, please submit a bespoke request to make an enquiry so that Jenna can confirm a suitable arrangement.
 
-Olrig Bank Max stays are arranged by enquiry so that dates, the number of adults and children, room arrangements and any particular requirements can be confirmed in advance. Contact Jenna with the details of the stay you are considering.
