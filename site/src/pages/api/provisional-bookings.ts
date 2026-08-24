@@ -6,6 +6,7 @@ import { createProvisionalBooking, getProvisionalBookingRequest } from '../../li
 import { deliverBookingNotification } from '../../lib/booking/notification-delivery';
 import { WHATSAPP_CONSENT_VERSION, validateWhatsAppConsent } from '../../lib/booking/whatsapp-phone';
 import { bookerContactSubmissionError, validateBookerContact } from '../../lib/booking/booking-contact';
+import { partyCompositionFromLegacyGuests } from '../../lib/booking/party-composition';
 import { sendEmail } from '../../lib/email/sender';
 import { getPublishedPricingQuote, publicQuotePayload } from '../../lib/pricing/public';
 import type { PricingSimulationInput } from '../../lib/pricing/types';
@@ -120,6 +121,7 @@ export const POST: APIRoute = async ({ request }) => {
       arrival,
       departure,
       guests,
+      party: partyCompositionFromLegacyGuests(guests),
       pets,
       name,
       email,

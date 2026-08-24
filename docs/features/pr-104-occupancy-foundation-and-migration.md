@@ -5,6 +5,7 @@
 - Parent branch: `agent/managing-occupancy-epic`
 - Feature branch: `agent/pr-104-occupancy-foundation`
 - Intended merge target: `agent/managing-occupancy-epic`
+- Current status: implemented and verified; ready for review
 - Database changes: yes
 - Public interface changes: none
 
@@ -40,3 +41,25 @@ the approved one-time assumption.
 - Occupancy policy administration.
 - Public adult, child or infant controls.
 - Named occupants, pet details or bespoke resource allocation.
+
+## Implemented outcome
+
+- Migration `046_booking_party_composition.sql` adds authoritative adult, child
+  and infant counts, backfills every legacy guest as an adult and retains pets.
+- `guests` remains temporarily available with the documented meaning **adults
+  plus children**, excluding infants. A database trigger supports legacy writes
+  while preventing structured counts and the compatibility total from drifting.
+- Shared typed validation rejects fractional or negative counts and requires at
+  least one adult before booking creation performs database work.
+- The unchanged public form explicitly maps its current guest count to adults.
+- Booking repository reads expose the three authoritative counts while existing
+  displays continue to use their current aggregate presentation.
+
+## Verification
+
+- Booking lifecycle tests: 55 passed.
+- PostgreSQL integration tests: 14 passed, including migration backfill,
+  repeat execution, legacy inserts, structured inserts and invalid constraints.
+- Astro check: passed with no errors.
+- Production build: passed.
+- `git diff --check`: passed.

@@ -20,6 +20,12 @@ import {
   type AdminCalendarEntry,
   type BookingBlock,
 } from './status-calendar';
+import {
+  compatibilityGuestTotal,
+  partyCompositionFromLegacyGuests,
+  validatePartyComposition,
+  type PartyComposition,
+} from './party-composition';
 
 export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
@@ -231,6 +237,7 @@ export async function createProvisionalBooking(input: {
   arrival: string;
   departure: string;
   guests: number;
+  party?: PartyComposition;
   pets: number;
   name: string;
   email: string;
@@ -241,6 +248,8 @@ export async function createProvisionalBooking(input: {
   message?: string;
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<{ reference: string; accessToken: string }> {
+  const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
+  const compatibilityGuests = compatibilityGuestTotal(party);
   await expireElapsedBookingOffers();
   const property = getProperty(input.propertyId);
   const availabilityProperties = property ? getAvailabilityProperties(property) : [];
@@ -264,17 +273,19 @@ export async function createProvisionalBooking(input: {
     }
     const result = await client.query(
       `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, pets, guest_name, guest_email, guest_telephone, guest_telephone_e164,
+       (property_id, arrival, departure, guests, adults, children, infants, pets,
+        guest_name, guest_email, guest_telephone, guest_telephone_e164,
         whatsapp_consent_status, whatsapp_consent_at, whatsapp_consent_source, whatsapp_consent_version,
         whatsapp_consent_number_e164, guest_message,
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-        CASE WHEN $10 = 'active' THEN NOW() END, $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25,$26)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+        CASE WHEN $13 = 'active' THEN NOW() END, $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb,$28,$29)
        RETURNING id::text, public_id::text AS reference`,
       [
-        input.propertyId, input.arrival, input.departure, input.guests, input.pets, input.name, input.email,
+        input.propertyId, input.arrival, input.departure, compatibilityGuests,
+        party.adults, party.children, party.infants, input.pets, input.name, input.email,
         input.telephone || null, input.telephoneE164 || null,
         input.whatsappConsentRequested ? 'active' : 'not_requested',
         input.whatsappConsentRequested ? 'booking_form' : null,
@@ -576,6 +587,9 @@ export type ProvisionalBookingRequest = {
   bespokeSuggestedArrival?: string | null;
   bespokeSuggestedDeparture?: string | null;
   guests: number;
+  adults: number;
+  children: number;
+  infants: number;
   pets: number;
   name: string;
   email: string;
@@ -623,6 +637,11 @@ export type ProvisionalBookingRequest = {
 function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
   return {
     ...row,
+    guests: Number(row.guests),
+    adults: Number(row.adults),
+    children: Number(row.children),
+    infants: Number(row.infants),
+    pets: Number(row.pets || 0),
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
     telephoneE164: row.telephoneE164 || null,
     whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
@@ -667,7 +686,8 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
             pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
             pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
-            pb.guests, pb.pets, pb.guest_name AS name, pb.guest_email AS email,
+            pb.guests, pb.adults, pb.children, pb.infants, pb.pets,
+            pb.guest_name AS name, pb.guest_email AS email,
             pb.guest_telephone AS telephone, pb.guest_telephone_e164 AS "telephoneE164",
             pb.whatsapp_consent_status AS "whatsappConsentStatus",
             pb.whatsapp_consent_at AS "whatsappConsentAt",
@@ -1040,6 +1060,9 @@ export type CustomerBookingOffer = {
   bespokeSuggestedArrival: string | null;
   bespokeSuggestedDeparture: string | null;
   guests: number;
+  adults: number;
+  children: number;
+  infants: number;
   pets: number;
   guestName: string;
   guestEmail: string;
@@ -1096,6 +1119,9 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     bespokeSuggestedArrival: row.bespokeSuggestedArrival || null,
     bespokeSuggestedDeparture: row.bespokeSuggestedDeparture || null,
     guests: Number(row.guests),
+    adults: Number(row.adults),
+    children: Number(row.children),
+    infants: Number(row.infants),
     pets: Number(row.pets || 0),
     guestName: row.guestName,
     guestEmail: row.guestEmail || '',
@@ -1136,7 +1162,8 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
 const customerBookingSelect = `
   SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
          pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
-         pb.arrival::text, pb.departure::text, pb.guests, pb.pets,
+         pb.arrival::text, pb.departure::text, pb.guests,
+         pb.adults, pb.children, pb.infants, pb.pets,
          pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
          pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
          pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
@@ -1593,6 +1620,9 @@ export async function getBookingReport(): Promise<{
        arrival::text,
        departure::text,
        guests,
+       adults,
+       children,
+       infants,
        pets,
        guest_name AS name,
        guest_email AS email,
