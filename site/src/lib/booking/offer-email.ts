@@ -9,6 +9,7 @@ import {
   type EmailSendResult,
 } from '../email/sender';
 import { formatPartyComposition } from './party-composition';
+import type { OfferAllocation } from '../accommodation/allocation.ts';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -41,6 +42,7 @@ export async function sendBookingOfferEmail(input: {
   validUntil: string | null;
   subject: string;
   manageUrl: string;
+  allocation?: OfferAllocation | null;
 }): Promise<EmailSendResult> {
   const linesText = input.lineItems
     .map((line) => `${line.label}: ${formatCurrency(line.amountPence, input.currency)}${line.detail ? `\n  ${line.detail}` : ''}`)
@@ -54,6 +56,7 @@ export async function sendBookingOfferEmail(input: {
     `${input.propertyName}`,
     `${formatDate(input.booking.arrival)} to ${formatDate(input.booking.departure)}`,
     formatPartyComposition(input.booking),
+    ...(input.allocation ? ['', `Offered accommodation: ${input.allocation.arrangementName}`, `Approved adult sleeping capacity: ${input.allocation.approvedSleepingCapacity}`, input.allocation.explanatoryNotes || '', input.allocation.alternativeSleepingNotes || ''] : []),
     '',
     linesText,
     `Total offer: ${formatCurrency(input.totalPence, input.currency)}`,
@@ -90,6 +93,7 @@ export async function sendBookingOfferEmail(input: {
         <p style="margin:0 0 4px;">${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}</p>
         <p style="margin:0;">${formatPartyComposition(input.booking, ' · ')}</p>
       </div>
+      ${input.allocation?`<div style="background:#f5f6f1;border-radius:12px;padding:18px;margin:22px 0;"><h2 style="margin:0 0 8px;font-size:19px;">Offered accommodation: ${escapeHtml(input.allocation.arrangementName)}</h2><p>Approved adult sleeping capacity: ${input.allocation.approvedSleepingCapacity}</p>${input.allocation.explanatoryNotes?`<p>${escapeHtml(input.allocation.explanatoryNotes)}</p>`:''}${input.allocation.alternativeSleepingNotes?`<p>${escapeHtml(input.allocation.alternativeSleepingNotes)}</p>`:''}</div>`:''}
       <table style="width:100%;border-collapse:collapse;">${tableRows}
         <tr><td style="padding-top:14px;font-size:18px;"><strong>Total offer</strong></td><td style="padding:14px 0 0 20px;text-align:right;font-size:20px;white-space:nowrap;"><strong>${escapeHtml(formatCurrency(input.totalPence, input.currency))}</strong></td></tr>
       </table>

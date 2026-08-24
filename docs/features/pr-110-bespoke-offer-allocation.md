@@ -7,6 +7,7 @@
 - Intended merge target: `agent/managing-occupancy-epic`
 - Database changes: yes
 - Public interface changes: private offer details
+- Implementation status: candidate complete on the feature branch
 
 ## Objective
 
@@ -46,3 +47,33 @@ and prevent accepted arrangements from conflicting with other use.
 - Automatically generating bespoke offers.
 - Removing host discretion.
 - Automatically confirming standard bookings.
+
+## Implemented candidate
+
+- Migration `051_bespoke_offer_allocations.sql` adds immutable per-offer
+  allocation snapshots, resource snapshots and accepted resource reservations.
+- Bespoke offer preparation requires either a bundle or a validated custom
+  resource combination, a Booker-facing arrangement name and an approved adult
+  sleeping capacity. Alternative sleeping notes are required where selected
+  resource capacity alone does not support the approval.
+- Original requested occupancy remains unchanged and separately auditable.
+- The private Booker reservation and optional offer email identify the precise
+  offered accommodation, capacity, resources and explanatory notes.
+- Publication and acceptance recheck active reservations under resource advisory
+  locks. Acceptance then creates all resource reservations atomically.
+- A PostgreSQL exclusion constraint independently prevents overlapping active
+  reservations for the same resource under concurrent acceptance.
+- Competing active, unaccepted offers follow a warning policy: administrators
+  see the count in offer history, while the first acceptance remains protected
+  transactionally rather than creating speculative holds.
+- Superseded, declined and expired unaccepted offers create no reservations.
+  Cancellation releases active reservations while retaining their history.
+
+## Verification
+
+- `npm run check`
+- `npm run build`
+- `npm run test:booking-lifecycle` — 59 passing
+- `npm run test:booking-integration` against local Docker PostgreSQL — 18 passing,
+  including concurrent overlapping allocation attempts
+- `git diff --check`

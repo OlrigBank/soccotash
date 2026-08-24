@@ -208,6 +208,8 @@ const conversationError = messageError || responseError;
         </dl>
       </section>
 
+      {offer.allocation&&<section class="booking-drawer-section"><p class="eyebrow">Offered accommodation</p><h3>{offer.allocation.arrangementName}</h3><p><strong>Approved for {offer.allocation.approvedSleepingCapacity} adult{offer.allocation.approvedSleepingCapacity===1?'':'s'}</strong></p>{offer.allocation.explanatoryNotes&&<p>{offer.allocation.explanatoryNotes}</p>}{offer.allocation.alternativeSleepingNotes&&<p><strong>Alternative sleeping arrangements:</strong> {offer.allocation.alternativeSleepingNotes}</p>}<ul>{offer.allocation.resources.map(resource=><li>{resource.name}</li>)}</ul><p>This is the accommodation included in this offer; it is recorded separately from the party originally requested.</p></section>}
+
       {requestPending && offer.propertyId === 'bespoke-arrangement' && offer.bespokeSuggestedArrival && offer.bespokeSuggestedDeparture && <section class="booking-drawer-section customer-booking-date-proposal">
         <p class="eyebrow">Alternative dates suggested</p>
         <h3>Olrig Bank has suggested a change to your request</h3>

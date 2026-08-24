@@ -28,6 +28,7 @@ import {
 } from './party-composition';
 import type { BookingOccupancyAssessment } from '../occupancy/types';
 import { validateOccupancyDetails, type OccupancyDetailsInput } from './occupancy-details';
+import { assertAllocationAvailable, countCompetingActiveOffers, getOfferAllocation, reserveOfferAllocation, snapshotOfferAllocation, type OfferAllocation } from '../accommodation/allocation.ts';
 
 export type { AdminCalendarEntry, BookingBlock } from './status-calendar';
 
@@ -589,6 +590,8 @@ export type BookingOffer = {
   acceptedAt: string | null;
   declinedAt: string | null;
   expiredAt: string | null;
+  allocation: OfferAllocation | null;
+  competingActiveOffers: number;
 };
 
 export type ProvisionalBookingRequest = {
@@ -609,6 +612,7 @@ export type ProvisionalBookingRequest = {
   pets: number;
   occupancyAssessmentOutcome: 'standard' | 'bespoke' | 'host_decision_required' | null;
   occupancyAssessmentReasons: Array<{ code: string; message: string }>;
+  originatedAsBespoke?: boolean;
   name: string;
   email: string;
   telephone: string | null;
@@ -662,6 +666,7 @@ function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingReques
     pets: Number(row.pets || 0),
     occupancyAssessmentOutcome: row.occupancyAssessmentOutcome || null,
     occupancyAssessmentReasons: Array.isArray(row.occupancyAssessmentReasons) ? row.occupancyAssessmentReasons : [],
+    originatedAsBespoke: Boolean(row.originatedAsBespoke),
     quotedAt: row.quotedAt ? new Date(row.quotedAt).toISOString() : null,
     telephoneE164: row.telephoneE164 || null,
     whatsappConsentStatus: row.whatsappConsentStatus || 'not_requested',
@@ -706,7 +711,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
             pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
             pb.bespoke_suggested_departure::text AS "bespokeSuggestedDeparture",
-            pb.guests, pb.adults, pb.children, pb.infants, pb.pets,
+            pb.guests, pb.adults, pb.children, pb.infants, pb.pets, pb.originated_as_bespoke AS "originatedAsBespoke",
             pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",
             pb.occupancy_assessment_reasons AS "occupancyAssessmentReasons",
             pb.guest_name AS name, pb.guest_email AS email,
@@ -840,6 +845,8 @@ function normaliseOfferRow(row: Record<string, any>): BookingOffer {
     acceptedAt: row.acceptedAt ? new Date(row.acceptedAt).toISOString() : null,
     declinedAt: row.declinedAt ? new Date(row.declinedAt).toISOString() : null,
     expiredAt: row.expiredAt ? new Date(row.expiredAt).toISOString() : null,
+    allocation: row.allocation || null,
+    competingActiveOffers: Number(row.competingActiveOffers||0),
   };
 }
 
@@ -861,7 +868,7 @@ export async function getBookingOffers(reference: string): Promise<BookingOffer[
       ORDER BY bo.created_at DESC, bo.id DESC`,
     [reference],
   );
-  return result.rows.map(normaliseOfferRow);
+  return Promise.all(result.rows.map(async row=>normaliseOfferRow({...row,allocation:await getOfferAllocation(String(row.id)),competingActiveOffers:await countCompetingActiveOffers(String(row.id))})));
 }
 
 function accessTokenHash(token: string): string {
@@ -884,9 +891,11 @@ export async function createBookingOfferAttempt(input: {
   recipientEmail: string;
   subject: string;
   emailRequested: boolean;
+  allocation?: { bundleId?: unknown; resourceKeys?: unknown[]; arrangementName?: unknown; approvedSleepingCapacity?: unknown; alternativeSleepingNotes?: unknown; explanatoryNotes?: unknown };
 }): Promise<{ id: string; publicId: string; accessToken: string }> {
   const accessToken = crypto.randomBytes(32).toString('base64url');
-  const result = await getPool().query(
+  const client=await getPool().connect();try{await client.query('BEGIN');
+  const result = await client.query(
     `INSERT INTO booking_offers
        (provisional_booking_id, admin_user_id, currency, line_items, total_pence,
         offer_message, terms, valid_until, recipient_email, subject, access_token_hash, delivery_status)
@@ -895,7 +904,7 @@ export async function createBookingOfferAttempt(input: {
        FROM provisional_bookings pb
       WHERE pb.public_id = $1::uuid
         AND pb.status IN ('pending', 'offered')
-      RETURNING id::text, public_id::text AS "publicId"`,
+      RETURNING id::text, public_id::text AS "publicId", provisional_booking_id`,
     [
       input.reference,
       input.adminUserId,
@@ -912,7 +921,11 @@ export async function createBookingOfferAttempt(input: {
     ],
   );
   if (!result.rowCount) throw new Error('BOOKING_NOT_FOUND');
-  return { ...result.rows[0], accessToken };
+  const booking=await client.query(`SELECT adults,originated_as_bespoke FROM provisional_bookings WHERE id=$1`,[result.rows[0].provisional_booking_id]);
+  if(booking.rows[0].originated_as_bespoke&&!input.allocation)throw new Error('ALLOCATION_REQUIRED');
+  if(input.allocation)await snapshotOfferAllocation(client,{offerId:result.rows[0].id,...input.allocation,requiredAdults:Number(booking.rows[0].adults)});
+  await client.query('COMMIT');return { id:result.rows[0].id,publicId:result.rows[0].publicId,accessToken };
+  }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
 }
 
 export async function publishBookingOffer(input: {
@@ -925,7 +938,8 @@ export async function publishBookingOffer(input: {
     const selected = await client.query(
       `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
               COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
-              pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164
+              pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164,
+              pb.arrival::text,pb.departure::text,pb.originated_as_bespoke
          FROM booking_offers bo
          JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
          LEFT JOIN admin_users au ON au.id = bo.admin_user_id
@@ -942,6 +956,9 @@ export async function publishBookingOffer(input: {
     if (!String(row.guest_email || '').trim() && !String(row.guest_telephone_e164 || '').trim()) {
       throw new Error('BOOKER_CONTACT_REQUIRED');
     }
+    const allocation=(await client.query(`SELECT id FROM booking_offer_allocations WHERE booking_offer_id=$1`,[input.offerId])).rowCount;
+    if(row.originated_as_bespoke&&!allocation)throw new Error('ALLOCATION_REQUIRED');
+    if(allocation)await assertAllocationAvailable(client,input.offerId,row.arrival,row.departure,String(bookingId));
 
     await client.query(
       `UPDATE booking_offers
@@ -1121,6 +1138,7 @@ export type CustomerBookingOffer = {
   balanceDueOn: string | null;
   paymentReportedAt: string | null;
   paymentReceivedAt: string | null;
+  allocation: OfferAllocation | null;
 };
 
 function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffer {
@@ -1182,6 +1200,7 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     balanceDueOn: row.balanceDueOn || null,
     paymentReportedAt: row.paymentReportedAt ? new Date(row.paymentReportedAt).toISOString() : null,
     paymentReceivedAt: row.paymentReceivedAt ? new Date(row.paymentReceivedAt).toISOString() : null,
+    allocation: row.allocation || null,
   };
 }
 
@@ -1219,7 +1238,8 @@ const customerBookingSelect = `
          bo.sent_at AS "sentAt", bo.published_at AS "publishedAt",
          bo.first_viewed_at AS "firstViewedAt", bo.accepted_at AS "acceptedAt",
          bo.declined_at AS "declinedAt", bo.expired_at AS "expiredAt",
-         bo.token_revoked_at AS "tokenRevokedAt"
+         bo.token_revoked_at AS "tokenRevokedAt",
+         allocation_snapshot.allocation
     FROM provisional_bookings pb
     LEFT JOIN LATERAL (
       SELECT candidate.*
@@ -1228,7 +1248,14 @@ const customerBookingSelect = `
          AND candidate.published_at IS NOT NULL
        ORDER BY candidate.published_at DESC, candidate.id DESC
        LIMIT 1
-    ) bo ON TRUE`;
+    ) bo ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT jsonb_build_object('arrangementName',a.arrangement_name,'approvedSleepingCapacity',a.approved_sleeping_capacity,
+        'alternativeSleepingNotes',a.alternative_sleeping_notes,'explanatoryNotes',a.explanatory_notes,'resources',
+        COALESCE(jsonb_agg(jsonb_build_object('key',r.resource_key,'name',r.resource_name,'sleepingCapacity',r.sleeping_capacity,'availabilityPropertyId',r.availability_property_id) ORDER BY r.position) FILTER(WHERE r.resource_id IS NOT NULL),'[]')) AS allocation
+      FROM booking_offer_allocations a LEFT JOIN booking_offer_allocation_resources r ON r.allocation_id=a.id
+      WHERE a.booking_offer_id=bo.id GROUP BY a.id
+    ) allocation_snapshot ON TRUE`;
 
 export async function getCustomerBookingPage(token: string, recordView = true): Promise<CustomerBookingOffer | null> {
   if (!validAccessToken(token)) return null;
@@ -1444,6 +1471,10 @@ export async function respondToCustomerBookingOffer(
         await client.query('COMMIT');
         return 'dates_unavailable';
       }
+
+      const allocation=(await client.query(`SELECT id FROM booking_offer_allocations WHERE booking_offer_id=$1`,[row.id])).rowCount;
+      if(row.originated_as_bespoke&&!allocation)throw new Error('ALLOCATION_REQUIRED');
+      if(allocation)try{await reserveOfferAllocation(client,{offerId:String(row.id),bookingId:String(row.provisional_booking_id),arrival:row.arrival,departure:row.departure})}catch(allocationError){if(!(allocationError instanceof Error&&allocationError.message==='ALLOCATION_UNAVAILABLE')&&(allocationError as {code?:string})?.code!=='23P01')throw allocationError;await client.query(`INSERT INTO booking_activity(provisional_booking_id,booking_offer_id,actor,event_type,details) VALUES($1,$2,'customer','offer_acceptance_blocked_by_resource',$3::jsonb)`,[row.provisional_booking_id,row.id,JSON.stringify({reason:'allocated_resource_unavailable'})]);await client.query('COMMIT');return 'dates_unavailable'}
 
       if (!row.payment_terms_plan_id) {
         throw new Error('PAYMENT_TERMS_PRICING_PLAN_REQUIRED');
