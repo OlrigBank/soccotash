@@ -1,11 +1,12 @@
 ---
-title: "Olrig Bank Max"
-slug: "event"
-summary: "A spacious Kendal holiday house for up to 12 adults, with six bedrooms, three bathrooms and one separate WC."
-image: "/media/images/listings/olrigbank.png"
-sleeps: "Sleeps 12 adults"
-bedrooms: "6 bedrooms"
-bathrooms: "3 bathrooms & 1 WC"
+title: Olrig Bank Max
+slug: event
+summary: A spacious Kendal holiday house for up to 12 adults, with six bedrooms,
+  three bathrooms and one separate WC.
+image: /media/images/spaces/house/front-door-ob.jpeg
+sleeps: Sleeps 12 adults
+bedrooms: 6 bedrooms
+bathrooms: 3 bathrooms & 1 WC
 spaces:
   - house-hall
   - house-lounge
@@ -21,12 +22,10 @@ spaces:
   - cottage-bathroom-1
   - house-bathroom-2
   - cottage-wc-1
-  - cottage-landing-1
   - garden
 featured: false
 ---
-
-Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen, landing and access to the large garden.
+Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and access to the large garden.
 
 Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests. Please include the number and ages of children when enquiring so that Jenna can confirm a suitable arrangement.
 
