@@ -9,7 +9,7 @@ const property=properties.find(item=>item.id===Astro.url.searchParams.get('prope
 const policies=property?await listOccupancyPolicies(property.id):[];
 const policy=policies.find(item=>item.id===Astro.url.searchParams.get('policy'))??policies[0]??null;
 const editable=policy?.status==='draft';
-const labels={adults:'Adults',children:'Children',infants:'Infants',pets:'Pets',service_animals:'Service animals'} as const;
+const labels={guests:'Guests (adults + children)',adults:'Adults',children:'Children',infants:'Infants',pets:'Pets',service_animals:'Service animals'} as const;
 ---
 <AdminLayout title="Occupancy policies">
   <header class="admin-page-header"><div><p class="eyebrow">Administration</p><h1>Occupancy policies</h1><p>Define standard party thresholds, model their consequences and publish a complete policy for each stay arrangement.</p></div><button class="admin-button admin-button--secondary" id="create-policy-new" type="button">Create blank draft</button></header>

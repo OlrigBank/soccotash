@@ -12,7 +12,7 @@ const integer=(value:unknown)=>Number.isFinite(Number(value))?Math.round(Number(
 
 function errorResponse(error:unknown):Response{
   const code=error instanceof Error?error.message:'UNKNOWN';
-  const messages:Record<string,string>={POLICY_NOT_FOUND:'Occupancy policy not found.',DRAFT_POLICY_NOT_FOUND:'Only a draft policy can be changed.',OCCUPANCY_POLICY_INCOMPLETE:'Define all five occupancy rules before publishing.',INVALID_OCCUPANCY_RULE:'Enter a valid non-negative threshold and outcome.',INVALID_OCCUPANCY_INPUT:'Enter non-negative whole-number counts and at least one adult.',INVALID_SERVICE_ANIMAL_COUNT:'Service animals cannot exceed the total number of pets.'};
+  const messages:Record<string,string>={POLICY_NOT_FOUND:'Occupancy policy not found.',DRAFT_POLICY_NOT_FOUND:'Only a draft policy can be changed.',OCCUPANCY_POLICY_INCOMPLETE:'Define all six occupancy rules before publishing.',INVALID_OCCUPANCY_RULE:'Enter a valid non-negative threshold and outcome.',INVALID_OCCUPANCY_INPUT:'Enter non-negative whole-number counts and at least one adult.',INVALID_SERVICE_ANIMAL_COUNT:'Service animals cannot exceed the total number of pets.'};
   if(messages[code])return Response.json({error:messages[code]},{status:400});console.error(error);return Response.json({error:'The occupancy operation could not be completed.'},{status:500});
 }
 

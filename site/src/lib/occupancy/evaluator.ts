@@ -1,7 +1,7 @@
 import { OCCUPANCY_SUBJECTS, type OccupancyAssessment, type OccupancyAssessmentInput, type OccupancyOutcome, type OccupancyPolicy, type OccupancySubject } from './types.ts';
 
 const LABELS: Record<OccupancySubject, string> = {
-  adults: 'adult', children: 'child', infants: 'infant', pets: 'pet', service_animals: 'service animal',
+  guests: 'guest', adults: 'adult', children: 'child', infants: 'infant', pets: 'pet', service_animals: 'service animal',
 };
 
 const OUTCOME_RANK: Record<OccupancyOutcome, number> = {
@@ -13,7 +13,7 @@ function validCount(value: number): boolean {
 }
 
 export function validateAssessmentInput(input: OccupancyAssessmentInput): OccupancyAssessmentInput {
-  if (!OCCUPANCY_SUBJECTS.every((subject) => validCount(input[subject === 'service_animals' ? 'serviceAnimals' : subject]))) {
+  if (![input.adults, input.children, input.infants, input.pets, input.serviceAnimals].every(validCount)) {
     throw new Error('INVALID_OCCUPANCY_INPUT');
   }
   if (input.adults < 1) throw new Error('INVALID_OCCUPANCY_INPUT');
@@ -21,11 +21,17 @@ export function validateAssessmentInput(input: OccupancyAssessmentInput): Occupa
   return input;
 }
 
+function subjectCount(subject: OccupancySubject, input: OccupancyAssessmentInput): number {
+  if (subject === 'guests') return input.adults + input.children;
+  if (subject === 'service_animals') return input.serviceAnimals;
+  return input[subject];
+}
+
 export function assessOccupancy(policy: OccupancyPolicy, rawInput: OccupancyAssessmentInput): OccupancyAssessment {
   const input = validateAssessmentInput(rawInput);
   const reasons: OccupancyAssessment['reasons'] = [];
   for (const subject of OCCUPANCY_SUBJECTS) {
-    const value = subject === 'service_animals' ? input.serviceAnimals : input[subject];
+    const value = subjectCount(subject, input);
     const rule = policy.rules.find((candidate) => candidate.subject === subject);
     if (!rule) {
       if (value > 0) reasons.push({

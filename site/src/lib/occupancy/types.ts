@@ -1,4 +1,5 @@
 export const OCCUPANCY_SUBJECTS = [
+  'guests',
   'adults',
   'children',
   'infants',

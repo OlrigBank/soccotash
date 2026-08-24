@@ -586,9 +586,9 @@ const properties = getProperties();
       renderSubmitReview(body);
       return;
     }
-    const standardAdults = Number(body.occupancyAssessment?.standardThresholds?.adults);
-    const occupancyGuidance = Number.isInteger(standardAdults)
-      ? `<p>Standard arrangement: up to ${standardAdults} adult${standardAdults === 1 ? '' : 's'}. Your submitted party remains subject to review.</p>`
+    const standardGuests = Number(body.occupancyAssessment?.standardThresholds?.guests);
+    const occupancyGuidance = Number.isInteger(standardGuests)
+      ? `<p>Standard arrangement: up to ${standardGuests} guest${standardGuests === 1 ? '' : 's'} (adults and children). Your submitted party remains subject to review.</p>`
       : '';
     quotePanel.innerHTML = `
       <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Provisional cost</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
