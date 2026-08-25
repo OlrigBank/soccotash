@@ -3,6 +3,7 @@ import SideMenu from '../components/SideMenu.astro';
 import Analytics from '../components/Analytics.astro';
 import { isNoIndex, productionAssetUrl, productionUrl } from '../lib/public-metadata';
 import '../styles/global.css';
+import '../styles/green-theme.css';
 
 const {
   title = 'Olrig Bank',
@@ -194,7 +195,7 @@ const currentYear = new Date().getFullYear();
     min-height: 44px;
     padding: 0.55rem 0.75rem;
     border-radius: 999px;
-    background: #eadfce;
+    background: var(--soft-accent);
     color: var(--ink);
     line-height: 1.2;
     text-decoration: none;
