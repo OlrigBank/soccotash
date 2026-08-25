@@ -193,6 +193,10 @@ main {
   gap: 1rem;
 }
 
+.grid.places-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .card {
   overflow: hidden;
 }
@@ -262,6 +266,9 @@ main {
   }
   .sidebar {
     position: static;
+  }
+  .grid.places-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
