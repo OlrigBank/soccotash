@@ -1,0 +1,33 @@
+:root {
+  --accent: #49654a;
+  --accent-dark: #314733;
+  --line: #d5d9cf;
+  --soft-accent: #dde6d8;
+  --accent-wash: rgba(73, 101, 74, 0.08);
+}
+
+.sidebar a[aria-current='page'],
+.sidebar a:hover,
+.calendar-navigation:hover:not(:disabled),
+.calendar-day-in-range,
+.calendar-day-start,
+.calendar-day-end,
+.calendar-key-selected,
+.admin-sidebar a:hover,
+.admin-sidebar a[aria-current='page'],
+.admin-mobile-menu a[aria-current='page'] {
+  background: var(--soft-accent);
+}
+
+.card img,
+.listing-hero-image,
+.space-card img,
+.badge {
+  background: var(--soft-accent);
+}
+
+.local-guide-tree summary:hover,
+.local-guide-tree__entries a:hover,
+.local-guide-tree__entries a:focus-visible {
+  background: var(--accent-wash);
+}
