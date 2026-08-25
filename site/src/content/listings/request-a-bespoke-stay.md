@@ -1,36 +1,22 @@
 ---
-title: Request A Bespoke Stay
+title: Olrig Bank Bespoke
 slug: bespoke
-summary: >-
-  Bespoke stays at Olrig Bank
-
-
-  Not every stay fits neatly into Olrig Bank, Olrig Bank Max or The Cottage. If
-  your plans fall outside the standard ways to stay, get in touch directly —
-  Jenna is happy to discuss whether a bespoke arrangement can be made.
-
-
-  Bespoke requests we can often accommodate include:
-
-
-  Single-day or short stays — for events, gatherings, wedding parties or day-use
-  hire, rather than a standard multi-night booking.
-
-
-  Larger groups than the listed sleeping capacity — using airbeds, sofa beds or
-  guests' own camp beds, where the group is comfortable with a more flexible
-  sleeping arrangement.
-
-
-  Specific events — birthdays, wedding-related stays, reunions, filming or
-  photography use, or other one-off occasions with particular requirements.
-
-
-  Unusual combinations — for example, booking part of the property alongside
-  additional overflow sleeping space, or a stay that spans configurations.
+summary: For stays, events or group arrangements outside our standard options,
+  contact Jenna to discuss a bespoke stay at Olrig Bank.
 image: /media/images/listings/olrig-bank-house-bespoke.jpeg
 featured: false
 ---
+Not every stay fits neatly into Olrig Bank, Olrig Bank Max or The Cottage. If
+your plans fall outside the standard ways to stay, get in touch directly — Jenna
+is happy to discuss whether a bespoke arrangement can be made.
+
+Bespoke requests we can often accommodate include:
+
+- Single-day or short stays for events, gatherings, wedding parties or day-use hire
+- Larger groups using flexible sleeping arrangements such as airbeds or sofa beds
+- Birthdays, wedding-related stays, reunions, filming or photography
+- Unusual combinations of accommodation and overflow sleeping space
+
 #### How it works
 
 Every bespoke request is considered individually, since availability, fire safety and practical space vary depending on what's being asked. When you get in touch, please include:

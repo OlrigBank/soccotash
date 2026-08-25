@@ -8,7 +8,13 @@ import { getFeaturedLocalGuideEntries } from '../lib/content';
 const page = await getEntry('pages', 'home');
 const { Content } = page ? await render(page) : { Content: undefined };
 const featuredGuide = await getFeaturedLocalGuideEntries(6);
-const listings = (await getCollection('listings')).sort((a, b) => Number(b.data.featured) - Number(a.data.featured));
+const listingOrder = ['olrig-bank', 'cottage', 'event', 'bespoke'];
+const listings = (await getCollection('listings')).sort((a, b) => {
+  const aPosition = listingOrder.indexOf(a.data.slug || a.id);
+  const bPosition = listingOrder.indexOf(b.data.slug || b.id);
+  return (aPosition === -1 ? listingOrder.length : aPosition) -
+    (bPosition === -1 ? listingOrder.length : bPosition);
+});
 ---
 
 <BaseLayout title={page?.data.title ?? 'Olrig Bank'} description={page?.data.description}>
@@ -20,8 +26,8 @@ const listings = (await getCollection('listings')).sort((a, b) => Number(b.data.
   {Content ? <section class="prose"><Content /></section> : null}
 
   <section style="margin-top: 1.5rem;">
-    <h2>Places to stay</h2>
-    <div class="grid">
+    <h2>Ways to stay</h2>
+    <div class="grid places-grid">
       {listings.map((entry) => <ListingCard entry={entry} />)}
     </div>
   </section>
