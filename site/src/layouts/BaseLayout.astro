@@ -144,6 +144,11 @@ function isCurrent(href: string) {
     contain: inline-size;
   }
 
+  .mobile-first-shell > .site-header {
+    background: var(--soft-accent);
+    backdrop-filter: none;
+  }
+
   .skip-link {
     position: absolute;
     left: 0.75rem;
@@ -185,7 +190,7 @@ function isCurrent(href: string) {
   .brand-logo {
     width: clamp(8rem, 16vw, 10rem);
     height: 3.5rem;
-    border-radius: 0.6rem;
+    border-radius: 0;
     object-fit: cover;
     object-position: center;
   }
