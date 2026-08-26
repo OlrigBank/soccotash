@@ -42,10 +42,9 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     </div>
   </section>
 
-  {Content ? <section class="prose"><Content /></section> : null}
-
-  <section id="ways-to-stay" style="margin-top: 1.5rem; scroll-margin-top: 6rem;">
+  <section id="ways-to-stay" class="ways-to-stay">
     <h2>Ways to stay</h2>
+    {Content ? <div class="ways-to-stay__intro"><Content /></div> : null}
     <div class="grid places-grid">
       {listings.map((entry) => <ListingCard entry={entry} />)}
     </div>
@@ -67,6 +66,29 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     border-radius: 1.15rem;
     background: var(--accent-dark);
     box-shadow: var(--shadow);
+  }
+
+  .ways-to-stay {
+    margin-top: 1.5rem;
+    scroll-margin-top: 6rem;
+  }
+
+  .ways-to-stay > h2 {
+    margin-bottom: 0.4rem;
+  }
+
+  .ways-to-stay__intro {
+    max-width: 68ch;
+    margin-bottom: 1.25rem;
+    color: var(--muted);
+  }
+
+  .ways-to-stay__intro :global(p) {
+    margin: 0;
+  }
+
+  .ways-to-stay__intro :global(p + p) {
+    margin-top: 0.35rem;
   }
 
   .home-hero > img {
