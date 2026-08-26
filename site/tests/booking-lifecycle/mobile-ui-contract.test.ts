@@ -17,6 +17,8 @@ test('shared layouts retain the phone navigation and viewport contracts', async 
   assert.match(adminLayout, /class="admin-mobile-menu"/, 'admin pages need a compact phone menu');
   assert.match(adminLayout, /aria-label="Mobile administration navigation"/, 'the phone menu needs an accessible navigation landmark');
   assert.match(baseLayout, /viewport-fit=cover/, 'public pages must support phone safe areas');
+  assert.match(baseLayout, /class="brand-logo"[\s\S]*olrig-bank-header-logo\.png/, 'the public header must use the Olrig Bank Kendal artwork');
+  assert.match(baseLayout, /class="brand" aria-label="Olrig Bank home"/, 'the image brand must retain an accessible home label');
   assert.match(baseLayout, /\.site-header[\s\S]*contain: inline-size/, 'the public header must not widen the page to its navigation content');
   assert.match(baseLayout, /class="mobile-header-actions"/, 'the public header needs compact phone actions');
   assert.match(baseLayout, /class="mobile-request-link" href="\/book\/"/, 'the request action must remain visible outside the phone menu');
