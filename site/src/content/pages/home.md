@@ -2,8 +2,8 @@
 slug: "home"
 title: "Olrig Bank"
 description: "Choose Olrig Bank, Olrig Bank Max or The Cottage at Olrig Bank for a stay close to Kendal town centre and the Lake District."
-heroTitle: "Stay at Olrig Bank in Kendal"
-heroText: "Choose accommodation for eight or 12 adults, or book The Cottage at Olrig Bank independently, for a relaxed stay close to Kendal town centre and the Lake District."
+heroTitle: "Stay together at Olrig Bank in Kendal"
+heroText: "A welcoming Victorian house with flexible stays for families and groups, within walking distance of Kendal and easy reach of the Lake District."
 ---
 
 Olrig Bank offers flexible accommodation for families, friends and returning guests. Explore the available stay options, look through the rooms and shared spaces, and use the local guide to plan time in Kendal and the surrounding area.
