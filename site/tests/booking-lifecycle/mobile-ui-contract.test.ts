@@ -17,14 +17,35 @@ test('shared layouts retain the phone navigation and viewport contracts', async 
   assert.match(adminLayout, /class="admin-mobile-menu"/, 'admin pages need a compact phone menu');
   assert.match(adminLayout, /aria-label="Mobile administration navigation"/, 'the phone menu needs an accessible navigation landmark');
   assert.match(baseLayout, /viewport-fit=cover/, 'public pages must support phone safe areas');
+  assert.match(baseLayout, /class="brand-logo"[\s\S]*olrig-bank-header-logo\.png/, 'the public header must use the Olrig Bank Kendal artwork');
+  assert.match(baseLayout, /class="brand" aria-label="Olrig Bank home"/, 'the image brand must retain an accessible home label');
+  assert.match(baseLayout, /\.mobile-first-shell > \.site-header\s*{[^}]*background:\s*var\(--soft-accent\)/, 'the public header panel must use the light green theme colour');
   assert.match(baseLayout, /\.site-header[\s\S]*contain: inline-size/, 'the public header must not widen the page to its navigation content');
-  assert.match(baseLayout, /\.mobile-first-top-nav[\s\S]*min-width: 0/, 'the public navigation must shrink to the phone viewport');
+  assert.match(baseLayout, /class="mobile-header-actions"/, 'the public header needs compact phone actions');
+  assert.match(baseLayout, /class="mobile-request-link" href="\/book\/"/, 'the request action must remain visible outside the phone menu');
+  assert.match(baseLayout, /class="mobile-site-menu"[\s\S]*<summary>Menu<\/summary>/, 'the phone navigation must use a native disclosure');
+  assert.match(baseLayout, /aria-label="Mobile navigation"/, 'the public phone menu needs an accessible navigation landmark');
+  assert.match(baseLayout, /\.mobile-request-link,[\s\S]*min-height:\s*44px/, 'phone header controls must retain touch-sized targets');
+  assert.match(baseLayout, /\.desktop-top-nav\s*{[\s\S]*display:\s*none/, 'desktop navigation must not duplicate the phone navigation');
+  assert.match(baseLayout, /@media \(min-width: 820px\)[\s\S]*\.mobile-header-actions[\s\S]*display:\s*none/, 'phone actions must yield to desktop navigation');
+  assert.doesNotMatch(baseLayout, /overflow-x:\s*auto/, 'the public navigation must not rely on horizontal scrolling');
   assert.match(styles, /\.admin-mobile-menu[\s\S]*display: none/, 'the phone menu must not duplicate desktop navigation');
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.admin-sidebar[\s\S]*display: none/, 'the desktop sidebar must yield to the phone menu');
   assert.match(styles, /font-size: 16px/, 'phone form fields must avoid automatic browser zoom');
   assert.match(styles, /env\(safe-area-inset-bottom\)/, 'fixed and page content must clear phone safe areas');
   assert.match(styles, /-webkit-overflow-scrolling: touch/, 'wide data surfaces must scroll naturally on touch devices');
   assert.match(styles, /\.planner-form[\s\S]*grid-template-columns: minmax\(0, 1fr\)/, 'planner forms must collapse to one column');
+});
+
+test('public mobile navigation keeps all top-level destinations crawlable', async () => {
+  const baseLayout = await readFile(baseLayoutUrl, 'utf8');
+  const mobileMenu = baseLayout.match(/<details class="mobile-site-menu">([\s\S]*?)<\/details>/)?.[1] ?? '';
+
+  assert.match(mobileMenu, /href="\/"/);
+  assert.match(mobileMenu, /href="\/listings\/"/);
+  assert.match(mobileMenu, /href="\/guest-information\/"/);
+  assert.match(mobileMenu, /href="\/local-guide\/"/);
+  assert.match(mobileMenu, /href="\/contact\/"/);
 });
 
 test('public responsive shell uses repaint-safe horizontal overflow', async () => {

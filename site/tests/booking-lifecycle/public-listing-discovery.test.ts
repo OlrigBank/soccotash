@@ -33,13 +33,13 @@ test('public supporting pages provide crawlable contextual listing links', async
   assert.doesNotMatch(publicLinks.join('\n'), /\/admin\/|\/booking\/manage\/|\/planner\//);
 });
 
-test('desktop and mobile navigation share the public listings destination', async () => {
+test('desktop, mobile and sidebar navigation share the public listings destination', async () => {
   const [layout, sideMenu] = await Promise.all([
     source('src/layouts/BaseLayout.astro'),
     source('src/components/SideMenu.astro'),
   ]);
 
   assert.match(layout, /class="top-nav[^"]*"[\s\S]*href="\/listings\/"/);
-  assert.match(layout, /class="mobile-menu"[\s\S]*<SideMenu/);
+  assert.match(layout, /class="mobile-site-menu"[\s\S]*href="\/listings\/"/);
   assert.match(sideMenu, /href="\/listings\/"/);
 });
