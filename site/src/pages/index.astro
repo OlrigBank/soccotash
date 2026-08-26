@@ -164,7 +164,13 @@ const listings = (await getCollection('listings')).sort((a, b) => {
       position: absolute;
       inset: 0;
       content: '';
-      background: linear-gradient(90deg, rgba(19, 35, 27, 0.8) 0%, rgba(19, 35, 27, 0.52) 42%, transparent 72%);
+      background: linear-gradient(
+        90deg,
+        rgba(19, 35, 27, 0.82) 0%,
+        rgba(19, 35, 27, 0.72) 62%,
+        rgba(19, 35, 27, 0.25) 80%,
+        transparent 100%
+      );
       pointer-events: none;
     }
 
@@ -179,10 +185,14 @@ const listings = (await getCollection('listings')).sort((a, b) => {
       z-index: 1;
       display: flex;
       min-height: inherit;
-      max-width: 40rem;
+      max-width: 38rem;
       flex-direction: column;
       justify-content: flex-end;
       padding: clamp(2rem, 5vw, 4rem);
+    }
+
+    .home-hero p {
+      max-width: 38ch;
     }
   }
 

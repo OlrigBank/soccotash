@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Complete. See [completion evidence](../improving-olrig-bank-ui-step-1-completion.md).
 
 ## Epic summary
 
