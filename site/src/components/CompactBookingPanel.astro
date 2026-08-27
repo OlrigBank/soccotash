@@ -1,0 +1,341 @@
+---
+import { getProperties } from '../lib/booking/config';
+
+interface Props {
+  propertyId?: string;
+  source?: 'homepage' | 'listing';
+  heading?: string;
+  idPrefix?: string;
+}
+
+const {
+  propertyId,
+  source = propertyId ? 'listing' : 'homepage',
+  heading = 'Plan your stay',
+  idPrefix = `compact-booking-${source}`,
+} = Astro.props;
+const properties = getProperties();
+const fixedProperty = propertyId ? properties.find((property) => property.id === propertyId) : undefined;
+
+if (propertyId && !fixedProperty) {
+  throw new Error(`Unknown compact booking property: ${propertyId}`);
+}
+
+const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement' ? 'Olrig Bank Bespoke' : fallback;
+---
+
+<section
+  class="compact-booking-panel"
+  data-compact-booking-panel
+  data-source={source}
+  data-fixed-property={fixedProperty?.id}
+  aria-labelledby={`${idPrefix}-heading`}
+>
+  <div class="compact-booking-panel__heading">
+    <p class="eyebrow">Check a stay</p>
+    <h2 id={`${idPrefix}-heading`}>{heading}</h2>
+  </div>
+
+  <form class="compact-booking-form" data-compact-booking-form>
+    {fixedProperty ? (
+      <div class="compact-booking-field compact-booking-field--property">
+        <span>Stay arrangement</span>
+        <strong>{publicName(fixedProperty.id, fixedProperty.name)}</strong>
+        <input type="hidden" name="propertyId" value={fixedProperty.id} />
+      </div>
+    ) : (
+      <label class="compact-booking-field compact-booking-field--property" for={`${idPrefix}-property`}>
+        <span>Stay arrangement</span>
+        <select id={`${idPrefix}-property`} name="propertyId" required>
+          {properties.map((property) => (
+            <option value={property.id}>{publicName(property.id, property.name)}</option>
+          ))}
+        </select>
+      </label>
+    )}
+
+    <label class="compact-booking-field" for={`${idPrefix}-arrival`}>
+      <span>Arrival</span>
+      <input id={`${idPrefix}-arrival`} name="arrival" type="date" required />
+    </label>
+    <label class="compact-booking-field" for={`${idPrefix}-departure`}>
+      <span>Departure</span>
+      <input id={`${idPrefix}-departure`} name="departure" type="date" required />
+    </label>
+    <label class="compact-booking-field" for={`${idPrefix}-adults`}>
+      <span>Adults <small>13+</small></span>
+      <input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value="2" required />
+    </label>
+    <label class="compact-booking-field" for={`${idPrefix}-children`}>
+      <span>Children <small>2–12</small></span>
+      <input id={`${idPrefix}-children`} name="children" type="number" min="0" value="0" required />
+    </label>
+    <label class="compact-booking-field" for={`${idPrefix}-infants`}>
+      <span>Infants <small>Under 2</small></span>
+      <input id={`${idPrefix}-infants`} name="infants" type="number" min="0" value="0" required />
+    </label>
+    <label class="compact-booking-field" for={`${idPrefix}-pets`}>
+      <span>Pets</span>
+      <input id={`${idPrefix}-pets`} name="pets" type="number" min="0" value="0" required />
+    </label>
+
+    <div class="compact-booking-panel__action">
+      <button class="button" type="submit" data-compact-booking-submit>Check availability</button>
+    </div>
+  </form>
+
+  <p class="compact-booking-panel__bespoke" data-compact-booking-bespoke hidden>
+    Tell us your preferred dates and party. This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price.
+  </p>
+  <p class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
+  <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
+</section>
+
+<script>
+  type QuoteLine = { label?: string; detail?: string; amountPence?: number };
+  type QuoteResponse = {
+    pricingAvailable?: boolean;
+    administratorPriced?: boolean;
+    eligible?: boolean;
+    currency?: string;
+    nights?: number;
+    guestTotalPence?: number;
+    lines?: QuoteLine[];
+    restrictions?: string[];
+    warnings?: string[];
+    message?: string;
+    error?: string;
+  };
+
+  const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', {
+    style: 'currency', currency,
+  }).format(pence / 100);
+
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  document.querySelectorAll<HTMLElement>('[data-compact-booking-panel]').forEach((panel) => {
+    const form = panel.querySelector<HTMLFormElement>('[data-compact-booking-form]');
+    const property = panel.querySelector<HTMLSelectElement | HTMLInputElement>('[name="propertyId"]');
+    const arrival = panel.querySelector<HTMLInputElement>('[name="arrival"]');
+    const departure = panel.querySelector<HTMLInputElement>('[name="departure"]');
+    const submit = panel.querySelector<HTMLButtonElement>('[data-compact-booking-submit]');
+    const status = panel.querySelector<HTMLElement>('[data-compact-booking-status]');
+    const result = panel.querySelector<HTMLElement>('[data-compact-booking-result]');
+    const bespokeMessage = panel.querySelector<HTMLElement>('[data-compact-booking-bespoke]');
+    if (!form || !property || !arrival || !departure || !submit || !status || !result || !bespokeMessage) return;
+
+    arrival.min = today();
+    departure.min = today();
+
+    const isBespoke = () => property.value === 'bespoke-arrangement';
+    const clearResult = () => {
+      result.hidden = true;
+      result.replaceChildren();
+      status.textContent = '';
+    };
+    const continuationHref = () => {
+      const data = new FormData(form);
+      const params = new URLSearchParams();
+      for (const name of ['propertyId', 'arrival', 'departure', 'adults', 'children', 'infants', 'pets']) {
+        params.set(name, String(data.get(name) ?? ''));
+      }
+      return `/book/?${params.toString()}`;
+    };
+    const continueLink = (label: string) => {
+      const link = document.createElement('a');
+      link.className = 'button compact-booking-result__continue';
+      link.href = continuationHref();
+      link.textContent = label;
+      link.addEventListener('click', () => window.olrigAnalytics?.track('compact_booking_continued', {
+        source: panel.dataset.source || 'unknown',
+        property: property.value,
+      }));
+      return link;
+    };
+    const updateMode = () => {
+      const bespoke = isBespoke();
+      bespokeMessage.hidden = !bespoke;
+      submit.textContent = bespoke ? 'Start a Bespoke request' : 'Check availability';
+      clearResult();
+    };
+    const renderHostPriced = (body: QuoteResponse) => {
+      const heading = document.createElement('h3');
+      heading.textContent = 'Price confirmation required';
+      const copy = document.createElement('p');
+      copy.textContent = body.message || 'Jenna will confirm the price for this request.';
+      result.append(heading, copy, continueLink('Continue with request'));
+      result.hidden = false;
+    };
+    const renderQuote = (body: QuoteResponse) => {
+      const heading = document.createElement('div');
+      heading.className = 'compact-booking-result__heading';
+      const title = document.createElement('h3');
+      title.textContent = 'These dates currently appear available';
+      const total = document.createElement('strong');
+      total.textContent = money(Number(body.guestTotalPence || 0), body.currency || 'GBP');
+      heading.append(title, total);
+      result.append(heading);
+
+      const nights = document.createElement('p');
+      nights.textContent = `${Number(body.nights || 0)} ${Number(body.nights) === 1 ? 'night' : 'nights'} · provisional total`;
+      result.append(nights);
+
+      if (body.lines?.length) {
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Price details';
+        const list = document.createElement('dl');
+        for (const line of body.lines) {
+          const term = document.createElement('dt');
+          term.textContent = line.label || line.detail || 'Price item';
+          const value = document.createElement('dd');
+          value.textContent = money(Number(line.amountPence || 0), body.currency || 'GBP');
+          list.append(term, value);
+        }
+        details.append(summary, list);
+        result.append(details);
+      }
+
+      const guidance = [...(body.restrictions || []), ...(body.warnings || [])];
+      if (guidance.length) {
+        const list = document.createElement('ul');
+        for (const message of guidance) {
+          const item = document.createElement('li');
+          item.textContent = message;
+          list.append(item);
+        }
+        result.append(list);
+      }
+      result.append(continueLink('Continue with request'));
+      result.hidden = false;
+    };
+
+    property.addEventListener('change', updateMode);
+    for (const input of form.querySelectorAll<HTMLInputElement>('input')) input.addEventListener('input', clearResult);
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearResult();
+      if (!form.reportValidity()) return;
+      if (departure.value <= arrival.value) {
+        status.textContent = 'Choose a departure date after the arrival date.';
+        return;
+      }
+
+      window.olrigAnalytics?.track('compact_booking_started', {
+        source: panel.dataset.source || 'unknown',
+        property: property.value,
+      });
+
+      if (isBespoke()) {
+        status.textContent = 'Jenna will confirm the accommodation, availability and price. Your dates are not reserved.';
+        result.append(continueLink('Start a Bespoke request'));
+        result.hidden = false;
+        window.olrigAnalytics?.track('compact_booking_result', {
+          source: panel.dataset.source || 'unknown', property: property.value, result: 'bespoke',
+        });
+        return;
+      }
+
+      submit.disabled = true;
+      status.textContent = 'Checking the latest availability and price…';
+      const data = new FormData(form);
+      const safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value };
+      try {
+        const availabilityParams = new URLSearchParams({
+          property: property.value, from: arrival.value, to: departure.value,
+        });
+        const availabilityResponse = await fetch(`/api/availability/?${availabilityParams}`);
+        const availability = await availabilityResponse.json() as { blocks?: unknown[]; error?: string };
+        if (!availabilityResponse.ok) throw new Error(availability.error || 'Availability could not be checked.');
+        if (availability.blocks?.length) {
+          status.textContent = 'Those dates are unavailable. Please choose different dates.';
+          window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'unavailable' });
+          return;
+        }
+
+        const quoteResponse = await fetch('/api/quote/', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            propertyId: property.value,
+            arrival: arrival.value,
+            departure: departure.value,
+            adults: Number(data.get('adults')),
+            children: Number(data.get('children')),
+            infants: Number(data.get('infants')),
+            pets: Number(data.get('pets')),
+          }),
+        });
+        const quote = await quoteResponse.json() as QuoteResponse;
+        if (!quoteResponse.ok) {
+          status.textContent = quote.error || 'A provisional price could not be calculated.';
+          window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
+          return;
+        }
+        status.textContent = '';
+        if (quote.pricingAvailable) renderQuote(quote);
+        else renderHostPriced(quote);
+        window.olrigAnalytics?.track('compact_booking_result', {
+          ...safeAnalytics, result: quote.pricingAvailable ? 'available' : 'host_priced',
+        });
+      } catch (error) {
+        status.textContent = `${error instanceof Error ? error.message : 'The stay could not be checked.'} Please try again or continue to the full request form.`;
+        result.append(continueLink('Continue to request form'));
+        result.hidden = false;
+        window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    updateMode();
+  });
+</script>
+
+<style>
+  .compact-booking-panel {
+    padding: clamp(1rem, 3vw, 1.4rem);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+  .compact-booking-panel__heading { margin-bottom: 1rem; }
+  .compact-booking-panel__heading :is(p, h2) { margin: 0; }
+  .compact-booking-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.8rem;
+    align-items: end;
+  }
+  .compact-booking-field { display: grid; gap: 0.35rem; min-width: 0; }
+  .compact-booking-field > span { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+  .compact-booking-field small { font-weight: 400; }
+  .compact-booking-field :is(input, select) {
+    width: 100%; min-height: 44px; padding: 0.55rem 0.65rem;
+    border: 1px solid var(--line); border-radius: 0.55rem; background: #fff; color: var(--ink);
+  }
+  .compact-booking-field--property { grid-column: span 2; }
+  .compact-booking-panel__action .button { width: 100%; min-height: 44px; margin: 0; justify-content: center; }
+  .compact-booking-panel__bespoke,
+  .compact-booking-panel__status { margin: 0.9rem 0 0; }
+  .compact-booking-panel__status { color: var(--muted); }
+  .compact-booking-result {
+    margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line);
+  }
+  .compact-booking-result[hidden], .compact-booking-panel__bespoke[hidden] { display: none; }
+  .compact-booking-result__heading { display: flex; gap: 1rem; align-items: baseline; justify-content: space-between; }
+  .compact-booking-result__heading h3 { margin: 0; }
+  .compact-booking-result__heading strong { font-size: 1.35rem; white-space: nowrap; }
+  .compact-booking-result details { margin: 0.8rem 0; }
+  .compact-booking-result summary { cursor: pointer; font-weight: 700; }
+  .compact-booking-result dl { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; }
+  .compact-booking-result :is(dt, dd) { margin: 0; }
+  .compact-booking-result__continue { margin-top: 0.6rem; }
+  @media (max-width: 520px) {
+    .compact-booking-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .compact-booking-field--property, .compact-booking-panel__action { grid-column: 1 / -1; }
+    .compact-booking-result__heading { align-items: flex-start; flex-direction: column; gap: 0.35rem; }
+  }
+</style>
