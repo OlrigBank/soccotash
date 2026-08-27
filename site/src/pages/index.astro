@@ -3,6 +3,7 @@ import { getCollection, getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import OfferingCard from '../components/OfferingCard.astro';
 import ListingCard from '../components/ListingCard.astro';
+import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import { getFeaturedLocalGuideEntries } from '../lib/content';
 
 const page = await getEntry('pages', 'home');
@@ -35,12 +36,10 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     <div class="home-hero__content">
       <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
       {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
-      <div class="home-hero__actions">
-        <a class="button home-hero__primary" href="/book/">Request a stay</a>
-        <a class="button home-hero__secondary" href="#ways-to-stay">View ways to stay</a>
-      </div>
     </div>
   </section>
+
+  <CompactBookingPanel source="homepage" />
 
   <section id="ways-to-stay" class="ways-to-stay">
     <h2>Ways to stay</h2>
@@ -119,41 +118,6 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     font-size: clamp(1rem, 3vw, 1.16rem);
   }
 
-  .home-hero__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.7rem;
-    margin-top: 1.25rem;
-  }
-
-  .home-hero__actions .button {
-    min-height: 46px;
-    margin: 0;
-    padding: 0.7rem 1rem;
-    justify-content: center;
-  }
-
-  .home-hero__primary {
-    background: #fff;
-    color: var(--accent-dark);
-  }
-
-  .home-hero__primary:hover,
-  .home-hero__primary:focus-visible {
-    background: var(--soft-accent);
-  }
-
-  .home-hero__secondary {
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    background: transparent;
-    color: #fff;
-  }
-
-  .home-hero__secondary:hover,
-  .home-hero__secondary:focus-visible {
-    background: rgba(255, 255, 255, 0.12);
-  }
-
   @media (min-width: 700px) {
     .home-hero {
       position: relative;
@@ -196,9 +160,4 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     }
   }
 
-  @media (max-width: 430px) {
-    .home-hero__actions {
-      display: grid;
-    }
-  }
 </style>

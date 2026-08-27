@@ -73,11 +73,11 @@ function isCurrent(href: string) {
           </a>
 
           <div class="mobile-header-actions">
-            <a class="mobile-request-link" href="/book/">Request a stay</a>
             <details class="mobile-site-menu">
-              <summary>Menu</summary>
-              <nav aria-label="Mobile navigation">
+              <summary><span aria-hidden="true">☰</span><span>Menu</span></summary>
+              <nav aria-label="Public navigation">
                 <a href="/" aria-current={isCurrent('/') ? 'page' : undefined}>Home</a>
+                <a href="/book/" aria-current={isCurrent('/book/') ? 'page' : undefined}>Request a stay</a>
                 <a href="/listings/" aria-current={isCurrent('/listings/') ? 'page' : undefined}>Ways to stay</a>
                 <a href="/guest-information/" aria-current={isCurrent('/guest-information/') ? 'page' : undefined}>Guest information</a>
                 <a href="/local-guide/" aria-current={isCurrent('/local-guide/') ? 'page' : undefined}>Local guide</a>
@@ -85,14 +85,6 @@ function isCurrent(href: string) {
               </nav>
             </details>
           </div>
-
-          <nav class="top-nav desktop-top-nav" aria-label="Main navigation">
-            <a href="/book/">Request a stay</a>
-            <a href="/listings/">Listings</a>
-            <a href="/guest-information/">Guest information</a>
-            <a href="/contact/">Contact</a>
-            <a href="/local-guide/">Local guide</a>
-          </nav>
         </div>
       </header>
 
@@ -203,7 +195,6 @@ function isCurrent(href: string) {
     gap: 0.5rem;
   }
 
-  .mobile-request-link,
   .mobile-site-menu > summary {
     display: inline-flex;
     align-items: center;
@@ -214,12 +205,6 @@ function isCurrent(href: string) {
     font-weight: 800;
     line-height: 1.1;
     text-decoration: none;
-  }
-
-  .mobile-request-link {
-    padding: 0.65rem 0.8rem;
-    background: var(--accent-dark);
-    color: #fff;
   }
 
   .mobile-site-menu > summary {
@@ -275,21 +260,12 @@ function isCurrent(href: string) {
     background: var(--soft-accent);
   }
 
-  .mobile-request-link:hover,
-  .mobile-request-link:focus-visible {
-    background: var(--accent);
-  }
-
   .mobile-site-menu > summary:hover,
   .mobile-site-menu > summary:focus-visible,
   .mobile-site-menu nav a:hover,
   .mobile-site-menu nav a:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-  }
-
-  .desktop-top-nav {
-    display: none;
   }
 
   .desktop-sidebar-wrap {
@@ -365,24 +341,6 @@ function isCurrent(href: string) {
       width: min(1180px, calc(100% - 2rem));
     }
 
-    .desktop-top-nav {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 0.8rem;
-    }
-
-    .desktop-top-nav a {
-      min-height: auto;
-      padding: 0;
-      border-radius: 0.5rem;
-      background: transparent;
-    }
-
-    .mobile-header-actions {
-      display: none;
-    }
-
     .desktop-sidebar-wrap {
       display: block;
       min-width: 0;
@@ -420,10 +378,6 @@ function isCurrent(href: string) {
       height: 2.75rem;
     }
 
-    .mobile-request-link {
-      padding-inline: 0.65rem;
-      font-size: 0.82rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
