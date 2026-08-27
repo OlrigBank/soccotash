@@ -42,14 +42,14 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
       <div class="compact-booking-field compact-booking-field--property">
         <span>Stay arrangement</span>
         <strong>{publicName(fixedProperty.id, fixedProperty.name)}</strong>
-        <input type="hidden" name="propertyId" value={fixedProperty.id} />
+        <input type="hidden" name="propertyId" value={fixedProperty.id} data-minimum-nights={fixedProperty.minimumNights} />
       </div>
     ) : (
       <label class="compact-booking-field compact-booking-field--property" for={`${idPrefix}-property`}>
         <span>Stay arrangement</span>
         <select id={`${idPrefix}-property`} name="propertyId" required>
           {properties.map((property) => (
-            <option value={property.id}>{publicName(property.id, property.name)}</option>
+            <option value={property.id} data-minimum-nights={property.minimumNights}>{publicName(property.id, property.name)}</option>
           ))}
         </select>
       </label>
@@ -63,6 +63,19 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
       <span>Departure</span>
       <input id={`${idPrefix}-departure`} name="departure" type="date" required />
     </label>
+    <fieldset class="compact-date-calendar" data-compact-date-calendar>
+      <legend>Choose arrival and departure</legend>
+      <div class="compact-date-calendar__toolbar">
+        <button type="button" data-compact-calendar-previous aria-label="Show previous month">←</button>
+        <strong data-compact-calendar-heading></strong>
+        <button type="button" data-compact-calendar-next aria-label="Show next month">→</button>
+      </div>
+      <p data-compact-calendar-message role="status" aria-live="polite">Choose your arrival date, then your departure date.</p>
+      <div class="compact-date-calendar__weekdays" aria-hidden="true">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div class="compact-date-calendar__days" data-compact-calendar-days></div>
+    </fieldset>
     <label class="compact-booking-field" for={`${idPrefix}-adults`}>
       <span>Adults <small>13+</small></span>
       <input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value="2" required />
@@ -125,10 +138,103 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     const status = panel.querySelector<HTMLElement>('[data-compact-booking-status]');
     const result = panel.querySelector<HTMLElement>('[data-compact-booking-result]');
     const bespokeMessage = panel.querySelector<HTMLElement>('[data-compact-booking-bespoke]');
-    if (!form || !property || !arrival || !departure || !submit || !status || !result || !bespokeMessage) return;
+    const calendar = panel.querySelector<HTMLElement>('[data-compact-date-calendar]');
+    const calendarHeading = panel.querySelector<HTMLElement>('[data-compact-calendar-heading]');
+    const calendarMessage = panel.querySelector<HTMLElement>('[data-compact-calendar-message]');
+    const calendarDays = panel.querySelector<HTMLElement>('[data-compact-calendar-days]');
+    const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
+    const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
+    if (!form || !property || !arrival || !departure || !submit || !status || !result || !bespokeMessage
+      || !calendar || !calendarHeading || !calendarMessage || !calendarDays || !calendarPrevious || !calendarNext) return;
 
     arrival.min = today();
     departure.min = today();
+    arrival.readOnly = true;
+    departure.readOnly = true;
+    panel.classList.add('compact-booking-panel--calendar-ready');
+
+    const parseDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
+    const dateIso = (date: Date) => date.toISOString().slice(0, 10);
+    const addDays = (value: string, days: number) => {
+      const date = parseDate(value);
+      date.setUTCDate(date.getUTCDate() + days);
+      return dateIso(date);
+    };
+    const monthStart = (value: string) => {
+      const date = parseDate(value);
+      return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    };
+    const addMonths = (date: Date, months: number) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+    const firstMonth = monthStart(today());
+    let calendarMonth = firstMonth;
+    const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    const minimumNights = () => Number(
+      property instanceof HTMLSelectElement
+        ? property.selectedOptions[0]?.dataset.minimumNights
+        : property.dataset.minimumNights,
+    ) || 1;
+    const renderCalendar = () => {
+      calendarHeading.textContent = monthLabel.format(calendarMonth);
+      calendarDays.replaceChildren();
+      const offset = (calendarMonth.getUTCDay() + 6) % 7;
+      for (let index = 0; index < offset; index += 1) {
+        const spacer = document.createElement('span');
+        spacer.className = 'compact-date-calendar__spacer';
+        spacer.setAttribute('aria-hidden', 'true');
+        calendarDays.append(spacer);
+      }
+      const daysInMonth = new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth() + 1, 0)).getUTCDate();
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const value = dateIso(new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth(), day)));
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = String(day);
+        button.dataset.date = value;
+        button.setAttribute('aria-label', dayLabel.format(parseDate(value)));
+        button.disabled = value < today();
+        const selectedArrival = value === arrival.value;
+        const selectedDeparture = value === departure.value;
+        const inRange = Boolean(arrival.value && departure.value && arrival.value < value && value < departure.value);
+        if (selectedArrival) button.classList.add('is-arrival');
+        if (selectedDeparture) button.classList.add('is-departure');
+        if (inRange) button.classList.add('is-in-range');
+        button.setAttribute('aria-pressed', String(selectedArrival || selectedDeparture));
+        if (selectedArrival) button.setAttribute('aria-label', `${dayLabel.format(parseDate(value))}, selected arrival`);
+        if (selectedDeparture) button.setAttribute('aria-label', `${dayLabel.format(parseDate(value))}, selected departure`);
+        button.addEventListener('click', () => selectDate(value));
+        calendarDays.append(button);
+      }
+      calendarPrevious.disabled = calendarMonth <= firstMonth;
+    };
+    const selectDate = (value: string) => {
+      clearResult();
+      if (!arrival.value || departure.value || value <= arrival.value) {
+        arrival.value = value;
+        departure.value = '';
+        departure.min = addDays(value, minimumNights());
+        calendarMessage.textContent = `Arrival: ${dayLabel.format(parseDate(value))}. Now choose your departure date.`;
+      } else {
+        const earliestDeparture = addDays(arrival.value, minimumNights());
+        if (value < earliestDeparture) {
+          calendarMessage.textContent = `This stay needs at least ${minimumNights()} ${minimumNights() === 1 ? 'night' : 'nights'}. Choose a later departure date.`;
+          return;
+        }
+        departure.value = value;
+        calendarMessage.textContent = `${dayLabel.format(parseDate(arrival.value))} to ${dayLabel.format(parseDate(value))} selected.`;
+      }
+      renderCalendar();
+    };
+    calendarPrevious.addEventListener('click', () => {
+      calendarMonth = addMonths(calendarMonth, -1);
+      if (calendarMonth < firstMonth) calendarMonth = firstMonth;
+      renderCalendar();
+    });
+    calendarNext.addEventListener('click', () => {
+      calendarMonth = addMonths(calendarMonth, 1);
+      renderCalendar();
+    });
 
     const isBespoke = () => property.value === 'bespoke-arrangement';
     const clearResult = () => {
@@ -159,6 +265,11 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
       submit.textContent = bespoke ? 'Start a Bespoke request' : 'Check availability';
+      if (arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
+        departure.value = '';
+        calendarMessage.textContent = 'The minimum stay changed. Choose your departure date again.';
+        renderCalendar();
+      }
       clearResult();
     };
     const renderHostPriced = (body: QuoteResponse) => {
@@ -293,6 +404,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     });
 
     updateMode();
+    renderCalendar();
   });
 </script>
 
@@ -320,6 +432,38 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     border: 1px solid var(--line); border-radius: 0.55rem; background: #fff; color: var(--ink);
   }
   .compact-booking-field--property { grid-column: span 2; }
+  .compact-date-calendar {
+    grid-column: 1 / -1; min-width: 0; margin: 0; padding: 0.8rem;
+    border: 1px solid var(--line); border-radius: 0.75rem; background: #fff;
+  }
+  .compact-date-calendar legend { padding: 0 0.35rem; font-weight: 700; }
+  .compact-date-calendar__toolbar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 0.5rem; }
+  .compact-date-calendar__toolbar strong { text-align: center; }
+  .compact-date-calendar__toolbar button {
+    min-width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-bg); color: var(--ink);
+  }
+  .compact-date-calendar [data-compact-calendar-message] { min-height: 1.5em; margin: 0.6rem 0; color: var(--muted); font-size: 0.9rem; }
+  .compact-date-calendar__weekdays,
+  .compact-date-calendar__days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.2rem; text-align: center; }
+  .compact-date-calendar__weekdays { margin-bottom: 0.25rem; color: var(--muted); font-size: 0.72rem; font-weight: 700; }
+  .compact-date-calendar__days :global(button) {
+    min-width: 0; min-height: 40px; padding: 0.2rem; border: 0; border-radius: 0.45rem; background: transparent; color: var(--ink);
+  }
+  .compact-date-calendar__days :global(button:not(:disabled):hover),
+  .compact-date-calendar__days :global(button:not(:disabled):focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .compact-date-calendar__days :global(button.is-in-range) {
+    border-radius: 0;
+    background: #eef4eb;
+  }
+  .compact-date-calendar__days :global(button:is(.is-arrival, .is-departure)) {
+    background: var(--soft-accent);
+    color: var(--ink);
+    box-shadow: inset 0 0 0 2px var(--accent);
+    font-weight: 800;
+  }
+  .compact-date-calendar__days :global(button:disabled) { color: var(--muted); opacity: 0.45; }
+  .compact-booking-panel:not(.compact-booking-panel--calendar-ready) .compact-date-calendar { display: none; }
+  .compact-booking-panel--calendar-ready .compact-booking-field input[type='date'] { cursor: default; }
   .compact-booking-panel__action .button { width: 100%; min-height: 44px; margin: 0; justify-content: center; }
   .compact-booking-panel__bespoke,
   .compact-booking-panel__status { margin: 0.9rem 0 0; }
