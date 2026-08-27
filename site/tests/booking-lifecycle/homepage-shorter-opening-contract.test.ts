@@ -9,7 +9,8 @@ test('Ways to stay follows the hero without a standalone prose panel', async () 
   const heroEnd = homepage.indexOf('</section>');
   const waysStart = homepage.indexOf('<section id="ways-to-stay"');
 
-  assert.ok(heroEnd >= 0 && waysStart > heroEnd, 'Ways to stay must follow the hero');
+  assert.ok(heroEnd >= 0 && waysStart > heroEnd, 'Ways to stay must follow the hero and compact panel');
+  assert.match(homepage.slice(heroEnd, waysStart), /CompactBookingPanel/);
   assert.doesNotMatch(homepage.slice(heroEnd, waysStart), /class="prose"/);
   assert.match(homepage, /class="ways-to-stay__intro"/);
   assert.match(homepage, /<h2>Ways to stay<\/h2>[\s\S]*<Content \/>[\s\S]*places-grid/);

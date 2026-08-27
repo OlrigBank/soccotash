@@ -5,7 +5,7 @@ import test from 'node:test';
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 const heroAssetUrl = new URL('../../public/media/images/spaces/house/View of front of house-no-cyclists-hero.jpg', import.meta.url);
 
-test('the homepage uses the approved image-led hero and crawlable actions', async () => {
+test('the homepage uses the approved image-led hero without competing actions', async () => {
   const [homepage, content, asset] = await Promise.all([
     source('src/pages/index.astro'),
     source('src/content/pages/home.md'),
@@ -19,11 +19,20 @@ test('the homepage uses the approved image-led hero and crawlable actions', asyn
   assert.match(homepage, /height="814"/);
   assert.match(homepage, /loading="eager"/);
   assert.match(homepage, /fetchpriority="high"/);
-  assert.match(homepage, /href="\/book\/">Request a stay<\/a>/);
-  assert.match(homepage, /href="#ways-to-stay">View ways to stay<\/a>/);
+  const hero = homepage.match(/<section class="home-hero">([\s\S]*?)<\/section>/)?.[1] ?? '';
+  assert.doesNotMatch(hero, /Request a stay|View ways to stay|class="button/);
+  assert.match(homepage, /<CompactBookingPanel source="homepage" \/>/);
   assert.match(homepage, /id="ways-to-stay"/);
   assert.match(content, /heroTitle: "Stay together at Olrig Bank in Kendal"/);
   assert.match(content, /within walking distance of Kendal and easy reach of the Lake District/);
+});
+
+test('the compact panel replaces the hero actions before Ways to stay', async () => {
+  const homepage = await source('src/pages/index.astro');
+  const heroEnd = homepage.indexOf('</section>');
+  const panel = homepage.indexOf('<CompactBookingPanel source="homepage" />');
+  const ways = homepage.indexOf('<section id="ways-to-stay"');
+  assert.ok(heroEnd >= 0 && panel > heroEnd && ways > panel);
 });
 
 test('the homepage hero preserves responsive crop and contrast contracts', async () => {
@@ -33,5 +42,4 @@ test('the homepage hero preserves responsive crop and contrast contracts', async
   assert.match(homepage, /object-fit:\s*cover/);
   assert.match(homepage, /\.home-hero::after[\s\S]*linear-gradient/);
   assert.match(homepage, /@media \(min-width: 700px\)/);
-  assert.match(homepage, /@media \(max-width: 430px\)/);
 });
