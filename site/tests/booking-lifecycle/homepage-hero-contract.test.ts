@@ -24,7 +24,8 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.match(homepage, /<CompactBookingPanel source="homepage" \/>/);
   assert.match(homepage, /id="ways-to-stay"/);
   assert.match(content, /heroTitle: "Stay together at Olrig Bank in Kendal"/);
-  assert.match(content, /within walking distance of Kendal and easy reach of the Lake District/);
+  assert.match(content, /secluded in the heart of Kendal with all that the town has to offer in walking distance/);
+  assert.match(content, /Olrig Bank has 6 bedrooms, 3 bathrooms, a large garden and free off road parking space/);
 });
 
 test('the compact panel replaces the hero actions before Ways to stay', async () => {

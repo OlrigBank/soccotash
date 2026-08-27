@@ -22,7 +22,6 @@ if (propertyId && !fixedProperty) {
   throw new Error(`Unknown compact booking property: ${propertyId}`);
 }
 
-const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement' ? 'Olrig Bank Bespoke' : fallback;
 ---
 
 <section
@@ -41,7 +40,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     {fixedProperty ? (
       <div class="compact-booking-field compact-booking-field--property">
         <span>Stay arrangement</span>
-        <strong>{publicName(fixedProperty.id, fixedProperty.name)}</strong>
+        <strong>{fixedProperty.name}</strong>
         <input type="hidden" name="propertyId" value={fixedProperty.id} data-minimum-nights={fixedProperty.minimumNights} />
       </div>
     ) : (
@@ -49,7 +48,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
         <span>Stay arrangement</span>
         <select id={`${idPrefix}-property`} name="propertyId" required>
           {properties.map((property) => (
-            <option value={property.id} data-minimum-nights={property.minimumNights}>{publicName(property.id, property.name)}</option>
+            <option value={property.id} data-minimum-nights={property.minimumNights}>{property.name}</option>
           ))}
         </select>
       </label>
@@ -57,13 +56,13 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
 
     <label class="compact-booking-field" for={`${idPrefix}-arrival`}>
       <span>Arrival</span>
-      <input id={`${idPrefix}-arrival`} name="arrival" type="date" required />
+      <input id={`${idPrefix}-arrival`} name="arrival" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
     </label>
     <label class="compact-booking-field" for={`${idPrefix}-departure`}>
       <span>Departure</span>
-      <input id={`${idPrefix}-departure`} name="departure" type="date" required />
+      <input id={`${idPrefix}-departure`} name="departure" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
     </label>
-    <fieldset class="compact-date-calendar" data-compact-date-calendar>
+    <fieldset id={`${idPrefix}-calendar`} class="compact-date-calendar" data-compact-date-calendar>
       <legend>Choose arrival and departure</legend>
       <div class="compact-date-calendar__toolbar">
         <button type="button" data-compact-calendar-previous aria-label="Show previous month">←</button>
@@ -95,7 +94,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
 
     <div class="compact-booking-panel__action">
       <button class="button" type="submit" data-compact-booking-submit>
-        {fixedBespoke ? 'Start a Bespoke request' : 'Check availability'}
+        {fixedBespoke ? 'Start a Bespoke request' : 'Quick Check'}
       </button>
     </div>
   </form>
@@ -159,6 +158,12 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     departure.readOnly = true;
     panel.classList.add('compact-booking-panel--calendar-ready');
 
+    const setCalendarOpen = (open: boolean) => {
+      panel.classList.toggle('compact-booking-panel--calendar-open', open);
+      arrival.setAttribute('aria-expanded', String(open));
+      departure.setAttribute('aria-expanded', String(open));
+    };
+
     const parseDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
     const dateIso = (date: Date) => date.toISOString().slice(0, 10);
     const addDays = (value: string, days: number) => {
@@ -181,6 +186,18 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
         ? property.selectedOptions[0]?.dataset.minimumNights
         : property.dataset.minimumNights,
     ) || 1;
+    const openCalendar = () => {
+      const selectedDate = arrival.value || today();
+      calendarMonth = monthStart(selectedDate);
+      if (calendarMonth < firstMonth) calendarMonth = firstMonth;
+      calendarMessage.textContent = arrival.value && departure.value
+        ? `${dayLabel.format(parseDate(arrival.value))} to ${dayLabel.format(parseDate(departure.value))} selected. Choose a new arrival date to change the stay.`
+        : arrival.value
+          ? `Arrival: ${dayLabel.format(parseDate(arrival.value))}. Now choose your departure date.`
+          : 'Choose your arrival date, then your departure date.';
+      setCalendarOpen(true);
+      renderCalendar();
+    };
     const renderCalendar = () => {
       calendarHeading.textContent = monthLabel.format(calendarMonth);
       calendarDays.replaceChildren();
@@ -231,6 +248,12 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
         calendarMessage.textContent = `${dayLabel.format(parseDate(arrival.value))} to ${dayLabel.format(parseDate(value))} selected.`;
       }
       renderCalendar();
+      if (departure.value) {
+        setCalendarOpen(false);
+        departure.focus({ preventScroll: true });
+      } else {
+        calendarDays.querySelector<HTMLButtonElement>(`[data-date="${value}"]`)?.focus({ preventScroll: true });
+      }
     };
     calendarPrevious.addEventListener('click', () => {
       calendarMonth = addMonths(calendarMonth, -1);
@@ -240,6 +263,20 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     calendarNext.addEventListener('click', () => {
       calendarMonth = addMonths(calendarMonth, 1);
       renderCalendar();
+    });
+    for (const input of [arrival, departure]) {
+      input.addEventListener('click', openCalendar);
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openCalendar();
+        }
+      });
+    }
+    calendar.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      setCalendarOpen(false);
+      arrival.focus({ preventScroll: true });
     });
 
     const isBespoke = () => property.value === 'bespoke-arrangement';
@@ -270,7 +307,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     const updateMode = () => {
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
-      submit.textContent = bespoke ? 'Start a Bespoke request' : 'Check availability';
+      submit.textContent = bespoke ? 'Start a Bespoke request' : 'Quick Check';
       if (arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
         departure.value = '';
         calendarMessage.textContent = 'The minimum stay changed. Choose your departure date again.';
@@ -482,8 +519,9 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     font-weight: 800;
   }
   .compact-date-calendar__days :global(button:disabled) { color: var(--muted); opacity: 0.45; }
-  .compact-booking-panel:not(.compact-booking-panel--calendar-ready) .compact-date-calendar { display: none; }
-  .compact-booking-panel--calendar-ready .compact-booking-field input[type='date'] { cursor: default; }
+  .compact-booking-panel:not(.compact-booking-panel--calendar-ready) .compact-date-calendar,
+  .compact-booking-panel--calendar-ready:not(.compact-booking-panel--calendar-open) .compact-date-calendar { display: none; }
+  .compact-booking-panel--calendar-ready .compact-booking-field input[type='date'] { cursor: pointer; }
   .compact-booking-panel__action .button { width: 100%; min-height: 44px; margin: 0; justify-content: center; }
   .compact-booking-panel__bespoke,
   .compact-booking-panel__status { margin: 0.9rem 0 0; }

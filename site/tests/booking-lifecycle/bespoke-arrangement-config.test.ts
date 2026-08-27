@@ -4,7 +4,7 @@ import { getProperty } from '../../src/lib/booking/config.ts';
 
 test('allows one-night bespoke requests without changing ordinary stay minimums', () => {
   const bespoke = getProperty('bespoke-arrangement');
-  assert.equal(bespoke?.name, 'Bespoke stay');
+  assert.equal(bespoke?.name, 'Request a bespoke stay');
   assert.equal(bespoke?.administratorPriced, true);
   assert.equal(bespoke?.minimumNights, 1);
   assert.equal(getProperty('main-house')?.minimumNights, 2);
@@ -13,8 +13,8 @@ test('allows one-night bespoke requests without changing ordinary stay minimums'
 });
 
 test('uses the agreed public accommodation names without changing stable identifiers', () => {
-  assert.equal(getProperty('main-house')?.name, 'Olrig Bank');
+  assert.equal(getProperty('main-house')?.name, 'Olrig Bank House (max 8 guests)');
   assert.equal(getProperty('main-house')?.listingSlug, 'olrig-bank');
-  assert.equal(getProperty('whole-property')?.name, 'Olrig Bank Max');
-  assert.equal(getProperty('cottage')?.name, 'The Cottage at Olrig Bank');
+  assert.equal(getProperty('whole-property')?.name, 'Olrig Bank (max 12 guests)');
+  assert.equal(getProperty('cottage')?.name, 'Cottage at Olrig Bank (max 4 guests)');
 });

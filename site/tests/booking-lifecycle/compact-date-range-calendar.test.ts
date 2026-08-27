@@ -18,6 +18,12 @@ test('compact panels select arrival and departure on one calendar', async () => 
   assert.match(component, /button\.setAttribute\('aria-pressed', String\(selectedArrival \|\| selectedDeparture\)\)/);
   assert.match(component, /:global\(button\.is-in-range\)[\s\S]*background: #eef4eb/);
   assert.match(component, /:global\(button:is\(\.is-arrival, \.is-departure\)\)[\s\S]*background: var\(--soft-accent\)/);
+  assert.match(component, /input\.addEventListener\('click', openCalendar\)/);
+  assert.match(component, /setCalendarOpen\(false\)[\s\S]*departure\.focus/);
+  assert.match(component, /aria-controls=\{`\$\{idPrefix\}-calendar`\}/);
+  assert.match(component, /aria-expanded="false"/);
+  assert.match(component, /compact-booking-panel--calendar-ready:not\(\.compact-booking-panel--calendar-open\)/);
+  assert.match(component, /'Quick Check'/);
 });
 
 test('the range calendar preserves labelled native-date fallback and minimum stays', async () => {
