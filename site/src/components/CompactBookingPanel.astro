@@ -112,6 +112,7 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
   type QuoteResponse = {
     pricingAvailable?: boolean;
     administratorPriced?: boolean;
+    hostDecisionRequired?: boolean;
     eligible?: boolean;
     currency?: string;
     nights?: number;
@@ -121,6 +122,11 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
     warnings?: string[];
     message?: string;
     error?: string;
+    estimatedPricing?: {
+      currency?: string;
+      nights?: number;
+      guestTotalPence?: number;
+    } | null;
   };
 
   const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', {
@@ -277,7 +283,21 @@ const publicName = (id: string, fallback: string) => id === 'bespoke-arrangement
       heading.textContent = 'Price confirmation required';
       const copy = document.createElement('p');
       copy.textContent = body.message || 'Jenna will confirm the price for this request.';
-      result.append(heading, copy, continueLink('Continue with request'));
+      result.append(heading);
+      if (body.estimatedPricing) {
+        const estimate = document.createElement('p');
+        estimate.className = 'compact-booking-result__estimate';
+        const total = document.createElement('strong');
+        total.textContent = money(
+          Number(body.estimatedPricing.guestTotalPence || 0),
+          body.estimatedPricing.currency || 'GBP',
+        );
+        estimate.append('Estimated published-price total: ', total);
+        const estimateNote = document.createElement('p');
+        estimateNote.textContent = 'This is an indication, not a confirmed quote. Jenna may adjust it when reviewing the arrangement.';
+        result.append(estimate, estimateNote);
+      }
+      result.append(copy, continueLink('Continue with request'));
       result.hidden = false;
     };
     const renderQuote = (body: QuoteResponse) => {

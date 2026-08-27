@@ -61,12 +61,18 @@ export const POST: APIRoute = async ({ request }) => {
       cancellationPlan: 'flexible',
     };
     const requiresHostAgreement = occupancyAssessment.result.outcome !== 'standard';
-    const quote = property.administratorPriced || requiresHostAgreement ? null : await getPublishedPricingQuote(input);
+    const publishedQuote = property.administratorPriced ? null : await getPublishedPricingQuote(input);
+    const quote = requiresHostAgreement ? null : publishedQuote;
     if (!quote) {
+      const estimatedPricing = requiresHostAgreement && publishedQuote?.result.eligible
+        ? publicQuotePayload(publishedQuote)
+        : null;
       return Response.json({
         pricingAvailable: false,
-        administratorPriced: property.administratorPriced === true || requiresHostAgreement,
+        administratorPriced: property.administratorPriced === true,
+        hostDecisionRequired: requiresHostAgreement,
         eligible: true,
+        estimatedPricing,
         occupancyAssessment: { ...occupancyAssessment.result, standardThresholds: occupancyAssessment.standardThresholds },
         message: requiresHostAgreement
           ? occupancyAssessment.result.reasons.map((reason) => reason.message).join(' ')

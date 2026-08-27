@@ -636,7 +636,10 @@ const properties = getProperties();
     if (!quotePanel) return;
     quotePanel.hidden = false;
     if (!body.pricingAvailable) {
-      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">${body.administratorPriced ? 'Bespoke pricing' : 'Pricing'}</p><h2>${body.administratorPriced ? 'Price to be agreed' : 'Price confirmation required'}</h2></div></div><p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
+      const estimate = body.estimatedPricing && Number.isFinite(Number(body.estimatedPricing.guestTotalPence))
+        ? `<p><strong>Estimated published-price total: ${money(body.estimatedPricing.guestTotalPence)}</strong></p><p>This is an indication, not a confirmed quote. Jenna may adjust it when reviewing the arrangement.</p>`
+        : '';
+      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">${body.administratorPriced ? 'Bespoke pricing' : 'Pricing'}</p><h2>${body.administratorPriced ? 'Price to be agreed' : 'Price confirmation required'}</h2></div></div>${estimate}<p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
       renderSubmitReview(body);
       return;
     }
