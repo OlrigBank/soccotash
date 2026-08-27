@@ -1,6 +1,7 @@
 ---
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import CompactBookingPanel from '../../components/CompactBookingPanel.astro';
 import Space from '../../components/Space.astro';
 import { getProperties } from '../../lib/booking/config';
 import { vacationRentalStructuredData, serializeStructuredData } from '../../lib/vacation-rental-structured-data';
@@ -29,7 +30,7 @@ for (const slug of entry.data.spaces) {
 const missingSpaceSlugs = entry.data.spaces.filter((slug) => !spacesBySlug.has(slug));
 const listingFacts = [entry.data.sleeps, entry.data.bedrooms, entry.data.bathrooms].filter(Boolean);
 const bookingProperty = getProperties().find((property) => property.listingSlug === entry.data.slug);
-const bookingHref = bookingProperty ? `/book/?property=${encodeURIComponent(bookingProperty.id)}` : '/book/';
+const bespokeListing = bookingProperty?.id === 'bespoke-arrangement';
 const roomTitles: Record<string, Record<string, string>> = {
   'olrig-bank': {
     'house-bedroom-1': 'Bedroom 1',
@@ -95,16 +96,26 @@ const structuredData = vacationRentalStructuredData({
     set:html={serializeStructuredData(structuredData)}
   ></script>
 
-  <section class="hero">
-    {entry.data.heroEyebrow ? <p class="eyebrow">{entry.data.heroEyebrow}</p> : null}
-    <h1>{entry.data.heroTitle ?? entry.data.title}</h1>
-    {entry.data.summary ? <p>{entry.data.summary}</p> : null}
-    {listingFacts.length ? <p class="listing-facts">{listingFacts.join(' · ')}</p> : null}
-    <div class="button-group">
-      <a class="button" href={bookingHref}>Check availability</a>
-      <a class="button button-secondary" href="https://wa.me/447907650960">Message on WhatsApp</a>
-    </div>
-  </section>
+  <div class:list={["listing-opening", { "listing-opening--with-booking": bookingProperty }] }>
+    <section class="hero listing-opening__description">
+      {entry.data.heroEyebrow ? <p class="eyebrow">{entry.data.heroEyebrow}</p> : null}
+      <h1>{entry.data.heroTitle ?? entry.data.title}</h1>
+      {entry.data.summary ? <p>{entry.data.summary}</p> : null}
+      {listingFacts.length ? <p class="listing-facts">{listingFacts.join(' · ')}</p> : null}
+      <p class="listing-opening__contact">
+        {bespokeListing ? 'Want to discuss your plans first?' : 'Have a question before checking?'} <a href="https://wa.me/447907650960">Message Jenna on WhatsApp</a>.
+      </p>
+    </section>
+
+    {bookingProperty ? (
+      <CompactBookingPanel
+        propertyId={bookingProperty.id}
+        source="listing"
+        heading={bespokeListing ? 'Tell us about your preferred stay' : `Check ${entry.data.title}`}
+        idPrefix={`compact-booking-listing-${entry.data.slug}`}
+      />
+    ) : null}
+  </div>
 
   {entry.data.image ? <img src={entry.data.image} alt={entry.data.imageAlt ?? entry.data.title} class="listing-hero-image" /> : null}
 
@@ -128,12 +139,8 @@ const structuredData = vacationRentalStructuredData({
   ) : null}
 
   <section class="prose enquiry-panel">
-    <h2>Ask about a stay</h2>
-    <p>Tell Jenna your preferred dates, group size and whether you are interested in Olrig Bank, Olrig Bank Max or The Cottage at Olrig Bank.</p>
-    <div class="button-group">
-      <a class="button" href="/contact/">Contact Jenna</a>
-      <a class="button button-secondary" href="mailto:olrig.bank@gmail.com">Email Olrig Bank</a>
-    </div>
+    <h2>Other questions?</h2>
+    <p>For accessibility needs, local information or anything the stay checker does not cover, <a href="/contact/">contact Jenna</a> or <a href="mailto:olrig.bank@gmail.com">email Olrig Bank</a>.</p>
   </section>
 
   {import.meta.env.DEV && missingSpaceSlugs.length ? (
@@ -147,3 +154,28 @@ const structuredData = vacationRentalStructuredData({
 <script is:inline define:vars={{ listing: entry.data.slug }}>
   window.olrigAnalytics?.track('listing_viewed', { listing });
 </script>
+
+<style>
+  .listing-opening {
+    margin-bottom: 1.5rem;
+  }
+
+  .listing-opening .hero {
+    height: 100%;
+    margin-bottom: 0;
+  }
+
+  .listing-opening__contact {
+    margin-bottom: 0;
+    font-size: 0.95rem;
+  }
+
+  @media (min-width: 900px) {
+    .listing-opening--with-booking {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(32rem, 1.1fr);
+      gap: 1.5rem;
+      align-items: stretch;
+    }
+  }
+</style>

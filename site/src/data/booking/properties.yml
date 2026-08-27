@@ -23,7 +23,7 @@ properties:
     enabled: true
   - id: bespoke-arrangement
     name: Bespoke stay
-    listingSlug: event
+    listingSlug: bespoke
     administratorPriced: true
     availabilityPropertyIds:
       - main-house

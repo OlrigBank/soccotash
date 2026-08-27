@@ -510,14 +510,68 @@ const properties = getProperties();
     void loadVisibleCalendar();
   });
 
-  const requestedProperty = new URLSearchParams(window.location.search).get('property');
-  if (propertySelect && requestedProperty && Array.from(propertySelect.options).some((option) => option.value === requestedProperty)) {
-    propertySelect.value = requestedProperty;
+  function isValidTransferredDate(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    try {
+      return parseIso(value).toISOString().slice(0, 10) === value;
+    } catch {
+      return false;
+    }
   }
 
+  function hydrateTransferredState(): boolean {
+    const params = new URLSearchParams(window.location.search);
+    const transferred = params.has('propertyId');
+    const requestedProperty = params.get('propertyId') || params.get('property');
+    const knownProperty = propertySelect && requestedProperty
+      ? Array.from(propertySelect.options).some((option) => option.value === requestedProperty)
+      : false;
+    if (propertySelect && requestedProperty && knownProperty) propertySelect.value = requestedProperty;
+
+    if (!transferred) return false;
+
+    const countInputs = { adults, children, infants, pets };
+    let validCounts = true;
+    for (const [name, input] of Object.entries(countInputs)) {
+      const raw = params.get(name);
+      const value = raw === null ? NaN : Number(raw);
+      const minimum = name === 'adults' ? 1 : 0;
+      const valid = Number.isInteger(value) && value >= minimum && value <= 99;
+      if (input && valid) input.value = String(value);
+      else validCounts = false;
+    }
+
+    const requestedArrival = params.get('arrival') || '';
+    const requestedDeparture = params.get('departure') || '';
+    const validDates = isValidTransferredDate(requestedArrival)
+      && isValidTransferredDate(requestedDeparture)
+      && requestedArrival >= isoToday
+      && requestedDeparture >= addDays(requestedArrival, selectedRules().minimumNights)
+      && requestedDeparture <= addDays(requestedArrival, 365);
+    if (arrival && departure && validDates) {
+      arrival.value = requestedArrival;
+      departure.value = requestedDeparture;
+      selectionStart = requestedArrival;
+      selectionEnd = requestedDeparture;
+      monthCursor = startOfMonth(requestedArrival);
+      if (monthCursor < firstAllowedMonth) monthCursor = firstAllowedMonth;
+    }
+
+    renderPetDetails();
+    return Boolean(knownProperty && validDates && validCounts);
+  }
+
+  const hasCompleteTransferredStay = hydrateTransferredState();
   applyPropertyRules();
   updatePartySummary();
-  void loadVisibleCalendar();
+  void initialiseBookingForm();
+
+  async function initialiseBookingForm(): Promise<void> {
+    await loadVisibleCalendar();
+    if (!hasCompleteTransferredStay) return;
+    if (status) status.textContent = 'Your stay details were transferred. Rechecking current availability and price…';
+    await checkAvailability();
+  }
 
   async function readJson(response: Response): Promise<Record<string, any>> {
     try {
