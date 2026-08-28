@@ -102,9 +102,28 @@ function isCurrent(href: string) {
 
       <footer class="site-footer">
         <div class="footer-inner">
-          <p>© {currentYear} Olrig Bank, Kendal, Cumbria.</p>
+          <div class="footer-book-direct">
+            <p class="footer-eyebrow">Stay with us</p>
+            <h2>Book direct</h2>
+            <p>Book directly with us for a personal welcome, clear advice and the very best stay we can offer.</p>
+            <a class="footer-book-button" href="/book/">Book now</a>
+          </div>
+
+          <nav class="footer-navigation" aria-label="Footer navigation">
+            <a href="/">Home</a>
+            <a href="/listings/">Ways to stay</a>
+            <a href="/local-guide/">Local guide</a>
+            <a href="/guest-information/">Guest information</a>
+            <a href="/contact/">Contact</a>
+          </nav>
+
+          <p class="footer-copyright">© {currentYear} Olrig Bank, Kendal, Cumbria.</p>
         </div>
       </footer>
+
+      <nav class="mobile-contact-bar" aria-label="Quick booking actions">
+        <a class="mobile-contact-bar__book" href="/book/">Check availability</a>
+      </nav>
     </div>
   </body>
 </html>
@@ -277,6 +296,137 @@ function isCurrent(href: string) {
     grid-template-columns: 1fr;
     gap: 1rem;
     padding: 1rem 0 2rem;
+  }
+
+  .site-footer {
+    border-top: 0;
+    background: #2f373a;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .site-footer .footer-inner {
+    display: grid;
+    gap: 2rem;
+    padding-block: clamp(2.5rem, 8vw, 4.5rem) 1.5rem;
+  }
+
+  .footer-book-direct {
+    max-width: 42rem;
+  }
+
+  .footer-eyebrow {
+    margin: 0 0 0.35rem;
+    color: #d7b96f;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .footer-book-direct h2 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(1.85rem, 5vw, 2.6rem);
+    line-height: 1.1;
+  }
+
+  .footer-book-direct > p:not(.footer-eyebrow) {
+    margin: 1rem 0 0;
+    font-size: 1.05rem;
+  }
+
+  .footer-book-button {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    margin-top: 1.25rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.6rem;
+    background: #f4eeee;
+    color: #263136;
+    font-weight: 800;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .footer-navigation {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .footer-navigation a {
+    color: #fff;
+    text-underline-offset: 0.16em;
+  }
+
+  .footer-copyright {
+    margin: 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 0.88rem;
+  }
+
+  .footer-book-button:hover,
+  .footer-book-button:focus-visible,
+  .footer-navigation a:hover,
+  .footer-navigation a:focus-visible {
+    outline: 2px solid #d7b96f;
+    outline-offset: 3px;
+  }
+
+  .mobile-contact-bar {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 30rem);
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(36, 43, 46, 0.97);
+  }
+
+  .mobile-contact-bar a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.45rem;
+    font-size: 0.92rem;
+    font-weight: 800;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .mobile-contact-bar__book {
+    background: #d7b96f;
+    color: #263136;
+  }
+
+  @media (max-width: 699px) {
+    body {
+      padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 700px) {
+    .mobile-contact-bar {
+      display: none;
+    }
+
+    .site-footer .footer-inner {
+      grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+    }
+
+    .footer-copyright {
+      grid-column: 1 / -1;
+    }
   }
 
   main {

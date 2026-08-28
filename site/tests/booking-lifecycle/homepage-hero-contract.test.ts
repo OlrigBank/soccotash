@@ -21,19 +21,28 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.match(homepage, /fetchpriority="high"/);
   const hero = homepage.match(/<section class="home-hero">([\s\S]*?)<\/section>/)?.[1] ?? '';
   assert.doesNotMatch(hero, /Request a stay|View ways to stay|class="button/);
-  assert.match(homepage, /<CompactBookingPanel source="homepage" \/>/);
+  assert.match(homepage, /<CompactBookingPanel[\s\S]*source="homepage"[\s\S]*\/>/);
   assert.match(homepage, /id="ways-to-stay"/);
-  assert.match(content, /heroTitle: "Stay together at Olrig Bank in Kendal"/);
-  assert.match(content, /secluded in the heart of Kendal with all that the town has to offer in walking distance/);
-  assert.match(content, /Olrig Bank has 6 bedrooms, 3 bathrooms, a large garden and free off road parking space/);
+  assert.match(content, /heroTitle: "Stay at Olrig Bank in Kendal"/);
+  assert.match(content, /Olrig Bank was built in 1879/);
+  assert.match(content, /3 accomodation packages/);
 });
 
-test('the compact panel replaces the hero actions before Ways to stay', async () => {
+test('the compact panel sits inside the hero before Ways to stay', async () => {
   const homepage = await source('src/pages/index.astro');
   const heroEnd = homepage.indexOf('</section>');
-  const panel = homepage.indexOf('<CompactBookingPanel source="homepage" />');
+  const panel = homepage.indexOf('<CompactBookingPanel');
   const ways = homepage.indexOf('<section id="ways-to-stay"');
-  assert.ok(heroEnd >= 0 && panel > heroEnd && ways > panel);
+  assert.ok(panel >= 0 && heroEnd > panel && ways > heroEnd);
+});
+
+test('the homepage follows Quick Check with photographic discovery and focused decisions', async () => {
+  const homepage = await source('src/pages/index.astro');
+
+  assert.match(homepage, /<HomeGallery \/>/);
+  assert.match(homepage, /<h2>Ways to stay at Olrig Bank<\/h2>[\s\S]*house\.jpeg[\s\S]*<Content \/>/);
+  assert.doesNotMatch(homepage, /<ListingCard|<OfferingCard|Featured local guide/);
+  assert.match(homepage, /kendalcastle\.png[\s\S]*Plan your stay[\s\S]*Our local guide/);
 });
 
 test('the homepage hero preserves responsive crop and contrast contracts', async () => {

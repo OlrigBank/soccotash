@@ -1,21 +1,11 @@
 ---
-import { getCollection, getEntry, render } from 'astro:content';
+import { getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import OfferingCard from '../components/OfferingCard.astro';
-import ListingCard from '../components/ListingCard.astro';
 import CompactBookingPanel from '../components/CompactBookingPanel.astro';
-import { getFeaturedLocalGuideEntries } from '../lib/content';
+import HomeGallery from '../components/HomeGallery.astro';
 
 const page = await getEntry('pages', 'home');
 const { Content } = page ? await render(page) : { Content: undefined };
-const featuredGuide = await getFeaturedLocalGuideEntries(6);
-const listingOrder = ['olrig-bank', 'cottage', 'event', 'bespoke'];
-const listings = (await getCollection('listings')).sort((a, b) => {
-  const aPosition = listingOrder.indexOf(a.data.slug || a.id);
-  const bPosition = listingOrder.indexOf(b.data.slug || b.id);
-  return (aPosition === -1 ? listingOrder.length : aPosition) -
-    (bPosition === -1 ? listingOrder.length : bPosition);
-});
 ---
 
 <BaseLayout
@@ -46,18 +36,39 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     </div>
   </section>
 
+  <HomeGallery />
+
   <section id="ways-to-stay" class="ways-to-stay">
-    <h2>Ways to stay</h2>
+    <h2>Ways to stay at Olrig Bank</h2>
+    <img
+      class="ways-to-stay__image"
+      src="/media/images/listings/house.jpeg"
+      alt="The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam"
+      width="1440"
+      height="1085"
+      loading="lazy"
+    />
     {Content ? <div class="ways-to-stay__intro"><Content /></div> : null}
-    <div class="grid places-grid">
-      {listings.map((entry) => <ListingCard entry={entry} />)}
-    </div>
   </section>
 
-  <section style="margin-top: 1.5rem;">
-    <h2>Featured local guide</h2>
-    <div class="grid">
-      {featuredGuide.map((entry) => <OfferingCard entry={entry} />)}
+  <section class="local-guide-panel" aria-labelledby="local-guide-heading">
+    <img
+      src="/media/images/local-guide/kendalcastle.png"
+      alt="The ruins of Kendal Castle overlooking the town"
+      width="1320"
+      height="879"
+      loading="lazy"
+    />
+    <div class="local-guide-panel__content">
+      <p class="local-guide-panel__eyebrow">Plan your stay</p>
+      <h2 id="local-guide-heading">Our local guide</h2>
+      <p>
+        Make more of every day in Kendal with a guide curated by people who know it well. We have gathered
+        favourite walks, independent places to eat and drink, family days out and worthwhile trips further
+        afield, so you can spend less time searching and more time enjoying your stay.
+      </p>
+      <p>Kendal Castle is just one of our hand-picked ideas—and an easy adventure from Olrig Bank.</p>
+      <a class="button" href="/local-guide/">Explore the local guide <span aria-hidden="true">→</span></a>
     </div>
   </section>
 </BaseLayout>
@@ -78,7 +89,15 @@ const listings = (await getCollection('listings')).sort((a, b) => {
   }
 
   .ways-to-stay > h2 {
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .ways-to-stay__image {
+    width: 100%;
+    max-height: 32rem;
+    margin-bottom: 1rem;
+    border-radius: 1.15rem;
+    object-fit: cover;
   }
 
   .ways-to-stay__intro {
@@ -93,6 +112,57 @@ const listings = (await getCollection('listings')).sort((a, b) => {
 
   .ways-to-stay__intro :global(p + p) {
     margin-top: 0.35rem;
+  }
+
+  .local-guide-panel {
+    display: grid;
+    overflow: hidden;
+    margin-top: 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: 1.15rem;
+    background: var(--panel-bg);
+    box-shadow: var(--shadow);
+  }
+
+  .local-guide-panel > img {
+    width: 100%;
+    height: 100%;
+    min-height: 15rem;
+    border-radius: 0;
+    object-fit: cover;
+  }
+
+  .local-guide-panel__content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(1.25rem, 5vw, 2.5rem);
+  }
+
+  .local-guide-panel__eyebrow {
+    margin: 0 0 0.35rem;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .local-guide-panel h2 {
+    margin: 0;
+    font-size: clamp(1.8rem, 5vw, 2.75rem);
+    line-height: 1.08;
+  }
+
+  .local-guide-panel__content > p:not(.local-guide-panel__eyebrow) {
+    max-width: 54ch;
+    margin: 0.85rem 0 0;
+    color: var(--muted);
+  }
+
+  .local-guide-panel .button {
+    align-self: flex-start;
+    margin-top: 1.2rem;
   }
 
   .home-hero > img {
@@ -131,6 +201,10 @@ const listings = (await getCollection('listings')).sort((a, b) => {
   }
 
   @media (min-width: 700px) {
+    .local-guide-panel {
+      grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+    }
+
     .home-hero {
       position: relative;
       min-height: clamp(28rem, 54vw, 37rem);
