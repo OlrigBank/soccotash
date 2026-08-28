@@ -45,6 +45,15 @@ test('the homepage follows Quick Check with photographic discovery and focused d
   assert.match(homepage, /kendalcastle\.png[\s\S]*Plan your stay[\s\S]*Our local guide/);
 });
 
+test('the suggested stay confirms availability without exposing quote details', async () => {
+  const compactPanel = await source('src/components/CompactBookingPanel.astro');
+
+  assert.match(compactPanel, /const suggestedStay = panel\.dataset\.autoSelectProperty === 'true'/);
+  assert.match(compactPanel, /if \(!suggestedStay\) heading\.append\(total\)/);
+  assert.match(compactPanel, /if \(body\.lines\?\.length && !suggestedStay\)/);
+  assert.match(compactPanel, /if \(body\.estimatedPricing && !suggestedStay\)/);
+});
+
 test('the homepage hero preserves responsive crop and contrast contracts', async () => {
   const homepage = await source('src/pages/index.astro');
 
