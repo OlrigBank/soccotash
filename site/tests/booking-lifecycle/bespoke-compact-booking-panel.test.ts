@@ -25,7 +25,7 @@ test('Bespoke is rendered as an enquiry before JavaScript and bypasses live chec
   const component = await source('src/components/CompactBookingPanel.astro');
 
   assert.match(component, /fixedBespoke \? 'Begin an enquiry' : 'Check a stay'/);
-  assert.match(component, /fixedBespoke \? 'Start a Bespoke request' : 'Quick Check'/);
+  assert.match(component, /fixedBespoke \? 'Start a Bespoke request' : submitLabel/);
   assert.match(component, /data-compact-booking-bespoke hidden=\{!fixedBespoke\}/);
   assert.match(component, /This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price/);
 

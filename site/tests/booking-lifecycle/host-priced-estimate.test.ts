@@ -21,11 +21,11 @@ test('compact and full forms label the calculated amount as an unconfirmed estim
     source('src/components/BookingCalendar.astro'),
   ]);
 
-  for (const component of [compact, fullForm]) {
-    assert.match(component, /Estimated published-price total/);
-    assert.match(component, /This is an indication, not a confirmed quote/);
-    assert.match(component, /Jenna may adjust it when reviewing the arrangement/);
-  }
+  assert.match(compact, /Estimated published-price total/);
+  assert.match(compact, /This is an indication, continue to get a confirmed quote/);
+  assert.match(fullForm, /Estimated published-price total/);
+  assert.match(fullForm, /This is an indication, not a confirmed quote/);
+  assert.match(fullForm, /Jenna may adjust it when reviewing the arrangement/);
   assert.match(compact, /body\.estimatedPricing\.guestTotalPence/);
   assert.match(fullForm, /body\.estimatedPricing\.guestTotalPence/);
 });

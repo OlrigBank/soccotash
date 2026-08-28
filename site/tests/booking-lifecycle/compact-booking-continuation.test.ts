@@ -11,7 +11,7 @@ test('homepage and every listing use the compact continuation journey', async ()
     source('src/data/booking/properties.yml'),
   ]);
 
-  assert.match(homepage, /<CompactBookingPanel source="homepage" \/>/);
+  assert.match(homepage, /<CompactBookingPanel[\s\S]*source="homepage"[\s\S]*\/>/);
   assert.match(listings, /<CompactBookingPanel[\s\S]*propertyId=\{bookingProperty\.id\}/);
   for (const mapping of [
     ['main-house', 'olrig-bank'],

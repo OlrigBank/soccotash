@@ -56,16 +56,32 @@ Implemented the first stage of the epic:
 - shortened the host-priced response so it supports the next action without
   repeating internal review detail.
 
-### Later features — Content following Quick Check
+### E01-F02 — Homepage discovery and direct-booking finish — Completed
 
-The next features should review and reshape the sections after the hero. Their
-scope is intentionally not fixed by E01-F01. Candidate work includes:
+[Feature record](../e01-f02.md)
+
+Implemented the content and page finish following Quick Check:
+
+- added an accessible, responsive photo gallery for the house, Cottage and
+  garden;
+- reshaped **Ways to stay at Olrig Bank** around the property's exterior image,
+  concise package details and direct listing links;
+- removed the repetitive accommodation-card grid;
+- replaced the six-card featured-guide grid with one Kendal Castle panel that
+  promotes the curated local guide;
+- introduced a richer direct-booking footer with valid public navigation; and
+- added one mobile **Check availability** action, removing non-working WhatsApp
+  actions before completion.
+
+### Later features
+
+The next features may continue to refine the landing page in response to
+visitor feedback and measured booking behaviour. Candidate work includes:
 
 - deciding what should immediately follow a successful or incomplete check;
-- reducing duplication between the suggested arrangement and **Ways to stay**;
-- improving the hierarchy and amount of accommodation-detail content;
-- reviewing the role and placement of the featured local guide; and
-- tightening mobile page length while preserving useful discovery content.
+- reviewing gallery engagement and whether its image order should change;
+- measuring use of the stay-option and local-guide links; and
+- further tightening mobile page length without weakening useful discovery.
 
 Each follow-on feature must define its own content goal, acceptance criteria
 and browser-review widths before implementation.

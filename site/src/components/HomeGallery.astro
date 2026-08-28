@@ -1,0 +1,197 @@
+---
+const photos = [
+  {
+    src: '/media/images/spaces/house/house-lounge/house-lounge-1.jpeg',
+    alt: 'The spacious main lounge at Olrig Bank with sofas, original plasterwork and fireplace',
+    caption: 'The main lounge',
+  },
+  {
+    src: '/media/images/spaces/house/house-dining/house-dining-1.jpeg',
+    alt: 'The dining room at Olrig Bank with a large table and tall windows looking towards the garden',
+    caption: 'The dining room',
+  },
+  {
+    src: '/media/images/spaces/cottage/cottage-lounge-1/cottage-lounge-1-1.jpeg',
+    alt: 'The Cottage lounge with comfortable seating and a wood-burning stove',
+    caption: 'The Cottage lounge',
+  },
+  {
+    src: '/media/images/spaces/house/house-bedroom-1/house-bedroom-1-1.jpeg',
+    alt: 'A large double bedroom at Olrig Bank with period furniture',
+    caption: 'A spacious double bedroom',
+  },
+  {
+    src: '/media/images/spaces/house/house-kitchen/house-kitchen-1.jpeg',
+    alt: 'The main kitchen at Olrig Bank with wooden cabinets and a central table',
+    caption: 'The main kitchen',
+  },
+  {
+    src: '/media/images/spaces/garden/753047a3-1a64-4783-9372-e2b7411b634e.jpeg',
+    alt: 'The large garden at Olrig Bank with mature trees, outdoor seating and a garden swing',
+    caption: 'The garden',
+  },
+];
+---
+
+<section class="home-gallery" aria-labelledby="home-gallery-heading" data-home-gallery data-photos={JSON.stringify(photos)}>
+  <div class="home-gallery__heading">
+    <div>
+      <p class="eyebrow">Take a look around</p>
+      <h2 id="home-gallery-heading">Olrig Bank in pictures</h2>
+    </div>
+    <div class="home-gallery__controls">
+      <span data-gallery-count aria-live="polite">1 / {photos.length}</span>
+      <button type="button" data-gallery-previous aria-label="Show previous photo">←</button>
+      <button type="button" data-gallery-next aria-label="Show next photo">→</button>
+    </div>
+  </div>
+
+  <div class="home-gallery__rail" data-gallery-rail tabindex="0" aria-label="Olrig Bank photo gallery">
+    {photos.map((photo, index) => (
+      <button
+        class="home-gallery__photo"
+        type="button"
+        data-gallery-photo={index}
+        aria-label={`Open photo ${index + 1} of ${photos.length}: ${photo.caption}`}
+      >
+        <img
+          src={photo.src}
+          alt={photo.alt}
+          width="1440"
+          height="1080"
+          loading="lazy"
+          decoding="async"
+        />
+        <span>{photo.caption}</span>
+      </button>
+    ))}
+  </div>
+
+  <dialog class="home-gallery__dialog" data-gallery-dialog aria-label="Olrig Bank photo viewer">
+    <div class="home-gallery__viewer">
+      <button class="home-gallery__close" type="button" data-gallery-close aria-label="Close photo viewer">×</button>
+      <button class="home-gallery__viewer-previous" type="button" data-gallery-viewer-previous aria-label="Show previous photo">←</button>
+      <figure>
+        <img data-gallery-viewer-image src={photos[0].src} alt={photos[0].alt} />
+        <figcaption><span data-gallery-viewer-caption>{photos[0].caption}</span> · <span data-gallery-viewer-count>1 / {photos.length}</span></figcaption>
+      </figure>
+      <button class="home-gallery__viewer-next" type="button" data-gallery-viewer-next aria-label="Show next photo">→</button>
+    </div>
+  </dialog>
+</section>
+
+<script>
+  document.querySelectorAll('[data-home-gallery]').forEach((gallery) => {
+    const rail = gallery.querySelector('[data-gallery-rail]');
+    const cards = [...gallery.querySelectorAll('[data-gallery-photo]')];
+    const count = gallery.querySelector('[data-gallery-count]');
+    const dialog = gallery.querySelector('[data-gallery-dialog]');
+    const viewerImage = gallery.querySelector('[data-gallery-viewer-image]');
+    const viewerCaption = gallery.querySelector('[data-gallery-viewer-caption]');
+    const viewerCount = gallery.querySelector('[data-gallery-viewer-count]');
+    if (!(rail instanceof HTMLElement) || !(dialog instanceof HTMLDialogElement)
+      || !(viewerImage instanceof HTMLImageElement) || !viewerCaption || !viewerCount || !count) return;
+
+    const photos = JSON.parse((gallery as HTMLElement).dataset.photos || '[]') as Array<{
+      src: string; alt: string; caption: string;
+    }>;
+
+    let active = 0;
+    const clampIndex = (value: number) => (value + cards.length) % cards.length;
+    const updateRailCount = () => { count.textContent = `${active + 1} / ${cards.length}`; };
+    const showRailPhoto = (index: number) => {
+      active = clampIndex(index);
+      cards[active]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      updateRailCount();
+    };
+    const updateViewer = () => {
+      const photo = photos[active];
+      viewerImage.src = photo.src;
+      viewerImage.alt = photo.alt;
+      viewerCaption.textContent = photo.caption;
+      viewerCount.textContent = `${active + 1} / ${photos.length}`;
+    };
+    const openViewer = (index: number) => {
+      active = clampIndex(index);
+      updateViewer();
+      dialog.showModal();
+    };
+
+    gallery.querySelector('[data-gallery-previous]')?.addEventListener('click', () => showRailPhoto(active - 1));
+    gallery.querySelector('[data-gallery-next]')?.addEventListener('click', () => showRailPhoto(active + 1));
+    cards.forEach((card, index) => card.addEventListener('click', () => openViewer(index)));
+    gallery.querySelector('[data-gallery-close]')?.addEventListener('click', () => dialog.close());
+    gallery.querySelector('[data-gallery-viewer-previous]')?.addEventListener('click', () => {
+      active = clampIndex(active - 1);
+      updateViewer();
+    });
+    gallery.querySelector('[data-gallery-viewer-next]')?.addEventListener('click', () => {
+      active = clampIndex(active + 1);
+      updateViewer();
+    });
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        active = clampIndex(active - 1);
+        updateViewer();
+      }
+      if (event.key === 'ArrowRight') {
+        active = clampIndex(active + 1);
+        updateViewer();
+      }
+    });
+    rail.addEventListener('scroll', () => {
+      const railLeft = rail.getBoundingClientRect().left;
+      active = cards.reduce((nearest, card, index) => (
+        Math.abs(card.getBoundingClientRect().left - railLeft)
+          < Math.abs(cards[nearest].getBoundingClientRect().left - railLeft) ? index : nearest
+      ), 0);
+      updateRailCount();
+    }, { passive: true });
+  });
+</script>
+
+<style>
+  .home-gallery { margin-top: 1.5rem; }
+  .home-gallery__heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 0.8rem; }
+  .home-gallery__heading :is(p, h2) { margin: 0; }
+  .home-gallery__controls { display: flex; flex: none; align-items: center; gap: 0.45rem; }
+  .home-gallery__controls span { min-width: 3.2rem; color: var(--muted); font-size: 0.9rem; text-align: right; }
+  .home-gallery__controls button,
+  .home-gallery__viewer > button {
+    width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--panel-bg); color: var(--ink); font-size: 1.2rem;
+  }
+  .home-gallery__rail {
+    display: grid; grid-auto-columns: 84%; grid-auto-flow: column; gap: 0.8rem;
+    overflow-x: auto; padding: 0.1rem 0 0.8rem; scroll-snap-type: x mandatory;
+    scrollbar-width: thin; overscroll-behavior-inline: contain;
+  }
+  .home-gallery__photo {
+    position: relative; overflow: hidden; min-width: 0; padding: 0; border: 0;
+    border-radius: 1rem; background: var(--accent-dark); box-shadow: var(--shadow);
+    color: #fff; scroll-snap-align: start; text-align: left;
+  }
+  .home-gallery__photo img { width: 100%; aspect-ratio: 4 / 3; border-radius: 0; object-fit: cover; transition: transform 180ms ease; }
+  .home-gallery__photo span {
+    position: absolute; right: 0; bottom: 0; left: 0; padding: 2.5rem 1rem 0.8rem;
+    background: linear-gradient(transparent, rgba(19, 35, 27, 0.86)); font-weight: 700;
+  }
+  .home-gallery__photo:hover img { transform: scale(1.015); }
+  .home-gallery__photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .home-gallery__dialog { width: 100%; max-width: none; height: 100%; max-height: none; padding: 0; border: 0; background: rgba(10, 17, 13, 0.96); color: #fff; }
+  .home-gallery__dialog::backdrop { background: rgba(10, 17, 13, 0.86); }
+  .home-gallery__viewer { position: relative; display: grid; width: 100%; height: 100%; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 0.5rem; padding: 1rem; }
+  .home-gallery__viewer figure { display: grid; min-width: 0; max-height: 100%; justify-items: center; gap: 0.75rem; margin: 0; }
+  .home-gallery__viewer img { width: auto; max-width: 100%; max-height: calc(100vh - 6rem); border-radius: 0.5rem; object-fit: contain; }
+  .home-gallery__viewer figcaption { text-align: center; }
+  .home-gallery__viewer > button { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); color: #fff; }
+  .home-gallery__close { position: absolute; z-index: 1; top: 1rem; right: 1rem; font-size: 1.8rem !important; }
+  @media (min-width: 700px) { .home-gallery__rail { grid-auto-columns: 48%; } }
+  @media (min-width: 1100px) { .home-gallery__rail { grid-auto-columns: 32%; } }
+  @media (max-width: 520px) {
+    .home-gallery__heading { align-items: start; }
+    .home-gallery__controls button { display: none; }
+    .home-gallery__viewer { grid-template-columns: 44px 1fr 44px; padding: 0.5rem; }
+  }
+</style>
