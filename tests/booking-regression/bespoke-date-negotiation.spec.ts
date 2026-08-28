@@ -122,7 +122,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     }
 
     await adminPage.getByRole('link', { name: 'Return to booking without changes' }).click();
-    await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank' });
+    await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank House (max 8 guests)' });
     await adminPage.getByRole('button', { name: 'Assign arrangement' }).click();
     await adminPage.getByRole('link', { name: /Reservation/ }).click();
     await adminPage.getByLabel('Amount (£)').fill('100.00');
