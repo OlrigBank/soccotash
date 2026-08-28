@@ -36,10 +36,15 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     <div class="home-hero__content">
       <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
       {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
+      <CompactBookingPanel
+        source="homepage"
+        heading="Quick Check"
+        idPrefix="homepage-hero-booking"
+        submitLabel="Search stays"
+        autoSelectProperty={true}
+      />
     </div>
   </section>
-
-  <CompactBookingPanel source="homepage" />
 
   <section id="ways-to-stay" class="ways-to-stay">
     <h2>Ways to stay</h2>
@@ -102,6 +107,13 @@ const listings = (await getCollection('listings')).sort((a, b) => {
     color: #fff;
   }
 
+  .home-hero__content :global(.compact-booking-panel) {
+    width: 100%;
+    margin-top: 1.25rem;
+    color: var(--ink);
+    text-align: left;
+  }
+
   .home-hero h1 {
     max-width: 14ch;
     margin: 0;
@@ -149,14 +161,14 @@ const listings = (await getCollection('listings')).sort((a, b) => {
       z-index: 1;
       display: flex;
       min-height: inherit;
-      max-width: 38rem;
+      width: 100%;
       flex-direction: column;
       justify-content: flex-end;
       padding: clamp(2rem, 5vw, 4rem);
     }
 
     .home-hero p {
-      max-width: 38ch;
+      max-width: 42ch;
     }
   }
 
