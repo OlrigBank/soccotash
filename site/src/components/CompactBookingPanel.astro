@@ -192,6 +192,7 @@ if (propertyId && !fixedProperty) {
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
     const recommendationName = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation-name]');
+    const suggestedStay = panel.dataset.autoSelectProperty === 'true';
     const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
     const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
     const departureLabel = panel.querySelector<HTMLElement>('[data-compact-departure-label]');
@@ -402,7 +403,7 @@ if (propertyId && !fixedProperty) {
       clearResult();
     };
     const renderHostPriced = (body: QuoteResponse) => {
-      if (body.estimatedPricing) {
+      if (body.estimatedPricing && !suggestedStay) {
         const estimate = document.createElement('p');
         estimate.className = 'compact-booking-result__estimate';
         const total = document.createElement('strong');
@@ -425,14 +426,17 @@ if (propertyId && !fixedProperty) {
       title.textContent = 'These dates currently appear available';
       const total = document.createElement('strong');
       total.textContent = money(Number(body.guestTotalPence || 0), body.currency || 'GBP');
-      heading.append(title, total);
+      heading.append(title);
+      if (!suggestedStay) heading.append(total);
       result.append(heading);
 
-      const nights = document.createElement('p');
-      nights.textContent = `${Number(body.nights || 0)} ${Number(body.nights) === 1 ? 'night' : 'nights'} · provisional total`;
-      result.append(nights);
+      if (!suggestedStay) {
+        const nights = document.createElement('p');
+        nights.textContent = `${Number(body.nights || 0)} ${Number(body.nights) === 1 ? 'night' : 'nights'} · provisional total`;
+        result.append(nights);
+      }
 
-      if (body.lines?.length) {
+      if (body.lines?.length && !suggestedStay) {
         const details = document.createElement('details');
         const summary = document.createElement('summary');
         summary.textContent = 'Price details';
