@@ -9,9 +9,9 @@ test('the home page contains descriptive standard links to every accommodation',
   const home = await source('src/content/pages/home.md');
 
   for (const path of listingPaths) assert.match(home, new RegExp(`\\]\\(${path}\\)`));
-  assert.match(home, /large group and family holiday house in Kendal/);
-  assert.match(home, /Olrig Bank Max for up to 12 adults/);
-  assert.match(home, /The Cottage at Olrig Bank for an independent stay/);
+  assert.match(home, /Olrig Bank was built in 1879/);
+  assert.match(home, /\[Olrig Bank Max\][\s\S]*up to 12 guests/);
+  assert.match(home, /\[The Cottage at Olrig Bank\][\s\S]*4 guests/);
 });
 
 test('public supporting pages provide crawlable contextual listing links', async () => {

@@ -6,6 +6,8 @@ interface Props {
   source?: 'homepage' | 'listing';
   heading?: string;
   idPrefix?: string;
+  submitLabel?: string;
+  autoSelectProperty?: boolean;
 }
 
 const {
@@ -13,6 +15,8 @@ const {
   source = propertyId ? 'listing' : 'homepage',
   heading = 'Plan your stay',
   idPrefix = `compact-booking-${source}`,
+  submitLabel = 'Quick Check',
+  autoSelectProperty = false,
 } = Astro.props;
 const properties = getProperties();
 const fixedProperty = propertyId ? properties.find((property) => property.id === propertyId) : undefined;
@@ -29,15 +33,18 @@ if (propertyId && !fixedProperty) {
   data-compact-booking-panel
   data-source={source}
   data-fixed-property={fixedProperty?.id}
+  data-submit-label={submitLabel}
+  data-auto-select-property={autoSelectProperty ? 'true' : undefined}
+  data-properties={autoSelectProperty ? JSON.stringify(properties.map(({ id, name, minimumNights, maximumGuests }) => ({ id, name, minimumNights, maximumGuests }))) : undefined}
   aria-labelledby={`${idPrefix}-heading`}
 >
   <div class="compact-booking-panel__heading">
-    <p class="eyebrow">{fixedBespoke ? 'Begin an enquiry' : 'Check a stay'}</p>
+    {autoSelectProperty ? null : <p class="eyebrow">{fixedBespoke ? 'Begin an enquiry' : 'Check a stay'}</p>}
     <h2 id={`${idPrefix}-heading`}>{heading}</h2>
   </div>
 
   <form class="compact-booking-form" data-compact-booking-form>
-    {fixedProperty ? (
+    {autoSelectProperty ? null : fixedProperty ? (
       <div class="compact-booking-field compact-booking-field--property">
         <span>Stay arrangement</span>
         <strong>{fixedProperty.name}</strong>
@@ -54,14 +61,25 @@ if (propertyId && !fixedProperty) {
       </label>
     )}
 
-    <label class="compact-booking-field" for={`${idPrefix}-arrival`}>
-      <span>Arrival</span>
-      <input id={`${idPrefix}-arrival`} name="arrival" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
-    </label>
-    <label class="compact-booking-field" for={`${idPrefix}-departure`}>
-      <span>Departure</span>
-      <input id={`${idPrefix}-departure`} name="departure" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
-    </label>
+    {autoSelectProperty ? (
+      <button class="compact-booking-date-trigger" type="button" data-compact-date-trigger aria-controls={`${idPrefix}-calendar`} aria-expanded="false">
+        <span><small>Check-in</small><strong data-compact-arrival-label>Add date</strong></span>
+        <span><small>Check-out</small><strong data-compact-departure-label>Add date</strong></span>
+        <input id={`${idPrefix}-arrival`} name="arrival" type="hidden" required />
+        <input id={`${idPrefix}-departure`} name="departure" type="hidden" required />
+      </button>
+    ) : (
+      <>
+        <label class="compact-booking-field" for={`${idPrefix}-arrival`}>
+          <span>Arrival</span>
+          <input id={`${idPrefix}-arrival`} name="arrival" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
+        </label>
+        <label class="compact-booking-field" for={`${idPrefix}-departure`}>
+          <span>Departure</span>
+          <input id={`${idPrefix}-departure`} name="departure" type="date" required aria-controls={`${idPrefix}-calendar`} aria-expanded="false" />
+        </label>
+      </>
+    )}
     <fieldset id={`${idPrefix}-calendar`} class="compact-date-calendar" data-compact-date-calendar>
       <legend>Choose arrival and departure</legend>
       <div class="compact-date-calendar__toolbar">
@@ -75,35 +93,58 @@ if (propertyId && !fixedProperty) {
       </div>
       <div class="compact-date-calendar__days" data-compact-calendar-days></div>
     </fieldset>
-    <label class="compact-booking-field" for={`${idPrefix}-adults`}>
-      <span>Adults <small>13+</small></span>
-      <input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value="2" required />
-    </label>
-    <label class="compact-booking-field" for={`${idPrefix}-children`}>
-      <span>Children <small>2–12</small></span>
-      <input id={`${idPrefix}-children`} name="children" type="number" min="0" value="0" required />
-    </label>
-    <label class="compact-booking-field" for={`${idPrefix}-infants`}>
-      <span>Infants <small>Under 2</small></span>
-      <input id={`${idPrefix}-infants`} name="infants" type="number" min="0" value="0" required />
-    </label>
-    <label class="compact-booking-field" for={`${idPrefix}-pets`}>
-      <span>Pets</span>
-      <input id={`${idPrefix}-pets`} name="pets" type="number" min="0" value="0" required />
-    </label>
+    {autoSelectProperty ? (
+      <details class="compact-guests" data-compact-guests>
+        <summary><span>Guests</span><strong data-compact-guests-summary>2 adults</strong></summary>
+        <div class="compact-guests__popover">
+          {[
+            ['adults', 'Adults', 'Ages 13+', 1, 2],
+            ['children', 'Children', 'Ages 2–12', 0, 0],
+            ['infants', 'Infants', 'Under 2', 0, 0],
+            ['pets', 'Pets', '', 0, 0],
+          ].map(([name, label, help, minimum, value]) => (
+            <div class="compact-guests__row">
+              <span><strong>{label}</strong>{help ? <small>{help}</small> : null}</span>
+              <div>
+                <button type="button" data-compact-guest-adjust={name} data-direction="-1" aria-label={`Remove ${String(label).toLowerCase()}`}>−</button>
+                <input id={`${idPrefix}-${name}`} name={String(name)} type="number" min={Number(minimum)} value={Number(value)} required readonly />
+                <button type="button" data-compact-guest-adjust={name} data-direction="1" aria-label={`Add ${String(label).toLowerCase()}`}>+</button>
+              </div>
+            </div>
+          ))}
+          <button class="button compact-guests__done" type="button" data-compact-guests-done>Done</button>
+        </div>
+      </details>
+    ) : (
+      <>
+        <label class="compact-booking-field" for={`${idPrefix}-adults`}><span>Adults <small>13+</small></span><input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value="2" required /></label>
+        <label class="compact-booking-field" for={`${idPrefix}-children`}><span>Children <small>2–12</small></span><input id={`${idPrefix}-children`} name="children" type="number" min="0" value="0" required /></label>
+        <label class="compact-booking-field" for={`${idPrefix}-infants`}><span>Infants <small>Under 2</small></span><input id={`${idPrefix}-infants`} name="infants" type="number" min="0" value="0" required /></label>
+        <label class="compact-booking-field" for={`${idPrefix}-pets`}><span>Pets</span><input id={`${idPrefix}-pets`} name="pets" type="number" min="0" value="0" required /></label>
+      </>
+    )}
 
     <div class="compact-booking-panel__action">
       <button class="button" type="submit" data-compact-booking-submit>
-        {fixedBespoke ? 'Start a Bespoke request' : 'Quick Check'}
+        {fixedBespoke ? 'Start a Bespoke request' : submitLabel}
       </button>
     </div>
+
+    {autoSelectProperty ? (
+      <div class="compact-booking-field compact-booking-field--property compact-booking-field--recommendation" data-compact-booking-recommendation hidden>
+        <span>Suggested Stay arrangement</span>
+        <strong data-compact-booking-recommendation-name></strong>
+        <input type="hidden" name="propertyId" value="" />
+        <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
+      </div>
+    ) : null}
   </form>
 
   <p class="compact-booking-panel__bespoke" data-compact-booking-bespoke hidden={!fixedBespoke}>
     Tell us your preferred dates and party. This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price.
   </p>
   <p class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
-  <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
+  {autoSelectProperty ? null : <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>}
 </section>
 
 <script>
@@ -149,6 +190,13 @@ if (propertyId && !fixedProperty) {
     const calendarDays = panel.querySelector<HTMLElement>('[data-compact-calendar-days]');
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
+    const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
+    const recommendationName = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation-name]');
+    const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
+    const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
+    const departureLabel = panel.querySelector<HTMLElement>('[data-compact-departure-label]');
+    const guests = panel.querySelector<HTMLDetailsElement>('[data-compact-guests]');
+    const guestsSummary = panel.querySelector<HTMLElement>('[data-compact-guests-summary]');
     if (!form || !property || !arrival || !departure || !submit || !status || !result || !bespokeMessage
       || !calendar || !calendarHeading || !calendarMessage || !calendarDays || !calendarPrevious || !calendarNext) return;
 
@@ -162,6 +210,7 @@ if (propertyId && !fixedProperty) {
       panel.classList.toggle('compact-booking-panel--calendar-open', open);
       arrival.setAttribute('aria-expanded', String(open));
       departure.setAttribute('aria-expanded', String(open));
+      dateTrigger?.setAttribute('aria-expanded', String(open));
     };
 
     const parseDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -180,6 +229,11 @@ if (propertyId && !fixedProperty) {
     let calendarMonth = firstMonth;
     const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const shortDateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const updateDateLabels = () => {
+      if (arrivalLabel) arrivalLabel.textContent = arrival.value ? shortDateLabel.format(parseDate(arrival.value)) : 'Add date';
+      if (departureLabel) departureLabel.textContent = departure.value ? shortDateLabel.format(parseDate(departure.value)) : 'Add date';
+    };
 
     const minimumNights = () => Number(
       property instanceof HTMLSelectElement
@@ -247,10 +301,11 @@ if (propertyId && !fixedProperty) {
         departure.value = value;
         calendarMessage.textContent = `${dayLabel.format(parseDate(arrival.value))} to ${dayLabel.format(parseDate(value))} selected.`;
       }
+      updateDateLabels();
       renderCalendar();
       if (departure.value) {
         setCalendarOpen(false);
-        departure.focus({ preventScroll: true });
+        (dateTrigger || departure).focus({ preventScroll: true });
       } else {
         calendarDays.querySelector<HTMLButtonElement>(`[data-date="${value}"]`)?.focus({ preventScroll: true });
       }
@@ -273,6 +328,36 @@ if (propertyId && !fixedProperty) {
         }
       });
     }
+    dateTrigger?.addEventListener('click', openCalendar);
+    const updateGuestsSummary = () => {
+      if (!guestsSummary) return;
+      const count = (name: string) => Number(form.elements.namedItem(name) instanceof HTMLInputElement
+        ? (form.elements.namedItem(name) as HTMLInputElement).value : 0);
+      const adults = count('adults');
+      const parts = [`${adults} ${adults === 1 ? 'adult' : 'adults'}`];
+      const children = count('children');
+      const infants = count('infants');
+      const pets = count('pets');
+      if (children) parts.push(`${children} ${children === 1 ? 'child' : 'children'}`);
+      if (infants) parts.push(`${infants} ${infants === 1 ? 'infant' : 'infants'}`);
+      if (pets) parts.push(`${pets} ${pets === 1 ? 'pet' : 'pets'}`);
+      guestsSummary.textContent = parts.join(', ');
+    };
+    panel.querySelectorAll<HTMLButtonElement>('[data-compact-guest-adjust]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const input = form.elements.namedItem(button.dataset.compactGuestAdjust || '');
+        if (!(input instanceof HTMLInputElement)) return;
+        const minimum = Number(input.min || 0);
+        input.value = String(Math.max(minimum, Number(input.value) + Number(button.dataset.direction || 0)));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        updateGuestsSummary();
+      });
+    });
+    panel.querySelector<HTMLButtonElement>('[data-compact-guests-done]')?.addEventListener('click', () => {
+      if (guests) guests.open = false;
+    });
+    updateGuestsSummary();
+    updateDateLabels();
     calendar.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       setCalendarOpen(false);
@@ -284,6 +369,7 @@ if (propertyId && !fixedProperty) {
       result.hidden = true;
       result.replaceChildren();
       status.textContent = '';
+      if (recommendation) recommendation.hidden = true;
     };
     const continuationHref = () => {
       const data = new FormData(form);
@@ -307,7 +393,7 @@ if (propertyId && !fixedProperty) {
     const updateMode = () => {
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
-      submit.textContent = bespoke ? 'Start a Bespoke request' : 'Quick Check';
+      submit.textContent = bespoke ? 'Start a Bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
       if (arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
         departure.value = '';
         calendarMessage.textContent = 'The minimum stay changed. Choose your departure date again.';
@@ -316,11 +402,6 @@ if (propertyId && !fixedProperty) {
       clearResult();
     };
     const renderHostPriced = (body: QuoteResponse) => {
-      const heading = document.createElement('h3');
-      heading.textContent = 'Price confirmation required';
-      const copy = document.createElement('p');
-      copy.textContent = body.message || 'Jenna will confirm the price for this request.';
-      result.append(heading);
       if (body.estimatedPricing) {
         const estimate = document.createElement('p');
         estimate.className = 'compact-booking-result__estimate';
@@ -331,10 +412,10 @@ if (propertyId && !fixedProperty) {
         );
         estimate.append('Estimated published-price total: ', total);
         const estimateNote = document.createElement('p');
-        estimateNote.textContent = 'This is an indication, not a confirmed quote. Jenna may adjust it when reviewing the arrangement.';
+        estimateNote.textContent = 'This is an indication, continue to get a confirmed quote.';
         result.append(estimate, estimateNote);
       }
-      result.append(copy, continueLink('Continue with request'));
+      result.append(continueLink('Continue with request'));
       result.hidden = false;
     };
     const renderQuote = (body: QuoteResponse) => {
@@ -393,6 +474,29 @@ if (propertyId && !fixedProperty) {
         return;
       }
 
+      const data = new FormData(form);
+      if (panel.dataset.autoSelectProperty === 'true') {
+        const partySize = ['adults', 'children', 'infants']
+          .reduce((total, name) => total + Number(data.get(name) || 0), 0);
+        const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
+          id: string; name: string; minimumNights: number; maximumGuests: number;
+        }>;
+        const standard = configured
+          .filter((candidate) => candidate.id !== 'bespoke-arrangement' && candidate.maximumGuests >= partySize)
+          .sort((a, b) => a.maximumGuests - b.maximumGuests)[0];
+        const selected = standard || configured.find((candidate) => candidate.id === 'bespoke-arrangement');
+        if (!selected) {
+          status.textContent = 'No suitable stay arrangement could be found. Please contact Jenna for help.';
+          return;
+        }
+        property.value = selected.id;
+        property.dataset.minimumNights = String(selected.minimumNights);
+        if (recommendation && recommendationName) {
+          recommendationName.textContent = selected.name;
+          recommendation.hidden = false;
+        }
+      }
+
       window.olrigAnalytics?.track('compact_booking_started', {
         source: panel.dataset.source || 'unknown',
         property: property.value,
@@ -410,7 +514,7 @@ if (propertyId && !fixedProperty) {
 
       submit.disabled = true;
       status.textContent = 'Checking the latest availability and price…';
-      const data = new FormData(form);
+      data.set('propertyId', property.value);
       const safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value };
       try {
         const availabilityParams = new URLSearchParams({
@@ -476,6 +580,7 @@ if (propertyId && !fixedProperty) {
   .compact-booking-panel__heading { margin-bottom: 1rem; }
   .compact-booking-panel__heading :is(p, h2) { margin: 0; }
   .compact-booking-form {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
     gap: 0.8rem;
@@ -488,7 +593,61 @@ if (propertyId && !fixedProperty) {
     width: 100%; min-height: 44px; padding: 0.55rem 0.65rem;
     border: 1px solid var(--line); border-radius: 0.55rem; background: #fff; color: var(--ink);
   }
+  .compact-booking-date-trigger,
+  .compact-guests > summary {
+    min-height: 58px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: #fff;
+    color: var(--ink);
+    text-align: left;
+  }
+  .compact-booking-date-trigger {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+  }
+  .compact-booking-date-trigger > span { display: grid; gap: 0.15rem; min-width: 0; }
+  .compact-booking-date-trigger > span + span { padding-left: 0.75rem; border-left: 1px solid var(--line); }
+  .compact-booking-date-trigger small,
+  .compact-guests > summary > span { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+  .compact-booking-date-trigger strong,
+  .compact-guests > summary strong { overflow: hidden; font-size: 0.92rem; text-overflow: ellipsis; white-space: nowrap; }
+  .compact-guests { position: relative; min-width: 0; }
+  .compact-guests > summary { display: grid; gap: 0.15rem; cursor: pointer; list-style: none; }
+  .compact-guests > summary::-webkit-details-marker { display: none; }
+  .compact-guests__popover {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    width: min(21rem, calc(100vw - 4rem));
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .compact-guests__row { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 1rem; }
+  .compact-guests__row > span { display: grid; }
+  .compact-guests__row small { color: var(--muted); }
+  .compact-guests__row > div { display: grid; grid-template-columns: 36px 42px 36px; align-items: center; }
+  .compact-guests__row button { min-height: 36px; border: 1px solid var(--line); background: var(--panel-bg); color: var(--ink); font-size: 1.2rem; }
+  .compact-guests__row button:first-child { border-radius: 999px 0 0 999px; }
+  .compact-guests__row button:last-child { border-radius: 0 999px 999px 0; }
+  .compact-guests__row input { width: 42px; min-height: 36px; border: solid var(--line); border-width: 1px 0; background: #fff; color: var(--ink); text-align: center; appearance: textfield; }
+  .compact-guests__row input::-webkit-inner-spin-button { appearance: none; }
+  .compact-guests__done { width: 100%; margin-top: 0.6rem; justify-content: center; }
   .compact-booking-field--property { grid-column: span 2; }
+  .compact-booking-field--recommendation {
+    grid-column: 1 / -1;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 0.65rem;
+    background: var(--panel-bg);
+  }
+  .compact-booking-field--recommendation[hidden] { display: none; }
   .compact-date-calendar {
     grid-column: 1 / -1; min-width: 0; margin: 0; padding: 0.8rem;
     border: 1px solid var(--line); border-radius: 0.75rem; background: #fff;

@@ -2,10 +2,14 @@
 slug: "home"
 title: "Olrig Bank"
 description: "Choose Olrig Bank, Olrig Bank Max or The Cottage at Olrig Bank for a stay close to Kendal town centre and the Lake District."
-heroTitle: "Stay together at Olrig Bank in Kendal"
-heroText: "A welcoming Victorian house with flexible stays for families and groups, secluded in the heart of Kendal with all that the town has to offer in walking distance and in easy reach of all that the Lake District has to offer. Olrig Bank has 6 bedrooms, 3 bathrooms, a large garden and free off road parking space."
+heroTitle: "Stay at Olrig Bank in Kendal"
+heroText: "Choose your dates and define your party to check availibilty and the type of stay that suites you"
 ---
 
-Choose [Olrig Bank, our large group and family holiday house in Kendal](/listings/olrig-bank/), [The Cottage at Olrig Bank for an independent stay](/listings/cottage/), [Olrig Bank Max for up to 12 adults](/listings/event/), or [Olrig Bank Bespoke for arrangements outside our standard options](/listings/bespoke/).
+Olrig Bank was built in 1879 for a George MacKay, a Mayor of Kendal and all of the space of the house and surrounding garden is still availble today. This allows guests to choose from 3 accomodation packages:
 
-[Ask Jenna for help choosing your stay](/contact/) if you are not sure which option suits your group.
+- [Olrig Bank](/listings/olrig-bank/) — up to 8 guests using 🛏️ 4 bedrooms · 🚿 2 bathrooms.
+- [Olrig Bank Max](/listings/event/) — up to 12 guests using 🛏️ 6 bedrooms · 🚿 3 bathrooms
+- [The Cottage at Olrig Bank](/listings/cottage/) — 4 guests using 🛏️ 1 bedroom · 🚿 1 bathroom
+
+If none of the 3 quite right for you then use [Olrig Bank Bespoke](/listings/bespoke/) to request tailored arrangements beyond our standard stay options or [Ask Jenna to help you choose](/contact/).
