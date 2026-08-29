@@ -10,7 +10,7 @@ import {
   whatsappTemplateParameters,
   type WhatsAppNotificationEvent,
 } from './whatsapp-templates.ts';
-import { getWhatsAppConfiguration, sendWhatsAppTemplate } from './whatsapp-provider.ts';
+import { getWhatsAppConfiguration, isWhatsAppRecipientAllowed, sendWhatsAppTemplate } from './whatsapp-provider.ts';
 
 export type NotificationDeliveryStatus = 'not_requested' | 'queued' | 'submitted' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
 export type NotificationChannel = 'email' | 'whatsapp';
@@ -23,13 +23,14 @@ export type NotificationOutcome = {
   reason?: string;
 };
 
-const progress: Record<NotificationDeliveryStatus, number> = {
-  not_requested: 0, queued: 1, submitted: 2, sent: 3, delivered: 4, read: 5, failed: 6, skipped: 6,
-};
-
 export function nextDeliveryStatus(current: NotificationDeliveryStatus, incoming: NotificationDeliveryStatus): NotificationDeliveryStatus {
-  if (current === 'read' || current === 'failed' || current === 'skipped') return current;
-  if (incoming === 'failed') return current === 'delivered' ? current : 'failed';
+  if (current === 'skipped' || incoming === 'skipped') return current;
+  if (current === 'read' || incoming === 'read') return 'read';
+  if (current === 'delivered' || incoming === 'delivered') return 'delivered';
+  if (current === 'failed' || incoming === 'failed') return 'failed';
+  const progress: Record<NotificationDeliveryStatus, number> = {
+    not_requested: 0, queued: 1, submitted: 2, sent: 3, delivered: 4, read: 5, failed: 0, skipped: 0,
+  };
   return progress[incoming] > progress[current] ? incoming : current;
 }
 
@@ -215,12 +216,14 @@ export async function deliverBookingNotification(input: {
 
   const consentActive = hasActiveWhatsAppConsentForCurrentNumber(input.booking);
   const configuration = getWhatsAppConfiguration();
+  const recipientAllowed = Boolean(input.booking.telephoneE164 && isWhatsAppRecipientAllowed(input.booking.telephoneE164));
   const priorWhatsApp = await existingDelivery(`${input.sourceKey}:whatsapp`);
   if (priorWhatsApp) return { channel: priorWhatsApp.channel, status: priorWhatsApp.status, fallbackUsed: false };
-  if (!consentActive || !configuration.configured || !supported || !input.manageUrl) {
+  if (!consentActive || !configuration.configured || !recipientAllowed || !supported || !input.manageUrl) {
     const reason = !consentActive ? 'WhatsApp consent is not active.'
       : !configuration.configured ? 'WhatsApp is not configured.'
-        : !supported ? 'This event has no WhatsApp template.' : 'No private booking link is available.';
+        : !recipientAllowed ? 'The recipient is not approved for WhatsApp rollout.'
+          : !supported ? 'This event has no WhatsApp template.' : 'No private booking link is available.';
     await recordDelivery({ eventId, channel: 'whatsapp', status: 'skipped', idempotencyKey: `${input.sourceKey}:whatsapp`, error: reason });
     return deliverEmailFallback({ eventId, sourceKey: input.sourceKey, emailDelivery: input.emailDelivery });
   }
@@ -253,7 +256,7 @@ async function genericFailureFallback(deliveryId: string): Promise<void> {
        FROM booking_notification_deliveries bnd
        JOIN booking_notification_events bne ON bne.id = bnd.notification_event_id
        JOIN provisional_bookings pb ON pb.id = bne.provisional_booking_id
-      WHERE bnd.id = $1`, [deliveryId],
+      WHERE bnd.id = $1 AND bnd.status = 'failed'`, [deliveryId],
   );
   if (!result.rowCount) return;
   const row = result.rows[0];
@@ -317,6 +320,20 @@ export async function processWhatsAppStatus(input: {
          error_code = CASE WHEN $2 = 'failed' THEN $3 ELSE error_code END
        WHERE id = $1`, [deliveryId, status, input.errorCode || null],
     );
+    if (status === 'failed') {
+      await client.query(
+        `INSERT INTO booking_notification_fallback_jobs (whatsapp_delivery_id)
+         VALUES ($1) ON CONFLICT (whatsapp_delivery_id) DO NOTHING`,
+        [deliveryId],
+      );
+    } else if (status === 'delivered' || status === 'read') {
+      await client.query(
+        `UPDATE booking_notification_fallback_jobs
+            SET status = 'cancelled', lease_expires_at = NULL, updated_at = NOW()
+          WHERE whatsapp_delivery_id = $1 AND status IN ('pending', 'processing')`,
+        [deliveryId],
+      );
+    }
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -324,8 +341,57 @@ export async function processWhatsAppStatus(input: {
   } finally {
     client.release();
   }
-  if (status === 'failed') await genericFailureFallback(deliveryId);
   return 'updated';
+}
+
+async function claimWhatsAppFallbackJob(): Promise<{ id: string; deliveryId: string } | null> {
+  const result = await getPool().query(
+    `UPDATE booking_notification_fallback_jobs
+        SET status = 'processing', attempts = attempts + 1,
+            lease_expires_at = NOW() + INTERVAL '5 minutes', updated_at = NOW()
+      WHERE id = (
+        SELECT id FROM booking_notification_fallback_jobs
+         WHERE available_at <= NOW()
+           AND (status = 'pending' OR (status = 'processing' AND lease_expires_at < NOW()))
+         ORDER BY available_at, id
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+      )
+      RETURNING id::text, whatsapp_delivery_id::text AS "deliveryId"`,
+  );
+  return result.rowCount ? result.rows[0] : null;
+}
+
+export async function processQueuedWhatsAppFallbacks(limit = 20): Promise<{ processed: number; failed: number }> {
+  const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 20));
+  let processed = 0;
+  let failed = 0;
+  while (processed + failed < boundedLimit) {
+    const job = await claimWhatsAppFallbackJob();
+    if (!job) break;
+    try {
+      await genericFailureFallback(job.deliveryId);
+      await getPool().query(
+        `UPDATE booking_notification_fallback_jobs
+            SET status = 'completed', lease_expires_at = NULL, last_error = NULL, updated_at = NOW()
+          WHERE id = $1 AND status = 'processing'`,
+        [job.id],
+      );
+      processed += 1;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await getPool().query(
+        `UPDATE booking_notification_fallback_jobs
+            SET status = 'pending', lease_expires_at = NULL,
+                available_at = NOW() + LEAST(attempts, 10) * INTERVAL '1 minute',
+                last_error = $2, updated_at = NOW()
+          WHERE id = $1`,
+        [job.id, reason.slice(0, 300)],
+      );
+      failed += 1;
+    }
+  }
+  return { processed, failed };
 }
 
 export async function getBookingNotificationHistory(bookingId: string) {
