@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
-import { nextDeliveryStatus } from '../../src/lib/booking/notification-delivery.ts';
+import { nextDeliveryStatus, type NotificationDeliveryStatus } from '../../src/lib/booking/notification-delivery.ts';
 import {
   normaliseWhatsAppTelephone,
   validateWhatsAppConsent,
@@ -33,6 +33,9 @@ test('verifies Meta webhook signatures without accepting absent credentials', ()
   assert.equal(verifyWhatsAppSignature(body, signature, secret), true);
   assert.equal(verifyWhatsAppSignature(`${body} `, signature, secret), false);
   assert.equal(verifyWhatsAppSignature(body, null, secret), false);
+  const bytes = Buffer.from('{"guest":"Joséphine"}', 'utf8');
+  const byteSignature = `sha256=${crypto.createHmac('sha256', secret).update(bytes).digest('hex')}`;
+  assert.equal(verifyWhatsAppSignature(bytes, byteSignature, secret), true);
 });
 
 test('requires the independent delivery switch in addition to provider credentials', () => {
@@ -53,7 +56,22 @@ test('delivery statuses are monotonic and failures do not erase delivery evidenc
   assert.equal(nextDeliveryStatus('delivered', 'sent'), 'delivered');
   assert.equal(nextDeliveryStatus('delivered', 'failed'), 'delivered');
   assert.equal(nextDeliveryStatus('sent', 'failed'), 'failed');
+  assert.equal(nextDeliveryStatus('failed', 'delivered'), 'delivered');
+  assert.equal(nextDeliveryStatus('failed', 'read'), 'read');
   assert.equal(nextDeliveryStatus('read', 'delivered'), 'read');
+});
+
+test('delivery status resolution is independent of callback arrival order', () => {
+  const forward = (['failed', 'delivered', 'read'] as NotificationDeliveryStatus[]).reduce(
+    (current, incoming) => nextDeliveryStatus(current, incoming),
+    'submitted' as NotificationDeliveryStatus,
+  );
+  const reverse = (['read', 'delivered', 'failed'] as NotificationDeliveryStatus[]).reduce(
+    (current, incoming) => nextDeliveryStatus(current, incoming),
+    'submitted' as NotificationDeliveryStatus,
+  );
+  assert.equal(forward, 'read');
+  assert.equal(reverse, 'read');
 });
 
 test('cancellation WhatsApp eligibility remains bound to consent for the current number', async () => {

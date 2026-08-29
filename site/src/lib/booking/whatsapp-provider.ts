@@ -42,7 +42,7 @@ export async function sendWhatsAppTemplate(input: {
   return { provider: 'meta', messageId };
 }
 
-export function verifyWhatsAppSignature(rawBody: string, signature: string | null, appSecret = process.env.WHATSAPP_APP_SECRET || ''): boolean {
+export function verifyWhatsAppSignature(rawBody: string | Uint8Array, signature: string | null, appSecret = process.env.WHATSAPP_APP_SECRET || ''): boolean {
   if (!appSecret || !signature?.startsWith('sha256=')) return false;
   const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
   const supplied = Buffer.from(signature);
