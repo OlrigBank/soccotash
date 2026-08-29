@@ -17,6 +17,12 @@ PR #43 adds opt-in transactional WhatsApp notifications through the Meta WhatsAp
 4. Register `https://<development-host>/api/webhooks/whatsapp/` as the webhook URL and use the configured verification token.
 5. Subscribe to message status updates. The endpoint requires Meta's `X-Hub-Signature-256` signature for POST requests.
 
+For a controlled rollout, set `WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED=true`
+and put only explicitly authorised E.164 numbers in the comma-separated
+`WHATSAPP_RECIPIENT_ALLOWLIST`. Treat the allowlist as a secret because it
+contains personal data. The guard is checked both before notification delivery
+is claimed and again immediately before the Meta request.
+
 ## Delivery semantics
 
 The application records a notification event independently of each delivery attempt. WhatsApp states progress through `queued`, `submitted`, `sent`, `delivered`, `read`, or `failed`; provider callbacks are idempotent and cannot regress a later state. A provider acceptance is recorded as `submitted`, not as delivery.

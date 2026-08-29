@@ -51,10 +51,11 @@ evidence.
 
 ## Feature sequence
 
-1. [E02-F01 — Harden WhatsApp Delivery-status Webhooks](../e02-f01.md)
-2. Controlled Meta development acceptance and operational evidence.
-3. Production-readiness review and an explicit activation decision.
-4. Optional two-way guest messaging, only if separately specified and
+1. [E02-F01 — Harden WhatsApp Delivery-status Webhooks](../e02-f01.md) —
+   completed with controlled development acceptance.
+2. [E02-F02 — WhatsApp Production Readiness](../e02-f02.md) — operational
+   controls, fallback scheduling and an explicit activation decision.
+3. Optional two-way guest messaging, only if separately specified and
    approved.
 
 ## Epic acceptance criteria

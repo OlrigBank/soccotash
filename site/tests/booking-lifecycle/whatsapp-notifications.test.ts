@@ -7,7 +7,7 @@ import {
   validateWhatsAppConsent,
   WHATSAPP_CONSENT_TEXT,
 } from '../../src/lib/booking/whatsapp-phone.ts';
-import { getWhatsAppConfiguration, verifyWhatsAppSignature } from '../../src/lib/booking/whatsapp-provider.ts';
+import { getWhatsAppConfiguration, isWhatsAppRecipientAllowed, verifyWhatsAppSignature } from '../../src/lib/booking/whatsapp-provider.ts';
 import { getWhatsAppTemplate, whatsappTemplateParameters } from '../../src/lib/booking/whatsapp-templates.ts';
 
 test('normalises international and UK telephone numbers to E.164', () => {
@@ -49,6 +49,31 @@ test('requires the independent delivery switch in addition to provider credentia
   process.env.WHATSAPP_DELIVERY_ENABLED = 'true';
   assert.equal(getWhatsAppConfiguration().configured, true);
   process.env = previous;
+});
+
+test('production rollout recipient guard is independent of delivery configuration', () => {
+  const previousAllowlist = process.env.WHATSAPP_RECIPIENT_ALLOWLIST;
+  const previousRequired = process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED;
+  try {
+    delete process.env.WHATSAPP_RECIPIENT_ALLOWLIST;
+    process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED = 'false';
+    assert.equal(isWhatsAppRecipientAllowed('+447700900123'), true);
+
+    process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED = 'true';
+    assert.equal(isWhatsAppRecipientAllowed('+447700900123'), false);
+
+    process.env.WHATSAPP_RECIPIENT_ALLOWLIST = '+44 7700 900123, 07700 900456';
+    assert.equal(isWhatsAppRecipientAllowed('+447700900123'), true);
+    assert.equal(isWhatsAppRecipientAllowed('+447700900456'), true);
+    assert.equal(isWhatsAppRecipientAllowed('+447700900999'), false);
+    assert.equal(getWhatsAppConfiguration().recipientAllowlistConfigured, true);
+    assert.equal(getWhatsAppConfiguration().recipientAllowlistRequired, true);
+  } finally {
+    if (previousAllowlist === undefined) delete process.env.WHATSAPP_RECIPIENT_ALLOWLIST;
+    else process.env.WHATSAPP_RECIPIENT_ALLOWLIST = previousAllowlist;
+    if (previousRequired === undefined) delete process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED;
+    else process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED = previousRequired;
+  }
 });
 
 test('delivery statuses are monotonic and failures do not erase delivery evidence', () => {
