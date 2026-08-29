@@ -10,7 +10,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.adminUser = null;
   if (!isAdmin && !isAdminApi) return next();
 
-  if (isAdminApi && (path === '/api/admin/sync-calendars/' || path === '/api/admin/sync-calendars') && context.request.headers.get('authorization') === `Bearer ${process.env.CALENDAR_SYNC_TOKEN}`) {
+  const tokenTaskPaths = new Set([
+    '/api/admin/sync-calendars',
+    '/api/admin/sync-calendars/',
+    '/api/admin/process-notification-fallbacks',
+    '/api/admin/process-notification-fallbacks/',
+  ]);
+  const maintenanceToken = process.env.CALENDAR_SYNC_TOKEN?.trim();
+  if (isAdminApi && tokenTaskPaths.has(path) && maintenanceToken
+    && context.request.headers.get('authorization') === `Bearer ${maintenanceToken}`) {
     return next();
   }
 
