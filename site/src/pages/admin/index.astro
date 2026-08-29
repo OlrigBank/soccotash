@@ -3,6 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PAGES_CMS_SECTIONS } from '../../lib/admin/pages-cms';
 import { getPool } from '../../lib/booking/db';
 import { countPricingPlans } from '../../lib/pricing/repository';
+import { countNotificationAlerts } from '../../lib/admin/notification-alerts';
 
 export const prerender = false;
 
@@ -10,13 +11,14 @@ const featureBranch = 'agent/cancellation-lifecycle-acc-test';
 const featureIteration = 4;
 const featureCompareUrl = `https://github.com/OlrigBank/soccotash/compare/${featureBranch}`;
 
-const [listingCount, bookingCount, syncRows, pricingPlanCount] = await Promise.all([
+const [listingCount, bookingCount, syncRows, pricingPlanCount, alertCount] = await Promise.all([
   Promise.resolve(3),
   getPool().query("SELECT count(*)::int AS count FROM provisional_bookings WHERE status = 'pending'"),
   getPool().query(
     'SELECT property_id, last_success_at, last_error FROM calendar_sync_status ORDER BY property_id',
   ),
   countPricingPlans(),
+  countNotificationAlerts(),
 ]);
 ---
 <AdminLayout title="Dashboard">
@@ -59,6 +61,11 @@ const [listingCount, bookingCount, syncRows, pricingPlanCount] = await Promise.a
       <span>Pricing</span>
       <strong>{pricingPlanCount}</strong>
       <small>versioned pricing plans</small>
+    </a>
+    <a class="admin-summary-card" href="/admin/alerts/">
+      <span>Alerts</span>
+      <strong>{alertCount}</strong>
+      <small>{alertCount === 1 ? 'item needs attention' : 'items need attention'}</small>
     </a>
   </section>
 
