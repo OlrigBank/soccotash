@@ -36,12 +36,13 @@ if (propertyId && !fixedProperty) {
   data-submit-label={submitLabel}
   data-auto-select-property={autoSelectProperty ? 'true' : undefined}
   data-properties={autoSelectProperty ? JSON.stringify(properties.map(({ id, name, minimumNights, maximumGuests }) => ({ id, name, minimumNights, maximumGuests }))) : undefined}
-  aria-labelledby={`${idPrefix}-heading`}
+  aria-labelledby={heading ? `${idPrefix}-heading` : undefined}
+  aria-label={heading ? undefined : 'Quick Check'}
 >
-  <div class="compact-booking-panel__heading">
+  {heading ? <div class="compact-booking-panel__heading">
     {autoSelectProperty ? null : <p class="eyebrow">{fixedBespoke ? 'Begin an enquiry' : 'Check a stay'}</p>}
     <h2 id={`${idPrefix}-heading`}>{heading}</h2>
-  </div>
+  </div> : null}
 
   <form class="compact-booking-form" data-compact-booking-form>
     {autoSelectProperty ? null : fixedProperty ? (
@@ -126,13 +127,12 @@ if (propertyId && !fixedProperty) {
 
     <div class="compact-booking-panel__action">
       <button class="button" type="submit" data-compact-booking-submit>
-        {fixedBespoke ? 'Start a Bespoke request' : submitLabel}
+        {fixedBespoke ? 'Start a bespoke request' : submitLabel}
       </button>
     </div>
 
     {autoSelectProperty ? (
       <div class="compact-booking-field compact-booking-field--property compact-booking-field--recommendation" data-compact-booking-recommendation hidden>
-        <span>Suggested Stay arrangement</span>
         <strong data-compact-booking-recommendation-name></strong>
         <input type="hidden" name="propertyId" value="" />
         <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
@@ -181,6 +181,7 @@ if (propertyId && !fixedProperty) {
     const arrival = panel.querySelector<HTMLInputElement>('[name="arrival"]');
     const departure = panel.querySelector<HTMLInputElement>('[name="departure"]');
     const submit = panel.querySelector<HTMLButtonElement>('[data-compact-booking-submit]');
+    const action = panel.querySelector<HTMLElement>('.compact-booking-panel__action');
     const status = panel.querySelector<HTMLElement>('[data-compact-booking-status]');
     const result = panel.querySelector<HTMLElement>('[data-compact-booking-result]');
     const bespokeMessage = panel.querySelector<HTMLElement>('[data-compact-booking-bespoke]');
@@ -230,10 +231,17 @@ if (propertyId && !fixedProperty) {
     let calendarMonth = firstMonth;
     const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-    const shortDateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const shortDateLabel = (value: string) => {
+      const date = parseDate(value);
+      return [
+        String(date.getUTCDate()).padStart(2, '0'),
+        String(date.getUTCMonth() + 1).padStart(2, '0'),
+        String(date.getUTCFullYear()).slice(-2),
+      ].join('/');
+    };
     const updateDateLabels = () => {
-      if (arrivalLabel) arrivalLabel.textContent = arrival.value ? shortDateLabel.format(parseDate(arrival.value)) : 'Add date';
-      if (departureLabel) departureLabel.textContent = departure.value ? shortDateLabel.format(parseDate(departure.value)) : 'Add date';
+      if (arrivalLabel) arrivalLabel.textContent = arrival.value ? shortDateLabel(arrival.value) : 'Add date';
+      if (departureLabel) departureLabel.textContent = departure.value ? shortDateLabel(departure.value) : 'Add date';
     };
 
     const minimumNights = () => Number(
@@ -370,6 +378,7 @@ if (propertyId && !fixedProperty) {
       result.hidden = true;
       result.replaceChildren();
       status.textContent = '';
+      if (action) action.hidden = false;
       if (recommendation) recommendation.hidden = true;
     };
     const continuationHref = () => {
@@ -394,7 +403,7 @@ if (propertyId && !fixedProperty) {
     const updateMode = () => {
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
-      submit.textContent = bespoke ? 'Start a Bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
+      submit.textContent = bespoke ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
       if (arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
         departure.value = '';
         calendarMessage.textContent = 'The minimum stay changed. Choose your departure date again.';
@@ -420,6 +429,19 @@ if (propertyId && !fixedProperty) {
       result.hidden = false;
     };
     const renderQuote = (body: QuoteResponse) => {
+      if (suggestedStay) {
+        const price = document.createElement('p');
+        price.className = 'compact-booking-result__estimate';
+        const total = document.createElement('strong');
+        total.textContent = money(Number(body.guestTotalPence || 0), body.currency || 'GBP');
+        price.append(total, ' total');
+        const reassurance = document.createElement('p');
+        reassurance.textContent = "You won't be charged yet.";
+        result.append(price, continueLink('Reserve'), reassurance);
+        result.hidden = false;
+        if (action) action.hidden = true;
+        return;
+      }
       const heading = document.createElement('div');
       heading.className = 'compact-booking-result__heading';
       const title = document.createElement('h3');
@@ -478,60 +500,71 @@ if (propertyId && !fixedProperty) {
         return;
       }
 
-      const data = new FormData(form);
-      if (panel.dataset.autoSelectProperty === 'true') {
-        const partySize = ['adults', 'children', 'infants']
-          .reduce((total, name) => total + Number(data.get(name) || 0), 0);
-        const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
-          id: string; name: string; minimumNights: number; maximumGuests: number;
-        }>;
-        const standard = configured
-          .filter((candidate) => candidate.id !== 'bespoke-arrangement' && candidate.maximumGuests >= partySize)
-          .sort((a, b) => a.maximumGuests - b.maximumGuests)[0];
-        const selected = standard || configured.find((candidate) => candidate.id === 'bespoke-arrangement');
-        if (!selected) {
-          status.textContent = 'No suitable stay arrangement could be found. Please contact Jenna for help.';
-          return;
-        }
-        property.value = selected.id;
-        property.dataset.minimumNights = String(selected.minimumNights);
-        if (recommendation && recommendationName) {
-          recommendationName.textContent = selected.name;
-          recommendation.hidden = false;
-        }
-      }
-
-      window.olrigAnalytics?.track('compact_booking_started', {
-        source: panel.dataset.source || 'unknown',
-        property: property.value,
-      });
-
-      if (isBespoke()) {
-        status.textContent = 'Jenna will confirm the accommodation, availability and price. Your dates are not reserved.';
-        result.append(continueLink('Start a Bespoke request'));
-        result.hidden = false;
-        window.olrigAnalytics?.track('compact_booking_result', {
-          source: panel.dataset.source || 'unknown', property: property.value, result: 'bespoke',
-        });
-        return;
-      }
-
       submit.disabled = true;
       status.textContent = 'Checking the latest availability and price…';
-      data.set('propertyId', property.value);
-      const safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value };
+      const data = new FormData(form);
+      let safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value || 'none' };
       try {
-        const availabilityParams = new URLSearchParams({
-          property: property.value, from: arrival.value, to: departure.value,
-        });
-        const availabilityResponse = await fetch(`/api/availability/?${availabilityParams}`);
-        const availability = await availabilityResponse.json() as { blocks?: unknown[]; error?: string };
-        if (!availabilityResponse.ok) throw new Error(availability.error || 'Availability could not be checked.');
-        if (availability.blocks?.length) {
-          status.textContent = 'Those dates are unavailable. Please choose different dates.';
-          window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'unavailable' });
+        if (suggestedStay) {
+          const partySize = ['adults', 'children', 'infants']
+            .reduce((total, name) => total + Number(data.get(name) || 0), 0);
+          const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
+            id: string; name: string; minimumNights: number; maximumGuests: number;
+          }>;
+          const candidates = configured
+            .filter((candidate) => candidate.id !== 'bespoke-arrangement' && candidate.maximumGuests >= partySize)
+            .sort((a, b) => a.maximumGuests - b.maximumGuests);
+          let selected: typeof candidates[number] | undefined;
+          for (const candidate of candidates) {
+            const params = new URLSearchParams({ property: candidate.id, from: arrival.value, to: departure.value });
+            const response = await fetch(`/api/availability/?${params}`);
+            const availability = await response.json() as { blocks?: unknown[]; error?: string };
+            if (!response.ok) throw new Error(availability.error || 'Availability could not be checked.');
+            if (!availability.blocks?.length) {
+              selected = candidate;
+              break;
+            }
+          }
+          if (!selected) {
+            status.textContent = 'Those dates are unavailable. Please choose different dates.';
+            window.olrigAnalytics?.track('compact_booking_result', {
+              source: panel.dataset.source || 'unknown', property: 'none', result: 'unavailable',
+            });
+            return;
+          }
+          property.value = selected.id;
+          property.dataset.minimumNights = String(selected.minimumNights);
+          if (recommendation && recommendationName) {
+            recommendationName.textContent = selected.name;
+            recommendation.hidden = false;
+          }
+        } else if (!isBespoke()) {
+          const availabilityParams = new URLSearchParams({
+            property: property.value, from: arrival.value, to: departure.value,
+          });
+          const availabilityResponse = await fetch(`/api/availability/?${availabilityParams}`);
+          const availability = await availabilityResponse.json() as { blocks?: unknown[]; error?: string };
+          if (!availabilityResponse.ok) throw new Error(availability.error || 'Availability could not be checked.');
+          if (availability.blocks?.length) {
+            status.textContent = 'Those dates are unavailable. Please choose different dates.';
+            window.olrigAnalytics?.track('compact_booking_result', {
+              source: panel.dataset.source || 'unknown', property: property.value, result: 'unavailable',
+            });
+            return;
+          }
+        }
+
+        safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value };
+        window.olrigAnalytics?.track('compact_booking_started', safeAnalytics);
+        if (isBespoke()) {
+          status.textContent = 'Jenna will confirm the accommodation, availability and price. Your dates are not reserved.';
+          result.append(continueLink('Start a bespoke request'));
+          result.hidden = false;
+          window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'bespoke' });
           return;
         }
+
+        data.set('propertyId', property.value);
 
         const quoteResponse = await fetch('/api/quote/', {
           method: 'POST',

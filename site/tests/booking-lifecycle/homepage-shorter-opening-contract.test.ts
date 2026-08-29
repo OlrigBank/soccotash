@@ -21,9 +21,9 @@ test('photographic discovery and Ways to stay follow the hero without a standalo
 test('the orientation retains three standard choices, Bespoke and a route to Jenna', async () => {
   const content = await source('src/content/pages/home.md');
 
-  assert.match(content, /\[Olrig Bank\]\(\/listings\/olrig-bank\/\)/);
-  assert.match(content, /\[The Cottage at Olrig Bank\]\(\/listings\/cottage\/\)/);
-  assert.match(content, /\[Olrig Bank Max\]\(\/listings\/event\/\)/);
+  assert.match(content, /\[Olrig Bank \(max 8 guests\)\]\(\/listings\/olrig-bank\/\)/);
+  assert.match(content, /\[Cottage at Olrig Bank \(max 4 guests\)\]\(\/listings\/cottage\/\)/);
+  assert.match(content, /\[Olrig Bank\+\+ \(max 12 guests\)\]\(\/listings\/event\/\)/);
   assert.match(content, /\[Olrig Bank Bespoke[^\]]*\]\(\/listings\/bespoke\/\)/);
-  assert.match(content, /\[Ask Jenna to help you choose\]\(\/contact\/\)/);
+  assert.match(content, /\[ask Jenna to help you choose\]\(\/contact\/\)/);
 });

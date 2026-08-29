@@ -59,7 +59,7 @@ test('listing hero images support descriptive alternative text with a title fall
   }
 });
 
-test('Olrig Bank and Olrig Bank Max present numbered bedrooms and floor-specific bathrooms', async () => {
+test('Olrig Bank and Olrig Bank++ present numbered bedrooms and floor-specific bathrooms', async () => {
   const [route, space] = await Promise.all([
     source('src/pages/listings/[slug].astro'),
     source('src/components/Space.astro'),

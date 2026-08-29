@@ -18,7 +18,7 @@ booking engine.
 ## Desired outcome
 
 A visitor arriving on a phone can understand the proposition, define dates
-and party composition, receive a suggested stay arrangement and continue to a
+and party composition, receive the best available stay arrangement and continue to a
 request with minimal scrolling and no repeated data entry. The content that
 follows Quick Check should then help the visitor decide and proceed, rather
 than restating choices already made by the search.
@@ -50,9 +50,9 @@ Implemented the first stage of the epic:
 - condensed party composition into a guest summary with an expandable
   plus/minus selector for adults, children, infants and pets;
 - removed the up-front stay-arrangement selector;
-- derived and displayed a **Suggested Stay arrangement** after the check;
-- grouped the suggested arrangement, estimated total, provisional-price note
-  and continuation action in one result card; and
+- selected and displayed the smallest suitable available stay after the check;
+- grouped the offered arrangement, total, **Reserve** action and no-charge note
+  in one result card, replacing the **Quick Check** action after a match; and
 - shortened the host-priced response so it supports the next action without
   repeating internal review detail.
 

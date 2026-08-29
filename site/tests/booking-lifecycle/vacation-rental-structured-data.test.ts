@@ -38,7 +38,7 @@ test('Olrig Bank structured data matches its visible listing facts', () => {
 
 test('structured data excludes private and unsupported claims', () => {
   const json = serializeStructuredData(vacationRentalStructuredData({
-    site, slug: 'event', identifier: 'olrig-bank:whole-property', name: 'Olrig Bank Max',
+    site, slug: 'event', identifier: 'olrig-bank:whole-property', name: 'Olrig Bank++ (max 12 guests)',
     description: 'A Kendal holiday house.', sleeps: 'Sleeps 12 adults', bedrooms: '6 bedrooms',
     bathrooms: '3 bathrooms & 1 WC', imagePaths: ['/media/images/listings/olrigbank.png'], hasGarden: true,
   }));

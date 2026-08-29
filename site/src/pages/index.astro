@@ -28,9 +28,9 @@ const { Content } = page ? await render(page) : { Content: undefined };
       {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
       <CompactBookingPanel
         source="homepage"
-        heading="Quick Check"
+        heading=""
         idPrefix="homepage-hero-booking"
-        submitLabel="Search stays"
+        submitLabel="Quick Check"
         autoSelectProperty={true}
       />
     </div>
