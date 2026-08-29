@@ -15,6 +15,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     '/api/admin/sync-calendars/',
     '/api/admin/process-notification-fallbacks',
     '/api/admin/process-notification-fallbacks/',
+    '/api/admin/process-inbound-whatsapp-replies',
+    '/api/admin/process-inbound-whatsapp-replies/',
   ]);
   const maintenanceToken = process.env.CALENDAR_SYNC_TOKEN?.trim();
   if (isAdminApi && tokenTaskPaths.has(path) && maintenanceToken

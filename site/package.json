@@ -12,6 +12,7 @@
     "db:migrate": "node ./scripts/migrate.mjs",
     "sync:calendars": "node ./scripts/sync-calendars.mjs",
     "process:notification-fallbacks": "node ./scripts/process-notification-fallbacks.mjs",
+    "process:inbound-whatsapp-replies": "node ./scripts/process-inbound-whatsapp-replies.mjs",
     "booking:report": "node ./scripts/booking-report.mjs",
     "admin:create": "node ./scripts/create-admin.mjs",
     "generate:booking-lifecycle-docs": "node --experimental-strip-types ./scripts/generate-booking-lifecycle-docs.ts",

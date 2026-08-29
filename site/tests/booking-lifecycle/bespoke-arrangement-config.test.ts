@@ -13,8 +13,8 @@ test('allows one-night bespoke requests without changing ordinary stay minimums'
 });
 
 test('uses the agreed public accommodation names without changing stable identifiers', () => {
-  assert.equal(getProperty('main-house')?.name, 'Olrig Bank House (max 8 guests)');
+  assert.equal(getProperty('main-house')?.name, 'Olrig Bank (max 8 guests)');
   assert.equal(getProperty('main-house')?.listingSlug, 'olrig-bank');
-  assert.equal(getProperty('whole-property')?.name, 'Olrig Bank (max 12 guests)');
+  assert.equal(getProperty('whole-property')?.name, 'Olrig Bank++ (max 12 guests)');
   assert.equal(getProperty('cottage')?.name, 'Cottage at Olrig Bank (max 4 guests)');
 });

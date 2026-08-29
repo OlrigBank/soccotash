@@ -18,7 +18,7 @@ test('compact booking panel exposes honest unavailable, host-priced, error and b
   assert.match(component, /Those dates are unavailable/);
   assert.match(component, /This is an indication, continue to get a confirmed quote/);
   assert.match(component, /Please try again or continue to the full request form/);
-  assert.match(component, /Start a Bespoke request/);
+  assert.match(component, /Start a bespoke request/);
   assert.match(component, /does not reserve or block the dates/);
   assert.doesNotMatch(component, />Reserve</);
   assert.doesNotMatch(component, />Book now</);
@@ -29,6 +29,7 @@ test('compact booking results are invalidated when booking inputs change', async
   assert.match(component, /addEventListener\('input', clearResult\)/);
   assert.match(component, /property\.addEventListener\('change', updateMode\)/);
   assert.match(component, /result\.replaceChildren\(\)/);
+  assert.match(component, /if \(action\) action\.hidden = false/);
 });
 
 test('compact booking analytics contain context and outcome but no private booking values', async () => {

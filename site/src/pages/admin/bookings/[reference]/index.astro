@@ -409,7 +409,7 @@ const messageEmailStatus = Astro.url.searchParams.get('messageEmail');
 const cancelled = Astro.url.searchParams.get('cancelled') === '1';
 const lifecycleEmailStatus = Astro.url.searchParams.get('email');
 if (arrangementError === 'unavailable') error = 'Those dates are no longer available for the selected arrangement.';
-if (arrangementError === 'invalid') error = 'Choose Olrig Bank, Olrig Bank Max or The Cottage at Olrig Bank before assigning the stay.';
+if (arrangementError === 'invalid') error = 'Choose Olrig Bank, Olrig Bank++ or Cottage at Olrig Bank before assigning the stay.';
 if (arrangementError === 'stale') error = 'This bespoke request can no longer be assigned from its current status.';
 if (arrangementError === 'failed') error = 'The arrangement could not be assigned. No change was saved; please try again.';
 const notificationAvailable = whatsappNotificationAvailable || Boolean(booking.email && validEmail(booking.email) && emailConfiguration.configured);
@@ -642,7 +642,7 @@ if (arrangementAssigned) {
       </section>
 
       {isUnassignedBespoke && <section class="booking-drawer-section">
-        <div class="pricing-message"><strong>Choose the agreed stay arrangement first.</strong> Pricing and an offer can be prepared after Olrig Bank, Olrig Bank Max or The Cottage at Olrig Bank has been assigned.</div>
+        <div class="pricing-message"><strong>Choose the agreed stay arrangement first.</strong> Pricing and an offer can be prepared after Olrig Bank, Olrig Bank++ or Cottage at Olrig Bank has been assigned.</div>
       </section>}
       {canOffer ? <section class="booking-drawer-section booking-offer-editor">
         <div class="booking-review-summary__heading">

@@ -2,7 +2,7 @@
 
 ## Status
 
-Active; development-only implementation and acceptance.
+Completed on 29 August 2026.
 
 ## Goal
 
@@ -34,6 +34,7 @@ The application consumes these Render environment variables:
 
 - `WHATSAPP_PROVIDER=meta`
 - `WHATSAPP_DELIVERY_ENABLED`
+- `WHATSAPP_INBOUND_AUTO_REPLY_ENABLED`
 - `WHATSAPP_GRAPH_API_VERSION`
 - `WHATSAPP_ACCESS_TOKEN`
 - `WHATSAPP_PHONE_NUMBER_ID`
@@ -53,9 +54,11 @@ evidence.
 
 1. [E02-F01 — Harden WhatsApp Delivery-status Webhooks](../e02-f01.md) —
    completed with controlled development acceptance.
-2. [E02-F02 — WhatsApp Production Readiness](../e02-f02.md) — operational
-   controls, fallback scheduling and an explicit activation decision.
-3. Optional two-way guest messaging, only if separately specified and
+2. [E02-F02 — WhatsApp Production Readiness](../e02-f02.md) — completed with
+   operational controls, fallback processing and Administration Alerts.
+3. [E02-F03 — Redirect Inbound WhatsApp Replies](../e02-f03.md) — completed
+   with controlled local and development acceptance.
+4. Optional conversational guest messaging, only if separately specified and
    approved.
 
 ## Epic acceptance criteria
@@ -74,5 +77,21 @@ evidence.
 
 - Consumer WhatsApp or WhatsApp Business app automation.
 - A shared inbox or two-way guest conversation history.
-- Guest media ingestion, automated replies or moderation.
+- Guest media ingestion, conversational automated replies or moderation.
+- Storing or displaying guest-authored WhatsApp content.
 - Production enablement as an incidental consequence of development testing.
+
+## Completion evidence
+
+- Signed Meta callbacks progressed a real transactional notification through
+  `submitted`, `sent`, `delivered` and `read` in development.
+- A controlled failure created one durable, duplicate-safe email fallback job,
+  which the manual processor completed exactly once.
+- Recipient allowlist enforcement, independent delivery switches and protected
+  Administration Alerts provide the agreed rollout controls.
+- A signed local inbound event sent one real redirection acknowledgement;
+  replay and a second event verified idempotency and 24-hour suppression
+  without retaining guest-authored content.
+- After development deployment, Meta delivered a guest reply to `soccotash`
+  and the recognised booking contact received the standard acknowledgement.
+- Production activation remains a separate explicit owner decision.
