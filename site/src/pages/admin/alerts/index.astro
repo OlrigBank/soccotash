@@ -1,0 +1,79 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listNotificationAlerts, type NotificationAlertKind } from '../../../lib/admin/notification-alerts';
+
+export const prerender = false;
+
+const alerts = await listNotificationAlerts();
+const labels: Record<NotificationAlertKind, { title: string; action: string }> = {
+  fallback_pending: {
+    title: 'WhatsApp email fallback is waiting',
+    action: 'Run the manual fallback processor, then reload this page.',
+  },
+  fallback_email_failed: {
+    title: 'Fallback email failed',
+    action: 'Check the Resend configuration and logs before retrying or contacting the Booker another way.',
+  },
+  whatsapp_stale: {
+    title: 'WhatsApp submission has no delivery update',
+    action: 'Check the Meta delivery status and webhook configuration. Do not resend until its outcome is known.',
+  },
+  whatsapp_failed_without_fallback: {
+    title: 'Failed WhatsApp delivery has no fallback job',
+    action: 'Investigate the notification record and arrange a manual email or telephone follow-up.',
+  },
+};
+---
+<AdminLayout title="Alerts">
+  <header class="admin-page-header">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Alerts</h1>
+      <p>Operational notification issues that need attention. Completed fallback work clears automatically.</p>
+    </div>
+    <span class="status-badge">{alerts.length} open</span>
+  </header>
+
+  <section class="admin-panel">
+    <h2>Process WhatsApp fallback email manually</h2>
+    <ol>
+      <li>Open the relevant Render service: <strong>soccotash</strong> for development or <strong>olrigbankweb</strong> for production.</li>
+      <li>Select <strong>Shell</strong> in the Render dashboard.</li>
+      <li>Run <code>npm run process:notification-fallbacks</code>.</li>
+      <li>Confirm the result reports <code>"ok": true</code> and <code>"failed": 0</code>.</li>
+      <li>Reload this page. A completed job should no longer contribute to the alert count.</li>
+    </ol>
+    <p>It is safe to run the processor again: completed jobs are not sent twice. Never paste maintenance tokens, telephone numbers or message contents into the shell command.</p>
+  </section>
+
+  <section class="admin-panel" aria-labelledby="open-alerts-heading">
+    <div class="admin-panel-heading">
+      <div>
+        <h2 id="open-alerts-heading">Open alerts</h2>
+        <p>Telephone numbers remain masked and private booking links are not displayed.</p>
+      </div>
+    </div>
+    {alerts.length ? (
+      <div class="admin-table-wrap">
+        <table>
+          <thead><tr><th>Alert</th><th>Booking</th><th>Status</th><th>Detected</th><th>Action</th></tr></thead>
+          <tbody>
+            {alerts.map((alert) => (
+              <tr>
+                <td><strong>{labels[alert.kind].title}</strong><br/><small>{alert.eventType.replaceAll('_', ' ')}{alert.recipientMasked ? ` · ${alert.recipientMasked}` : ''}</small></td>
+                <td><a href={`/admin/bookings/${alert.bookingReference}/`}>Open booking</a></td>
+                <td>{alert.status}{alert.attempts ? ` · ${alert.attempts} attempt${alert.attempts === 1 ? '' : 's'}` : ''}</td>
+                <td>{new Date(alert.occurredAt).toLocaleString('en-GB')}</td>
+                <td>{labels[alert.kind].action}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <div class="admin-alert admin-alert--success" role="status">
+        <strong>No notification alerts.</strong> There are no unresolved WhatsApp or fallback-email issues.
+      </div>
+    )}
+  </section>
+</AdminLayout>
