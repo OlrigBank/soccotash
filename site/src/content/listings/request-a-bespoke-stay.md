@@ -6,7 +6,7 @@ summary: For stays, events or group arrangements outside our standard options,
 image: /media/images/listings/olrig-bank-house-bespoke.jpeg
 featured: false
 ---
-Not every stay fits neatly into Olrig Bank, Olrig Bank Max or The Cottage. If
+Not every stay fits neatly into Olrig Bank (max 8 guests), Olrig Bank++ (max 12 guests) or Cottage at Olrig Bank (max 4 guests). If
 your plans fall outside the standard ways to stay, get in touch directly — Jenna
 is happy to discuss whether a bespoke arrangement can be made.
 
@@ -40,7 +40,7 @@ Sometimes — single-day and short stays can be considered for events, gathering
 In some cases, yes. Extra guests can sometimes be accommodated using airbeds, sofa beds or bedding you bring yourself. Please tell us your total group size so we can confirm whether this is practical and safe for your stay.
 
 **Can I hire Olrig Bank for a specific event?**  
-Yes, we're happy to hear about events such as birthdays, wedding gatherings or reunions. Let us know what you have planned and we'll confirm whether Olrig Bank, Olrig Bank Max or a bespoke arrangement is the best fit.
+Yes, we're happy to hear about events such as birthdays, wedding gatherings or reunions. Let us know what you have planned and we'll confirm whether Olrig Bank, Olrig Bank++ or a bespoke arrangement is the best fit.
 
 **Is a bespoke stay more expensive?**  
 It depends on the arrangement — for example, additional guests, extra cleaning, or single-day hire may carry a different rate to a standard stay. Jenna will confirm any pricing adjustment before you book.

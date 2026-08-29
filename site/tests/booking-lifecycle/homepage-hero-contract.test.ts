@@ -22,10 +22,14 @@ test('the homepage uses the approved image-led hero without competing actions', 
   const hero = homepage.match(/<section class="home-hero">([\s\S]*?)<\/section>/)?.[1] ?? '';
   assert.doesNotMatch(hero, /Request a stay|View ways to stay|class="button/);
   assert.match(homepage, /<CompactBookingPanel[\s\S]*source="homepage"[\s\S]*\/>/);
+  assert.match(homepage, /heading=""/);
+  assert.match(homepage, /submitLabel="Quick Check"/);
   assert.match(homepage, /id="ways-to-stay"/);
   assert.match(content, /heroTitle: "Stay at Olrig Bank in Kendal"/);
   assert.match(content, /Olrig Bank was built in 1879/);
-  assert.match(content, /3 accomodation packages/);
+  assert.match(content, /three accommodation options/);
+  assert.match(content, /Cottage[\s\S]*two bedrooms/);
+  assert.doesNotMatch(content, /availibil|availble|accomodation|suites you/i);
 });
 
 test('the compact panel sits inside the hero before Ways to stay', async () => {
@@ -52,6 +56,19 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.match(compactPanel, /if \(!suggestedStay\) heading\.append\(total\)/);
   assert.match(compactPanel, /if \(body\.lines\?\.length && !suggestedStay\)/);
   assert.match(compactPanel, /if \(body\.estimatedPricing && !suggestedStay\)/);
+  assert.doesNotMatch(compactPanel, /Suggested stay arrangement/);
+  assert.match(compactPanel, /\.sort\(\(a, b\) => a\.maximumGuests - b\.maximumGuests\)/);
+  assert.match(compactPanel, /for \(const candidate of candidates\)/);
+  assert.match(compactPanel, /continueLink\('Reserve'\)/);
+  assert.match(compactPanel, /price\.append\(total, ' total'\)/);
+  assert.match(compactPanel, /stay\.textContent = recommendation\?\.dataset\.name/);
+  assert.match(compactPanel, /result\.append\(price, stay, continueLink\('Reserve'\), reassurance\)/);
+  assert.match(compactPanel, /if \(action\) action\.hidden = true/);
+  assert.match(compactPanel, /if \(suggestedStay && body\.estimatedPricing\)/);
+  assert.match(compactPanel, /renderSuggestedResult\([\s\S]*body\.estimatedPricing\.guestTotalPence/);
+  assert.match(compactPanel, /You won't be charged yet/);
+  assert.match(compactPanel, /Those dates are unavailable\. Please choose different dates\./);
+  assert.match(compactPanel, /String\(date\.getUTCDate\(\)\)\.padStart\(2, '0'\)/);
 });
 
 test('the homepage hero preserves responsive crop and contrast contracts', async () => {

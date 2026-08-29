@@ -27,5 +27,7 @@ test('compact and full forms label the calculated amount as an unconfirmed estim
   assert.match(fullForm, /This is an indication, not a confirmed quote/);
   assert.match(fullForm, /Jenna may adjust it when reviewing the arrangement/);
   assert.match(compact, /body\.estimatedPricing\.guestTotalPence/);
+  assert.match(compact, /if \(suggestedStay && body\.estimatedPricing\)/);
+  assert.match(compact, /renderSuggestedResult/);
   assert.match(fullForm, /body\.estimatedPricing\.guestTotalPence/);
 });

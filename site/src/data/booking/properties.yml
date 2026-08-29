@@ -1,6 +1,6 @@
 properties:
   - id: main-house
-    name: Olrig Bank House (max 8 guests)
+    name: Olrig Bank (max 8 guests)
     listingSlug: olrig-bank
     airbnbCalendarEnv: AIRBNB_MAIN_HOUSE_ICAL_URLS
     minimumNights: 2
@@ -14,7 +14,7 @@ properties:
     maximumGuests: 4
     enabled: true
   - id: whole-property
-    name: Olrig Bank (max 12 guests)
+    name: Olrig Bank++ (max 12 guests)
     listingSlug: event
     availabilityPropertyId: main-house
     availabilityNote: Availability is based on the Olrig Bank calendar. Jenna will confirm that the additional two-bedroom accommodation is also available.
