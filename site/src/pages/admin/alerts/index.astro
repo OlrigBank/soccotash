@@ -22,6 +22,10 @@ const labels: Record<NotificationAlertKind, { title: string; action: string }> =
     title: 'Failed WhatsApp delivery has no fallback job',
     action: 'Investigate the notification record and arrange a manual email or telephone follow-up.',
   },
+  inbound_acknowledgement_failed: {
+    title: 'Inbound WhatsApp acknowledgement failed',
+    action: 'Check the Meta configuration, then run the inbound-reply processor. No email fallback is created.',
+  },
 };
 ---
 <AdminLayout title="Alerts">
@@ -44,6 +48,17 @@ const labels: Record<NotificationAlertKind, { title: string; action: string }> =
       <li>Reload this page. A completed job should no longer contribute to the alert count.</li>
     </ol>
     <p>It is safe to run the processor again: completed jobs are not sent twice. Never paste maintenance tokens, telephone numbers or message contents into the shell command.</p>
+  </section>
+
+  <section class="admin-panel">
+    <h2>Retry inbound WhatsApp acknowledgements</h2>
+    <ol>
+      <li>Check that Meta delivery and inbound automatic replies are enabled for the intended environment.</li>
+      <li>Open the relevant Render service and select <strong>Shell</strong>.</li>
+      <li>Run <code>npm run process:inbound-whatsapp-replies</code>.</li>
+      <li>Confirm the result reports <code>"ok": true</code>, then reload this page.</li>
+    </ol>
+    <p>The processor makes at most three bounded attempts. It reads the current booking telephone only while sending and never stores the incoming message content.</p>
   </section>
 
   <section class="admin-panel" aria-labelledby="open-alerts-heading">

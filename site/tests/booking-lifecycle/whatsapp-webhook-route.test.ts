@@ -5,6 +5,7 @@ import {
   GET,
   WHATSAPP_WEBHOOK_MAX_BYTES,
   handleWhatsAppPost,
+  parseWhatsAppInboundMessages,
   parseWhatsAppStatuses,
   type WhatsAppStatusInput,
 } from '../../src/pages/api/webhooks/whatsapp.ts';
@@ -75,9 +76,36 @@ test('status callbacks are normalised and processed sequentially in provider tim
   assert.ok(processed.every(({ providerEventKey }) => /^[a-f0-9]{64}$/.test(providerEventKey)));
 });
 
-test('parser ignores guest messages while accepting the Meta messages field', () => {
+test('parser extracts only the inbound message identity and sender', () => {
+  assert.deepEqual(parseWhatsAppInboundMessages({
+    object: 'whatsapp_business_account',
+    entry: [{ changes: [{ field: 'messages', value: { messages: [
+      { id: 'guest-message', from: '447700900123', type: 'text', text: { body: 'private content' } },
+      { id: 'guest-media', from: '447700900123', type: 'image', image: { id: 'private-media' } },
+    ] } }] }],
+  }), [
+    { providerMessageId: 'guest-message', telephone: '447700900123' },
+    { providerMessageId: 'guest-media', telephone: '447700900123' },
+  ]);
   assert.deepEqual(parseWhatsAppStatuses({
     object: 'whatsapp_business_account',
     entry: [{ changes: [{ field: 'messages', value: { messages: [{ id: 'guest-message' }] } }] }],
   }), []);
+});
+
+test('POST processes delivery statuses and inbound identities independently', async () => {
+  const body = JSON.stringify({
+    object: 'whatsapp_business_account',
+    entry: [{ changes: [{ field: 'messages', value: {
+      statuses: [{ id: 'wamid.outbound', status: 'sent', timestamp: '10' }],
+      messages: [{ id: 'wamid.inbound', from: '447700900123', text: { body: 'do not retain' } }],
+    } }] }],
+  });
+  const statuses: WhatsAppStatusInput[] = [];
+  const inbound: Array<{ providerMessageId: string; telephone: string }> = [];
+  const response = await handleWhatsAppPost(signedRequest(body), async (value) => { statuses.push(value); }, async (value) => { inbound.push(value); });
+  assert.equal(response.status, 200);
+  assert.equal(statuses.length, 1);
+  assert.deepEqual(inbound, [{ providerMessageId: 'wamid.inbound', telephone: '447700900123' }]);
+  assert.doesNotMatch(JSON.stringify(inbound), /do not retain/);
 });

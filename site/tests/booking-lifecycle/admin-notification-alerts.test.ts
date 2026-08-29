@@ -16,6 +16,8 @@ test('Administration exposes notification alerts and manual fallback instruction
   assert.match(page, /npm run process:notification-fallbacks/);
   assert.match(page, /Completed jobs are not sent twice/i);
   assert.match(page, /Telephone numbers remain masked/i);
+  assert.match(page, /process:inbound-whatsapp-replies/);
+  assert.match(repository, /inbound_acknowledgement_failed/);
   assert.match(repository, /INTERVAL '15 minutes'/);
   assert.match(repository, /fallback_email_failed/);
   assert.doesNotMatch(page, /recipient_hash|customer_access_token/);

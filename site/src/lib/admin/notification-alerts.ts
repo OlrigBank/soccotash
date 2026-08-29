@@ -6,7 +6,8 @@ export type NotificationAlertKind =
   | 'fallback_pending'
   | 'fallback_email_failed'
   | 'whatsapp_stale'
-  | 'whatsapp_failed_without_fallback';
+  | 'whatsapp_failed_without_fallback'
+  | 'inbound_acknowledgement_failed';
 
 export type NotificationAlert = {
   kind: NotificationAlertKind;
@@ -59,6 +60,13 @@ export async function listNotificationAlerts(database: AlertDatabase = getPool()
            LEFT JOIN booking_notification_deliveries email ON email.id = wa.fallback_delivery_id
           WHERE wa.channel = 'whatsapp' AND wa.status = 'failed'
             AND j.id IS NULL AND (email.id IS NULL OR email.status <> 'sent')
+         UNION ALL
+         SELECT 'inbound_acknowledgement_failed', 'inbound_whatsapp_reply',
+                pb.public_id::text, acknowledgement.recipient_masked,
+                acknowledgement.status, acknowledgement.attempts, acknowledgement.updated_at
+           FROM whatsapp_inbound_acknowledgements acknowledgement
+           JOIN provisional_bookings pb ON pb.id = acknowledgement.provisional_booking_id
+          WHERE acknowledgement.status = 'failed'
        ) alerts
       ORDER BY occurred_at DESC`,
   );
