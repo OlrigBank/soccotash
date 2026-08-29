@@ -29,6 +29,7 @@ test('compact booking results are invalidated when booking inputs change', async
   assert.match(component, /addEventListener\('input', clearResult\)/);
   assert.match(component, /property\.addEventListener\('change', updateMode\)/);
   assert.match(component, /result\.replaceChildren\(\)/);
+  assert.match(component, /if \(action\) action\.hidden = false/);
 });
 
 test('compact booking analytics contain context and outcome but no private booking values', async () => {

@@ -133,7 +133,6 @@ if (propertyId && !fixedProperty) {
 
     {autoSelectProperty ? (
       <div class="compact-booking-field compact-booking-field--property compact-booking-field--recommendation" data-compact-booking-recommendation hidden>
-        <strong data-compact-booking-recommendation-name></strong>
         <input type="hidden" name="propertyId" value="" />
         <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
       </div>
@@ -192,7 +191,6 @@ if (propertyId && !fixedProperty) {
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
-    const recommendationName = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation-name]');
     const suggestedStay = panel.dataset.autoSelectProperty === 'true';
     const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
     const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
@@ -411,7 +409,30 @@ if (propertyId && !fixedProperty) {
       }
       clearResult();
     };
+    const renderSuggestedResult = (guestTotalPence: number, currency = 'GBP') => {
+      const price = document.createElement('p');
+      price.className = 'compact-booking-result__estimate';
+      const total = document.createElement('strong');
+      total.textContent = money(guestTotalPence, currency);
+      price.append(total, ' total');
+      const stay = document.createElement('p');
+      stay.className = 'compact-booking-result__stay';
+      stay.textContent = recommendation?.dataset.name || '';
+      const reassurance = document.createElement('p');
+      reassurance.className = 'compact-booking-result__reassurance';
+      reassurance.textContent = "You won't be charged yet";
+      result.append(price, stay, continueLink('Reserve'), reassurance);
+      result.hidden = false;
+      if (action) action.hidden = true;
+    };
     const renderHostPriced = (body: QuoteResponse) => {
+      if (suggestedStay && body.estimatedPricing) {
+        renderSuggestedResult(
+          Number(body.estimatedPricing.guestTotalPence || 0),
+          body.estimatedPricing.currency || 'GBP',
+        );
+        return;
+      }
       if (body.estimatedPricing && !suggestedStay) {
         const estimate = document.createElement('p');
         estimate.className = 'compact-booking-result__estimate';
@@ -430,16 +451,7 @@ if (propertyId && !fixedProperty) {
     };
     const renderQuote = (body: QuoteResponse) => {
       if (suggestedStay) {
-        const price = document.createElement('p');
-        price.className = 'compact-booking-result__estimate';
-        const total = document.createElement('strong');
-        total.textContent = money(Number(body.guestTotalPence || 0), body.currency || 'GBP');
-        price.append(total, ' total');
-        const reassurance = document.createElement('p');
-        reassurance.textContent = "You won't be charged yet.";
-        result.append(price, continueLink('Reserve'), reassurance);
-        result.hidden = false;
-        if (action) action.hidden = true;
+        renderSuggestedResult(Number(body.guestTotalPence || 0), body.currency || 'GBP');
         return;
       }
       const heading = document.createElement('div');
@@ -534,8 +546,8 @@ if (propertyId && !fixedProperty) {
           }
           property.value = selected.id;
           property.dataset.minimumNights = String(selected.minimumNights);
-          if (recommendation && recommendationName) {
-            recommendationName.textContent = selected.name;
+          if (recommendation) {
+            recommendation.dataset.name = selected.name;
             recommendation.hidden = false;
           }
         } else if (!isBespoke()) {
@@ -733,7 +745,10 @@ if (propertyId && !fixedProperty) {
   .compact-booking-result summary { cursor: pointer; font-weight: 700; }
   .compact-booking-result dl { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; }
   .compact-booking-result :is(dt, dd) { margin: 0; }
+  .compact-booking-result__estimate { margin: 0; font-size: 1.1rem; }
+  .compact-booking-result__stay { margin: 0.45rem 0 0; font-weight: 800; }
   .compact-booking-result__continue { margin-top: 0.6rem; }
+  .compact-booking-result__reassurance { margin: 0.55rem 0 0; color: var(--muted); font-size: 0.85rem; }
   @media (max-width: 520px) {
     .compact-booking-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .compact-booking-field--property, .compact-booking-panel__action { grid-column: 1 / -1; }

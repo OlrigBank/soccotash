@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>E01 post–Quick Check panel mock-up</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #183d33; background: #eef1e9; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; }
+    main { width: min(100%, 680px); }
+    .label { margin: 0 0 12px; color: #526960; font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .panel { overflow: hidden; border: 1px solid #bdc9bf; border-radius: 18px; background: rgba(255,255,255,.96); box-shadow: 0 18px 44px rgba(24,61,51,.14); }
+    .inputs { display: grid; grid-template-columns: 1fr 1fr 1.15fr; border-bottom: 1px solid #d8e0da; }
+    .input { min-width: 0; padding: 15px 16px; border-right: 1px solid #d8e0da; }
+    .input:last-child { border-right: 0; }
+    .input small { display: block; margin-bottom: 4px; color: #64776f; font-size: 12px; }
+    .input strong { display: block; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .result { padding: 22px; text-align: center; }
+    .total { margin: 0; color: #173e34; font-family: Georgia, serif; font-size: clamp(28px, 6vw, 38px); line-height: 1.1; }
+    .total span { font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: .45em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .stay { margin: 8px 0 20px; color: #3d544c; font-size: 16px; font-weight: 700; }
+    .reserve { display: block; width: 100%; padding: 13px 20px; border: 0; border-radius: 999px; color: #fff; background: #245f4e; font: inherit; font-weight: 800; cursor: pointer; }
+    .reserve:focus-visible { outline: 3px solid #d3a629; outline-offset: 3px; }
+    .reassurance { margin: 10px 0 0; color: #64776f; font-size: 13px; }
+    .note { margin: 14px 2px 0; color: #526960; font-size: 13px; }
+    @media (max-width: 520px) {
+      body { padding: 16px; place-items: start center; }
+      .inputs { grid-template-columns: 1fr 1fr; }
+      .input:nth-child(2) { border-right: 0; }
+      .input:last-child { grid-column: 1 / -1; border-top: 1px solid #d8e0da; }
+      .result { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="label">Proposed successful result</p>
+    <section class="panel" aria-label="Post–Quick Check booking panel mock-up">
+      <div class="inputs">
+        <div class="input"><small>Check-in</small><strong>12/09/26</strong></div>
+        <div class="input"><small>Check-out</small><strong>15/09/26</strong></div>
+        <div class="input"><small>Guests</small><strong>6 adults</strong></div>
+      </div>
+      <div class="result" aria-live="polite">
+        <p class="total">£2,178.00 <span>total</span></p>
+        <p class="stay">Olrig Bank (max 8 guests)</p>
+        <button class="reserve" type="button">Reserve</button>
+        <p class="reassurance">You won't be charged yet</p>
+      </div>
+    </section>
+    <p class="note">Review artifact only — this does not change the live booking workflow.</p>
+  </main>
+</body>
+</html>
