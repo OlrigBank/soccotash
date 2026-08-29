@@ -1,4 +1,21 @@
 import crypto from 'node:crypto';
+import { normaliseWhatsAppTelephone } from './whatsapp-phone.ts';
+
+function rolloutRecipients(): Set<string> {
+  return new Set(String(process.env.WHATSAPP_RECIPIENT_ALLOWLIST || '')
+    .split(',')
+    .map((value) => normaliseWhatsAppTelephone(value))
+    .filter((value): value is string => Boolean(value)));
+}
+
+export function isWhatsAppRecipientAllowed(value: string): boolean {
+  const required = String(process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED || '').trim().toLowerCase() === 'true';
+  const recipients = rolloutRecipients();
+  const normalised = normaliseWhatsAppTelephone(value);
+  if (!normalised) return false;
+  if (!recipients.size) return !required;
+  return recipients.has(normalised);
+}
 
 export function getWhatsAppConfiguration() {
   const provider = String(process.env.WHATSAPP_PROVIDER || '').trim().toLowerCase();
@@ -6,8 +23,11 @@ export function getWhatsAppConfiguration() {
   const phoneNumberId = String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
   const graphVersion = String(process.env.WHATSAPP_GRAPH_API_VERSION || '').trim();
   const deliveryEnabled = String(process.env.WHATSAPP_DELIVERY_ENABLED || '').trim().toLowerCase() === 'true';
+  const recipientAllowlistRequired = String(process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED || '').trim().toLowerCase() === 'true';
+  const recipientAllowlistConfigured = rolloutRecipients().size > 0;
   const configured = deliveryEnabled && provider === 'meta' && Boolean(accessToken && phoneNumberId && /^v\d+\.\d+$/.test(graphVersion));
-  return { provider: provider === 'meta' ? 'meta' as const : null, accessToken, phoneNumberId, graphVersion, deliveryEnabled, configured };
+  return { provider: provider === 'meta' ? 'meta' as const : null, accessToken, phoneNumberId, graphVersion,
+    deliveryEnabled, configured, recipientAllowlistRequired, recipientAllowlistConfigured };
 }
 
 export async function sendWhatsAppTemplate(input: {
@@ -18,6 +38,7 @@ export async function sendWhatsAppTemplate(input: {
 }): Promise<{ provider: 'meta'; messageId: string }> {
   const configuration = getWhatsAppConfiguration();
   if (!configuration.configured || !configuration.provider) throw new Error('WHATSAPP_NOT_CONFIGURED');
+  if (!isWhatsAppRecipientAllowed(input.to)) throw new Error('WHATSAPP_RECIPIENT_NOT_ALLOWED');
   const response = await fetch(`https://graph.facebook.com/${configuration.graphVersion}/${configuration.phoneNumberId}/messages`, {
     method: 'POST',
     headers: { authorization: `Bearer ${configuration.accessToken}`, 'content-type': 'application/json' },

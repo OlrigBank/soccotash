@@ -10,7 +10,7 @@ import {
   whatsappTemplateParameters,
   type WhatsAppNotificationEvent,
 } from './whatsapp-templates.ts';
-import { getWhatsAppConfiguration, sendWhatsAppTemplate } from './whatsapp-provider.ts';
+import { getWhatsAppConfiguration, isWhatsAppRecipientAllowed, sendWhatsAppTemplate } from './whatsapp-provider.ts';
 
 export type NotificationDeliveryStatus = 'not_requested' | 'queued' | 'submitted' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
 export type NotificationChannel = 'email' | 'whatsapp';
@@ -216,12 +216,14 @@ export async function deliverBookingNotification(input: {
 
   const consentActive = hasActiveWhatsAppConsentForCurrentNumber(input.booking);
   const configuration = getWhatsAppConfiguration();
+  const recipientAllowed = Boolean(input.booking.telephoneE164 && isWhatsAppRecipientAllowed(input.booking.telephoneE164));
   const priorWhatsApp = await existingDelivery(`${input.sourceKey}:whatsapp`);
   if (priorWhatsApp) return { channel: priorWhatsApp.channel, status: priorWhatsApp.status, fallbackUsed: false };
-  if (!consentActive || !configuration.configured || !supported || !input.manageUrl) {
+  if (!consentActive || !configuration.configured || !recipientAllowed || !supported || !input.manageUrl) {
     const reason = !consentActive ? 'WhatsApp consent is not active.'
       : !configuration.configured ? 'WhatsApp is not configured.'
-        : !supported ? 'This event has no WhatsApp template.' : 'No private booking link is available.';
+        : !recipientAllowed ? 'The recipient is not approved for WhatsApp rollout.'
+          : !supported ? 'This event has no WhatsApp template.' : 'No private booking link is available.';
     await recordDelivery({ eventId, channel: 'whatsapp', status: 'skipped', idempotencyKey: `${input.sourceKey}:whatsapp`, error: reason });
     return deliverEmailFallback({ eventId, sourceKey: input.sourceKey, emailDelivery: input.emailDelivery });
   }
