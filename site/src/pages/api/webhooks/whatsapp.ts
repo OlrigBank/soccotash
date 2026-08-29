@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { APIRoute } from 'astro';
 import { processWhatsAppStatus, type NotificationDeliveryStatus } from '../../../lib/booking/notification-delivery.ts';
 import { verifyWhatsAppSignature } from '../../../lib/booking/whatsapp-provider.ts';
+import { receiveWhatsAppInbound, type WhatsAppInboundMessage } from '../../../lib/booking/whatsapp-inbound.ts';
 
 export const prerender = false;
 
@@ -85,9 +86,34 @@ export function parseWhatsAppStatuses(payload: unknown): WhatsAppStatusInput[] |
   }).map(({ order: _order, ...item }) => item);
 }
 
+export function parseWhatsAppInboundMessages(payload: unknown): WhatsAppInboundMessage[] | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const envelope = payload as { object?: unknown; entry?: unknown };
+  if (envelope.object !== 'whatsapp_business_account' || !Array.isArray(envelope.entry)) return null;
+  const messages: WhatsAppInboundMessage[] = [];
+  for (const entry of envelope.entry) {
+    if (!entry || typeof entry !== 'object' || !Array.isArray((entry as { changes?: unknown }).changes)) return null;
+    for (const change of (entry as { changes: unknown[] }).changes) {
+      if (!change || typeof change !== 'object') return null;
+      const typed = change as { field?: unknown; value?: { messages?: unknown } };
+      if (typed.field !== 'messages') continue;
+      if (typed.value?.messages !== undefined && !Array.isArray(typed.value.messages)) return null;
+      for (const item of typed.value?.messages || []) {
+        if (!item || typeof item !== 'object') continue;
+        const message = item as { id?: unknown; from?: unknown };
+        const providerMessageId = typeof message.id === 'string' ? message.id.trim() : '';
+        const telephone = typeof message.from === 'string' ? message.from.trim() : '';
+        if (providerMessageId && telephone) messages.push({ providerMessageId, telephone });
+      }
+    }
+  }
+  return messages;
+}
+
 export async function handleWhatsAppPost(
   request: Request,
   processStatus: (input: WhatsAppStatusInput) => Promise<unknown> = processWhatsAppStatus,
+  processInbound: (input: WhatsAppInboundMessage) => Promise<unknown> = receiveWhatsAppInbound,
 ): Promise<Response> {
   const contentLength = Number(request.headers.get('content-length') || '0');
   if (Number.isFinite(contentLength) && contentLength > WHATSAPP_WEBHOOK_MAX_BYTES) {
@@ -105,8 +131,10 @@ export async function handleWhatsAppPost(
     return new Response('Invalid JSON', { status: 400 });
   }
   const statuses = parseWhatsAppStatuses(payload);
-  if (!statuses) return new Response('Invalid webhook envelope', { status: 400 });
+  const messages = parseWhatsAppInboundMessages(payload);
+  if (!statuses || !messages) return new Response('Invalid webhook envelope', { status: 400 });
   for (const status of statuses) await processStatus(status);
+  for (const message of messages) await processInbound(message);
   return new Response('EVENT_RECEIVED', { status: 200 });
 }
 

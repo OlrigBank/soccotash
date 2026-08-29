@@ -7,7 +7,8 @@ import {
   validateWhatsAppConsent,
   WHATSAPP_CONSENT_TEXT,
 } from '../../src/lib/booking/whatsapp-phone.ts';
-import { getWhatsAppConfiguration, isWhatsAppRecipientAllowed, verifyWhatsAppSignature } from '../../src/lib/booking/whatsapp-provider.ts';
+import { getWhatsAppConfiguration, isWhatsAppRecipientAllowed, sendWhatsAppText, verifyWhatsAppSignature } from '../../src/lib/booking/whatsapp-provider.ts';
+import { inboundReplyText } from '../../src/lib/booking/whatsapp-inbound.ts';
 import { getWhatsAppTemplate, whatsappTemplateParameters } from '../../src/lib/booking/whatsapp-templates.ts';
 
 test('normalises international and UK telephone numbers to E.164', () => {
@@ -73,6 +74,36 @@ test('production rollout recipient guard is independent of delivery configuratio
     else process.env.WHATSAPP_RECIPIENT_ALLOWLIST = previousAllowlist;
     if (previousRequired === undefined) delete process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED;
     else process.env.WHATSAPP_RECIPIENT_ALLOWLIST_REQUIRED = previousRequired;
+  }
+});
+
+test('inbound acknowledgement uses a canonical Contact URL and free-form text payload', async () => {
+  const previous = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  let requestBody = '';
+  try {
+    process.env.WHATSAPP_PROVIDER = 'meta';
+    process.env.WHATSAPP_GRAPH_API_VERSION = 'v99.0';
+    process.env.WHATSAPP_ACCESS_TOKEN = 'test-token';
+    process.env.WHATSAPP_PHONE_NUMBER_ID = '123456';
+    process.env.WHATSAPP_DELIVERY_ENABLED = 'true';
+    process.env.WHATSAPP_INBOUND_AUTO_REPLY_ENABLED = 'true';
+    process.env.BOOKING_PUBLIC_URL = 'https://olrig.example/';
+    globalThis.fetch = async (_url, init) => {
+      requestBody = String(init?.body || '');
+      return Response.json({ messages: [{ id: 'wamid.reply' }] });
+    };
+    const text = inboundReplyText();
+    assert.match(text, /https:\/\/olrig\.example\/contact\//);
+    assert.doesNotMatch(text, /booking\/manage/);
+    assert.deepEqual(await sendWhatsAppText({ to: '+447700900123', body: text }), { provider: 'meta', messageId: 'wamid.reply' });
+    const payload = JSON.parse(requestBody);
+    assert.equal(payload.type, 'text');
+    assert.equal(payload.text.preview_url, false);
+    assert.equal(payload.to, '+447700900123');
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env = previous;
   }
 });
 

@@ -29,8 +29,18 @@ The application records a notification event independently of each delivery atte
 
 The callback accepts a maximum 1 MiB request, verifies Meta's HMAC against the
 exact bytes received and processes statuses sequentially in provider timestamp
-order. Guest-authored messages are acknowledged but ignored; this endpoint is
-for outbound-message delivery evidence, not two-way conversations.
+order. When `WHATSAPP_INBOUND_AUTO_REPLY_ENABLED=true`, an inbound message from
+a normalized telephone number present in the booking table receives the
+standard redirection acknowledgement at most once in 24 hours. Unknown senders
+receive no response. The application retains no inbound body or media metadata,
+and this does not provide a two-way conversation service.
+
+Failed inbound acknowledgements create no email fallback. They appear in
+Administration Alerts and can be retried, up to the bounded attempt limit, with:
+
+```bash
+npm run process:inbound-whatsapp-replies
+```
 
 A terminal failure creates one durable job in
 `booking_notification_fallback_jobs`. It does not send email inside Meta's
@@ -54,7 +64,8 @@ Recipient telephone numbers are masked in delivery history and stored as hashes 
 1. Run the unit and integration test suites against a disposable development database.
 2. Deploy the feature branch only to the Render development service and apply
    migrations `017_whatsapp_notifications.sql` and
-   `053_whatsapp_fallback_queue.sql`.
+   `053_whatsapp_fallback_queue.sql` and
+   `054_whatsapp_inbound_acknowledgements.sql`.
 3. Use Meta's test recipient and synthetic bookings first. Enable the independent delivery switch only for the controlled test window. Confirm submission, sent/delivered/read updates, duplicate/out-of-order callback handling, and email fallback on terminal failure. Trigger `npm run process:notification-fallbacks` after the controlled failure and confirm that the queued job completes once.
 4. A real booking may be used only after the Booker has explicitly consented and the user has explicitly authorized the send. Do not include the real phone number, booking token, screenshots containing either, or provider credentials in issues, commits, logs, or the pull request.
 5. Production activation is outside PR #43 and requires a separate explicit decision after acceptance testing.

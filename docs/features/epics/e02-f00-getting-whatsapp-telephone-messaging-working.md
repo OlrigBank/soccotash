@@ -34,6 +34,7 @@ The application consumes these Render environment variables:
 
 - `WHATSAPP_PROVIDER=meta`
 - `WHATSAPP_DELIVERY_ENABLED`
+- `WHATSAPP_INBOUND_AUTO_REPLY_ENABLED`
 - `WHATSAPP_GRAPH_API_VERSION`
 - `WHATSAPP_ACCESS_TOKEN`
 - `WHATSAPP_PHONE_NUMBER_ID`
@@ -55,7 +56,9 @@ evidence.
    completed with controlled development acceptance.
 2. [E02-F02 — WhatsApp Production Readiness](../e02-f02.md) — operational
    controls, fallback scheduling and an explicit activation decision.
-3. Optional two-way guest messaging, only if separately specified and
+3. [E02-F03 — Redirect Inbound WhatsApp Replies](../e02-f03.md) — acknowledge
+   recognised booking contacts without retaining or exposing their message.
+4. Optional conversational guest messaging, only if separately specified and
    approved.
 
 ## Epic acceptance criteria
@@ -74,5 +77,6 @@ evidence.
 
 - Consumer WhatsApp or WhatsApp Business app automation.
 - A shared inbox or two-way guest conversation history.
-- Guest media ingestion, automated replies or moderation.
+- Guest media ingestion, conversational automated replies or moderation.
+- Storing or displaying guest-authored WhatsApp content.
 - Production enablement as an incidental consequence of development testing.
