@@ -71,7 +71,10 @@ file timestamps, PDF metadata, or surrounding filenames.
 - If a yearless range crosses from December into January, the checkout year is
   the supplied check-in year plus one.
 - If the year is absent and `--year` is not supplied, report the ambiguity and
-  leave the file unchanged.
+  leave the file unchanged.★★★★★
+"Ideal for a couple wanting to explore the Lakes. Compact but has everything. Close to Penrith for supplies."
+
+— David
 
 Example:
 
@@ -182,13 +185,239 @@ unsupported PDFs must remain unchanged and be counted as failures.
 13. Command output and test snapshots contain no review body, private feedback,
     guest photograph, or full Airbnb review URL.
 
+## Proposed public-review inputs for stage two
+
+Airbnb states that anyone can read a published public review and its overall star
+rating. This distinguishes the public review surface from individual category
+ratings and notes to the host, which are available only to the host and Airbnb.
+
+Subject to the publication checks below, the next feature may take these fields
+as candidate inputs:
+
+- the reviewer's first name, for example `Andrew`;
+- the public overall star rating, for example `5 stars`;
+- the written public review text;
+- the public Airbnb listing name; and
+- a generalised description of the stay, for example `Stayed 3 nights in
+  August`.
+
+The next feature must never take these fields from the private or detailed-rating
+parts of the PDF. Extraction must retain an explicit boundary between public and
+host-only content.
+
+### Publication qualification
+
+Public visibility does not, by itself, make the material anonymous or grant an
+unrestricted right to republish it on a separate commercial website:
+
+- a first name combined with review text, listing, and stay timing may still
+  identify or enable someone to single out the reviewer and therefore may remain
+  personal data;
+- information obtained from a publicly accessible source still requires an
+  identified lawful basis and appropriate privacy information unless a relevant
+  exception applies;
+- the reviewer may hold rights in their written review, while Airbnb's current
+  European terms restrict copying or displaying platform content unless the user
+  owns it, has the content owner's permission, or another term or agreement
+  authorises the use; and
+- a review can later be removed from Airbnb, so the public dataset needs a
+  withdrawal and periodic reconciliation policy.
+
+Consequently, stage two must not label a record containing a first name and
+verbatim review as anonymised merely because the source was public. Before
+publication it must establish and record the content permission or other legal
+basis relied upon, the UK GDPR lawful basis where personal data remains, and the
+editorial approval decision.
+
+If those publication checks are not satisfied, the safe fallback is to exclude
+the first name and avoid verbatim review text, producing a genuinely anonymised
+thematic summary that cannot reasonably be linked back to a reviewer.
+
+The following fields remain prohibited for public output:
+
+- guest photographs or profile links;
+- full Airbnb review URLs or review identifiers;
+- private notes or feedback visible only to the host and Airbnb;
+- individual category ratings and category feedback;
+- exact stay dates; and
+- any personal detail found incidentally inside the review text unless it has
+  been removed during editorial review.
+
+### Stage-two data architecture
+
+Stage two must keep private extraction records and public website content in two
+separate data layers.
+
+#### Private extraction manifest
+
+The private manifest remains under the ignored
+`docs/source-material/airbnb/reviews/` directory. It may contain the local PDF
+reference, source review identifier, extraction result, public/private field
+classification, publication assessment, and reconciliation state needed by the
+owner. It must not be imported into the website build or committed to Git.
+
+#### Curated public review data
+
+Only reviewed and publication-approved fields are copied into the versioned
+public dataset:
+
+```text
+site/src/data/public-reviews.json
+```
+
+The initial format is JSON because it is deterministic, directly importable by
+Astro, straightforward to validate during builds, and does not permit executable
+content. The file must contain a schema version and an ordered review array.
+
+Example:
+
+```json
+{
+  "schemaVersion": 1,
+  "reviews": [
+    {
+      "id": "cottage-2026-08-david",
+      "rating": 5,
+      "quote": "Ideal for a couple wanting to explore the Lakes. Compact but has everything. Close to Penrith for supplies.",
+      "reviewer": {
+        "displayName": "David"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "August",
+        "year": 2026
+      },
+      "listing": {
+        "key": "cottage",
+        "displayName": "Cottage at Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    }
+  ]
+}
+```
+
+The public dataset must not contain local PDF paths, Airbnb URLs or review IDs,
+exact stay dates, private feedback, individual category ratings, photographs,
+internal legal reasoning, or unapproved records.
+
+Each `id` must be stable and unique. Array order is display order. Page numbers
+and the total number of pages must not be stored; the interface derives them from
+the current array index and `reviews.length`.
+
+### Public data validation
+
+The repository must provide an application-level schema or JSON Schema that
+fails automated tests and the production build when public review data is
+invalid. Validation must require:
+
+- `schemaVersion` is a supported integer;
+- every review ID is non-empty and unique;
+- `rating` is an integer from 1 through 5;
+- `quote` and all display labels are non-empty plain text;
+- `nights` is a positive integer;
+- `month` is a valid English month and `year` is a reasonable four-digit year;
+- `listing.key` is from an explicit supported set;
+- `publication.approved` is exactly `true`;
+- `publication.approvedAt` is a valid ISO calendar date; and
+- prohibited private or source-traceability fields are absent.
+
+Review text must be rendered as text, not injected HTML. The extraction process
+must preserve the approved public quote verbatim apart from deliberate editorial
+corrections that are separately approved.
+
+### Swipeable landing-page panel
+
+The landing page will display one review per panel using this presentation:
+
+```text
+★★★★★
+“Ideal for a couple wanting to explore the Lakes. Compact but has everything.
+Close to Penrith for supplies.”
+
+— David, 3-night stay · August 2026
+Airbnb guest review
+
+● ○ ○ ○ ○
+1 of 5
+```
+
+The interface must:
+
+- place the review section toward the end of the landing page, immediately above
+  the site footer and its booking/contact navigation;
+- expose a `Guest reviews` link in the desktop, mobile, and footer navigation;
+- display one review at a time in public dataset order;
+- order generated reviews by stay date from most recent to earliest;
+- provide visible previous and next controls;
+- support touch and pointer swiping without preventing normal vertical page
+  scrolling;
+- support keyboard navigation with the left and right arrow keys while the panel
+  is focused;
+- derive and display `current page of total pages`;
+- show pagination dots for a small review set, with the current dot identified;
+- expose the rating as accessible text such as `5 out of 5 stars`, rather than
+  relying on star glyphs alone;
+- announce review changes through a polite ARIA live region without repeatedly
+  reading the complete carousel during ordinary page navigation;
+- keep previous/next controls and page status correctly disabled or described
+  when there are zero or one reviews;
+- maintain a stable panel layout as review lengths change, without clipping text
+  or causing avoidable page movement; and
+- shorten long reviews only at a complete sentence boundary and provide an
+  accessible `More…`/`Less` control that reveals or collapses the retained full
+  public text;
+- work without automatic advancement. If autoplay is proposed later, it requires
+  a separate motion, pause, focus, and reduced-motion review.
+
+The component must remain usable at 390x844, 768x1024, and 1440x900, without
+horizontal page overflow. Browser verification must cover swiping, controls,
+keyboard navigation, focus order, page count, console errors, failed requests,
+and screenshots at all three sizes.
+
+### Stage-two data and panel acceptance criteria
+
+1. Private extraction data remains ignored and cannot enter the website build.
+2. The versioned public JSON contains only approved display fields.
+3. Invalid, duplicate, unapproved, or privacy-prohibited records fail validation.
+4. The panel renders the rating, quotation, attribution, stay summary, listing
+   context where required, and source label from the public dataset.
+5. Previous, next, swipe, and keyboard interactions select the correct review.
+6. Page count always reflects the selected array index and current dataset
+   length; pagination dots are shown only when the dataset is small enough to
+   remain useful.
+7. Zero-review and one-review datasets produce useful, non-broken states.
+8. Rating and page changes have appropriate accessible names and announcements.
+9. Review content is rendered as plain text and cannot inject HTML.
+10. Responsive and browser checks pass at all three required viewport sizes.
+11. Every PDF in the private review directory contributes one validated record
+    to the generated public dataset; generation fails if any filename or safe
+    public-text region cannot be parsed.
+12. The review section is above the landing-page footer, its menu link resolves
+    to the section, and long-review expansion works with pointer and keyboard
+    interaction.
+
+Official references used for this qualification:
+
+- [Airbnb: Reviews for homes](https://www.airbnb.co.uk/help/article/13)
+- [Airbnb: Terms of Service for European users](https://www.airbnb.co.uk/help/article/2908)
+- [ICO: What is personal data?](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/personal-information-what-is-it/what-is-personal-data/what-is-personal-data/)
+- [ICO: Personal data obtained from publicly accessible sources](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/the-right-to-be-informed/what-common-issues-might-come-up-in-practice/)
+
 ## Follow-on feature boundary
 
-The next feature may extract review content to create anonymised landing-page
-material. It must independently define consent or lawful-use assumptions,
-removal of names and photographs, exclusion of private host-only feedback,
-editorial approval, traceability to local source material, and the public data
-format. Nothing produced by this rename routine is automatically safe to publish.
+The next feature may extract review content to create approved landing-page
+material. It must independently define permission and lawful-use assumptions,
+handling or removal of names, exclusion of photographs and private host-only
+feedback, editorial approval, traceability to local source material, withdrawal,
+and the public data format. Nothing produced by this rename routine is
+automatically safe to publish or necessarily anonymised.
 
 ## Implementation evidence
 
@@ -199,3 +428,26 @@ format. Nothing produced by this rename routine is automatically safe to publish
   Andrew filename, skipped 50 historical files, and reported no failures.
 - A real apply run against a temporary copy of the Andrew PDF performed the
   canonical rename without altering the private source directory.
+- `site/scripts/generate-public-airbnb-reviews.mjs` regenerates the public data
+  deterministically from the ignored private PDFs. It stops at the first
+  host-only rating overlay and retains complete public sentences rather than
+  publishing flattened, corrupted, or private text.
+- `site/src/data/public-reviews.json` contains 51 approved public review records,
+  one for every PDF currently in the private directory, and no private
+  source-traceability fields.
+- `site/src/lib/public-reviews.ts` rejects malformed, duplicate, unapproved,
+  HTML-bearing, unsupported, and additional-field records before rendering.
+- `site/src/components/PublicReviewCarousel.astro` provides the landing-page
+  panel above the footer, previous/next controls, compact page count, keyboard
+  support, pointer swiping, sentence-boundary `More…` expansion, accessible
+  rating text, and polite page announcements. All primary navigation surfaces
+  link to `#guest-reviews`.
+- The full booking-lifecycle suite passed with 73 tests, including the public
+  review validation and homepage component contract.
+- The production build and Astro check completed with no errors. One unrelated
+  pre-existing unused-variable hint remains in the administration login page.
+- The rebuilt local Docker service was inspected with direct Playwright at
+  390x844, 768x1024, and 1440x900. Click, keyboard, sentence expansion, and
+  pointer-swipe interactions selected or expanded the correct content and page
+  counts. All sizes had zero horizontal overflow; the current application load
+  had zero console warnings or errors and no failed network requests.

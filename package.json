@@ -11,6 +11,7 @@
     "generate:booking-lifecycle-docs": "npm --prefix site run generate:booking-lifecycle-docs",
     "check:booking-lifecycle-docs": "npm --prefix site run check:booking-lifecycle-docs",
     "reviews:rename": "npm --prefix site run reviews:rename --",
+    "reviews:generate-public": "npm --prefix site run reviews:generate-public",
     "test:reviews": "npm --prefix site run test:reviews",
     "test:booking-lifecycle": "npm --prefix site run test:booking-lifecycle",
     "test:live-smoke": "playwright test --config=playwright.live-smoke.config.ts",

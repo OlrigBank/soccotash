@@ -1,0 +1,385 @@
+---
+import type { PublicReview } from '../lib/public-reviews';
+
+interface Props {
+  reviews: PublicReview[];
+}
+
+const { reviews } = Astro.props;
+const total = reviews.length;
+const showDots = total <= 10;
+
+function excerpt(quote: string, maximum = 230) {
+  if (quote.length <= maximum) return { text: quote, truncated: false };
+  const endings = [...quote.matchAll(/[.!?](?:[”’"])?(?=\s|$)/gu)];
+  const preferred = endings.filter((match) => (match.index ?? 0) + match[0].length <= maximum).at(-1);
+  const boundary = preferred ?? endings[0];
+  if (!boundary) return { text: quote, truncated: false };
+  const end = (boundary.index ?? 0) + boundary[0].length;
+  return { text: quote.slice(0, end), truncated: end < quote.length };
+}
+---
+
+<section id="guest-reviews" class="review-section" aria-labelledby="guest-reviews-heading">
+  <div class="review-section__heading">
+    <p class="review-section__eyebrow">Guest book</p>
+    <h2 id="guest-reviews-heading">What guests say</h2>
+    <p>Recent stays at Olrig Bank and the Cottage, shared by our Airbnb guests.</p>
+  </div>
+
+  {
+    total === 0 ? (
+      <p class="review-carousel review-carousel--empty">Guest reviews will be added here soon.</p>
+    ) : (
+      <div
+        class="review-carousel"
+        data-review-carousel
+        data-total={total}
+        tabindex="0"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Guest reviews"
+      >
+        <div class="review-carousel__slides">
+          {reviews.map((review, index) => {
+            const preview = excerpt(review.quote);
+            const fullId = `review-${index + 1}-full`;
+            return (
+            <article
+              class="review-carousel__slide"
+              data-review-slide
+              data-index={index}
+              aria-hidden={index === 0 ? 'false' : 'true'}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${index + 1} of ${total}`}
+            >
+              <p class="review-carousel__rating" aria-label={`${review.rating} out of 5 stars`}>
+                <span aria-hidden="true">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+              </p>
+              <blockquote>
+                <span data-review-preview>“{preview.text}”</span>
+                {preview.truncated ? <span id={fullId} data-review-full hidden>“{review.quote}”</span> : null}
+                {preview.truncated ? (
+                  <button type="button" data-review-more aria-expanded="false" aria-controls={fullId}>More…</button>
+                ) : null}
+              </blockquote>
+              <p class="review-carousel__attribution">
+                <span aria-hidden="true">— </span><strong>{review.reviewer.displayName}</strong>, {review.stay.nights}-night
+                stay <span aria-hidden="true">·</span> {review.stay.month} {review.stay.year}
+              </p>
+              <p class="review-carousel__listing">{review.listing.displayName}</p>
+              <p class="review-carousel__source">{review.source.displayName}</p>
+            </article>
+            );
+          })}
+        </div>
+
+        <div class="review-carousel__navigation">
+          <button type="button" data-review-previous aria-label="Show previous review" disabled>
+            <span aria-hidden="true">←</span>
+          </button>
+          <p class="review-carousel__count" data-review-count aria-live="polite" aria-atomic="true">
+            1 of {total}
+          </p>
+          <button type="button" data-review-next aria-label="Show next review" disabled={total === 1}>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        {showDots ? (
+          <div class="review-carousel__pagination" aria-label="Choose a review">
+            {reviews.map((_, index) => (
+              <button
+                type="button"
+                data-review-dot
+                data-index={index}
+                aria-label={`Show review ${index + 1} of ${total}`}
+                aria-current={index === 0 ? 'true' : undefined}
+              >
+                <span aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-review-carousel]').forEach((carousel) => {
+    const slides = [...carousel.querySelectorAll<HTMLElement>('[data-review-slide]')];
+    const dots = [...carousel.querySelectorAll<HTMLButtonElement>('[data-review-dot]')];
+    const previous = carousel.querySelector<HTMLButtonElement>('[data-review-previous]');
+    const next = carousel.querySelector<HTMLButtonElement>('[data-review-next]');
+    const count = carousel.querySelector<HTMLElement>('[data-review-count]');
+    let current = 0;
+    let pointerStart: { x: number; y: number; id: number } | undefined;
+
+    const show = (index: number) => {
+      carousel.querySelectorAll<HTMLButtonElement>('[data-review-more]').forEach((button) => {
+        const slide = button.closest<HTMLElement>('[data-review-slide]');
+        const preview = slide?.querySelector<HTMLElement>('[data-review-preview]');
+        const full = slide?.querySelector<HTMLElement>('[data-review-full]');
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = 'More…';
+        if (preview) preview.hidden = false;
+        if (full) full.hidden = true;
+      });
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      slides.forEach((slide, slideIndex) => slide.setAttribute('aria-hidden', String(slideIndex !== current)));
+      dots.forEach((dot, dotIndex) => {
+        if (dotIndex === current) dot.setAttribute('aria-current', 'true');
+        else dot.removeAttribute('aria-current');
+      });
+      if (previous) previous.disabled = current === 0;
+      if (next) next.disabled = current === slides.length - 1;
+      if (count) count.textContent = `${current + 1} of ${slides.length}`;
+    };
+
+    previous?.addEventListener('click', () => show(current - 1));
+    next?.addEventListener('click', () => show(current + 1));
+    dots.forEach((dot) => dot.addEventListener('click', () => show(Number(dot.dataset.index))));
+    carousel.querySelectorAll<HTMLButtonElement>('[data-review-more]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slide = button.closest<HTMLElement>('[data-review-slide]');
+        const preview = slide?.querySelector<HTMLElement>('[data-review-preview]');
+        const full = slide?.querySelector<HTMLElement>('[data-review-full]');
+        const expanded = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!expanded));
+        button.textContent = expanded ? 'More…' : 'Less';
+        if (preview) preview.hidden = !expanded;
+        if (full) full.hidden = expanded;
+      });
+    });
+    carousel.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        show(current - 1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        show(current + 1);
+      }
+    });
+    carousel.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary) return;
+      pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    });
+    carousel.addEventListener('pointerup', (event) => {
+      if (!pointerStart || pointerStart.id !== event.pointerId) return;
+      const horizontal = event.clientX - pointerStart.x;
+      const vertical = event.clientY - pointerStart.y;
+      pointerStart = undefined;
+      if (Math.abs(horizontal) < 50 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+      show(current + (horizontal < 0 ? 1 : -1));
+    });
+    carousel.addEventListener('pointercancel', () => {
+      pointerStart = undefined;
+    });
+    show(0);
+  });
+</script>
+
+<style>
+  .review-section {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    scroll-margin-top: 6rem;
+  }
+
+  .review-section__heading {
+    max-width: 44rem;
+  }
+
+  .review-section__heading h2,
+  .review-section__heading p {
+    margin: 0;
+  }
+
+  .review-section__heading h2 {
+    font-size: clamp(1.8rem, 5vw, 2.75rem);
+    line-height: 1.08;
+  }
+
+  .review-section__heading > p:last-child {
+    margin-top: 0.55rem;
+    color: var(--muted);
+  }
+
+  .review-section__eyebrow {
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .review-carousel {
+    overflow: hidden;
+    padding: clamp(1.25rem, 5vw, 2.75rem);
+    border: 1px solid var(--line);
+    border-radius: 1.15rem;
+    background: linear-gradient(135deg, #fffaf2 0%, #f2e9dc 100%);
+    box-shadow: var(--shadow);
+    outline: none;
+    touch-action: pan-y;
+  }
+
+  .review-carousel:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 55%, white);
+    outline-offset: 3px;
+  }
+
+  .review-carousel__slides {
+    display: grid;
+  }
+
+  .review-carousel__slide {
+    grid-area: 1 / 1;
+    align-self: start;
+    max-width: 52rem;
+    margin: 0 auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(0.75rem);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .review-carousel__slide[aria-hidden='false'] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .review-carousel__rating {
+    margin: 0;
+    color: #9c5c08;
+    font-size: clamp(1.25rem, 4vw, 1.65rem);
+    letter-spacing: 0.12em;
+  }
+
+  .review-carousel blockquote {
+    margin: 0.85rem 0 0;
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(1.2rem, 3vw, 1.65rem);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .review-carousel blockquote button {
+    display: inline;
+    margin-left: 0.35rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.78em;
+    font-weight: 750;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    cursor: pointer;
+  }
+
+  .review-carousel__attribution {
+    margin: 1.15rem 0 0;
+  }
+
+  .review-carousel__listing,
+  .review-carousel__source {
+    margin: 0.15rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .review-carousel__source {
+    font-size: 0.78rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .review-carousel__navigation {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 34rem;
+    margin: 1.6rem auto 0;
+  }
+
+  .review-carousel__navigation > button {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--accent);
+    color: white;
+    font-size: 1.15rem;
+    cursor: pointer;
+  }
+
+  .review-carousel__navigation > button:disabled {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: default;
+    opacity: 0.65;
+  }
+
+  .review-carousel__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+  }
+
+  .review-carousel__pagination button {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .review-carousel__pagination span {
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .review-carousel__pagination button[aria-current='true'] span {
+    background: var(--accent);
+    transform: scale(1.18);
+  }
+
+  .review-carousel__count {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .review-carousel--empty {
+    margin: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .review-carousel__slide {
+      transition: none;
+    }
+  }
+</style>
