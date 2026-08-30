@@ -364,6 +364,8 @@ The interface must:
 - show pagination dots for a small review set, with the current dot identified;
 - expose the rating as accessible text such as `5 out of 5 stars`, rather than
   relying on star glyphs alone;
+- show five-star ratings in gold, while ratings below five use charcoal filled
+  stars and muted empty stars so the distinction is immediately visible;
 - announce review changes through a polite ARIA live region without repeatedly
   reading the complete carousel during ordinary page navigation;
 - keep previous/next controls and page status correctly disabled or described

@@ -62,11 +62,15 @@ test('the homepage renders the accessible swipeable public review carousel near 
   assert.match(homepage, /validatePublicReviewData\(publicReviewData\)/u);
   assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\}/u);
   assert.match(component, /data-review-carousel/u);
+  assert.match(component, />What our guests say<\/h2>/u);
   assert.match(component, /data-review-previous/u);
   assert.match(component, /data-review-next/u);
   assert.match(component, /data-review-dot/u);
   assert.match(component, /data-review-more/u);
   assert.match(component, /data-review-full/u);
+  assert.match(component, /review-carousel__rating--below-five/u);
+  assert.match(component, /review-carousel__filled-stars/u);
+  assert.match(component, /review-carousel__empty-stars/u);
   assert.match(component, /aria-live="polite"/u);
   assert.match(component, /touch-action: pan-y/u);
   assert.match(component, /ArrowLeft/u);

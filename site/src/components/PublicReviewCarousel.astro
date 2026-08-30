@@ -23,7 +23,7 @@ function excerpt(quote: string, maximum = 230) {
 <section id="guest-reviews" class="review-section" aria-labelledby="guest-reviews-heading">
   <div class="review-section__heading">
     <p class="review-section__eyebrow">Guest book</p>
-    <h2 id="guest-reviews-heading">What guests say</h2>
+    <h2 id="guest-reviews-heading">What our guests say</h2>
     <p>Recent stays at Olrig Bank and the Cottage, shared by our Airbnb guests.</p>
   </div>
 
@@ -54,8 +54,12 @@ function excerpt(quote: string, maximum = 230) {
               aria-roledescription="slide"
               aria-label={`${index + 1} of ${total}`}
             >
-              <p class="review-carousel__rating" aria-label={`${review.rating} out of 5 stars`}>
-                <span aria-hidden="true">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+              <p
+                class:list={['review-carousel__rating', review.rating < 5 && 'review-carousel__rating--below-five']}
+                aria-label={`${review.rating} out of 5 stars`}
+              >
+                <span class="review-carousel__filled-stars" aria-hidden="true">{'★'.repeat(review.rating)}</span>
+                <span class="review-carousel__empty-stars" aria-hidden="true">{'☆'.repeat(5 - review.rating)}</span>
               </p>
               <blockquote>
                 <span data-review-preview>“{preview.text}”</span>
@@ -260,6 +264,14 @@ function excerpt(quote: string, maximum = 230) {
     color: #9c5c08;
     font-size: clamp(1.25rem, 4vw, 1.65rem);
     letter-spacing: 0.12em;
+  }
+
+  .review-carousel__rating--below-five .review-carousel__filled-stars {
+    color: var(--ink);
+  }
+
+  .review-carousel__rating--below-five .review-carousel__empty-stars {
+    color: var(--muted);
   }
 
   .review-carousel blockquote {
