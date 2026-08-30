@@ -77,6 +77,7 @@ function isCurrent(href: string) {
               <summary><span aria-hidden="true">☰</span><span>Menu</span></summary>
               <nav aria-label="Public navigation">
                 <a href="/" aria-current={isCurrent('/') ? 'page' : undefined}>Home</a>
+                <a href="/#guest-reviews">Guest reviews</a>
                 <a href="/book/" aria-current={isCurrent('/book/') ? 'page' : undefined}>Request a stay</a>
                 <a href="/listings/" aria-current={isCurrent('/listings/') ? 'page' : undefined}>Ways to stay</a>
                 <a href="/guest-information/" aria-current={isCurrent('/guest-information/') ? 'page' : undefined}>Guest information</a>
@@ -111,6 +112,7 @@ function isCurrent(href: string) {
 
           <nav class="footer-navigation" aria-label="Footer navigation">
             <a href="/">Home</a>
+            <a href="/#guest-reviews">Guest reviews</a>
             <a href="/listings/">Ways to stay</a>
             <a href="/local-guide/">Local guide</a>
             <a href="/guest-information/">Guest information</a>
