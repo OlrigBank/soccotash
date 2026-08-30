@@ -28,6 +28,15 @@ dist-ssr
 playwright-report/
 test-results/
 blob-report/
+/.playwright-mcp/
+
+# Astro local development state (generated; other .astro metadata is tracked)
+/site/.astro/data-store.json
+/site/.astro/dev.json
+/site/.astro/settings.json
+
+# Local browser-audit screenshots. Curated evidence belongs under docs/features/evidence/.
+/*.png
 # Local environment files and secrets
 .env
 .env.*
