@@ -3,6 +3,7 @@ import { readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createOcrExtractor } from './rename-airbnb-reviews.mjs';
 
 const execFile = promisify(execFileCallback);
 const siteDirectory = fileURLToPath(new URL('../', import.meta.url));
@@ -85,6 +86,13 @@ export function extractPublicQuote(layoutText) {
   return quote;
 }
 
+export function extractPublicRating(ocrText) {
+  const normalised = ocrText.replace(/\s+/gu, ' ');
+  const match = normalised.match(/Public\s+review.{0,12}?([1-5])\b/iu);
+  if (!match) throw new Error('Cannot find the public overall star rating in PDF');
+  return Number(match[1]);
+}
+
 function slug(value) {
   return value.toLocaleLowerCase('en-GB').replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '');
 }
@@ -98,30 +106,39 @@ export async function generatePublicReviews({
     .filter((name) => name.toLocaleLowerCase('en-GB').endsWith('.pdf'))
     .sort((left, right) => right.localeCompare(left, 'en-GB'));
   const reviews = [];
-  for (const filename of filenames) {
-    const metadata = metadataFromFilename(filename);
-    const { stdout } = await execFile('pdftotext', ['-layout', path.join(directory, filename), '-'], {
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    let quote;
-    try {
-      quote = extractPublicQuote(stdout);
-    } catch (error) {
-      throw new Error(`${filename}: ${error instanceof Error ? error.message : error}`, { cause: error });
+  const ocr = await createOcrExtractor();
+  try {
+    for (const filename of filenames) {
+      const metadata = metadataFromFilename(filename);
+      const pdfPath = path.join(directory, filename);
+      const [{ stdout }, ocrText] = await Promise.all([
+        execFile('pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 4 * 1024 * 1024 }),
+        ocr.extract(pdfPath),
+      ]);
+      let quote;
+      let rating;
+      try {
+        quote = extractPublicQuote(stdout);
+        rating = extractPublicRating(ocrText);
+      } catch (error) {
+        throw new Error(`${filename}: ${error instanceof Error ? error.message : error}`, { cause: error });
+      }
+      reviews.push({
+        id: `${metadata.listingKey}-${metadata.startDate}-${slug(metadata.reviewer)}`,
+        rating,
+        quote,
+        reviewer: { displayName: metadata.reviewer },
+        stay: { nights: metadata.nights, month: metadata.month, year: metadata.year },
+        listing: {
+          key: metadata.listingKey,
+          displayName: metadata.listingKey === 'cottage' ? 'Cottage at Olrig Bank' : 'Olrig Bank',
+        },
+        source: { displayName: 'Airbnb guest review' },
+        publication: { approved: true, approvedAt },
+      });
     }
-    reviews.push({
-      id: `${metadata.listingKey}-${metadata.startDate}-${slug(metadata.reviewer)}`,
-      rating: 5,
-      quote,
-      reviewer: { displayName: metadata.reviewer },
-      stay: { nights: metadata.nights, month: metadata.month, year: metadata.year },
-      listing: {
-        key: metadata.listingKey,
-        displayName: metadata.listingKey === 'cottage' ? 'Cottage at Olrig Bank' : 'Olrig Bank',
-      },
-      source: { displayName: 'Airbnb guest review' },
-      publication: { approved: true, approvedAt },
-    });
+  } finally {
+    await ocr.close();
   }
   await writeFile(output, `${JSON.stringify({ schemaVersion: 1, reviews }, null, 2)}\n`);
   return reviews;

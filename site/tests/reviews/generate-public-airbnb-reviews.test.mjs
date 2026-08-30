@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   extractPublicQuote,
+  extractPublicRating,
   metadataFromFilename,
 } from '../../scripts/generate-public-airbnb-reviews.mjs';
 
@@ -17,6 +18,12 @@ test('metadata supports both canonical separator styles and cottage reviews', ()
     metadataFromFilename('2026-08-24-2026-08-27 - 3 nights - Andrew Review - Airbnb.pdf').reviewer,
     'Andrew',
   );
+});
+
+test('public rating extraction reads only the overall Public review label', () => {
+  assert.equal(extractPublicRating('Public review · ★ 4 Detailed ratings Check-in ★ 5'), 4);
+  assert.equal(extractPublicRating('Public review - x4 Detailed ratings Check-in x5'), 4);
+  assert.throws(() => extractPublicRating('Detailed ratings Check-in ★ 5'), /public overall star rating/u);
 });
 
 test('public text extraction retains wrapped review lines and excludes private feedback', () => {

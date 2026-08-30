@@ -213,7 +213,7 @@ export function canonicalFilename(metadata) {
   return `${metadata.startDate}-${metadata.endDate} - ${metadata.nights} nights - ${metadata.reviewer} Review${metadata.listingSuffix} - Airbnb.pdf`;
 }
 
-async function createOcrExtractor() {
+export async function createOcrExtractor() {
   let worker;
   return {
     async extract(pdfPath) {

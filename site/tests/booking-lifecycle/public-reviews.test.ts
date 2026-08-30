@@ -23,6 +23,12 @@ test('the versioned public review dataset passes strict validation', async () =>
   assert.equal(new Set(validated.reviews.map((review) => review.id)).size, 51);
   assert.equal(validated.reviews[0].reviewer.displayName, 'Andrew');
   assert.equal(validated.reviews.at(-1)?.reviewer.displayName, 'David');
+  assert.equal(validated.reviews.filter((review) => review.rating === 4).length, 2);
+  assert.deepEqual(
+    validated.reviews.filter((review) => review.rating === 4).map((review) => review.reviewer.displayName),
+    ['Christopher', 'Emma'],
+  );
+  assert.equal(validated.reviews.filter((review) => review.rating === 5).length, 49);
 });
 
 test('public review validation rejects duplicates, unapproved content, HTML, and private fields', () => {
