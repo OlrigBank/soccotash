@@ -52,3 +52,6 @@ backups/
 # Local Airbnb calendar snapshots may contain reservation metadata.
 airbnb-*.ics
 /docs/source-material/oddsods/
+
+# Raw Airbnb review exports and derived private analysis may contain guest data.
+/docs/source-material/airbnb/reviews/
