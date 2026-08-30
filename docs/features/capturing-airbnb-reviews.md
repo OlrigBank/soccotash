@@ -364,6 +364,8 @@ The interface must:
 - show pagination dots for a small review set, with the current dot identified;
 - expose the rating as accessible text such as `5 out of 5 stars`, rather than
   relying on star glyphs alone;
+- show five-star ratings in gold, while ratings below five use charcoal filled
+  stars and muted empty stars so the distinction is immediately visible;
 - announce review changes through a polite ARIA live region without repeatedly
   reading the complete carousel during ordinary page navigation;
 - keep previous/next controls and page status correctly disabled or described
@@ -429,12 +431,15 @@ automatically safe to publish or necessarily anonymised.
 - A real apply run against a temporary copy of the Andrew PDF performed the
   canonical rename without altering the private source directory.
 - `site/scripts/generate-public-airbnb-reviews.mjs` regenerates the public data
-  deterministically from the ignored private PDFs. It stops at the first
+  deterministically from the ignored private PDFs. It OCRs the image-based
+  `Public review` overall rating and fails if that rating cannot be proven,
+  rather than supplying a default. It stops at the first
   host-only rating overlay and retains complete public sentences rather than
   publishing flattened, corrupted, or private text.
 - `site/src/data/public-reviews.json` contains 51 approved public review records,
   one for every PDF currently in the private directory, and no private
-  source-traceability fields.
+  source-traceability fields. A complete source audit found 49 five-star reviews
+  and two four-star reviews (Christopher, June 2026; Emma, August 2025).
 - `site/src/lib/public-reviews.ts` rejects malformed, duplicate, unapproved,
   HTML-bearing, unsupported, and additional-field records before rendering.
 - `site/src/components/PublicReviewCarousel.astro` provides the landing-page

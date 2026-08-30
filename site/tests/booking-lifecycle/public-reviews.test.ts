@@ -23,6 +23,12 @@ test('the versioned public review dataset passes strict validation', async () =>
   assert.equal(new Set(validated.reviews.map((review) => review.id)).size, 51);
   assert.equal(validated.reviews[0].reviewer.displayName, 'Andrew');
   assert.equal(validated.reviews.at(-1)?.reviewer.displayName, 'David');
+  assert.equal(validated.reviews.filter((review) => review.rating === 4).length, 2);
+  assert.deepEqual(
+    validated.reviews.filter((review) => review.rating === 4).map((review) => review.reviewer.displayName),
+    ['Christopher', 'Emma'],
+  );
+  assert.equal(validated.reviews.filter((review) => review.rating === 5).length, 49);
 });
 
 test('public review validation rejects duplicates, unapproved content, HTML, and private fields', () => {
@@ -56,11 +62,15 @@ test('the homepage renders the accessible swipeable public review carousel near 
   assert.match(homepage, /validatePublicReviewData\(publicReviewData\)/u);
   assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\}/u);
   assert.match(component, /data-review-carousel/u);
+  assert.match(component, />What our guests say<\/h2>/u);
   assert.match(component, /data-review-previous/u);
   assert.match(component, /data-review-next/u);
   assert.match(component, /data-review-dot/u);
   assert.match(component, /data-review-more/u);
   assert.match(component, /data-review-full/u);
+  assert.match(component, /review-carousel__rating--below-five/u);
+  assert.match(component, /review-carousel__filled-stars/u);
+  assert.match(component, /review-carousel__empty-stars/u);
   assert.match(component, /aria-live="polite"/u);
   assert.match(component, /touch-action: pan-y/u);
   assert.match(component, /ArrowLeft/u);
