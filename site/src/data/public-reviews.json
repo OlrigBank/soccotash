@@ -1,0 +1,1229 @@
+{
+  "schemaVersion": 1,
+  "reviews": [
+    {
+      "id": "main-house-2026-08-24-andrew",
+      "rating": 5,
+      "quote": "Loved it. Amazing house. So big. Massive garden. Great location walk to everything nothing to complain about and the host was very helpful",
+      "reviewer": {
+        "displayName": "Andrew"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "August",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "cottage-2026-08-09-linda",
+      "rating": 5,
+      "quote": "Jennas place was lovely. We had a really great time there. It is set right in the centre of Kendal, just over the footbridge, but you'd never know when you're in it. It is quite, peaceful and sitting in the garden is lovely.",
+      "reviewer": {
+        "displayName": "Linda"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "August",
+        "year": 2026
+      },
+      "listing": {
+        "key": "cottage",
+        "displayName": "Cottage at Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-08-05-nicole",
+      "rating": 5,
+      "quote": "We had a fantastic stay here for 4 days for 3 couples and 1 child. Location was excellent for being parable to walk to walk to shops/bars/restaurants and close by for a short drive over the the lakes. Super comfortable and plenty of space.",
+      "reviewer": {
+        "displayName": "Nicole"
+      },
+      "stay": {
+        "nights": 4,
+        "month": "August",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-08-01-monica",
+      "rating": 5,
+      "quote": "We had a wonderful stay in Kendal. The house was beautiful, elegant, and exceeded all of our expectations. It was spotless, comfortable, and had everything we needed for a relaxing visit.",
+      "reviewer": {
+        "displayName": "Monica"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "August",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "cottage-2026-07-20-sarah",
+      "rating": 5,
+      "quote": "We had a lovely stay in this charming property. Excellent garden space. The cottage was spacious and comfortable.",
+      "reviewer": {
+        "displayName": "Sarah"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "July",
+        "year": 2026
+      },
+      "listing": {
+        "key": "cottage",
+        "displayName": "Cottage at Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "cottage-2026-07-13-ryan",
+      "rating": 5,
+      "quote": "Great experience in a lovely air bnb!",
+      "reviewer": {
+        "displayName": "Ryan"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "July",
+        "year": 2026
+      },
+      "listing": {
+        "key": "cottage",
+        "displayName": "Cottage at Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-07-09-emily",
+      "rating": 5,
+      "quote": "My family and I stayed here for 3 nights for a family wedding nearby. The house was absolutely perfect. It was spotlessly clean, the kitchen was really well stocked with equipment and the house was well maintained.",
+      "reviewer": {
+        "displayName": "Emily"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "July",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-06-26-christopher",
+      "rating": 5,
+      "quote": "lovely grand house, big rooms and well decorated, sympathetic to the style and age of the house. comfortable living room and bedrooms. kitchen was adequate with lots of equipment.",
+      "reviewer": {
+        "displayName": "Christopher"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "June",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-06-12-abi",
+      "rating": 5,
+      "quote": "Brilliant place to stay in Kendal. Beautiful place - lots of space and large rooms. Super clean and comfortable. Ideal setup for a mixed group. Just 5 mins walk from centre of Kendal for lovely shops and restaurants.",
+      "reviewer": {
+        "displayName": "Abi"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "June",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-06-05-amanda",
+      "rating": 5,
+      "quote": "We had a great stay. The house is very spacious, and for a group of us doing a running event nearby, it couldn't have fitted our needs better. Good location, super comfy beds, friendly hosts.",
+      "reviewer": {
+        "displayName": "Amanda"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "June",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-05-24-amy",
+      "rating": 5,
+      "quote": "Just returned from a fabulous few days at Jenna’s home in Kendal. The house is gorgeous! Big spacious rooms and bedrooms. Kitchen has everything, if a little dated. There are boxes of nice kids toys, which went down very well. Games and books too.",
+      "reviewer": {
+        "displayName": "Amy"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "May",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-05-08-rebecca",
+      "rating": 5,
+      "quote": "We really enjoyed our stay in Kendal. The place was easy to find and check-in was seamless thanks to Jenna’s clear instructions.",
+      "reviewer": {
+        "displayName": "Rebecca"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "May",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-04-10-kristy",
+      "rating": 5,
+      "quote": "We had a great time at this big but cosy house, 8 of us had loads of space, beds were super comfy and the location was perfect, a short walk to lots of restaurants and bars, we could park the cars and not need to drive anywhere for the time we were there.",
+      "reviewer": {
+        "displayName": "Kristy"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "April",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-04-06-ben",
+      "rating": 5,
+      "quote": "Fantastic house, great location, quiet street - lovely garden for the kids. Had one question about the tv and was answered on text immediately by Jenna. Great service. Would stay again.",
+      "reviewer": {
+        "displayName": "Ben"
+      },
+      "stay": {
+        "nights": 4,
+        "month": "April",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-04-03-max",
+      "rating": 5,
+      "quote": "Great property to stay in for the weekend with plenty of local conveniences and a helpful host",
+      "reviewer": {
+        "displayName": "Max"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "April",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-03-06-iva",
+      "rating": 5,
+      "quote": "Great place to stay and close to everything. We enjoyed the place and would definitely recommend.",
+      "reviewer": {
+        "displayName": "Iva"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "March",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-01-29-katy",
+      "rating": 5,
+      "quote": "We had an absolutely amazing stay. I can't say enough good things about the house, location and Jenna as a host. Even more spacious than it seems in pictures! Homely, cosy and warm with loads of games and books as well. Really quiet as well and comfy beds.",
+      "reviewer": {
+        "displayName": "Katy"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "January",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2026-01-04-sara",
+      "rating": 5,
+      "quote": "Jenna was responsive and the property was as described, in a good location to explore Kendal and the surrounding area",
+      "reviewer": {
+        "displayName": "Sara"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "January",
+        "year": 2026
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-12-29-helen",
+      "rating": 5,
+      "quote": "We had a great time here, lots on your door step as well as easy drives to other locations. Perfect place to stay with family everything you could need. Especially if you have a young family, even had toys that my car/train obsessed little boy loved.",
+      "reviewer": {
+        "displayName": "Helen"
+      },
+      "stay": {
+        "nights": 4,
+        "month": "December",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-12-23-georgia",
+      "rating": 5,
+      "quote": "Amazing property and was great to spend my son's first christmas! Great location for visiting family in Kendal, felt very at home would love to stay again.",
+      "reviewer": {
+        "displayName": "Georgia"
+      },
+      "stay": {
+        "nights": 4,
+        "month": "December",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-12-05-susannah",
+      "rating": 5,
+      "quote": "Great location and great accommodation. We had a great weekend stay.",
+      "reviewer": {
+        "displayName": "Susannah"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "December",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-10-16-ting",
+      "rating": 5,
+      "quote": "Spacious home, perfect for families. It would have been a nice touch to have bath soap provided as mentioned in the description. Nonetheless, we really enjoyed our stay and highly recommend this place to other travelers.",
+      "reviewer": {
+        "displayName": "Ting"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "October",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-09-26-howard",
+      "rating": 5,
+      "quote": "Great location for town centre (10 mins walk) and walks to the castle and nice walk to Cunswick Scar. Never used the car all weekend. Spacious property and dog friendly, just be careful that the garden is not secure. Bathrooms very tastefully presented.",
+      "reviewer": {
+        "displayName": "Howard"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "September",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-09-09-wei-wern",
+      "rating": 5,
+      "quote": "We had a wonderful time at this property! Jenna is very friendly and responsive. On top of the well equipped kitchen and amenities, we were pleasantly surprised by the many boards games, books, and even children’s toys that was available at the house.",
+      "reviewer": {
+        "displayName": "Wei Wern"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "September",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-09-05-emily",
+      "rating": 5,
+      "quote": "We stayed for my best friends 30th and we had the best time. Location was fantastic, the house was beautiful. Everything we wanted and more!",
+      "reviewer": {
+        "displayName": "Emily"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "September",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-08-29-hannah",
+      "rating": 5,
+      "quote": "Great stay. Able to walk in and out of Kendal centre, spacious house. All amenities needed present.",
+      "reviewer": {
+        "displayName": "Hannah"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "August",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-08-23-john",
+      "rating": 5,
+      "quote": "A lovely house ideally situated in Kendal. Loads of space for six of us - highly recommended.",
+      "reviewer": {
+        "displayName": "John"
+      },
+      "stay": {
+        "nights": 6,
+        "month": "August",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-08-20-wendy",
+      "rating": 5,
+      "quote": "Lovely house , clean , everything you need, walking distance into town and pubs",
+      "reviewer": {
+        "displayName": "Wendy"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "August",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-08-15-emma",
+      "rating": 5,
+      "quote": "We really enjoyed our stay. The house is in an excellent location for exploring Kendal and surrounding areas.",
+      "reviewer": {
+        "displayName": "Emma"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "August",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-08-05-christine",
+      "rating": 5,
+      "quote": "Our multi-generational family group spent several days at Olrig Bank and had a great time.",
+      "reviewer": {
+        "displayName": "Christine"
+      },
+      "stay": {
+        "nights": 5,
+        "month": "August",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-07-31-vanessa",
+      "rating": 5,
+      "quote": "We really enjoyed our visit to Jenna's property, the location was perfect for the town centre and had a lovely garden and off-road parking.",
+      "reviewer": {
+        "displayName": "Vanessa"
+      },
+      "stay": {
+        "nights": 4,
+        "month": "July",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-07-23-jonny",
+      "rating": 5,
+      "quote": "We had a wonderful stay at the property. It's a large house with plenty of space and a good garden too! The host was very responsive, kind and helpful. Fantastic spot to explore the lake district and I'd highly recommend staying here.",
+      "reviewer": {
+        "displayName": "Jonny"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "July",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-07-18-ling",
+      "rating": 5,
+      "quote": "Good host and location. We had a pleasant stay!",
+      "reviewer": {
+        "displayName": "Ling"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "July",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-07-07-chiyung",
+      "rating": 5,
+      "quote": "Our Airbnb stay with Jenna in Kendal, Lake District, was an absolute gem—what a great deal! Jenna proved to be the perfect host, welcoming us warmly and making sure we had everything we needed.",
+      "reviewer": {
+        "displayName": "Chiyung"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "July",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-07-04-barry",
+      "rating": 5,
+      "quote": "Great location for Kendal. Ample parking. Large property with lots of space and everything you need for a stay in the Lakes. Very clean and tidy with great showers.",
+      "reviewer": {
+        "displayName": "Barry"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "July",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-06-27-alister",
+      "rating": 5,
+      "quote": "My friends and I really enjoyed staying at Olrig Bank. Jenna was proactive and responsive in her communications. The house was very clean and had everything for a group of 6.",
+      "reviewer": {
+        "displayName": "Alister"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "June",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-06-20-edel",
+      "rating": 5,
+      "quote": "lovely house .",
+      "reviewer": {
+        "displayName": "Edel"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "June",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-06-16-steven",
+      "rating": 5,
+      "quote": "Our family really enjoyed staying at the Victorian period house. The rooms were all large, great for meals and entertaining. The town center and some nice pubs were within 5 mins walk. Our host Jenna was very responsive.",
+      "reviewer": {
+        "displayName": "Steven"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "June",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-06-06-diane",
+      "rating": 5,
+      "quote": "Lovely, spacious house and great location. Jenna was an excellent host and very helpful. Great for the kids - our little boy loved the box of toys! Everywhere was nice and clean, very well equipped kitchen.",
+      "reviewer": {
+        "displayName": "Diane"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "June",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-05-30-dawn",
+      "rating": 5,
+      "quote": "This lovely period property was perfect for a family get together and a great location for exploring Kendal. It was really spacious and well-equipped with a lovely garden and surrounding spaces. Jenna was the ideal host and we would definitely stay again.",
+      "reviewer": {
+        "displayName": "Dawn"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "May",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-05-27-louise",
+      "rating": 5,
+      "quote": "Lovely place to stay for 2 nights and the host was very helpful.",
+      "reviewer": {
+        "displayName": "Louise"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "May",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-05-23-cinzia",
+      "rating": 5,
+      "quote": "Stunning house in a perfect location for visiting the Lake District. The house is very spacious, ideal for a group of 8 people. Kitchen is very well equipped with everything you need to cook for a couple of days.",
+      "reviewer": {
+        "displayName": "Cinzia"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "May",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-05-16-lucy",
+      "rating": 5,
+      "quote": "Super friendly and responsive host! Cottage is very spacious and perfectly located within in walking distance of Kendal.",
+      "reviewer": {
+        "displayName": "Lucy"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "May",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-05-02-julie",
+      "rating": 5,
+      "quote": "Beautiful period property in an ideal location to explore Kendal and the lakes. Jenna was quick to reply to any questions and incredibly helpful. We would highly recommend and will hopefully visit again soon.",
+      "reviewer": {
+        "displayName": "Julie"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "May",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-04-18-rashik",
+      "rating": 5,
+      "quote": "Ideal accommodation for a big group trip, 20min drive from windemere and 10min walk into kendal town made it easy access for all requirements. Responsive host and overall very smooth experience!",
+      "reviewer": {
+        "displayName": "Rashik"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "April",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-04-09-danielle",
+      "rating": 5,
+      "quote": "Had a lovely stay in this very spacious beautiful house, beautiful longe and dining room with lots of games and books to use. Ideal for 8 guests and very clean and tidy. Beds and mattresses were wonderful, all had an excellent nights sleep.",
+      "reviewer": {
+        "displayName": "Danielle"
+      },
+      "stay": {
+        "nights": 5,
+        "month": "April",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-04-04-elizabeth",
+      "rating": 5,
+      "quote": "Thank you so much for a wonderful stay! Jenna’s place is ideally located with easy walking distance to shops/cafes and off road parking for several cars. The place was beautiful, spacious and spotlessly clean. The beds were very comfortable.",
+      "reviewer": {
+        "displayName": "Elizabeth"
+      },
+      "stay": {
+        "nights": 2,
+        "month": "April",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2025-03-21-steven",
+      "rating": 5,
+      "quote": "Great property in walking distance to all of then pubs/restaurants in Kendal. Really good spot to use as a base when visiting Lake District. Spacious home with great communal areas and comfortable bedrooms.",
+      "reviewer": {
+        "displayName": "Steven"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "March",
+        "year": 2025
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2024-11-21-theo",
+      "rating": 5,
+      "quote": "Clear communication, spacious clean room, beautiful period home. Thanks for a great stay!",
+      "reviewer": {
+        "displayName": "Theo"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "November",
+        "year": 2024
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2024-11-21-robyn",
+      "rating": 5,
+      "quote": "Jenna was a fantastic host. Really responsive.",
+      "reviewer": {
+        "displayName": "Robyn"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "November",
+        "year": 2024
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    },
+    {
+      "id": "main-house-2024-11-21-david",
+      "rating": 5,
+      "quote": "I stayed for three nights for the kendal mountain film festival and it's perfectly located for the town. It's such a lovely big house to come back to loads of space and everything you need.",
+      "reviewer": {
+        "displayName": "David"
+      },
+      "stay": {
+        "nights": 3,
+        "month": "November",
+        "year": 2024
+      },
+      "listing": {
+        "key": "main-house",
+        "displayName": "Olrig Bank"
+      },
+      "source": {
+        "displayName": "Airbnb guest review"
+      },
+      "publication": {
+        "approved": true,
+        "approvedAt": "2026-08-30"
+      }
+    }
+  ]
+}
