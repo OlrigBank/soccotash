@@ -5,11 +5,13 @@ import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import HomeGallery from '../components/HomeGallery.astro';
 import PublicReviewCarousel from '../components/PublicReviewCarousel.astro';
 import publicReviewData from '../data/public-reviews.json';
-import { validatePublicReviewData } from '../lib/public-reviews';
+import publicReviewSummaryData from '../data/public-review-summary.json';
+import { validatePublicReviewData, validatePublicReviewSummary } from '../lib/public-reviews';
 
 const page = await getEntry('pages', 'home');
 const { Content } = page ? await render(page) : { Content: undefined };
 const publicReviews = validatePublicReviewData(publicReviewData).reviews;
+const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData);
 ---
 
 <BaseLayout
@@ -76,7 +78,7 @@ const publicReviews = validatePublicReviewData(publicReviewData).reviews;
     </div>
   </section>
 
-  <PublicReviewCarousel reviews={publicReviews} />
+  <PublicReviewCarousel reviews={publicReviews} summary={publicReviewSummary} />
 </BaseLayout>
 
 <style>

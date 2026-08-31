@@ -14,6 +14,16 @@ export type PublicReviewData = {
   reviews: PublicReview[];
 };
 
+export type PublicReviewSummary = {
+  schemaVersion: 1;
+  reviewCount: number;
+  scale: 5;
+  overallScore: number;
+  categories: Array<{ key: string; displayName: string; score: number }>;
+  source: { displayName: string };
+  publication: { approved: true; approvedAt: string };
+};
+
 const months = new Set([
   'January',
   'February',
@@ -109,4 +119,30 @@ export function validatePublicReviewData(value: unknown): PublicReviewData {
   });
 
   return value as PublicReviewData;
+}
+
+export function validatePublicReviewSummary(value: unknown): PublicReviewSummary {
+  const root = record(value, 'Public review summary');
+  exactKeys(root, ['schemaVersion', 'reviewCount', 'scale', 'overallScore', 'categories', 'source', 'publication'], 'Public review summary');
+  if (root.schemaVersion !== 1) throw new Error('Public review summary schemaVersion must be 1.');
+  if (!Number.isInteger(root.reviewCount) || Number(root.reviewCount) < 1) throw new Error('Public review summary count is invalid.');
+  if (root.scale !== 5) throw new Error('Public review summary scale must be 5.');
+  if (typeof root.overallScore !== 'number' || root.overallScore < 1 || root.overallScore > 5) throw new Error('Public review summary overall score is invalid.');
+  if (!Array.isArray(root.categories) || root.categories.length !== 6) throw new Error('Public review summary must contain six categories.');
+  const expectedCategories = ['check-in', 'cleanliness', 'accuracy', 'communication', 'location', 'value'];
+  root.categories.forEach((candidate, index) => {
+    const category = record(candidate, `Summary category ${index + 1}`);
+    exactKeys(category, ['key', 'displayName', 'score'], `Summary category ${index + 1}`);
+    if (category.key !== expectedCategories[index]) throw new Error(`Summary category ${index + 1} is out of order or unsupported.`);
+    text(category.displayName, `Summary category ${index + 1} displayName`);
+    if (typeof category.score !== 'number' || category.score < 1 || category.score > 5) throw new Error(`Summary category ${index + 1} score is invalid.`);
+  });
+  const source = record(root.source, 'Public review summary source');
+  exactKeys(source, ['displayName'], 'Public review summary source');
+  text(source.displayName, 'Public review summary source displayName');
+  const publication = record(root.publication, 'Public review summary publication');
+  exactKeys(publication, ['approved', 'approvedAt'], 'Public review summary publication');
+  if (publication.approved !== true) throw new Error('Public review summary is not approved.');
+  if (!validIsoDate(publication.approvedAt)) throw new Error('Public review summary approval date is invalid.');
+  return value as PublicReviewSummary;
 }

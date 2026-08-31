@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "private-review-manifest.schema.json",
+  "title": "Private Airbnb review manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reviews"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reviews": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/review" }
+    }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "nonEmptyText": { "type": "string", "minLength": 1 },
+    "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "reviewer", "listing", "stay", "publishedAt", "publicReview", "privateFeedback", "detailedRatings"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyText" },
+        "source": {
+          "type": "object", "additionalProperties": false,
+          "required": ["platform", "reviewId", "pdfFilename", "capturedAt"],
+          "properties": {
+            "platform": { "const": "airbnb" },
+            "reviewId": { "type": "string", "pattern": "^[0-9]+$" },
+            "pdfFilename": { "$ref": "#/$defs/nonEmptyText" },
+            "capturedAt": { "$ref": "#/$defs/date" }
+          }
+        },
+        "reviewer": {
+          "type": "object", "additionalProperties": false, "required": ["displayName"],
+          "properties": { "displayName": { "$ref": "#/$defs/nonEmptyText" } }
+        },
+        "listing": {
+          "type": "object", "additionalProperties": false, "required": ["key", "displayName", "sourceDisplayName"],
+          "properties": {
+            "key": { "enum": ["main-house", "cottage"] },
+            "displayName": { "$ref": "#/$defs/nonEmptyText" },
+            "sourceDisplayName": { "$ref": "#/$defs/nonEmptyText" }
+          }
+        },
+        "stay": {
+          "type": "object", "additionalProperties": false, "required": ["checkIn", "checkOut", "nights"],
+          "properties": {
+            "checkIn": { "$ref": "#/$defs/date" }, "checkOut": { "$ref": "#/$defs/date" },
+            "nights": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "publishedAt": { "$ref": "#/$defs/date" },
+        "publicReview": {
+          "type": "object", "additionalProperties": false, "required": ["rating", "text"],
+          "properties": { "rating": { "$ref": "#/$defs/rating" }, "text": { "$ref": "#/$defs/nonEmptyText" } }
+        },
+        "privateFeedback": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "$ref": "#/$defs/nonEmptyText" } } }
+          ]
+        },
+        "detailedRatings": {
+          "type": "array", "minItems": 6, "maxItems": 6,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["category", "rating", "feedback"],
+            "properties": {
+              "category": { "enum": ["Check-in", "Cleanliness", "Accuracy", "Communication", "Location", "Value"] },
+              "rating": { "$ref": "#/$defs/rating" },
+              "feedback": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyText" }, "uniqueItems": true }
+            }
+          }
+        }
+      }
+    }
+  }
+}
