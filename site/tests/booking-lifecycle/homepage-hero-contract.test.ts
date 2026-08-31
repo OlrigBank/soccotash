@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import test from 'node:test';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
-const heroAssetUrl = new URL('../../public/media/images/spaces/house/View of front of house-no-cyclists-hero.jpg', import.meta.url);
+const heroAssetUrl = new URL('../../public/media/images/listings/house.jpeg', import.meta.url);
 
 test('the homepage uses the approved image-led hero without competing actions', async () => {
   const [homepage, content, asset] = await Promise.all([
@@ -14,9 +14,9 @@ test('the homepage uses the approved image-led hero without competing actions', 
 
   assert.ok(asset.size > 0, 'the approved hero asset must be present');
   assert.match(homepage, /class="home-hero"/);
-  assert.match(homepage, /View of front of house-no-cyclists-hero\.jpg/);
-  assert.match(homepage, /width="1448"/);
-  assert.match(homepage, /height="814"/);
+  assert.match(homepage, /src="\/media\/images\/listings\/house\.jpeg"/);
+  assert.match(homepage, /width="1440"/);
+  assert.match(homepage, /height="1085"/);
   assert.match(homepage, /loading="eager"/);
   assert.match(homepage, /fetchpriority="high"/);
   const hero = homepage.match(/<section class="home-hero">([\s\S]*?)<\/section>/)?.[1] ?? '';
@@ -25,10 +25,11 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.match(homepage, /heading=""/);
   assert.match(homepage, /submitLabel="Quick Check"/);
   assert.match(homepage, /id="ways-to-stay"/);
-  assert.match(content, /heroTitle: "Stay at Olrig Bank in Kendal"/);
-  assert.match(content, /Olrig Bank was built in 1879/);
-  assert.match(content, /three accommodation options/);
-  assert.match(content, /Cottage[\s\S]*two bedrooms/);
+  assert.match(content, /heroTitle: "Olrig Bank: secluded in the heart of Kendal"/);
+  assert.match(content, /heroText: "Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills\. Today, small to large groups/);
+  assert.doesNotMatch(content, /Choose your dates and tell us who is coming/);
+  assert.doesNotMatch(content, /waysToStayIntro:/);
+  assert.match(content, /waysToStayGroupFit: "Olrig Bank is best used by medium or large groups of guests/);
   assert.doesNotMatch(content, /availibil|availble|accomodation|suites you/i);
 });
 
@@ -40,11 +41,14 @@ test('the compact panel sits inside the hero before Ways to stay', async () => {
   assert.ok(panel >= 0 && heroEnd > panel && ways > heroEnd);
 });
 
-test('the homepage follows Quick Check with photographic discovery and focused decisions', async () => {
+test('the homepage follows Quick Check with stay comparison then photographic discovery', async () => {
   const homepage = await source('src/pages/index.astro');
 
   assert.match(homepage, /<HomeGallery \/>/);
-  assert.match(homepage, /<h2>Ways to stay at Olrig Bank<\/h2>[\s\S]*house\.jpeg[\s\S]*<Content \/>/);
+  const ways = homepage.indexOf('<section id="ways-to-stay"');
+  const gallery = homepage.indexOf('<HomeGallery />');
+  assert.ok(ways >= 0 && gallery > ways, 'Ways to stay must precede photographic discovery');
+  assert.match(homepage, /<h2>Choosing your stay<\/h2>[\s\S]*<table>/);
   assert.doesNotMatch(homepage, /<ListingCard|<OfferingCard|Featured local guide/);
   assert.match(homepage, /kendalcastle\.png[\s\S]*Plan your stay[\s\S]*Our local guide/);
 });
@@ -76,6 +80,7 @@ test('the homepage hero preserves responsive crop and contrast contracts', async
 
   assert.match(homepage, /aspect-ratio:\s*16 \/ 9/);
   assert.match(homepage, /object-fit:\s*cover/);
+  assert.match(homepage, /object-position:\s*center 46%/);
   assert.match(homepage, /\.home-hero::after[\s\S]*linear-gradient/);
   assert.match(homepage, /@media \(min-width: 700px\)/);
 });

@@ -1,5 +1,5 @@
 ---
-import { getEntry, render } from 'astro:content';
+import { getEntry } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import HomeGallery from '../components/HomeGallery.astro';
@@ -7,25 +7,29 @@ import PublicReviewCarousel from '../components/PublicReviewCarousel.astro';
 import publicReviewData from '../data/public-reviews.json';
 import publicReviewSummaryData from '../data/public-review-summary.json';
 import { validatePublicReviewData, validatePublicReviewSummary } from '../lib/public-reviews';
+import { formatBaseNightlyPrice, getPublishedBaseNightlyPrices } from '../lib/pricing/public-base-prices';
 
 const page = await getEntry('pages', 'home');
-const { Content } = page ? await render(page) : { Content: undefined };
 const publicReviews = validatePublicReviewData(publicReviewData).reviews;
 const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData);
+const comparedPropertyIds = ['main-house', 'whole-property', 'cottage'];
+const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyIds).catch(() =>
+  Object.fromEntries(comparedPropertyIds.map((propertyId) => [propertyId, null])),
+);
 ---
 
 <BaseLayout
   title={page?.data.title ?? 'Olrig Bank'}
   description={page?.data.description}
-  socialImage="/media/images/spaces/house/View of front of house-no-cyclists-hero.jpg"
+  socialImage="/media/images/listings/house.jpeg"
   socialImageAlt="The stone front of Olrig Bank in Kendal"
 >
   <section class="home-hero">
     <img
-      src="/media/images/spaces/house/View of front of house-no-cyclists-hero.jpg"
-      alt="The stone front of Olrig Bank in Kendal, viewed across the road"
-      width="1448"
-      height="814"
+      src="/media/images/listings/house.jpeg"
+      alt="The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam"
+      width="1440"
+      height="1085"
       loading="eager"
       fetchpriority="high"
     />
@@ -42,20 +46,62 @@ const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData)
     </div>
   </section>
 
-  <HomeGallery />
-
   <section id="ways-to-stay" class="ways-to-stay">
-    <h2>Ways to stay at Olrig Bank</h2>
-    <img
-      class="ways-to-stay__image"
-      src="/media/images/listings/house.jpeg"
-      alt="The stone front of Olrig Bank beneath a blue sky, viewed from Little Aynam"
-      width="1440"
-      height="1085"
-      loading="lazy"
-    />
-    {Content ? <div class="ways-to-stay__intro"><Content /></div> : null}
+    <h2>Choosing your stay</h2>
+    {page?.data.waysToStayIntro ? <p class="ways-to-stay__intro">{page.data.waysToStayIntro}</p> : null}
+    {page?.data.waysToStayGroupFit ? <p class="ways-to-stay__group-fit">{page.data.waysToStayGroupFit}</p> : null}
+    <div
+      class="ways-to-stay__table-scroll"
+      role="region"
+      aria-label="Comparison of ways to stay at Olrig Bank"
+      tabindex="0"
+    >
+      <table>
+        <caption>Swipe sideways to compare all stays.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Feature</th>
+            <th scope="col"><a href="/listings/olrig-bank/">Olrig Bank</a></th>
+            <th scope="col"><a href="/listings/event/">Olrig Bank++</a></th>
+            <th scope="col"><a href="/listings/cottage/">Cottage at Olrig Bank</a></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Maximum guests</th>
+            <td>8</td>
+            <td>12</td>
+            <td>4</td>
+          </tr>
+          <tr>
+            <th scope="row">Bedrooms</th>
+            <td>4</td>
+            <td>6</td>
+            <td>2</td>
+          </tr>
+          <tr>
+            <th scope="row">Bathrooms</th>
+            <td>2</td>
+            <td>3</td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <th scope="row">Base price per night</th>
+            <td>{formatBaseNightlyPrice(baseNightlyPrices['main-house'])}</td>
+            <td>{formatBaseNightlyPrice(baseNightlyPrices['whole-property'])}</td>
+            <td>{formatBaseNightlyPrice(baseNightlyPrices.cottage)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="ways-to-stay__help">
+      If none of these three options is quite right for you, use{' '}
+      <a href="/listings/bespoke/">Olrig Bank Bespoke</a> to request an arrangement beyond our standard stays, or{' '}
+      <a href="/contact/">ask Jenna to help you choose</a>.
+    </p>
   </section>
+
+  <HomeGallery />
 
   <section class="local-guide-panel" aria-labelledby="local-guide-heading">
     <img
@@ -100,26 +146,73 @@ const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData)
     margin-bottom: 0.8rem;
   }
 
-  .ways-to-stay__image {
-    width: 100%;
-    max-height: 32rem;
-    margin-bottom: 1rem;
-    border-radius: 1.15rem;
-    object-fit: cover;
-  }
-
-  .ways-to-stay__intro {
+  .ways-to-stay :is(.ways-to-stay__intro, .ways-to-stay__group-fit) {
     max-width: 68ch;
-    margin-bottom: 1.25rem;
+    margin: 0;
     color: var(--muted);
   }
 
-  .ways-to-stay__intro :global(p) {
-    margin: 0;
+  .ways-to-stay__table-scroll {
+    overflow-x: auto;
+    margin-top: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    background: var(--panel-bg);
+    box-shadow: var(--shadow);
+    overscroll-behavior-inline: contain;
+    scrollbar-gutter: stable;
   }
 
-  .ways-to-stay__intro :global(p + p) {
-    margin-top: 0.35rem;
+  .ways-to-stay__table-scroll:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .ways-to-stay table {
+    width: 100%;
+    min-width: 44rem;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .ways-to-stay caption {
+    padding: 0.8rem 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: left;
+  }
+
+  .ways-to-stay :is(th, td) {
+    min-width: 9.5rem;
+    padding: 0.9rem 1rem;
+    border-top: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .ways-to-stay thead th {
+    background: color-mix(in srgb, var(--panel-bg) 86%, var(--accent) 14%);
+    color: var(--ink);
+  }
+
+  .ways-to-stay :is(thead th:first-child, tbody th) {
+    position: sticky;
+    z-index: 1;
+    left: 0;
+    min-width: 8.5rem;
+    background: var(--panel-bg);
+    box-shadow: 1px 0 0 var(--line);
+  }
+
+  .ways-to-stay thead th:first-child {
+    z-index: 2;
+    background: color-mix(in srgb, var(--panel-bg) 86%, var(--accent) 14%);
+  }
+
+  .ways-to-stay__help {
+    max-width: 68ch;
+    margin: 1rem 0 0;
+    color: var(--muted);
   }
 
   .local-guide-panel {
@@ -178,6 +271,7 @@ const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData)
     aspect-ratio: 16 / 9;
     border-radius: 0;
     object-fit: cover;
+    object-position: center 46%;
   }
 
   .home-hero__content {
