@@ -17,6 +17,12 @@
     "heroText": {
       "type": "string"
     },
+    "waysToStayIntro": {
+      "type": "string"
+    },
+    "waysToStayGroupFit": {
+      "type": "string"
+    },
     "$schema": {
       "type": "string"
     }
