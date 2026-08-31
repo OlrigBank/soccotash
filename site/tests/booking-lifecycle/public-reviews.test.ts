@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { validatePublicReviewData } from '../../src/lib/public-reviews.ts';
+import { validatePublicReviewData, validatePublicReviewSummary } from '../../src/lib/public-reviews.ts';
 
 const root = new URL('../../', import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), 'utf8');
@@ -19,16 +19,26 @@ const validReview = {
 test('the versioned public review dataset passes strict validation', async () => {
   const data = JSON.parse(await read('src/data/public-reviews.json'));
   const validated = validatePublicReviewData(data);
-  assert.equal(validated.reviews.length, 51);
-  assert.equal(new Set(validated.reviews.map((review) => review.id)).size, 51);
-  assert.equal(validated.reviews[0].reviewer.displayName, 'Andrew');
-  assert.equal(validated.reviews.at(-1)?.reviewer.displayName, 'David');
+  assert.equal(validated.reviews.length, 52);
+  assert.equal(new Set(validated.reviews.map((review) => review.id)).size, 52);
+  assert.equal(validated.reviews[0].reviewer.displayName, 'Fred');
+  assert.equal(validated.reviews.at(-1)?.reviewer.displayName, 'Theo');
   assert.equal(validated.reviews.filter((review) => review.rating === 4).length, 2);
   assert.deepEqual(
     validated.reviews.filter((review) => review.rating === 4).map((review) => review.reviewer.displayName),
     ['Christopher', 'Emma'],
   );
-  assert.equal(validated.reviews.filter((review) => review.rating === 5).length, 49);
+  assert.equal(validated.reviews.filter((review) => review.rating === 5).length, 50);
+});
+
+test('the public detailed-ratings summary passes strict validation', async () => {
+  const data = JSON.parse(await read('src/data/public-review-summary.json'));
+  const validated = validatePublicReviewSummary(data);
+  assert.equal(validated.reviewCount, 52);
+  assert.equal(validated.overallScore, 4.96);
+  assert.deepEqual(validated.categories.map((category) => category.key), [
+    'check-in', 'cleanliness', 'accuracy', 'communication', 'location', 'value',
+  ]);
 });
 
 test('public review validation rejects duplicates, unapproved content, HTML, and private fields', () => {
@@ -60,7 +70,7 @@ test('the homepage renders the accessible swipeable public review carousel near 
     read('src/components/SideMenu.astro'),
   ]);
   assert.match(homepage, /validatePublicReviewData\(publicReviewData\)/u);
-  assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\}/u);
+  assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\} summary=\{publicReviewSummary\}/u);
   assert.match(component, /data-review-carousel/u);
   assert.match(component, />What our guests say<\/h2>/u);
   assert.match(component, /data-review-previous/u);
@@ -73,6 +83,8 @@ test('the homepage renders the accessible swipeable public review carousel near 
   assert.match(component, /review-carousel__empty-stars/u);
   assert.match(component, /aria-live="polite"/u);
   assert.match(component, /touch-action: pan-y/u);
+  assert.match(component, />The details guests notice<\/h3>/u);
+  assert.match(component, /summary\.categories\.map/u);
   assert.match(component, /ArrowLeft/u);
   assert.match(component, /ArrowRight/u);
   assert.match(menu, /href="\/#guest-reviews"/u);

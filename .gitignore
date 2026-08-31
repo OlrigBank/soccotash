@@ -55,3 +55,4 @@ airbnb-*.ics
 
 # Raw Airbnb review exports and derived private analysis may contain guest data.
 /docs/source-material/airbnb/reviews/
+/output/pdf/airbnb-reviews/

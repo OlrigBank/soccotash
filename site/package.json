@@ -25,6 +25,7 @@
     "local-guide:export": "node --experimental-strip-types ./scripts/export-local-guide.mjs",
     "local-guide:restore": "node --experimental-strip-types ./scripts/restore-local-guide.mjs",
     "reviews:rename": "node ./scripts/rename-airbnb-reviews.mjs",
+    "reviews:generate-datasets": "node ./scripts/generate-airbnb-review-datasets.mjs",
     "reviews:generate-public": "node ./scripts/generate-public-airbnb-reviews.mjs",
     "test:reviews": "node --test ./tests/reviews/*.test.mjs",
     "test:booking-lifecycle": "node --experimental-strip-types --test ./tests/booking-lifecycle/*.test.ts",

@@ -1,11 +1,12 @@
 ---
-import type { PublicReview } from '../lib/public-reviews';
+import type { PublicReview, PublicReviewSummary } from '../lib/public-reviews';
 
 interface Props {
   reviews: PublicReview[];
+  summary: PublicReviewSummary;
 }
 
-const { reviews } = Astro.props;
+const { reviews, summary } = Astro.props;
 const total = reviews.length;
 const showDots = total <= 10;
 
@@ -27,6 +28,7 @@ function excerpt(quote: string, maximum = 230) {
     <p>Recent stays at Olrig Bank and the Cottage, shared by our Airbnb guests.</p>
   </div>
 
+  <div class="review-section__panels">
   {
     total === 0 ? (
       <p class="review-carousel review-carousel--empty">Guest reviews will be added here soon.</p>
@@ -109,6 +111,33 @@ function excerpt(quote: string, maximum = 230) {
       </div>
     )
   }
+
+    <aside class="review-summary" aria-labelledby="review-summary-heading">
+      <div class="review-summary__intro">
+        <p class="review-summary__eyebrow">At a glance</p>
+        <h3 id="review-summary-heading">The details guests notice</h3>
+        <p>Average category scores from {summary.reviewCount} Airbnb guest reviews.</p>
+      </div>
+      <p class="review-summary__overall" aria-label={`${summary.overallScore.toFixed(2)} out of ${summary.scale} overall`}>
+        <strong>{summary.overallScore.toFixed(2)}</strong>
+        <span><span aria-hidden="true">★</span> Overall rating</span>
+      </p>
+      <dl class="review-summary__scores">
+        {summary.categories.map((category) => (
+          <div class="review-summary__score">
+            <dt>{category.displayName}</dt>
+            <dd>
+              <strong>{category.score.toFixed(2)}</strong><span> / {summary.scale}</span>
+              <span class="review-summary__track" aria-hidden="true">
+                <span style={`--score: ${(category.score / summary.scale) * 100}%`} />
+              </span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p class="review-summary__source">{summary.source.displayName}</p>
+    </aside>
+  </div>
 </section>
 
 <script>
@@ -229,6 +258,135 @@ function excerpt(quote: string, maximum = 230) {
     box-shadow: var(--shadow);
     outline: none;
     touch-action: pan-y;
+  }
+
+  .review-section__panels {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .review-summary {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1.25rem, 5vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: 1.15rem;
+    background: var(--accent-dark);
+    color: white;
+    box-shadow: var(--shadow);
+  }
+
+  .review-summary__eyebrow,
+  .review-summary__intro h3,
+  .review-summary__intro p,
+  .review-summary__source,
+  .review-summary__scores,
+  .review-summary__scores dd {
+    margin: 0;
+  }
+
+  .review-summary__eyebrow {
+    color: #e8c995;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .review-summary__intro h3 {
+    margin-top: 0.35rem;
+    color: inherit;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(1.45rem, 4vw, 2rem);
+    line-height: 1.1;
+  }
+
+  .review-summary__intro > p:last-child {
+    margin-top: 0.55rem;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.92rem;
+  }
+
+  .review-summary__scores {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1.1rem;
+  }
+
+  .review-summary__overall {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+    margin: 1.15rem 0 0;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  .review-summary__overall strong {
+    color: #e8c995;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(2.25rem, 6vw, 3.2rem);
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .review-summary__overall > span {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.82rem;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+  }
+
+  .review-summary__score {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.25rem 1rem;
+  }
+
+  .review-summary__score dt {
+    font-weight: 700;
+  }
+
+  .review-summary__score dd {
+    display: contents;
+  }
+
+  .review-summary__score dd > strong {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .review-summary__score dd > span:first-of-type {
+    display: none;
+  }
+
+  .review-summary__track {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .review-summary__track > span {
+    display: block;
+    width: var(--score);
+    height: 100%;
+    border-radius: inherit;
+    background: #e8c995;
+  }
+
+  .review-summary__source {
+    margin-top: auto;
+    padding-top: 1.35rem;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
   }
 
   .review-carousel:focus-visible {
@@ -392,6 +550,13 @@ function excerpt(quote: string, maximum = 230) {
   @media (prefers-reduced-motion: reduce) {
     .review-carousel__slide {
       transition: none;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .review-section__panels {
+      grid-template-columns: minmax(0, 1.65fr) minmax(17rem, 0.75fr);
+      align-items: stretch;
     }
   }
 </style>
