@@ -10,6 +10,8 @@ const pages = defineCollection({
     description: z.string().optional(),
     heroTitle: z.string().optional(),
     heroText: z.string().optional(),
+    waysToStayIntro: z.string().optional(),
+    waysToStayGroupFit: z.string().optional(),
   }),
 });
 

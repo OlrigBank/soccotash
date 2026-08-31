@@ -6,12 +6,15 @@ const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.u
 const listingPaths = ['/listings/olrig-bank/', '/listings/event/', '/listings/cottage/'];
 
 test('the home page contains descriptive standard links to every accommodation', async () => {
-  const home = await source('src/content/pages/home.md');
+  const [homepage, homeContent] = await Promise.all([
+    source('src/pages/index.astro'),
+    source('src/content/pages/home.md'),
+  ]);
 
-  for (const path of listingPaths) assert.match(home, new RegExp(`\\]\\(${path}\\)`));
-  assert.match(home, /Olrig Bank was built in 1879/);
-  assert.match(home, /\[Olrig Bank\+\+ \(max 12 guests\)\]/);
-  assert.match(home, /\[Cottage at Olrig Bank \(max 4 guests\)\]/);
+  for (const path of listingPaths) assert.match(homepage, new RegExp(`href="${path}"`));
+  assert.match(homeContent, /Built in 1879 as a family home for George MacKay/);
+  assert.match(homepage, />Olrig Bank\+\+<\/a>/);
+  assert.match(homepage, />Cottage at Olrig Bank<\/a>/);
 });
 
 test('public supporting pages provide crawlable contextual listing links', async () => {
