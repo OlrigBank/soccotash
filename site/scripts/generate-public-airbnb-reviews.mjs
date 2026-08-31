@@ -18,6 +18,8 @@ const monthNames = [
 const stopLines = [
   /^Only visible to you and Airbnb$/iu,
   /^Detailed ratings$/iu,
+  /^Note from\b/iu,
+  /^Write a public reply$/iu,
 ];
 const nonReviewLines = [
   /Clear instructions \(\d+\)/iu,
@@ -59,6 +61,19 @@ export function metadataFromFilename(filename) {
 
 export function extractPublicQuote(layoutText) {
   const lines = layoutText.replaceAll('\r', '').split('\n');
+  const publicReviewIndex = lines.findIndex((line) => /^\s*Public review\b/iu.test(line));
+  if (publicReviewIndex >= 0) {
+    const quoteLines = [];
+    for (const line of lines.slice(publicReviewIndex + 1)) {
+      const trimmed = line.trim();
+      if (stopLines.some((pattern) => pattern.test(trimmed))) break;
+      if (trimmed) quoteLines.push(trimmed);
+    }
+    const quote = cleanPdfText(quoteLines.join(' '));
+    if (!quote) throw new Error('Cannot find public review text in PDF');
+    return quote;
+  }
+
   const listingIndex = lines.findIndex((line) =>
     /(Olrig Bank|Cottage|bedroom in Victorian house)/iu.test(line) && !/Review/iu.test(line),
   );

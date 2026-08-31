@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "reviewCount": 52,
+  "scale": 5,
+  "overallScore": 4.96,
+  "categories": [
+    {
+      "key": "check-in",
+      "displayName": "Check-in",
+      "score": 5
+    },
+    {
+      "key": "cleanliness",
+      "displayName": "Cleanliness",
+      "score": 4.96
+    },
+    {
+      "key": "accuracy",
+      "displayName": "Accuracy",
+      "score": 5
+    },
+    {
+      "key": "communication",
+      "displayName": "Communication",
+      "score": 4.98
+    },
+    {
+      "key": "location",
+      "displayName": "Location",
+      "score": 5
+    },
+    {
+      "key": "value",
+      "displayName": "Value",
+      "score": 4.9
+    }
+  ],
+  "source": {
+    "displayName": "Airbnb detailed ratings"
+  },
+  "publication": {
+    "approved": true,
+    "approvedAt": "2026-08-30"
+  }
+}
