@@ -8,6 +8,7 @@ interface Props {
   idPrefix?: string;
   submitLabel?: string;
   autoSelectProperty?: boolean;
+  mobileDock?: boolean;
 }
 
 const {
@@ -17,6 +18,7 @@ const {
   idPrefix = `compact-booking-${source}`,
   submitLabel = 'Quick Check',
   autoSelectProperty = false,
+  mobileDock = false,
 } = Astro.props;
 const properties = getProperties();
 const fixedProperty = propertyId ? properties.find((property) => property.id === propertyId) : undefined;
@@ -29,8 +31,9 @@ if (propertyId && !fixedProperty) {
 ---
 
 <section
-  class="compact-booking-panel"
+  class:list={['compact-booking-panel', mobileDock && 'compact-booking-panel--mobile-dock']}
   data-compact-booking-panel
+  data-mobile-dock={mobileDock ? 'true' : undefined}
   data-source={source}
   data-fixed-property={fixedProperty?.id}
   data-submit-label={submitLabel}
@@ -44,7 +47,7 @@ if (propertyId && !fixedProperty) {
     <h2 id={`${idPrefix}-heading`}>{heading}</h2>
   </div> : null}
 
-  <form class="compact-booking-form" data-compact-booking-form>
+  <form id={`${idPrefix}-form`} class="compact-booking-form" data-compact-booking-form>
     {autoSelectProperty ? null : fixedProperty ? (
       <div class="compact-booking-field compact-booking-field--property">
         <span>Stay arrangement</span>
@@ -81,8 +84,21 @@ if (propertyId && !fixedProperty) {
         </label>
       </>
     )}
-    <fieldset id={`${idPrefix}-calendar`} class="compact-date-calendar" data-compact-date-calendar>
-      <legend>Choose arrival and departure</legend>
+    <fieldset
+      id={`${idPrefix}-calendar`}
+      class="compact-date-calendar"
+      data-compact-date-calendar
+      role={mobileDock ? 'dialog' : undefined}
+      aria-modal={mobileDock ? 'true' : undefined}
+      aria-labelledby={mobileDock ? `${idPrefix}-calendar-title` : undefined}
+    >
+      <legend id={`${idPrefix}-calendar-title`}>Choose arrival and departure</legend>
+      {mobileDock ? (
+        <div class="compact-sheet__header">
+          <strong aria-hidden="true">Choose arrival and departure</strong>
+          <button class="compact-sheet__close" type="button" data-compact-sheet-close="date" aria-label="Close date selection">×</button>
+        </div>
+      ) : null}
       <div class="compact-date-calendar__toolbar">
         <button type="button" data-compact-calendar-previous aria-label="Show previous month">←</button>
         <strong data-compact-calendar-heading></strong>
@@ -97,7 +113,15 @@ if (propertyId && !fixedProperty) {
     {autoSelectProperty ? (
       <details class="compact-guests" data-compact-guests>
         <summary><span>Guests</span><strong data-compact-guests-summary>2 adults</strong></summary>
-        <div class="compact-guests__popover">
+        <div
+          class="compact-guests__popover"
+          role={mobileDock ? 'dialog' : undefined}
+          aria-modal={mobileDock ? 'true' : undefined}
+          aria-label={mobileDock ? 'Choose guests' : undefined}
+        >
+          {mobileDock ? (
+            <button class="compact-sheet__close" type="button" data-compact-sheet-close="guests" aria-label="Close guest selection">×</button>
+          ) : null}
           {[
             ['adults', 'Adults', 'Ages 13+', 1, 2],
             ['children', 'Children', 'Ages 2–12', 0, 0],
@@ -131,19 +155,31 @@ if (propertyId && !fixedProperty) {
       </button>
     </div>
 
+  </form>
+
+  <div
+    class="compact-booking-response"
+    data-compact-booking-response
+    role={mobileDock ? 'dialog' : undefined}
+    aria-modal={mobileDock ? 'true' : undefined}
+    aria-label={mobileDock ? 'Quick Check result' : undefined}
+  >
+    {mobileDock ? (
+      <button class="compact-sheet__close" type="button" data-compact-sheet-close="result" aria-label="Close Quick Check result">×</button>
+    ) : null}
     {autoSelectProperty ? (
       <div class="compact-booking-field compact-booking-field--property compact-booking-field--recommendation" data-compact-booking-recommendation hidden>
-        <input type="hidden" name="propertyId" value="" />
+        <input type="hidden" name="propertyId" value="" form={`${idPrefix}-form`} />
         <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
       </div>
     ) : null}
-  </form>
-
-  <p class="compact-booking-panel__bespoke" data-compact-booking-bespoke hidden={!fixedBespoke}>
-    Tell us your preferred dates and party. This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price.
-  </p>
-  <p class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
-  {autoSelectProperty ? null : <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>}
+    <p class="compact-booking-panel__bespoke" data-compact-booking-bespoke hidden={!fixedBespoke}>
+      Tell us your preferred dates and party. This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price.
+    </p>
+    <p class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
+    {autoSelectProperty ? null : <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>}
+  </div>
+  {mobileDock ? <button class="compact-sheet-backdrop" type="button" data-compact-sheet-backdrop aria-label="Close open Quick Check panel" hidden></button> : null}
 </section>
 
 <script>
@@ -191,12 +227,20 @@ if (propertyId && !fixedProperty) {
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
+    const responsePanel = panel.querySelector<HTMLElement>('[data-compact-booking-response]');
+    const sheetBackdrop = panel.querySelector<HTMLButtonElement>('[data-compact-sheet-backdrop]');
+    const mobileDock = panel.dataset.mobileDock === 'true';
     const suggestedStay = panel.dataset.autoSelectProperty === 'true';
     const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
     const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
     const departureLabel = panel.querySelector<HTMLElement>('[data-compact-departure-label]');
     const guests = panel.querySelector<HTMLDetailsElement>('[data-compact-guests]');
     const guestsSummary = panel.querySelector<HTMLElement>('[data-compact-guests-summary]');
+    type MobileSheet = 'date' | 'guests' | 'result';
+    let activeMobileSheet: MobileSheet | null = null;
+    let activeMobileTrigger: HTMLElement | null = null;
+    let dateSnapshot = { arrival: '', departure: '' };
+    let guestSnapshot: Record<string, string> = {};
     if (!form || !property || !arrival || !departure || !submit || !status || !result || !bespokeMessage
       || !calendar || !calendarHeading || !calendarMessage || !calendarDays || !calendarPrevious || !calendarNext) return;
 
@@ -242,12 +286,61 @@ if (propertyId && !fixedProperty) {
       if (departureLabel) departureLabel.textContent = departure.value ? shortDateLabel(departure.value) : 'Add date';
     };
 
+    const guestInputs = () => ['adults', 'children', 'infants', 'pets']
+      .map((name) => form.elements.namedItem(name))
+      .filter((input): input is HTMLInputElement => input instanceof HTMLInputElement);
+
+    const closeMobileSheet = (commit = false) => {
+      if (!mobileDock || !activeMobileSheet) return;
+      const closingSheet = activeMobileSheet;
+      const returnTarget = activeMobileTrigger;
+      activeMobileSheet = null;
+      activeMobileTrigger = null;
+      delete panel.dataset.openSheet;
+      if (sheetBackdrop) sheetBackdrop.hidden = true;
+      if (closingSheet === 'date') {
+        if (!commit) {
+          arrival.value = dateSnapshot.arrival;
+          departure.value = dateSnapshot.departure;
+          updateDateLabels();
+          renderCalendar();
+        }
+        setCalendarOpen(false);
+      }
+      if (closingSheet === 'guests') {
+        if (!commit) {
+          for (const input of guestInputs()) input.value = guestSnapshot[input.name] ?? input.value;
+          updateGuestsSummary();
+        }
+        if (guests) guests.open = false;
+      }
+      if (closingSheet === 'result' && action) action.hidden = false;
+      returnTarget?.focus({ preventScroll: true });
+    };
+
+    const openMobileSheet = (sheet: MobileSheet, trigger: HTMLElement | null) => {
+      if (!mobileDock) return;
+      if (activeMobileSheet && activeMobileSheet !== sheet) closeMobileSheet(false);
+      if (activeMobileSheet !== sheet) {
+        if (sheet === 'date') dateSnapshot = { arrival: arrival.value, departure: departure.value };
+        if (sheet === 'guests') {
+          guestSnapshot = Object.fromEntries(guestInputs().map((input) => [input.name, input.value]));
+        }
+      }
+      activeMobileSheet = sheet;
+      activeMobileTrigger = trigger;
+      panel.dataset.openSheet = sheet;
+      if (sheetBackdrop) sheetBackdrop.hidden = false;
+      queueMicrotask(() => panel.querySelector<HTMLButtonElement>(`[data-compact-sheet-close="${sheet}"]`)?.focus({ preventScroll: true }));
+    };
+
     const minimumNights = () => Number(
       property instanceof HTMLSelectElement
         ? property.selectedOptions[0]?.dataset.minimumNights
         : property.dataset.minimumNights,
     ) || 1;
     const openCalendar = () => {
+      openMobileSheet('date', dateTrigger || departure);
       const selectedDate = arrival.value || today();
       calendarMonth = monthStart(selectedDate);
       if (calendarMonth < firstMonth) calendarMonth = firstMonth;
@@ -311,8 +404,11 @@ if (propertyId && !fixedProperty) {
       updateDateLabels();
       renderCalendar();
       if (departure.value) {
-        setCalendarOpen(false);
-        (dateTrigger || departure).focus({ preventScroll: true });
+        if (mobileDock) closeMobileSheet(true);
+        else {
+          setCalendarOpen(false);
+          (dateTrigger || departure).focus({ preventScroll: true });
+        }
       } else {
         calendarDays.querySelector<HTMLButtonElement>(`[data-date="${value}"]`)?.focus({ preventScroll: true });
       }
@@ -361,15 +457,68 @@ if (propertyId && !fixedProperty) {
       });
     });
     panel.querySelector<HTMLButtonElement>('[data-compact-guests-done]')?.addEventListener('click', () => {
-      if (guests) guests.open = false;
+      if (mobileDock) closeMobileSheet(true);
+      else if (guests) guests.open = false;
+    });
+    guests?.addEventListener('toggle', () => {
+      if (!mobileDock) return;
+      if (guests.open) openMobileSheet('guests', guests.querySelector('summary'));
+      else if (activeMobileSheet === 'guests') closeMobileSheet(false);
     });
     updateGuestsSummary();
     updateDateLabels();
     calendar.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
-      setCalendarOpen(false);
-      arrival.focus({ preventScroll: true });
+      if (mobileDock) closeMobileSheet(false);
+      else {
+        setCalendarOpen(false);
+        arrival.focus({ preventScroll: true });
+      }
     });
+
+    panel.querySelectorAll<HTMLButtonElement>('[data-compact-sheet-close]').forEach((button) => {
+      button.addEventListener('click', () => closeMobileSheet(false));
+    });
+    sheetBackdrop?.addEventListener('click', () => closeMobileSheet(false));
+    panel.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab' && activeMobileSheet) {
+        const sheet = activeMobileSheet === 'date'
+          ? calendar
+          : activeMobileSheet === 'guests'
+            ? guests?.querySelector<HTMLElement>('.compact-guests__popover')
+            : responsePanel;
+        const focusable = [...(sheet?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled)') ?? [])]
+          .filter((element) => element.getClientRects().length > 0);
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (first && last && event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (first && last && !event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+      if (event.key === 'Escape' && activeMobileSheet) {
+        event.preventDefault();
+        closeMobileSheet(false);
+      }
+    });
+
+    if (mobileDock && responsePanel) {
+      const syncResponseSheet = () => {
+        const hasResponse = Boolean(status.textContent?.trim()) || !result.hidden;
+        if (hasResponse && activeMobileSheet !== 'result') openMobileSheet('result', submit);
+        if (!hasResponse && activeMobileSheet === 'result') closeMobileSheet(true);
+      };
+      new MutationObserver(syncResponseSheet).observe(responsePanel, {
+        attributes: true,
+        attributeFilter: ['hidden'],
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
 
     const isBespoke = () => property.value === 'bespoke-arrangement';
     const clearResult = () => {
@@ -753,5 +902,164 @@ if (propertyId && !fixedProperty) {
     .compact-booking-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .compact-booking-field--property, .compact-booking-panel__action { grid-column: 1 / -1; }
     .compact-booking-result__heading { align-items: flex-start; flex-direction: column; gap: 0.35rem; }
+  }
+
+  @media (max-width: 699px) {
+    .compact-booking-panel--mobile-dock {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-form {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.9fr) minmax(5.25rem, 0.8fr);
+      gap: 0.35rem;
+      align-items: stretch;
+    }
+
+    .compact-booking-panel--mobile-dock :is(.compact-booking-date-trigger, .compact-guests > summary) {
+      min-height: 44px;
+      padding: 0.3rem 0.42rem;
+      border-radius: 0.4rem;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-date-trigger > span + span {
+      padding-left: 0.4rem;
+    }
+
+    .compact-booking-panel--mobile-dock :is(.compact-booking-date-trigger small, .compact-guests > summary > span) {
+      font-size: 0.62rem;
+      line-height: 1;
+    }
+
+    .compact-booking-panel--mobile-dock :is(.compact-booking-date-trigger strong, .compact-guests > summary strong) {
+      font-size: 0.72rem;
+      line-height: 1.1;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-panel__action {
+      grid-column: auto;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-panel__action .button {
+      min-height: 44px;
+      padding: 0.35rem 0.45rem;
+      border-radius: 0.4rem;
+      font-size: 0.72rem;
+      line-height: 1.05;
+    }
+
+    .compact-booking-panel--mobile-dock :is(.compact-date-calendar, .compact-guests__popover, .compact-booking-response) {
+      position: fixed;
+      z-index: 4;
+      right: 0.5rem;
+      bottom: calc(4rem + env(safe-area-inset-bottom));
+      left: 0.5rem;
+      width: auto;
+      max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));
+      margin: 0;
+      padding: 1rem;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: 0.9rem 0.9rem 0 0;
+      background: #fff;
+      box-shadow: 0 -1rem 2.5rem rgba(19, 35, 27, 0.28);
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-response {
+      display: none;
+      color: var(--ink);
+    }
+
+    .compact-booking-panel--mobile-dock[data-open-sheet='result'] .compact-booking-response {
+      display: block;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-guests__popover {
+      top: auto;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-sheet__close {
+      position: sticky;
+      z-index: 1;
+      top: 0;
+      display: flex;
+      width: 44px;
+      min-height: 44px;
+      margin: -0.45rem -0.45rem 0.25rem auto;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-bg);
+      color: var(--ink);
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-date-calendar > legend {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-sheet__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-sheet__header .compact-sheet__close {
+      position: static;
+      flex: 0 0 auto;
+      margin: -0.45rem -0.45rem 0 auto;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-sheet-backdrop {
+      position: fixed;
+      z-index: 1;
+      inset: 0 0 calc(4rem + env(safe-area-inset-bottom));
+      width: 100%;
+      border: 0;
+      background: rgba(19, 35, 27, 0.54);
+    }
+
+    .compact-booking-panel--mobile-dock .compact-sheet-backdrop[hidden] {
+      display: none;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-field--recommendation {
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-result {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-panel__status {
+      margin: 0.5rem 0 0;
+    }
+  }
+
+  @media (min-width: 700px) {
+    .compact-booking-panel--mobile-dock {
+      display: none;
+    }
   }
 </style>
