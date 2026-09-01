@@ -42,9 +42,18 @@ add durable Playwright UI coverage for the completed landing-page experience.
 - reduced the scrolling instruction to one visible table caption; and
 - moved the nightly basis into the row heading to remove repetitive price copy.
 
+### E04-F04 — Reorient the stay comparison
+
+[Feature record](../e04-f04-reorient-the-stay-comparison.md)
+
+- made each standard stay a table row rather than a column;
+- replaced the feature row headings with compact icon-and-label column headings;
+- kept the Stay column fixed whenever the remaining columns scroll; and
+- removed the visible sideways-swiping instruction.
+
 ## Epic constraints
 
-- Keep Quick Check authoritative behavior and continuation state unchanged.
+- Keep Quick Check authoritative behaviour and continuation state unchanged.
 - Obtain public base prices from enabled default-nightly rules in published
   pricing plans rather than duplicating values in content.
 - Preserve semantic markup, keyboard access and touch usability.
@@ -53,5 +62,6 @@ add durable Playwright UI coverage for the completed landing-page experience.
 
 ## Remaining work
 
-Continue agreed landing-page iterations, then complete one final feature that
-adds permanent Playwright UI tests for the finished responsive experience.
+Continue further agreed landing-page iterations, then complete one final
+feature that adds permanent Playwright UI tests for the finished responsive
+experience.
