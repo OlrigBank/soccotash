@@ -25,8 +25,10 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.match(homepage, /heading=""/);
   assert.match(homepage, /submitLabel="Quick Check"/);
   assert.match(homepage, /id="ways-to-stay"/);
-  assert.match(content, /heroTitle: "Olrig Bank: secluded in the heart of Kendal"/);
-  assert.match(content, /heroText: "Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills\. Today, small to large groups/);
+  assert.match(content, /heroTitle: "Olrig Bank"/);
+  assert.match(content, /heroFacts: "Sleeps up to 12 \| 6 bedrooms \| Dog-friendly \| Ideal for large groups"/);
+  assert.match(content, /heroText: "Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills\. Today, this secluded house and its large garden provide guests with a comfortable base from which to explore Kendal on foot, with easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer\."/);
+  assert.match(homepage, /class="home-hero__facts">\{page\.data\.heroFacts\}<\/p>/);
   assert.doesNotMatch(content, /Choose your dates and tell us who is coming/);
   assert.doesNotMatch(content, /waysToStayIntro:/);
   assert.match(content, /waysToStayGroupFit: "Olrig Bank is best used by medium or large groups of guests/);

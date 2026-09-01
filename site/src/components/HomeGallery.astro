@@ -1,83 +1,103 @@
 ---
-const photos = [
-  {
-    src: '/media/images/spaces/house/house-lounge/house-lounge-1.jpeg',
-    alt: 'The spacious main lounge at Olrig Bank with sofas, original plasterwork and fireplace',
-    caption: 'The main lounge',
-  },
-  {
-    src: '/media/images/spaces/house/house-dining/house-dining-1.jpeg',
-    alt: 'The dining room at Olrig Bank with a large table and tall windows looking towards the garden',
-    caption: 'The dining room',
-  },
-  {
-    src: '/media/images/spaces/cottage/cottage-lounge-1/cottage-lounge-1-1.jpeg',
-    alt: 'The Cottage lounge with comfortable seating and a wood-burning stove',
-    caption: 'The Cottage lounge',
-  },
-  {
-    src: '/media/images/spaces/house/house-bedroom-1/house-bedroom-1-1.jpeg',
-    alt: 'A large double bedroom at Olrig Bank with period furniture',
-    caption: 'A spacious double bedroom',
-  },
-  {
-    src: '/media/images/spaces/house/house-kitchen/house-kitchen-1.jpeg',
-    alt: 'The main kitchen at Olrig Bank with wooden cabinets and a central table',
-    caption: 'The main kitchen',
-  },
-  {
-    src: '/media/images/spaces/garden/753047a3-1a64-4783-9372-e2b7411b634e.jpeg',
-    alt: 'The large garden at Olrig Bank with mature trees, outdoor seating and a garden swing',
-    caption: 'The garden',
-  },
+const insidePhotos = [
+  { src: '/media/images/spaces/house/house-hall/house-hall-1.jpeg', alt: 'The main-house entrance hall at Olrig Bank with its tiled floor and staircase', caption: 'Main house · Entrance hall' },
+  { src: '/media/images/spaces/house/house-lounge/house-lounge-1.jpeg', alt: 'The main-house lounge with green sofas, period plasterwork and fireplace', caption: 'Main house · Lounge seating' },
+  { src: '/media/images/spaces/house/house-lounge/house-lounge-2.jpeg', alt: 'The main-house lounge looking towards the fireplace and bookcase', caption: 'Main house · Lounge fireplace' },
+  { src: '/media/images/spaces/house/house-lounge/house-lounge-3.jpeg', alt: 'The main-house lounge looking across its seating towards the tall windows', caption: 'Main house · Lounge windows' },
+  { src: '/media/images/spaces/house/house-dining/house-dining-1.jpeg', alt: 'The main-house dining room with its large table and tall windows', caption: 'Main house · Dining room' },
+  { src: '/media/images/spaces/house/house-kitchen/house-kitchen-1.jpeg', alt: 'The main-house kitchen with wooden cabinets and a central table', caption: 'Main house · Kitchen table' },
+  { src: '/media/images/spaces/house/house-kitchen/house-kitchen-2.jpeg', alt: 'The main-house kitchen showing its worktops, storage and cooking space', caption: 'Main house · Kitchen workspace' },
+  { src: '/media/images/spaces/house/house-bedroom-1/house-bedroom-1-1.jpeg', alt: 'Main-house bedroom 1 with a double bed and period furniture', caption: 'Main house · Bedroom 1' },
+  { src: '/media/images/spaces/house/house-bedroom-1/house-bedroom-1-2.jpeg', alt: 'Main-house bedroom 1 seen from the opposite side of the room', caption: 'Main house · Bedroom 1, second view' },
+  { src: '/media/images/spaces/house/house-bedroom-2/house-bedroom-2-1.jpeg', alt: 'Main-house bedroom 2 prepared for guests', caption: 'Main house · Bedroom 2' },
+  { src: '/media/images/spaces/house/house-bedroom-3/house-bedroom-3-1.jpeg', alt: 'Main-house bedroom 3 showing the bed and bedroom furniture', caption: 'Main house · Bedroom 3' },
+  { src: '/media/images/spaces/house/house-bedroom-3/house-bedroom-3-2.jpeg', alt: 'Main-house bedroom 3 seen from a second angle', caption: 'Main house · Bedroom 3, second view' },
+  { src: '/media/images/spaces/house/house-bedroom-4/house-bedroom-4-1.jpeg', alt: 'Main-house bedroom 4 showing its twin-bed arrangement', caption: 'Main house · Bedroom 4' },
+  { src: '/media/images/spaces/house/house-bedroom-4/house-bedroom-4-2.jpeg', alt: 'Main-house bedroom 4 viewed across the twin beds', caption: 'Main house · Bedroom 4, second view' },
+  { src: '/media/images/spaces/house/house-bedroom-4/house-bedroom-4-3.jpeg', alt: 'Main-house bedroom 4 seen from the far side of the room', caption: 'Main house · Bedroom 4, third view' },
+  { src: '/media/images/spaces/house/house-bathroom-1/house-bathroom-1-1.jpeg', alt: 'Main-house upstairs bathroom prepared for guests', caption: 'Main house · Upstairs bathroom' },
+  { src: '/media/images/spaces/house/house-bathroom-2/house-bathroom-2-1.jpeg', alt: 'Main-house ground-floor bathroom showing its modern fittings', caption: 'Main house · Ground-floor bathroom' },
+  { src: '/media/images/spaces/house/house-bathroom-2/house-bathroom-2-2.jpeg', alt: 'Main-house ground-floor bathroom seen from a second angle', caption: 'Main house · Ground-floor bathroom, second view' },
+  { src: '/media/images/spaces/cottage/cottage-lounge-1/cottage-lounge-1-1.jpeg', alt: 'The Cottage lounge with comfortable seating and a wood-burning stove', caption: 'Cottage · Lounge' },
+  { src: '/media/images/spaces/cottage/cottage-kitchen-1/cottage-kitchen-1-1.jpeg', alt: 'The Cottage kitchen and dining space', caption: 'Cottage · Kitchen' },
+  { src: '/media/images/spaces/cottage/cottage-bedroom-1/cottage-bedroom-1.jpeg', alt: 'Cottage bedroom 1 prepared for guests', caption: 'Cottage · Bedroom 1' },
+  { src: '/media/images/spaces/cottage/cottage-bedroom-2/cottage-bedroom-2-1.jpeg', alt: 'Cottage bedroom 2 showing its sleeping arrangement', caption: 'Cottage · Bedroom 2' },
+  { src: '/media/images/spaces/cottage/cottage-bedroom-2/cottage-bedroom-2-2.jpeg', alt: 'Cottage bedroom 2 seen from a second angle', caption: 'Cottage · Bedroom 2, second view' },
+  { src: '/media/images/spaces/cottage/cottage-bedroom-2/cottage-bedroom-2-3.jpeg', alt: 'Cottage bedroom 2 seen from the far side of the room', caption: 'Cottage · Bedroom 2, third view' },
+  { src: '/media/images/spaces/cottage/cottage-bathroom-1/cottage-bathroom-1-1.jpeg', alt: 'The Cottage bathroom with modern fittings', caption: 'Cottage · Bathroom' },
+  { src: '/media/images/spaces/cottage/cottage-wc-1/cottage-wc-1-1.jpeg', alt: 'The separate WC in the Cottage', caption: 'Cottage · WC' },
+  { src: '/media/images/spaces/cottage/cottage-hall-1/cottage-hall-1-1.jpeg', alt: 'The entrance hall inside the Cottage', caption: 'Cottage · Entrance hall' },
+  { src: '/media/images/spaces/cottage/cottage-landing-1/cottage-landing-1-1.jpeg', alt: 'The Cottage landing connecting the upstairs rooms', caption: 'Cottage · Landing' },
+  { src: '/media/images/spaces/cottage/cottage-mezzanine-1/cottage-mezzanine-1-1.jpeg', alt: 'The mezzanine space inside the Cottage', caption: 'Cottage · Mezzanine' },
+];
+
+const gardenPhotos = [
+  { src: '/media/images/spaces/garden/753047a3-1a64-4783-9372-e2b7411b634e.jpeg', alt: 'The large lawn at Olrig Bank with mature trees, outdoor chairs and a garden swing', caption: 'The lawn and outdoor seating' },
+  { src: '/media/images/spaces/garden/fb82fcb3-02ad-482b-8ec0-72e4959303d2.jpeg', alt: 'Outdoor chairs on the lawn with the greenhouse and garden swing beyond', caption: 'A place to sit in the garden' },
+  { src: '/media/images/spaces/garden/dd595a45-a9f6-496c-bc89-d6fbda0a5dfe.jpeg', alt: 'A wide view across the Olrig Bank lawn beneath mature trees', caption: 'The garden beneath the trees' },
+  { src: '/media/images/spaces/garden/9843d2d2-3a38-4315-ad9c-d786692bc650.jpeg', alt: 'The greenhouse, lawn and shaded seating beneath a mature tree', caption: 'The greenhouse and shaded lawn' },
+  { src: '/media/images/spaces/garden/386b6e75-15ef-4ed5-8854-b508443a808e.jpeg', alt: 'A flowering shrub frames a view towards the garden swing and seating', caption: 'Flowers around the garden' },
+  { src: '/media/images/spaces/garden/30a19f63-0d54-4ab6-a0b3-4e37582ebb19.jpeg', alt: 'The lawn and flower beds alongside the stone wall of Olrig Bank', caption: 'The lawn beside the house' },
+  { src: '/media/images/spaces/garden/603be396-a648-44d6-9d66-cd0a13969c6d.jpeg', alt: 'A planted flower bed beside the stone wall of Olrig Bank', caption: 'Planting beside the house' },
+  { src: '/media/images/spaces/garden/6a0a2e8f-fd49-4734-ae3b-2d058fdf7951.jpeg', alt: 'Red poppies beside the garden wall with mature trees beyond', caption: 'Poppies by the garden wall' },
+  { src: '/media/images/spaces/garden/abfacbab-c4dc-4914-bce6-5ae41d0f5c97.jpeg', alt: 'A sunny flower border with red poppies under a blue sky', caption: 'The sunny flower border' },
+];
+
+const galleries = [
+  { id: 'inside-olrig-bank', heading: 'Inside Olrig Bank', photos: insidePhotos },
+  { id: 'in-the-garden', heading: 'In the garden', photos: gardenPhotos },
 ];
 ---
 
-<section class="home-gallery" aria-labelledby="home-gallery-heading" data-home-gallery data-photos={JSON.stringify(photos)}>
+<section class="home-gallery" aria-labelledby="home-gallery-heading">
   <div class="home-gallery__heading">
-    <div>
-      <p class="eyebrow">Take a look around</p>
-      <h2 id="home-gallery-heading">Olrig Bank in pictures</h2>
-    </div>
-    <div class="home-gallery__controls">
-      <span data-gallery-count aria-live="polite">1 / {photos.length}</span>
-      <button type="button" data-gallery-previous aria-label="Show previous photo">←</button>
-      <button type="button" data-gallery-next aria-label="Show next photo">→</button>
-    </div>
+    <p class="eyebrow">Take a look around</p>
+    <h2 id="home-gallery-heading">Olrig Bank in pictures</h2>
   </div>
 
-  <div class="home-gallery__rail" data-gallery-rail tabindex="0" aria-label="Olrig Bank photo gallery">
-    {photos.map((photo, index) => (
-      <button
-        class="home-gallery__photo"
-        type="button"
-        data-gallery-photo={index}
-        aria-label={`Open photo ${index + 1} of ${photos.length}: ${photo.caption}`}
-      >
-        <img
-          src={photo.src}
-          alt={photo.alt}
-          width="1440"
-          height="1080"
-          loading="lazy"
-          decoding="async"
-        />
-        <span>{photo.caption}</span>
-      </button>
-    ))}
-  </div>
+  {galleries.map((gallery) => (
+    <section
+      class="home-gallery__collection"
+      aria-labelledby={`${gallery.id}-heading`}
+      data-home-gallery
+      data-photos={JSON.stringify(gallery.photos)}
+    >
+      <div class="home-gallery__collection-heading">
+        <h3 id={`${gallery.id}-heading`}>{gallery.heading}</h3>
+        <div class="home-gallery__controls">
+          <span data-gallery-count aria-live="polite">1 / {gallery.photos.length}</span>
+          <button type="button" data-gallery-previous aria-label={`Show previous photo in ${gallery.heading}`}>←</button>
+          <button type="button" data-gallery-next aria-label={`Show next photo in ${gallery.heading}`}>→</button>
+        </div>
+      </div>
 
-  <dialog class="home-gallery__dialog" data-gallery-dialog aria-label="Olrig Bank photo viewer">
-    <div class="home-gallery__viewer">
-      <button class="home-gallery__close" type="button" data-gallery-close aria-label="Close photo viewer">×</button>
-      <button class="home-gallery__viewer-previous" type="button" data-gallery-viewer-previous aria-label="Show previous photo">←</button>
-      <figure>
-        <img data-gallery-viewer-image src={photos[0].src} alt={photos[0].alt} />
-        <figcaption><span data-gallery-viewer-caption>{photos[0].caption}</span> · <span data-gallery-viewer-count>1 / {photos.length}</span></figcaption>
-      </figure>
-      <button class="home-gallery__viewer-next" type="button" data-gallery-viewer-next aria-label="Show next photo">→</button>
-    </div>
-  </dialog>
+      <div class="home-gallery__rail" data-gallery-rail tabindex="0" aria-label={`${gallery.heading} photo gallery`}>
+        {gallery.photos.map((photo, index) => (
+          <button
+            class="home-gallery__photo"
+            type="button"
+            data-gallery-photo={index}
+            aria-label={`Open photo ${index + 1} of ${gallery.photos.length}: ${photo.caption}`}
+          >
+            <img src={photo.src} alt={photo.alt} width="1440" height="1080" loading="lazy" decoding="async" />
+            <span>{photo.caption}</span>
+          </button>
+        ))}
+      </div>
+
+      <dialog class="home-gallery__dialog" data-gallery-dialog aria-label={`${gallery.heading} photo viewer`}>
+        <div class="home-gallery__viewer" data-gallery-viewer>
+          <button class="home-gallery__close" type="button" data-gallery-close aria-label="Close photo viewer">×</button>
+          <button class="home-gallery__viewer-previous" type="button" data-gallery-viewer-previous aria-label="Show previous photo">←</button>
+          <figure>
+            <img data-gallery-viewer-image src={gallery.photos[0].src} alt={gallery.photos[0].alt} />
+            <figcaption><span data-gallery-viewer-caption>{gallery.photos[0].caption}</span> · <span data-gallery-viewer-count>1 / {gallery.photos.length}</span></figcaption>
+          </figure>
+          <button class="home-gallery__viewer-next" type="button" data-gallery-viewer-next aria-label="Show next photo">→</button>
+        </div>
+      </dialog>
+    </section>
+  ))}
 </section>
 
 <script>
@@ -87,6 +107,7 @@ const photos = [
     const count = gallery.querySelector('[data-gallery-count]');
     const dialog = gallery.querySelector('[data-gallery-dialog]');
     const viewerImage = gallery.querySelector('[data-gallery-viewer-image]');
+    const viewer = gallery.querySelector('[data-gallery-viewer]');
     const viewerCaption = gallery.querySelector('[data-gallery-viewer-caption]');
     const viewerCount = gallery.querySelector('[data-gallery-viewer-count]');
     if (!(rail instanceof HTMLElement) || !(dialog instanceof HTMLDialogElement)
@@ -97,11 +118,15 @@ const photos = [
     }>;
 
     let active = 0;
+    let opener: HTMLElement | null = null;
     const clampIndex = (value: number) => (value + cards.length) % cards.length;
     const updateRailCount = () => { count.textContent = `${active + 1} / ${cards.length}`; };
     const showRailPhoto = (index: number) => {
       active = clampIndex(index);
-      cards[active]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      const card = cards[active];
+      if (card instanceof HTMLElement) {
+        rail.scrollTo({ left: card.offsetLeft - rail.offsetLeft, behavior: 'smooth' });
+      }
       updateRailCount();
     };
     const updateViewer = () => {
@@ -113,14 +138,16 @@ const photos = [
     };
     const openViewer = (index: number) => {
       active = clampIndex(index);
+      opener = cards[index] instanceof HTMLElement ? cards[index] : null;
       updateViewer();
       dialog.showModal();
     };
+    const closeViewer = () => dialog.close();
 
     gallery.querySelector('[data-gallery-previous]')?.addEventListener('click', () => showRailPhoto(active - 1));
     gallery.querySelector('[data-gallery-next]')?.addEventListener('click', () => showRailPhoto(active + 1));
     cards.forEach((card, index) => card.addEventListener('click', () => openViewer(index)));
-    gallery.querySelector('[data-gallery-close]')?.addEventListener('click', () => dialog.close());
+    gallery.querySelector('[data-gallery-close]')?.addEventListener('click', closeViewer);
     gallery.querySelector('[data-gallery-viewer-previous]')?.addEventListener('click', () => {
       active = clampIndex(active - 1);
       updateViewer();
@@ -129,7 +156,10 @@ const photos = [
       active = clampIndex(active + 1);
       updateViewer();
     });
-    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog || event.target === viewer) closeViewer();
+    });
+    dialog.addEventListener('close', () => opener?.focus());
     dialog.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowLeft') {
         active = clampIndex(active - 1);
@@ -138,6 +168,16 @@ const photos = [
       if (event.key === 'ArrowRight') {
         active = clampIndex(active + 1);
         updateViewer();
+      }
+    });
+    rail.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        showRailPhoto(active - 1);
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        showRailPhoto(active + 1);
       }
     });
     rail.addEventListener('scroll', () => {
@@ -153,8 +193,11 @@ const photos = [
 
 <style>
   .home-gallery { margin-top: 1.5rem; }
-  .home-gallery__heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 0.8rem; }
+  .home-gallery__heading { margin-bottom: 1rem; }
   .home-gallery__heading :is(p, h2) { margin: 0; }
+  .home-gallery__collection + .home-gallery__collection { margin-top: 1.25rem; }
+  .home-gallery__collection-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+  .home-gallery__collection-heading h3 { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(1.25rem, 3vw, 1.65rem); }
   .home-gallery__controls { display: flex; flex: none; align-items: center; gap: 0.45rem; }
   .home-gallery__controls span { min-width: 3.2rem; color: var(--muted); font-size: 0.9rem; text-align: right; }
   .home-gallery__controls button,
@@ -190,7 +233,7 @@ const photos = [
   @media (min-width: 700px) { .home-gallery__rail { grid-auto-columns: 48%; } }
   @media (min-width: 1100px) { .home-gallery__rail { grid-auto-columns: 32%; } }
   @media (max-width: 520px) {
-    .home-gallery__heading { align-items: start; }
+    .home-gallery__collection-heading { align-items: start; }
     .home-gallery__controls button { display: none; }
     .home-gallery__viewer { grid-template-columns: 44px 1fr 44px; padding: 0.5rem; }
   }

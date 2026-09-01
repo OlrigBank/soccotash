@@ -11,9 +11,9 @@ tested iterations. Prioritise clear accommodation decisions, concise property
 copy and responsive presentation while preserving the established Quick Check,
 availability, pricing and booking-continuation behavior.
 
-All work is developed on `agent/rapid-cleanup-of-landing-pag`. Each iteration
-may include several local Docker deployments. A final dedicated iteration will
-add durable Playwright UI coverage for the completed landing-page experience.
+Each iteration is developed on a dedicated feature branch and may include
+several local Docker deployments. A final dedicated iteration will add durable
+Playwright UI coverage for the completed landing-page experience.
 
 ## Completed iterations
 
@@ -42,9 +42,50 @@ add durable Playwright UI coverage for the completed landing-page experience.
 - reduced the scrolling instruction to one visible table caption; and
 - moved the nightly basis into the row heading to remove repetitive price copy.
 
+### E04-F04 — Reorient the stay comparison
+
+[Feature record](../e04-f04-reorient-the-stay-comparison.md)
+
+- made each standard stay a table row rather than a column;
+- replaced the feature row headings with compact icon-and-label column headings;
+- kept the Stay column fixed whenever the remaining columns scroll; and
+- removed the visible sideways-swiping instruction.
+
+### E04-F05 — Move Quick Check into the mobile booking dock
+
+[Feature record](../e04-f05-move-quick-check-into-mobile-booking-dock.md)
+
+- replaced the landing page's mobile booking link with compact date, guest and
+  Quick Check controls;
+- opened date, guest and result sheets upwards over the page content;
+- closed completed date and guest selection automatically or through **Done**;
+  and
+- preserved the existing tablet and desktop Quick Check presentation.
+
+### E04-F06 — Reposition and compact guest reviews
+
+[Feature record](../e04-f06-reposition-and-compact-guest-reviews.md)
+
+- moved **What our guests say** directly after **Olrig Bank in pictures**;
+- presented reviews as navigable groups of three compact cards;
+- kept each group stacked on phones and arranged its cards in columns on wider
+  screens; and
+- renamed and condensed the Airbnb category-rating summary.
+
+### E04-F07 — Expand and organise the home gallery
+
+[Feature record](../e04-f07-expand-and-organise-home-gallery.md)
+
+- divided **Olrig Bank in pictures** into **Inside Olrig Bank** and **In the
+  garden**;
+- made all 18 main-house and 11 Cottage interior photographs available in the
+  indoor gallery;
+- made all 9 garden photographs available in the outdoor gallery; and
+- gave each gallery independent navigation and a scoped full-screen viewer.
+
 ## Epic constraints
 
-- Keep Quick Check authoritative behavior and continuation state unchanged.
+- Keep Quick Check authoritative behaviour and continuation state unchanged.
 - Obtain public base prices from enabled default-nightly rules in published
   pricing plans rather than duplicating values in content.
 - Preserve semantic markup, keyboard access and touch usability.
@@ -53,5 +94,6 @@ add durable Playwright UI coverage for the completed landing-page experience.
 
 ## Remaining work
 
-Continue agreed landing-page iterations, then complete one final feature that
-adds permanent Playwright UI tests for the finished responsive experience.
+Continue further agreed landing-page iterations, then complete one final
+feature that adds permanent Playwright UI tests for the finished responsive
+experience.

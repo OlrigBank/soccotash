@@ -47,10 +47,10 @@ test('the landing page uses published prices without hard-coded amounts', async 
   const homepage = await source('src/pages/index.astro');
 
   assert.match(homepage, /getPublishedBaseNightlyPrices\(comparedPropertyIds\)/);
-  assert.match(homepage, /<th scope="row">Base price per night<\/th>/);
-  assert.match(homepage, /baseNightlyPrices\['main-house'\]/);
-  assert.match(homepage, /baseNightlyPrices\['whole-property'\]/);
-  assert.match(homepage, /baseNightlyPrices\.cottage/);
+  assert.match(homepage, /<span>Price\/night<\/span>/);
+  assert.match(homepage, /Olrig Bank<\/a><\/th>[\s\S]*?baseNightlyPrices\['main-house'\]/);
+  assert.match(homepage, /Olrig Bank\+\+<\/a><\/th>[\s\S]*?baseNightlyPrices\['whole-property'\]/);
+  assert.match(homepage, /Cottage at Olrig Bank<\/a><\/th>[\s\S]*?baseNightlyPrices\.cottage/);
   assert.doesNotMatch(homepage, /£395|£595|£200/);
   assert.match(homepage, /\.catch\(\(\) =>[\s\S]*propertyId, null/);
 });

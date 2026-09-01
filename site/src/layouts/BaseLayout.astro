@@ -1,6 +1,7 @@
 ---
 import SideMenu from '../components/SideMenu.astro';
 import Analytics from '../components/Analytics.astro';
+import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import { isNoIndex, productionAssetUrl, productionUrl } from '../lib/public-metadata';
 import '../styles/global.css';
 import '../styles/green-theme.css';
@@ -123,9 +124,22 @@ function isCurrent(href: string) {
         </div>
       </footer>
 
-      <nav class="mobile-contact-bar" aria-label="Quick booking actions">
-        <a class="mobile-contact-bar__book" href="/book/">Check availability</a>
-      </nav>
+      {activePath === '/' ? (
+        <div class="mobile-contact-bar mobile-contact-bar--quick-check">
+          <CompactBookingPanel
+            source="homepage"
+            heading=""
+            idPrefix="homepage-mobile-booking"
+            submitLabel="Quick Check"
+            autoSelectProperty={true}
+            mobileDock={true}
+          />
+        </div>
+      ) : (
+        <nav class="mobile-contact-bar" aria-label="Quick booking actions">
+          <a class="mobile-contact-bar__book" href="/book/">Check availability</a>
+        </nav>
+      )}
     </div>
   </body>
 </html>
@@ -409,6 +423,10 @@ function isCurrent(href: string) {
   .mobile-contact-bar__book {
     background: #d7b96f;
     color: #263136;
+  }
+
+  .mobile-contact-bar--quick-check {
+    display: block;
   }
 
   @media (max-width: 699px) {
