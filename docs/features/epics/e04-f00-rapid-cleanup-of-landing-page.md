@@ -11,9 +11,9 @@ tested iterations. Prioritise clear accommodation decisions, concise property
 copy and responsive presentation while preserving the established Quick Check,
 availability, pricing and booking-continuation behavior.
 
-All work is developed on `agent/rapid-cleanup-of-landing-pag`. Each iteration
-may include several local Docker deployments. A final dedicated iteration will
-add durable Playwright UI coverage for the completed landing-page experience.
+Each iteration is developed on a dedicated feature branch and may include
+several local Docker deployments. A final dedicated iteration will add durable
+Playwright UI coverage for the completed landing-page experience.
 
 ## Completed iterations
 
@@ -50,6 +50,17 @@ add durable Playwright UI coverage for the completed landing-page experience.
 - replaced the feature row headings with compact icon-and-label column headings;
 - kept the Stay column fixed whenever the remaining columns scroll; and
 - removed the visible sideways-swiping instruction.
+
+### E04-F05 — Move Quick Check into the mobile booking dock
+
+[Feature record](../e04-f05-move-quick-check-into-mobile-booking-dock.md)
+
+- replaced the landing page's mobile booking link with compact date, guest and
+  Quick Check controls;
+- opened date, guest and result sheets upwards over the page content;
+- closed completed date and guest selection automatically or through **Done**;
+  and
+- preserved the existing tablet and desktop Quick Check presentation.
 
 ## Epic constraints
 
