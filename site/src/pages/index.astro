@@ -133,6 +133,8 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
 
   <HomeGallery />
 
+  <PublicReviewCarousel reviews={publicReviews} summary={publicReviewSummary} />
+
   <section class="local-guide-panel" aria-labelledby="local-guide-heading">
     <img
       src="/media/images/local-guide/kendalcastle.png"
@@ -154,7 +156,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     </div>
   </section>
 
-  <PublicReviewCarousel reviews={publicReviews} summary={publicReviewSummary} />
 </BaseLayout>
 
 <style>
