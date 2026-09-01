@@ -72,6 +72,17 @@ Playwright UI coverage for the completed landing-page experience.
   screens; and
 - renamed and condensed the Airbnb category-rating summary.
 
+### E04-F07 — Expand and organise the home gallery
+
+[Feature record](../e04-f07-expand-and-organise-home-gallery.md)
+
+- divided **Olrig Bank in pictures** into **Inside Olrig Bank** and **In the
+  garden**;
+- made all 18 main-house and 11 Cottage interior photographs available in the
+  indoor gallery;
+- made all 9 garden photographs available in the outdoor gallery; and
+- gave each gallery independent navigation and a scoped full-screen viewer.
+
 ## Epic constraints
 
 - Keep Quick Check authoritative behaviour and continuation state unchanged.
