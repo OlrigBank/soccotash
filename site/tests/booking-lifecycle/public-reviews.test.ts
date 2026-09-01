@@ -63,7 +63,7 @@ test('public review validation rejects duplicates, unapproved content, HTML, and
   );
 });
 
-test('the homepage renders the accessible swipeable public review carousel near the contact footer', async () => {
+test('the homepage renders compact, accessible public review groups immediately after the gallery', async () => {
   const [homepage, component, menu] = await Promise.all([
     read('src/pages/index.astro'),
     read('src/components/PublicReviewCarousel.astro'),
@@ -73,6 +73,10 @@ test('the homepage renders the accessible swipeable public review carousel near 
   assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\} summary=\{publicReviewSummary\}/u);
   assert.match(component, /data-review-carousel/u);
   assert.match(component, />What our guests say<\/h2>/u);
+  assert.match(component, /reviews\.slice\(index \* 3, index \* 3 \+ 3\)/u);
+  assert.match(component, /data-first-review=\{firstReview\}/u);
+  assert.match(component, /data-last-review=\{lastReview\}/u);
+  assert.match(component, /data-review-card/u);
   assert.match(component, /data-review-previous/u);
   assert.match(component, /data-review-next/u);
   assert.match(component, /data-review-dot/u);
@@ -83,11 +87,15 @@ test('the homepage renders the accessible swipeable public review carousel near 
   assert.match(component, /review-carousel__empty-stars/u);
   assert.match(component, /aria-live="polite"/u);
   assert.match(component, /touch-action: pan-y/u);
-  assert.match(component, />The details guests notice<\/h3>/u);
+  assert.match(component, />Rating by Airbnb category<\/h3>/u);
+  assert.doesNotMatch(component, />The details guests notice<\/h3>/u);
   assert.match(component, /summary\.categories\.map/u);
   assert.match(component, /ArrowLeft/u);
   assert.match(component, /ArrowRight/u);
   assert.match(menu, /href="\/#guest-reviews"/u);
-  assert.ok(homepage.indexOf('<PublicReviewCarousel') > homepage.indexOf('class="local-guide-panel"'));
+  assert.ok(homepage.indexOf('<PublicReviewCarousel') > homepage.indexOf('<HomeGallery'));
+  assert.ok(homepage.indexOf('<PublicReviewCarousel') < homepage.indexOf('class="local-guide-panel"'));
+  assert.match(component, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/u);
+  assert.match(component, /closest<HTMLElement>\('\[data-review-card\]'\)/u);
   assert.doesNotMatch(component, /set:html/u);
 });

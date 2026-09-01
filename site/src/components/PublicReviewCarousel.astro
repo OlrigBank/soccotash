@@ -8,9 +8,10 @@ interface Props {
 
 const { reviews, summary } = Astro.props;
 const total = reviews.length;
-const showDots = total <= 10;
+const reviewGroups = Array.from({ length: Math.ceil(total / 3) }, (_, index) => reviews.slice(index * 3, index * 3 + 3));
+const showDots = reviewGroups.length <= 10;
 
-function excerpt(quote: string, maximum = 230) {
+function excerpt(quote: string, maximum = 150) {
   if (quote.length <= maximum) return { text: quote, truncated: false };
   const endings = [...quote.matchAll(/[.!?](?:[”’"])?(?=\s|$)/gu)];
   const preferred = endings.filter((match) => (match.index ?? 0) + match[0].length <= maximum).at(-1);
@@ -43,40 +44,51 @@ function excerpt(quote: string, maximum = 230) {
         aria-label="Guest reviews"
       >
         <div class="review-carousel__slides">
-          {reviews.map((review, index) => {
-            const preview = excerpt(review.quote);
-            const fullId = `review-${index + 1}-full`;
+          {reviewGroups.map((group, groupIndex) => {
+            const firstReview = groupIndex * 3 + 1;
+            const lastReview = firstReview + group.length - 1;
             return (
-            <article
-              class="review-carousel__slide"
+            <div
+              class="review-carousel__group"
               data-review-slide
-              data-index={index}
-              aria-hidden={index === 0 ? 'false' : 'true'}
+              data-index={groupIndex}
+              data-first-review={firstReview}
+              data-last-review={lastReview}
+              aria-hidden={groupIndex === 0 ? 'false' : 'true'}
               role="group"
               aria-roledescription="slide"
-              aria-label={`${index + 1} of ${total}`}
+              aria-label={`Reviews ${firstReview} to ${lastReview} of ${total}`}
             >
-              <p
-                class:list={['review-carousel__rating', review.rating < 5 && 'review-carousel__rating--below-five']}
-                aria-label={`${review.rating} out of 5 stars`}
-              >
-                <span class="review-carousel__filled-stars" aria-hidden="true">{'★'.repeat(review.rating)}</span>
-                <span class="review-carousel__empty-stars" aria-hidden="true">{'☆'.repeat(5 - review.rating)}</span>
-              </p>
-              <blockquote>
-                <span data-review-preview>“{preview.text}”</span>
-                {preview.truncated ? <span id={fullId} data-review-full hidden>“{review.quote}”</span> : null}
-                {preview.truncated ? (
-                  <button type="button" data-review-more aria-expanded="false" aria-controls={fullId}>More…</button>
-                ) : null}
-              </blockquote>
-              <p class="review-carousel__attribution">
-                <span aria-hidden="true">— </span><strong>{review.reviewer.displayName}</strong>, {review.stay.nights}-night
-                stay <span aria-hidden="true">·</span> {review.stay.month} {review.stay.year}
-              </p>
-              <p class="review-carousel__listing">{review.listing.displayName}</p>
-              <p class="review-carousel__source">{review.source.displayName}</p>
-            </article>
+              {group.map((review, reviewIndex) => {
+                const index = groupIndex * 3 + reviewIndex;
+                const preview = excerpt(review.quote);
+                const fullId = `review-${index + 1}-full`;
+                return (
+                  <article class="review-carousel__card" data-review-card>
+                    <p
+                      class:list={['review-carousel__rating', review.rating < 5 && 'review-carousel__rating--below-five']}
+                      aria-label={`${review.rating} out of 5 stars`}
+                    >
+                      <span class="review-carousel__filled-stars" aria-hidden="true">{'★'.repeat(review.rating)}</span>
+                      <span class="review-carousel__empty-stars" aria-hidden="true">{'☆'.repeat(5 - review.rating)}</span>
+                    </p>
+                    <blockquote>
+                      <span data-review-preview>“{preview.text}”</span>
+                      {preview.truncated ? <span id={fullId} data-review-full hidden>“{review.quote}”</span> : null}
+                      {preview.truncated ? (
+                        <button type="button" data-review-more aria-expanded="false" aria-controls={fullId}>More…</button>
+                      ) : null}
+                    </blockquote>
+                    <p class="review-carousel__attribution">
+                      <span aria-hidden="true">— </span><strong>{review.reviewer.displayName}</strong>, {review.stay.nights}-night
+                      stay <span aria-hidden="true">·</span> {review.stay.month} {review.stay.year}
+                    </p>
+                    <p class="review-carousel__listing">{review.listing.displayName}</p>
+                    <p class="review-carousel__source">{review.source.displayName}</p>
+                  </article>
+                );
+              })}
+            </div>
             );
           })}
         </div>
@@ -86,7 +98,7 @@ function excerpt(quote: string, maximum = 230) {
             <span aria-hidden="true">←</span>
           </button>
           <p class="review-carousel__count" data-review-count aria-live="polite" aria-atomic="true">
-            1 of {total}
+            Reviews 1–{Math.min(3, total)} of {total}
           </p>
           <button type="button" data-review-next aria-label="Show next review" disabled={total === 1}>
             <span aria-hidden="true">→</span>
@@ -95,12 +107,12 @@ function excerpt(quote: string, maximum = 230) {
 
         {showDots ? (
           <div class="review-carousel__pagination" aria-label="Choose a review">
-            {reviews.map((_, index) => (
+            {reviewGroups.map((group, index) => (
               <button
                 type="button"
                 data-review-dot
                 data-index={index}
-                aria-label={`Show review ${index + 1} of ${total}`}
+                aria-label={`Show reviews ${index * 3 + 1} to ${index * 3 + group.length} of ${total}`}
                 aria-current={index === 0 ? 'true' : undefined}
               >
                 <span aria-hidden="true" />
@@ -115,7 +127,7 @@ function excerpt(quote: string, maximum = 230) {
     <aside class="review-summary" aria-labelledby="review-summary-heading">
       <div class="review-summary__intro">
         <p class="review-summary__eyebrow">At a glance</p>
-        <h3 id="review-summary-heading">The details guests notice</h3>
+        <h3 id="review-summary-heading">Rating by Airbnb category</h3>
         <p>Average category scores from {summary.reviewCount} Airbnb guest reviews.</p>
       </div>
       <p class="review-summary__overall" aria-label={`${summary.overallScore.toFixed(2)} out of ${summary.scale} overall`}>
@@ -152,9 +164,9 @@ function excerpt(quote: string, maximum = 230) {
 
     const show = (index: number) => {
       carousel.querySelectorAll<HTMLButtonElement>('[data-review-more]').forEach((button) => {
-        const slide = button.closest<HTMLElement>('[data-review-slide]');
-        const preview = slide?.querySelector<HTMLElement>('[data-review-preview]');
-        const full = slide?.querySelector<HTMLElement>('[data-review-full]');
+        const card = button.closest<HTMLElement>('[data-review-card]');
+        const preview = card?.querySelector<HTMLElement>('[data-review-preview]');
+        const full = card?.querySelector<HTMLElement>('[data-review-full]');
         button.setAttribute('aria-expanded', 'false');
         button.textContent = 'More…';
         if (preview) preview.hidden = false;
@@ -168,7 +180,10 @@ function excerpt(quote: string, maximum = 230) {
       });
       if (previous) previous.disabled = current === 0;
       if (next) next.disabled = current === slides.length - 1;
-      if (count) count.textContent = `${current + 1} of ${slides.length}`;
+      const visible = slides[current];
+      if (count && visible) {
+        count.textContent = `Reviews ${visible.dataset.firstReview}–${visible.dataset.lastReview} of ${carousel.dataset.total}`;
+      }
     };
 
     previous?.addEventListener('click', () => show(current - 1));
@@ -176,9 +191,9 @@ function excerpt(quote: string, maximum = 230) {
     dots.forEach((dot) => dot.addEventListener('click', () => show(Number(dot.dataset.index))));
     carousel.querySelectorAll<HTMLButtonElement>('[data-review-more]').forEach((button) => {
       button.addEventListener('click', () => {
-        const slide = button.closest<HTMLElement>('[data-review-slide]');
-        const preview = slide?.querySelector<HTMLElement>('[data-review-preview]');
-        const full = slide?.querySelector<HTMLElement>('[data-review-full]');
+        const card = button.closest<HTMLElement>('[data-review-card]');
+        const preview = card?.querySelector<HTMLElement>('[data-review-preview]');
+        const full = card?.querySelector<HTMLElement>('[data-review-full]');
         const expanded = button.getAttribute('aria-expanded') === 'true';
         button.setAttribute('aria-expanded', String(!expanded));
         button.textContent = expanded ? 'More…' : 'Less';
@@ -217,7 +232,7 @@ function excerpt(quote: string, maximum = 230) {
 <style>
   .review-section {
     display: grid;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-top: 1.5rem;
     scroll-margin-top: 6rem;
   }
@@ -232,13 +247,14 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   .review-section__heading h2 {
-    font-size: clamp(1.8rem, 5vw, 2.75rem);
+    font-size: clamp(1.7rem, 4vw, 2.4rem);
     line-height: 1.08;
   }
 
   .review-section__heading > p:last-child {
-    margin-top: 0.55rem;
+    margin-top: 0.35rem;
     color: var(--muted);
+    font-size: 0.92rem;
   }
 
   .review-section__eyebrow {
@@ -251,7 +267,7 @@ function excerpt(quote: string, maximum = 230) {
 
   .review-carousel {
     overflow: hidden;
-    padding: clamp(1.25rem, 5vw, 2.75rem);
+    padding: clamp(0.75rem, 2vw, 1.2rem);
     border: 1px solid var(--line);
     border-radius: 1.15rem;
     background: linear-gradient(135deg, #fffaf2 0%, #f2e9dc 100%);
@@ -262,13 +278,13 @@ function excerpt(quote: string, maximum = 230) {
 
   .review-section__panels {
     display: grid;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .review-summary {
-    display: flex;
-    flex-direction: column;
-    padding: clamp(1.25rem, 5vw, 2rem);
+    display: grid;
+    gap: 0.7rem 1.25rem;
+    padding: clamp(0.8rem, 2vw, 1.2rem);
     border: 1px solid var(--line);
     border-radius: 1.15rem;
     background: var(--accent-dark);
@@ -294,38 +310,35 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   .review-summary__intro h3 {
-    margin-top: 0.35rem;
+    margin-top: 0.2rem;
     color: inherit;
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(1.45rem, 4vw, 2rem);
+    font-size: clamp(1.25rem, 3vw, 1.65rem);
     line-height: 1.1;
   }
 
   .review-summary__intro > p:last-child {
-    margin-top: 0.55rem;
+    margin-top: 0.3rem;
     color: rgba(255, 255, 255, 0.76);
-    font-size: 0.92rem;
+    font-size: 0.8rem;
   }
 
   .review-summary__scores {
     display: grid;
-    gap: 0.8rem;
-    margin-top: 1.1rem;
+    gap: 0.5rem 1rem;
   }
 
   .review-summary__overall {
     display: flex;
     align-items: baseline;
     gap: 0.65rem;
-    margin: 1.15rem 0 0;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    margin: 0;
   }
 
   .review-summary__overall strong {
     color: #e8c995;
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(2.25rem, 6vw, 3.2rem);
+    font-size: clamp(1.8rem, 4vw, 2.35rem);
     line-height: 0.9;
     font-variant-numeric: tabular-nums;
   }
@@ -341,10 +354,11 @@ function excerpt(quote: string, maximum = 230) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
-    gap: 0.25rem 1rem;
+    gap: 0.15rem 0.65rem;
   }
 
   .review-summary__score dt {
+    font-size: 0.82rem;
     font-weight: 700;
   }
 
@@ -355,7 +369,7 @@ function excerpt(quote: string, maximum = 230) {
   .review-summary__score dd > strong {
     grid-column: 2;
     grid-row: 1;
-    font-size: 1.05rem;
+    font-size: 0.88rem;
     font-variant-numeric: tabular-nums;
   }
 
@@ -366,7 +380,7 @@ function excerpt(quote: string, maximum = 230) {
   .review-summary__track {
     grid-column: 1 / -1;
     overflow: hidden;
-    height: 0.35rem;
+    height: 0.25rem;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.16);
   }
@@ -380,8 +394,7 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   .review-summary__source {
-    margin-top: auto;
-    padding-top: 1.35rem;
+    padding-top: 0.1rem;
     color: rgba(255, 255, 255, 0.62);
     font-size: 0.72rem;
     font-weight: 750;
@@ -398,11 +411,11 @@ function excerpt(quote: string, maximum = 230) {
     display: grid;
   }
 
-  .review-carousel__slide {
+  .review-carousel__group {
     grid-area: 1 / 1;
+    display: grid;
+    gap: 0.65rem;
     align-self: start;
-    max-width: 52rem;
-    margin: 0 auto;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -410,17 +423,25 @@ function excerpt(quote: string, maximum = 230) {
     transition: opacity 180ms ease, transform 180ms ease;
   }
 
-  .review-carousel__slide[aria-hidden='false'] {
+  .review-carousel__group[aria-hidden='false'] {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transform: translateX(0);
   }
 
+  .review-carousel__card {
+    min-width: 0;
+    padding: 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.46);
+  }
+
   .review-carousel__rating {
     margin: 0;
     color: #9c5c08;
-    font-size: clamp(1.25rem, 4vw, 1.65rem);
+    font-size: 1rem;
     letter-spacing: 0.12em;
   }
 
@@ -433,11 +454,11 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   .review-carousel blockquote {
-    margin: 0.85rem 0 0;
+    margin: 0.45rem 0 0;
     color: var(--ink);
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(1.2rem, 3vw, 1.65rem);
-    line-height: 1.45;
+    font-size: 0.98rem;
+    line-height: 1.4;
     text-wrap: pretty;
   }
 
@@ -457,18 +478,19 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   .review-carousel__attribution {
-    margin: 1.15rem 0 0;
+    margin: 0.65rem 0 0;
+    font-size: 0.82rem;
   }
 
   .review-carousel__listing,
   .review-carousel__source {
     margin: 0.15rem 0 0;
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 0.78rem;
   }
 
   .review-carousel__source {
-    font-size: 0.78rem;
+    font-size: 0.68rem;
     font-weight: 750;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -480,7 +502,7 @@ function excerpt(quote: string, maximum = 230) {
     align-items: center;
     gap: 0.75rem;
     max-width: 34rem;
-    margin: 1.6rem auto 0;
+    margin: 0.75rem auto 0;
   }
 
   .review-carousel__navigation > button {
@@ -548,15 +570,33 @@ function excerpt(quote: string, maximum = 230) {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .review-carousel__slide {
+    .review-carousel__group {
       transition: none;
     }
   }
 
-  @media (min-width: 900px) {
-    .review-section__panels {
-      grid-template-columns: minmax(0, 1.65fr) minmax(17rem, 0.75fr);
-      align-items: stretch;
+  @media (min-width: 520px) {
+    .review-summary__scores {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 700px) {
+    .review-carousel__group {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .review-summary {
+      grid-template-columns: minmax(13rem, 1.1fr) auto minmax(22rem, 2fr);
+      align-items: center;
+    }
+
+    .review-summary__source {
+      grid-column: 1 / -1;
+    }
+
+    .review-summary__scores {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 </style>

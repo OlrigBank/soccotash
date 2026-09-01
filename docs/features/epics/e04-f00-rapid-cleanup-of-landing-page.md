@@ -62,6 +62,16 @@ Playwright UI coverage for the completed landing-page experience.
   and
 - preserved the existing tablet and desktop Quick Check presentation.
 
+### E04-F06 — Reposition and compact guest reviews
+
+[Feature record](../e04-f06-reposition-and-compact-guest-reviews.md)
+
+- moved **What our guests say** directly after **Olrig Bank in pictures**;
+- presented reviews as navigable groups of three compact cards;
+- kept each group stacked on phones and arranged its cards in columns on wider
+  screens; and
+- renamed and condensed the Airbnb category-rating summary.
+
 ## Epic constraints
 
 - Keep Quick Check authoritative behaviour and continuation state unchanged.
