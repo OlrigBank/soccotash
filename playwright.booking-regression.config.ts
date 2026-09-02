@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.BOOKING_REGRESSION_BASE_URL || 'http://127.0.0.1:8080';
 const target = new URL(baseURL);
+const developmentPort = target.port || (target.protocol === 'https:' ? '443' : '80');
 
 if (!['127.0.0.1', 'localhost'].includes(target.hostname)) {
   throw new Error(`Booking regression tests may only target a local service, not ${target.origin}.`);
@@ -35,7 +36,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npm --prefix site run dev -- --host 127.0.0.1 --port 8080',
+    command: `npm --prefix site run dev -- --host 127.0.0.1 --port ${developmentPort}`,
     url: target.origin,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
