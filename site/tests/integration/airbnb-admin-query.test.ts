@@ -5,8 +5,9 @@ import test from 'node:test';
 import pg from 'pg';
 import {
   AIRBNB_ADMIN_MAX_PAGE_SIZE,
-  getAirbnbReservationDetail,
   getAirbnbDashboardSummary,
+  getAirbnbReservationDetail,
+  getAirbnbReviewDetail,
   listAirbnbReservations,
   listAirbnbReviews,
   parseAirbnbReservationListQuery,
@@ -74,6 +75,35 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
                '2026-10-12',2,'2026-10-13',5,'Private test text','Private note','2026-09-01')
        RETURNING id::text`,
       [source.rows[0].id],
+    );
+    const secondSource = await database.query<{ id: string }>(
+      `INSERT INTO airbnb_source_documents
+         (import_batch_id, document_type, relative_path, sha256, source_external_id,
+          page_count, captured_at, raw_extraction)
+       VALUES ($1,'review','private/review-two.pdf',$2,'8002',1,NOW(),'{}') RETURNING id::text`,
+      [batch.rows[0].id, '6'.repeat(64)],
+    );
+    await database.query(
+      `INSERT INTO airbnb_reviews
+         (review_id, source_document_id, reviewer_display_name, property_id,
+          source_listing_name, arrival, departure, nights, published_on,
+          overall_rating, public_text, captured_on)
+       VALUES ('8002',$1,'Élodie Guest','cottage','Cottage','2026-12-10',
+               '2026-12-12',2,'2026-12-13',4,'Other review','2026-09-01')`,
+      [secondSource.rows[0].id],
+    );
+    const ratings = await database.query<{ id: string; position: number }>(
+      `INSERT INTO airbnb_review_category_ratings
+         (review_id,category_key,category_display_name,rating,position)
+       VALUES ($1,'cleanliness','Cleanliness',5,1),($1,'check-in','Check-in',4,0)
+       RETURNING id::text,position`, [review.rows[0].id],
+    );
+    const checkInRating = ratings.rows.find((rating) => Number(rating.position) === 0)!;
+    await database.query(
+      `INSERT INTO airbnb_review_feedback_tags
+         (category_rating_id,position,feedback_text,normalized_key)
+       VALUES ($1,1,'Second tag','second-tag'),($1,0,'First tag','first-tag')`,
+      [checkInRating.id],
     );
     await database.query(
       `INSERT INTO airbnb_review_reservation_links
@@ -170,7 +200,12 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
     assert.equal(reviews.total, 1);
     assert.equal('publicText' in reviews.items[0], false);
     assert.equal('privateFeedback' in reviews.items[0], false);
-    assert.deepEqual(await getAirbnbDashboardSummary(database), { reservations: 3, reviews: 1, proposedLinks: 0 });
+    const unlinkedReviews = await listAirbnbReviews(
+      parseAirbnbReviewListQuery(new URLSearchParams('rating=4&private=no&link=unlinked&search=Élodie')),
+      database,
+    );
+    assert.equal(unlinkedReviews.total, 1);
+    assert.deepEqual(await getAirbnbDashboardSummary(database), { reservations: 3, reviews: 2, proposedLinks: 0 });
     const detail = await getAirbnbReservationDetail(literalPercent.items[0].id, database);
     assert.ok(detail);
     assert.deepEqual(detail.conversation.map((entry) => entry.timestampPrecision), ['exact', 'year_unknown', 'unresolved']);
@@ -184,6 +219,15 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
     assert.equal(serialized.includes('private raw panel'), false);
     assert.equal(await getAirbnbReservationDetail('not-a-uuid', database), null);
     assert.equal(await getAirbnbReservationDetail(crypto.randomUUID(), database), null);
+    const reviewDetail = await getAirbnbReviewDetail(reviews.items[0].id, database);
+    assert.ok(reviewDetail);
+    assert.deepEqual(reviewDetail.categoryRatings.map((rating) => rating.key), ['check-in', 'cleanliness']);
+    assert.deepEqual(reviewDetail.categoryRatings[0].feedbackTags, ['First tag', 'Second tag']);
+    assert.equal(reviewDetail.reservationLinks[0].reservationId, literalPercent.items[0].id);
+    assert.equal(reviewDetail.publicText, 'Private test text');
+    assert.equal(reviewDetail.privateFeedback, 'Private note');
+    assert.equal(JSON.stringify(reviewDetail).includes('raw_extraction'), false);
+    assert.equal(await getAirbnbReviewDetail('not-a-uuid', database), null);
   } finally {
     await database.end();
     await control.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);

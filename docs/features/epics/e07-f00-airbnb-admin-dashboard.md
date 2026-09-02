@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E07-F01 through E07-F03 are complete. This epic is based on the
+Active. E07-F01 through E07-F04 are complete. This epic is based on the
 completed E06 private import branch and is not merged into `development`.
 
 ## Epic summary
@@ -76,9 +76,10 @@ financial panels, linked reviews and provenance.
 
 ### E07-F04 — Review list and detail
 
-[Feature record](../e07-f04-review-list-and-detail.md)
+[Feature record](../completed/e07-f04-review-list-and-detail.md)
 
-Add review discovery and a complete review detail screen linked to its stay.
+Delivered review discovery and a complete review detail screen linked to its
+stay.
 
 ### E07-F05 — Reconciliation review workflow
 

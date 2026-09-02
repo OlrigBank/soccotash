@@ -140,6 +140,43 @@ export interface AirbnbReservationReviewLink {
 export interface AirbnbReviewDetail extends AirbnbReviewSummary {
   publicText: string;
   privateFeedback: string | null;
+  nights: number;
+  capturedOn: string;
+  categoryRatings: AirbnbReviewCategoryRating[];
+  provenance: AirbnbReviewProvenance;
+  reservationLinks: AirbnbReviewReservationLink[];
+}
+
+export interface AirbnbReviewCategoryRating {
+  key: string;
+  displayName: string;
+  rating: number;
+  position: number;
+  feedbackTags: string[];
+}
+
+export interface AirbnbReviewProvenance {
+  documentType: 'review';
+  relativePath: string;
+  abbreviatedHash: string;
+  capturedAt: string;
+}
+
+export interface AirbnbReviewReservationLink {
+  reservationId: string;
+  status: 'proposed' | 'confirmed' | 'rejected';
+  propertyId: string | null;
+  sourceListingName: string;
+  bookerDisplayName: string;
+  arrival: string;
+  departure: string;
+  evidence: {
+    propertyExact?: boolean;
+    arrivalExact?: boolean;
+    departureExact?: boolean;
+    nightsExact?: boolean;
+    identityCompatible?: boolean;
+  };
 }
 
 function integer(value: string | null, fallback: number, minimum: number, maximum: number): number {
@@ -430,6 +467,80 @@ export async function getAirbnbReservationDetail(
     reviewLinks: reviewResult.rows.map((row) => ({
       reviewId: row.review_id, status: row.link_status,
       reviewerDisplayName: row.reviewer_display_name, overallRating: Number(row.overall_rating),
+    })),
+  };
+}
+
+export async function getAirbnbReviewDetail(
+  id: string,
+  database: QueryDatabase = getPool(),
+): Promise<AirbnbReviewDetail | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)) return null;
+  const reviewResult = await database.query(
+    `SELECT review.id::text AS internal_id, review.public_id::text AS id,
+            review.reviewer_display_name, review.property_id, review.source_listing_name,
+            review.arrival, review.departure, review.nights, review.published_on,
+            review.overall_rating, review.public_text, review.private_feedback,
+            review.captured_on, source.document_type, source.relative_path,
+            left(source.sha256,12) AS abbreviated_hash, source.captured_at,
+            (SELECT CASE WHEN bool_or(link.link_status='confirmed') THEN 'confirmed'
+                         WHEN bool_or(link.link_status='proposed') THEN 'proposed' END
+               FROM airbnb_review_reservation_links link WHERE link.review_id=review.id) AS reservation_link_status
+       FROM airbnb_reviews review
+       JOIN airbnb_source_documents source ON source.id=review.source_document_id
+      WHERE review.public_id=$1::uuid`,
+    [id],
+  );
+  if (!reviewResult.rowCount) return null;
+  const review = reviewResult.rows[0];
+  const [ratingsResult, linksResult] = await Promise.all([
+    database.query(
+      `SELECT rating.id::text AS internal_id, rating.category_key,
+              rating.category_display_name, rating.rating, rating.position,
+              COALESCE(array_agg(tag.feedback_text ORDER BY tag.position)
+                       FILTER (WHERE tag.id IS NOT NULL),'{}') AS feedback_tags
+         FROM airbnb_review_category_ratings rating
+         LEFT JOIN airbnb_review_feedback_tags tag ON tag.category_rating_id=rating.id
+        WHERE rating.review_id=$1 GROUP BY rating.id ORDER BY rating.position`,
+      [review.internal_id],
+    ),
+    database.query(
+      `SELECT reservation.public_id::text AS reservation_id, link.link_status,
+              reservation.property_id, reservation.source_listing_name,
+              reservation.booker_display_name, reservation.arrival, reservation.departure,
+              link.evidence
+         FROM airbnb_review_reservation_links link
+         JOIN airbnb_reservations reservation ON reservation.id=link.reservation_id
+        WHERE link.review_id=$1
+        ORDER BY CASE link.link_status WHEN 'confirmed' THEN 0 WHEN 'proposed' THEN 1 ELSE 2 END,
+                 reservation.arrival, reservation.id`,
+      [review.internal_id],
+    ),
+  ]);
+  return {
+    id: review.id,
+    reviewerDisplayName: review.reviewer_display_name,
+    propertyId: review.property_id,
+    sourceListingName: review.source_listing_name,
+    arrival: iso(review.arrival), departure: iso(review.departure), nights: Number(review.nights),
+    publishedOn: iso(review.published_on), overallRating: Number(review.overall_rating),
+    publicText: review.public_text, privateFeedback: review.private_feedback,
+    hasPrivateFeedback: review.private_feedback !== null,
+    capturedOn: iso(review.captured_on), reservationLinkStatus: review.reservation_link_status,
+    categoryRatings: ratingsResult.rows.map((row) => ({
+      key: row.category_key, displayName: row.category_display_name,
+      rating: Number(row.rating), position: Number(row.position), feedbackTags: row.feedback_tags,
+    })),
+    provenance: {
+      documentType: review.document_type, relativePath: review.relative_path,
+      abbreviatedHash: review.abbreviated_hash,
+      capturedAt: review.captured_at instanceof Date ? review.captured_at.toISOString() : String(review.captured_at),
+    },
+    reservationLinks: linksResult.rows.map((row) => ({
+      reservationId: row.reservation_id, status: row.link_status,
+      propertyId: row.property_id, sourceListingName: row.source_listing_name,
+      bookerDisplayName: row.booker_display_name,
+      arrival: iso(row.arrival), departure: iso(row.departure), evidence: row.evidence,
     })),
   };
 }

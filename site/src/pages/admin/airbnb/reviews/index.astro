@@ -1,8 +1,41 @@
 ---
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../../lib/booking/config';
+import { listAirbnbReviews, parseAirbnbReviewListQuery } from '../../../../lib/airbnb-admin/repository';
 export const prerender = false;
+const query = parseAirbnbReviewListQuery(Astro.url.searchParams);
+const results = await listAirbnbReviews(query);
+const properties = getProperties();
+const propertyNames = new Map(properties.map((property) => [property.id, property.name]));
+const pageCount = Math.max(1, Math.ceil(results.total / results.pageSize));
+const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const displayDate = (value: string) => formatter.format(new Date(`${value}T00:00:00Z`));
+const linkLabel = (value: 'confirmed' | 'proposed' | null) => value === 'confirmed' ? 'Reservation linked' : value === 'proposed' ? 'Candidate proposed' : 'No reservation link';
+const pageUrl = (page: number) => { const params = new URLSearchParams(Astro.url.searchParams); if (page <= 1) params.delete('page'); else params.set('page', String(page)); const value = params.toString(); return `/admin/airbnb/reviews/${value ? `?${value}` : ''}`; };
+const returnTo = encodeURIComponent(`${Astro.url.pathname}${Astro.url.search}`);
+const firstItem = results.total ? (results.page - 1) * results.pageSize + 1 : 0;
+const lastItem = Math.min(results.total, results.page * results.pageSize);
 ---
 <AdminLayout title="Airbnb reviews">
-  <header class="admin-page-header"><div><p class="eyebrow">Airbnb records</p><h1>Reviews</h1><p>The searchable review list will be delivered after reservation details.</p></div></header>
-  <p><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Back to Airbnb records</a></p>
+  <header class="admin-page-header"><div><p class="eyebrow">Airbnb records</p><h1>Reviews</h1><p>Find imported guest reviews without loading review or private-feedback text into the list.</p></div><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Airbnb overview</a></header>
+  <section class="admin-panel airbnb-filter-panel" aria-labelledby="review-filters-heading"><div class="admin-panel-heading"><div><h2 id="review-filters-heading">Filter reviews</h2><p>Filters are applied securely in the database.</p></div></div>
+    <form method="get" class="airbnb-filter-grid">
+      <label>Reviewer name<input type="search" name="search" value={query.search || ''} maxlength="200" autocomplete="off" /></label>
+      <label>Property<select name="property"><option value="">All properties</option>{properties.map((property) => <option value={property.id} selected={query.propertyId === property.id}>{property.name}</option>)}</select></label>
+      <label>Published from<input type="date" name="from" value={query.publishedFrom || ''} /></label><label>Published to<input type="date" name="to" value={query.publishedTo || ''} /></label>
+      <label>Overall rating<select name="rating"><option value="">All ratings</option>{[5, 4, 3, 2, 1].map((rating) => <option value={rating} selected={query.rating === rating}>{rating}/5</option>)}</select></label>
+      <label>Reservation link<select name="link"><option value="">All link states</option><option value="confirmed" selected={query.link === 'confirmed'}>Confirmed link</option><option value="proposed" selected={query.link === 'proposed'}>Proposed candidate</option><option value="unlinked" selected={query.link === 'unlinked'}>No candidate</option></select></label>
+      <label>Private feedback<select name="private"><option value="">Either</option><option value="yes" selected={query.hasPrivateFeedback === true}>Present</option><option value="no" selected={query.hasPrivateFeedback === false}>Not present</option></select></label>
+      <label>Order<select name="sort"><option value="published-desc" selected={query.sort === 'published-desc'}>Latest published first</option><option value="published-asc" selected={query.sort === 'published-asc'}>Earliest published first</option><option value="arrival-desc" selected={query.sort === 'arrival-desc'}>Latest stay first</option></select></label>
+      <label>Per page<select name="pageSize">{[10, 25, 50, 100].map((size) => <option value={size} selected={query.pageSize === size}>{size}</option>)}</select></label>
+      <div class="airbnb-filter-actions"><button class="admin-button" type="submit">Apply filters</button><a class="admin-button admin-button--secondary" href="/admin/airbnb/reviews/">Clear</a></div>
+    </form>
+  </section>
+  <section class="admin-panel" aria-labelledby="review-results-heading"><div class="admin-panel-heading"><div><h2 id="review-results-heading">Guest reviews</h2><p aria-live="polite">{results.total ? `Showing ${firstItem}–${lastItem} of ${results.total}` : 'No reviews match these filters.'}</p></div></div>
+    {results.items.length ? <>
+      <div class="admin-table-wrap airbnb-review-table"><table><thead><tr><th>Reviewer</th><th>Stay</th><th>Published</th><th>Rating</th><th>Private feedback</th><th>Reservation</th><th><span class="visually-hidden">Action</span></th></tr></thead><tbody>{results.items.map((review) => <tr><td><strong>{review.reviewerDisplayName}</strong></td><td><strong>{propertyNames.get(review.propertyId || '') || review.sourceListingName}</strong><small>{displayDate(review.arrival)} – {displayDate(review.departure)}</small></td><td>{displayDate(review.publishedOn)}</td><td>{review.overallRating}/5</td><td>{review.hasPrivateFeedback ? 'Present' : 'None'}</td><td>{linkLabel(review.reservationLinkStatus)}</td><td><a href={`/admin/airbnb/reviews/${review.id}/?returnTo=${returnTo}`} aria-label={`Open review by ${review.reviewerDisplayName}`}>Open</a></td></tr>)}</tbody></table></div>
+      <div class="airbnb-review-cards">{results.items.map((review) => <article class="airbnb-reservation-card"><p class="eyebrow">{propertyNames.get(review.propertyId || '') || review.sourceListingName}</p><h3>{review.reviewerDisplayName}</h3><dl><div><dt>Stay</dt><dd>{displayDate(review.arrival)} – {displayDate(review.departure)}</dd></div><div><dt>Published</dt><dd>{displayDate(review.publishedOn)}</dd></div><div><dt>Rating</dt><dd>{review.overallRating}/5</dd></div><div><dt>Reservation</dt><dd>{linkLabel(review.reservationLinkStatus)}</dd></div></dl><a class="admin-button admin-button--secondary" href={`/admin/airbnb/reviews/${review.id}/?returnTo=${returnTo}`}>Open review</a></article>)}</div>
+      {pageCount > 1 && <nav class="airbnb-pagination" aria-label="Review pages">{results.page > 1 ? <a class="admin-button admin-button--secondary" href={pageUrl(results.page - 1)}>Previous</a> : <span></span>}<span>Page {Math.min(results.page, pageCount)} of {pageCount}</span>{results.page < pageCount ? <a class="admin-button admin-button--secondary" href={pageUrl(results.page + 1)}>Next</a> : <span></span>}</nav>}
+    </> : <div class="pricing-empty-page"><h3>No matching reviews</h3><p>Change or clear the filters to see other imported reviews.</p></div>}
+  </section>
 </AdminLayout>

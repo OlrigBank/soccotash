@@ -8,6 +8,8 @@ const dashboardUrl = new URL('../../src/pages/admin/index.astro', import.meta.ur
 const airbnbUrl = new URL('../../src/pages/admin/airbnb/index.astro', import.meta.url);
 const reservationsUrl = new URL('../../src/pages/admin/airbnb/reservations/index.astro', import.meta.url);
 const reservationDetailUrl = new URL('../../src/pages/admin/airbnb/reservations/[id]/index.astro', import.meta.url);
+const reviewsUrl = new URL('../../src/pages/admin/airbnb/reviews/index.astro', import.meta.url);
+const reviewDetailUrl = new URL('../../src/pages/admin/airbnb/reviews/[id]/index.astro', import.meta.url);
 
 test('Airbnb records inherit the authenticated admin-only route boundary', async () => {
   const [middleware, layout, dashboard, airbnb] = await Promise.all([
@@ -21,6 +23,24 @@ test('Airbnb records inherit the authenticated admin-only route boundary', async
   assert.match(dashboard, /href="\/admin\/airbnb\/"/u);
   assert.match(airbnb, /Access-code material is not available/u);
   assert.doesNotMatch(airbnb, /access_code_ciphertext|raw_extraction/u);
+});
+
+test('Airbnb review list and detail keep private text out of summaries and use UUID links', async () => {
+  const [list, detail] = await Promise.all([readFile(reviewsUrl, 'utf8'), readFile(reviewDetailUrl, 'utf8')]);
+  for (const field of ['search', 'property', 'from', 'to', 'rating', 'link', 'private', 'sort', 'pageSize']) {
+    assert.match(list, new RegExp(`name=["']${field}["']`, 'u'));
+  }
+  assert.match(list, /airbnb-review-table/u);
+  assert.match(list, /airbnb-review-cards/u);
+  assert.match(list, /returnTo=\$\{returnTo\}/u);
+  assert.doesNotMatch(list, /review\.publicText|review\.privateFeedback|raw_extraction/u);
+  assert.match(detail, /getAirbnbReviewDetail\(Astro\.params\.id/u);
+  assert.match(detail, /new Response\('Imported review not found\.', \{ status: 404 \}\)/u);
+  assert.match(detail, /Private host information/u);
+  assert.match(detail, /review\.categoryRatings\.map/u);
+  assert.match(detail, /review\.reservationLinks\.map/u);
+  assert.match(detail, /\/admin\/airbnb\/reservations\/\$\{link\.reservationId\}\//u);
+  assert.doesNotMatch(detail, /raw_extraction|set:html/u);
 });
 
 test('Airbnb reservation detail uses UUID lookup and excludes access-code retrieval', async () => {
