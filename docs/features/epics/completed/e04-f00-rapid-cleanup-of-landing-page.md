@@ -2,7 +2,7 @@
 
 ## Status
 
-Active.
+Completed.
 
 ## Epic summary
 
@@ -19,7 +19,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F01 — Prioritise and compare Ways to Stay
 
-[Feature record](../completed/e04-f01-prioritise-and-compare-ways-to-stay.md)
+[Feature record](../../completed/e04-f01-prioritise-and-compare-ways-to-stay.md)
 
 - promoted the stronger exterior photograph into the hero;
 - moved the stay choices before the photo gallery;
@@ -28,7 +28,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F02 — Refine landing copy and show base prices
 
-[Feature record](../completed/e04-f02-refine-landing-copy-and-show-base-prices.md)
+[Feature record](../../completed/e04-f02-refine-landing-copy-and-show-base-prices.md)
 
 - repositioned the hero around Olrig Bank's secluded central location;
 - renamed the comparison section **Choosing your stay**; and
@@ -36,7 +36,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F03 — Tighten history and comparison labels
 
-[Feature record](../completed/e04-f03-tighten-history-and-comparison-labels.md)
+[Feature record](../../completed/e04-f03-tighten-history-and-comparison-labels.md)
 
 - consolidated the property history and location proposition in the hero;
 - reduced the scrolling instruction to one visible table caption; and
@@ -44,7 +44,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F04 — Reorient the stay comparison
 
-[Feature record](../completed/e04-f04-reorient-the-stay-comparison.md)
+[Feature record](../../completed/e04-f04-reorient-the-stay-comparison.md)
 
 - made each standard stay a table row rather than a column;
 - replaced the feature row headings with compact icon-and-label column headings;
@@ -53,7 +53,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F05 — Move Quick Check into the mobile booking dock
 
-[Feature record](../completed/e04-f05-move-quick-check-into-mobile-booking-dock.md)
+[Feature record](../../completed/e04-f05-move-quick-check-into-mobile-booking-dock.md)
 
 - replaced the landing page's mobile booking link with compact date, guest and
   Quick Check controls;
@@ -64,7 +64,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F06 — Reposition and compact guest reviews
 
-[Feature record](../completed/e04-f06-reposition-and-compact-guest-reviews.md)
+[Feature record](../../completed/e04-f06-reposition-and-compact-guest-reviews.md)
 
 - moved **What our guests say** directly after **Olrig Bank in pictures**;
 - presented reviews as navigable groups of three compact cards;
@@ -74,7 +74,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F07 — Expand and organise the home gallery
 
-[Feature record](../completed/e04-f07-expand-and-organise-home-gallery.md)
+[Feature record](../../completed/e04-f07-expand-and-organise-home-gallery.md)
 
 - divided **Olrig Bank in pictures** into **Inside Olrig Bank** and **In the
   garden**;
@@ -85,7 +85,7 @@ Playwright UI coverage for the completed landing-page experience.
 
 ### E04-F08 — Unify the responsive landing page
 
-[Feature record](../completed/e04-f08-unify-responsive-landing-page.md)
+[Feature record](../../completed/e04-f08-unify-responsive-landing-page.md)
 
 - removed the landing page's persistent desktop navigation sidebar;
 - widened and centred the shared responsive content shell;
@@ -93,6 +93,16 @@ Playwright UI coverage for the completed landing-page experience.
 - harmonised reviews as an item-based responsive carousel showing one, two or
   three cards according to available width; and
 - preserved the hero photograph with a compact, localised desktop copy panel.
+
+### E04-F09 — Add permanent landing-page Playwright regression
+
+[Feature record](../../completed/e04-f09-add-permanent-landing-page-playwright-regression.md)
+
+- added read-only browser regression coverage at phone, tablet and desktop
+  widths;
+- protected the unified Quick Check, review carousel, navigation, overflow and
+  approved hero contracts; and
+- added continuous-integration execution with replayable failure evidence.
 
 ## Epic constraints
 
@@ -105,5 +115,4 @@ Playwright UI coverage for the completed landing-page experience.
 
 ## Remaining work
 
-Complete one final feature that adds permanent Playwright UI tests for the
-finished responsive experience.
+None. E04 is complete.
