@@ -2,8 +2,8 @@
 
 ## Status
 
-Active. E07-F01 is complete. This epic is based on the completed E06 private
-import branch and is not merged into `development`.
+Active. E07-F01 and E07-F02 are complete. This epic is based on the completed
+E06 private import branch and is not merged into `development`.
 
 ## Epic summary
 
@@ -62,9 +62,10 @@ boundary.
 
 ### E07-F02 — Reservation list and filtering
 
-[Feature record](../e07-f02-reservation-list-and-filtering.md)
+[Feature record](../completed/e07-f02-reservation-list-and-filtering.md)
 
-Add an Airbnb administration landing page and searchable reservation list.
+Delivered the Airbnb administration landing page and searchable, responsive
+reservation list.
 
 ### E07-F03 — Reservation detail, conversation and finances
 

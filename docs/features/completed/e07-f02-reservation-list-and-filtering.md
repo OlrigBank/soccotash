@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E07-F01.
+Complete.
 
 ## Parent epic
 
-[`E07 — Airbnb Administration Dashboard`](epics/e07-f00-airbnb-admin-dashboard.md)
+[`E07 — Airbnb Administration Dashboard`](../epics/e07-f00-airbnb-admin-dashboard.md)
 
 ## Objective
 
@@ -43,3 +43,29 @@ the administration dashboard.
    for the list.
 4. Invalid query values fall back safely and never alter SQL structure.
 
+## Delivered implementation
+
+- Replaced the reservation placeholder with a server-rendered, database-backed
+  list using the E07-F01 privacy-minimized read model.
+- Added guest/group search plus property, arrival range, source status and
+  review-link filters, with safe ascending/latest-arrival and latest-capture
+  ordering.
+- Added deterministic pagination at 10, 25, 50 or 100 records per page while
+  retaining the complete query string across previous/next navigation.
+- Displayed property, stay, party size, source status, confirmation-code
+  presence and review-link state without loading detail-only private data.
+- Added UUID detail links, an accessible wide-screen table, narrow-screen cards,
+  empty results and a live result-count summary.
+
+## Validation
+
+- The live Agent2 list returns all 89 reservations: 55 confirmed, five
+  cancelled and 29 with no source status.
+- Review-state filters return 52 reservations with confirmed links, three with
+  proposals and 37 without any review candidate; categories may overlap where
+  a confirmed reservation also has a proposed alternative.
+- Integration coverage verifies literal `%` and `_` searches, combined filters,
+  date bounds, stable tie ordering, page bounds, empty results and invalid input.
+- Route contract coverage verifies filter-state pagination, UUID links and both
+  responsive representations.
+- Astro checks and the production server build pass.

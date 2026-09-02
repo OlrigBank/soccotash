@@ -100,6 +100,27 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
     );
     assert.equal(page.total, 2);
     assert.equal(page.items.length, 1);
+    const combined = await listAirbnbReservations(
+      parseAirbnbReservationListQuery(new URLSearchParams('property=cottage&status=unset&link=unlinked&search=_&sort=arrival-asc')),
+      database,
+    );
+    assert.equal(combined.total, 1);
+    assert.equal(combined.items[0].bookerDisplayName, 'Under_score Guest');
+    const ordered = await listAirbnbReservations(
+      parseAirbnbReservationListQuery(new URLSearchParams('from=2026-10-10&to=2026-10-10&sort=arrival-asc')),
+      database,
+    );
+    assert.deepEqual(ordered.items.map((item) => item.bookerDisplayName), ['Percent% Guest', 'Under_score Guest']);
+    const empty = await listAirbnbReservations(
+      parseAirbnbReservationListQuery(new URLSearchParams('search=does-not-exist')),
+      database,
+    );
+    assert.deepEqual({ total: empty.total, items: empty.items }, { total: 0, items: [] });
+    const invalid = parseAirbnbReservationListQuery(new URLSearchParams('page=-2&pageSize=nope&sort=drop-table&from=2026-02-30'));
+    assert.deepEqual(
+      { page: invalid.page, pageSize: invalid.pageSize, sort: invalid.sort, arrivalFrom: invalid.arrivalFrom },
+      { page: 1, pageSize: 25, sort: 'arrival-desc', arrivalFrom: null },
+    );
 
     const reviews = await listAirbnbReviews(
       parseAirbnbReviewListQuery(new URLSearchParams('rating=5&private=yes&link=confirmed')),
