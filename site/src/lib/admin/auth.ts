@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { AstroCookies } from 'astro';
-import { getPool } from '../booking/db';
-import { verifyPassword } from './password';
+import { getPool } from '../booking/db.ts';
+import { verifyPassword } from './password.ts';
 
 export const ADMIN_COOKIE = 'olrig_admin_session';
 const SESSION_DAYS = 7;

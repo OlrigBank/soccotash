@@ -16,6 +16,7 @@ const links = [
   ['/admin/occupancy/', 'Occupancy'],
   ['/admin/accommodation/', 'Accommodation'],
   ['/admin/bookings/', 'Bookings'],
+  ['/admin/airbnb/', 'Airbnb records'],
   ['/admin/alerts/', 'Alerts'],
   ['/admin/settings/', 'Settings'],
 ];
@@ -74,7 +75,7 @@ const links = [
           })}
         </nav>
       </aside>
-      <main id="admin-content" class="admin-main"><slot /></main>
+      <main id="admin-content" class="admin-main" tabindex="-1"><slot /></main>
     </div>
   </body>
 </html>

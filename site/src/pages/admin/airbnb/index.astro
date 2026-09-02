@@ -1,0 +1,38 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAirbnbDashboardSummary } from '../../../lib/airbnb-admin/repository';
+
+export const prerender = false;
+const summary = await getAirbnbDashboardSummary();
+---
+<AdminLayout title="Airbnb records">
+  <header class="admin-page-header">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Airbnb records</h1>
+      <p>Private imported reservation, conversation, financial and review records.</p>
+    </div>
+  </header>
+
+  <div class="admin-alert admin-alert--info" role="note">
+    These records contain private guest information. Access-code material is not available in this interface.
+  </div>
+
+  <section class="admin-card-grid" aria-label="Airbnb record sections">
+    <a class="admin-summary-card" href="/admin/airbnb/reservations/">
+      <span>Reservations</span>
+      <strong>{summary.reservations}</strong>
+      <small>imported stays</small>
+    </a>
+    <a class="admin-summary-card" href="/admin/airbnb/reviews/">
+      <span>Reviews</span>
+      <strong>{summary.reviews}</strong>
+      <small>guest reviews</small>
+    </a>
+    <a class="admin-summary-card" href="/admin/airbnb/reconciliation/">
+      <span>Reconciliation</span>
+      <strong>{summary.proposedLinks}</strong>
+      <small>proposals requiring review</small>
+    </a>
+  </section>
+</AdminLayout>
