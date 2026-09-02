@@ -2,8 +2,9 @@
 
 ## Status
 
-Active. E07-F01 through E07-F05 are complete. This epic is based on the
-completed E06 private import branch and is not merged into `development`.
+Complete on `agent2/e07-airbnb-admin-dashboard`. E07-F01 through E07-F06 are
+implemented and verified. This epic is based on the completed E06 private
+import branch and remains unmerged into `development`.
 
 ## Epic summary
 
@@ -89,10 +90,10 @@ Delivered an audited UI for proposed candidate confirmation and rejection.
 
 ### E07-F06 — Security, accessibility and release verification
 
-[Feature record](../e07-f06-security-accessibility-and-release-verification.md)
+[Feature record](../completed/e07-f06-security-accessibility-and-release-verification.md)
 
-Complete responsive, privacy, authorization, accessibility and regression
-verification before the branch is considered merge-ready.
+Completed responsive, privacy, authorization, accessibility and regression
+verification. The branch is review-ready and awaits explicit merge authority.
 
 ## Cross-cutting requirements
 

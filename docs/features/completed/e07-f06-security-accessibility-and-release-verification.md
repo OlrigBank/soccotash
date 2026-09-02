@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed; depends on E07-F01 through E07-F05.
+Complete on `agent2/e07-airbnb-admin-dashboard`; not merged into `development`.
 
 ## Parent epic
 
@@ -51,3 +51,33 @@ merging it into `development`.
    pass.
 6. The E07 branch is documented and review-ready but remains unmerged until the
    user explicitly authorizes a merge into `development`.
+
+## Delivered
+
+- Applied `private, no-store` and `X-Robots-Tag` headers to every admin page,
+  admin API response, redirect and maintenance-token response.
+- Added static privacy contracts covering all Airbnb UI routes, forbidden
+  service/render fields and representative public-route isolation.
+- Made the shared skip-link target programmatically focusable.
+- Added a three-viewport Playwright suite covering anonymous and authenticated
+  behavior, keyboard skip navigation, semantic headings, real reservation and
+  review details, and horizontal-overflow checks.
+- Added administrator operating notes covering private-data handling,
+  reconciliation decisions and the intentionally unavailable access-code
+  reveal.
+
+## Completion evidence
+
+- Playwright: 6/6 across desktop, 768 px tablet and 390 px phone Chromium
+  profiles.
+- Booking lifecycle: 242/242.
+- PostgreSQL integration: 28/28.
+- Review pipeline: 27/27.
+- E06 verifier: 155 PDFs, 52 reviews, 89 reservations, 1,084 conversation
+  entries, 178 financial summaries, 52 confirmed and 6 proposed links.
+- Production Docker build: Astro check and build passed (one pre-existing unused
+  local hint in `admin/login.astro`).
+- `EXPLAIN ANALYZE` for reservation, review and proposal lists completed in
+  0.142 ms, 0.066 ms and 0.096 ms respectively on the imported baseline. The
+  small relations correctly use bounded top-N sorts/sequential scans; no new
+  index is justified at this size.

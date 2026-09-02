@@ -20,7 +20,7 @@ test('Airbnb records inherit the authenticated admin-only route boundary', async
   ]);
   assert.match(middleware, /path === '\/admin' \|\| path\.startsWith\('\/admin\/'\)/u);
   assert.match(middleware, /if \(!user\)[\s\S]*context\.redirect\(`\/admin\/login/u);
-  assert.match(middleware, /if \(isAdminApi\) return Response\.json\(\{ error: 'Unauthorized\.' \}, \{ status: 401 \}\)/u);
+  assert.match(middleware, /if \(isAdminApi\) return privateAdminResponse\(Response\.json\(\{ error: 'Unauthorized\.' \}, \{ status: 401 \}\)\)/u);
   assert.match(layout, /\['\/admin\/airbnb\/', 'Airbnb records'\]/u);
   assert.match(dashboard, /href="\/admin\/airbnb\/"/u);
   assert.match(airbnb, /Access-code material is not available/u);
