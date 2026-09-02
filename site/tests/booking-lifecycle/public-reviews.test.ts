@@ -63,7 +63,7 @@ test('public review validation rejects duplicates, unapproved content, HTML, and
   );
 });
 
-test('the homepage renders compact, accessible public review groups immediately after the gallery', async () => {
+test('the homepage renders an item-based responsive review carousel immediately after the gallery', async () => {
   const [homepage, component, menu] = await Promise.all([
     read('src/pages/index.astro'),
     read('src/components/PublicReviewCarousel.astro'),
@@ -73,9 +73,8 @@ test('the homepage renders compact, accessible public review groups immediately 
   assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\} summary=\{publicReviewSummary\}/u);
   assert.match(component, /data-review-carousel/u);
   assert.match(component, />What our guests say<\/h2>/u);
-  assert.match(component, /reviews\.slice\(index \* 3, index \* 3 \+ 3\)/u);
-  assert.match(component, /data-first-review=\{firstReview\}/u);
-  assert.match(component, /data-last-review=\{lastReview\}/u);
+  assert.match(component, /reviews\.map\(\(review, index\)/u);
+  assert.match(component, /aria-label=\{`Review \$\{index \+ 1\} of \$\{total\}`\}/u);
   assert.match(component, /data-review-card/u);
   assert.match(component, /data-review-previous/u);
   assert.match(component, /data-review-next/u);
@@ -95,7 +94,14 @@ test('the homepage renders compact, accessible public review groups immediately 
   assert.match(menu, /href="\/#guest-reviews"/u);
   assert.ok(homepage.indexOf('<PublicReviewCarousel') > homepage.indexOf('<HomeGallery'));
   assert.ok(homepage.indexOf('<PublicReviewCarousel') < homepage.indexOf('class="local-guide-panel"'));
-  assert.match(component, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/u);
+  assert.match(component, /Review \$\{current \+ 1\} of \$\{carousel\.dataset\.total\}/u);
+  assert.match(component, /flex:\s*0 0 88%/u);
+  assert.match(component, /flex-basis: calc\(\(100% - 0\.65rem\) \/ 2\)/u);
+  assert.match(component, /flex-basis: calc\(\(100% - 1\.3rem\) \/ 3\)/u);
+  assert.match(component, /slidesContainer\.scrollTo/u);
+  assert.match(component, /const visibleCount = matchMedia\('\(min-width: 1000px\)'\)\.matches \? 3/u);
+  assert.match(component, /slide\.setAttribute\('aria-hidden', String\(!visible\)\)/u);
+  assert.match(component, /slide\.inert = !visible/u);
   assert.match(component, /closest<HTMLElement>\('\[data-review-card\]'\)/u);
   assert.doesNotMatch(component, /set:html/u);
 });

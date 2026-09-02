@@ -35,12 +35,27 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.doesNotMatch(content, /availibil|availble|accomodation|suites you/i);
 });
 
-test('the compact panel sits inside the hero before Ways to stay', async () => {
+test('the compact panel sits in one shared band between the hero and Ways to stay', async () => {
   const homepage = await source('src/pages/index.astro');
   const heroEnd = homepage.indexOf('</section>');
   const panel = homepage.indexOf('<CompactBookingPanel');
   const ways = homepage.indexOf('<section id="ways-to-stay"');
-  assert.ok(panel >= 0 && heroEnd > panel && ways > heroEnd);
+  assert.ok(panel > heroEnd && ways > panel);
+  assert.match(homepage, /class="home-booking-band"[\s\S]*mobileDock=\{true\}/);
+});
+
+test('the homepage uses the shared centred shell without the persistent sidebar', async () => {
+  const [homepage, layout, listing] = await Promise.all([
+    source('src/pages/index.astro'),
+    source('src/layouts/BaseLayout.astro'),
+    source('src/pages/listings/index.astro'),
+  ]);
+
+  assert.match(homepage, /<BaseLayout[\s\S]*showSidebar=\{false\}/);
+  assert.match(layout, /showSidebar = true/);
+  assert.match(layout, /showSidebar \? 'has-sidebar' : 'no-sidebar'/);
+  assert.match(layout, /\.page-grid\.no-sidebar\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.doesNotMatch(listing, /showSidebar=\{false\}/);
 });
 
 test('the homepage follows Quick Check with stay comparison then photographic discovery', async () => {
@@ -77,12 +92,17 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.match(compactPanel, /String\(date\.getUTCDate\(\)\)\.padStart\(2, '0'\)/);
 });
 
-test('the homepage hero preserves responsive crop and contrast contracts', async () => {
+test('the homepage hero preserves its crop and localises contrast behind the copy', async () => {
   const homepage = await source('src/pages/index.astro');
 
   assert.match(homepage, /aspect-ratio:\s*16 \/ 9/);
   assert.match(homepage, /object-fit:\s*cover/);
   assert.match(homepage, /object-position:\s*center 46%/);
-  assert.match(homepage, /\.home-hero::after[\s\S]*linear-gradient/);
+  assert.match(homepage, /class="home-hero__copy"/);
+  assert.match(homepage, /\.home-hero__copy\s*\{[\s\S]*background:\s*rgba\(19, 35, 27, 0\.66\)/);
+  assert.doesNotMatch(homepage, /\.home-hero::after/);
   assert.match(homepage, /@media \(min-width: 700px\)/);
+  assert.match(homepage, /@media \(min-width: 1000px\)[\s\S]*\.home-hero__content\s*\{[\s\S]*justify-content:\s*flex-start/);
+  assert.match(homepage, /@media \(min-width: 1000px\)[\s\S]*\.home-hero__content\s*\{[\s\S]*padding:\s*0/);
+  assert.match(homepage, /@media \(min-width: 1000px\)[\s\S]*\.home-hero__copy\s*\{[\s\S]*width:\s*27%[\s\S]*max-width:\s*21rem/);
 });

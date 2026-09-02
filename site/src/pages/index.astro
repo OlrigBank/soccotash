@@ -21,6 +21,7 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
 <BaseLayout
   title={page?.data.title ?? 'Olrig Bank'}
   description={page?.data.description}
+  showSidebar={false}
   socialImage="/media/images/listings/house.jpeg"
   socialImageAlt="The stone front of Olrig Bank in Kendal"
 >
@@ -34,18 +35,24 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
       fetchpriority="high"
     />
     <div class="home-hero__content">
-      <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
-      {page?.data.heroFacts ? <p class="home-hero__facts">{page.data.heroFacts}</p> : null}
-      {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
-      <CompactBookingPanel
-        source="homepage"
-        heading=""
-        idPrefix="homepage-hero-booking"
-        submitLabel="Quick Check"
-        autoSelectProperty={true}
-      />
+      <div class="home-hero__copy">
+        <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
+        {page?.data.heroFacts ? <p class="home-hero__facts">{page.data.heroFacts}</p> : null}
+        {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
+      </div>
     </div>
   </section>
+
+  <div class="home-booking-band">
+    <CompactBookingPanel
+      source="homepage"
+      heading=""
+      idPrefix="homepage-booking"
+      submitLabel="Quick Check"
+      autoSelectProperty={true}
+      mobileDock={true}
+    />
+  </div>
 
   <section id="ways-to-stay" class="ways-to-stay">
     <h2>Choosing your stay</h2>
@@ -171,6 +178,12 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
   .ways-to-stay {
     margin-top: 1.5rem;
     scroll-margin-top: 6rem;
+  }
+
+  .home-booking-band {
+    position: relative;
+    z-index: 2;
+    margin: 0.75rem 0 1.5rem;
   }
 
   .ways-to-stay > h2 {
@@ -336,19 +349,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     color: #fff;
   }
 
-  .home-hero__content :global(.compact-booking-panel) {
-    width: 100%;
-    margin-top: 1.25rem;
-    color: var(--ink);
-    text-align: left;
-  }
-
-  @media (max-width: 699px) {
-    .home-hero__content :global(.compact-booking-panel) {
-      display: none;
-    }
-  }
-
   .home-hero h1 {
     max-width: 14ch;
     margin: 0;
@@ -372,7 +372,27 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     letter-spacing: 0.01em;
   }
 
+  @media (max-width: 699px) {
+    .home-booking-band {
+      position: fixed;
+      z-index: 30;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      width: auto;
+      margin: 0;
+      padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(36, 43, 46, 0.97);
+    }
+  }
+
   @media (min-width: 700px) {
+    .home-booking-band {
+      width: calc(100% - clamp(4rem, 10vw, 8rem));
+      margin: -4.5rem auto 1.75rem;
+    }
+
     .local-guide-panel {
       grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
     }
@@ -380,20 +400,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     .home-hero {
       position: relative;
       min-height: clamp(28rem, 54vw, 37rem);
-    }
-
-    .home-hero::after {
-      position: absolute;
-      inset: 0;
-      content: '';
-      background: linear-gradient(
-        90deg,
-        rgba(19, 35, 27, 0.82) 0%,
-        rgba(19, 35, 27, 0.72) 62%,
-        rgba(19, 35, 27, 0.25) 80%,
-        transparent 100%
-      );
-      pointer-events: none;
     }
 
     .home-hero > img {
@@ -413,8 +419,42 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
       padding: clamp(2rem, 5vw, 4rem);
     }
 
+    .home-hero__copy {
+      width: fit-content;
+      max-width: min(44rem, 78%);
+      padding: clamp(1.25rem, 3vw, 2rem);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 0.9rem;
+      background: rgba(19, 35, 27, 0.66);
+      box-shadow: 0 0.75rem 2.25rem rgba(13, 23, 18, 0.2);
+      backdrop-filter: blur(3px);
+    }
+
     .home-hero p {
       max-width: 42ch;
+    }
+  }
+
+  @media (min-width: 1000px) {
+    .home-hero__content {
+      justify-content: flex-start;
+      padding: 0;
+    }
+
+    .home-hero__copy {
+      width: 27%;
+      max-width: 21rem;
+      padding: 0.75rem;
+      border-radius: 0 0.55rem 0.55rem 0;
+    }
+
+    .home-hero h1 {
+      font-size: clamp(2.75rem, 4.3vw, 3.8rem);
+    }
+
+    .home-hero p {
+      font-size: clamp(0.84rem, 1.05vw, 0.92rem);
+      line-height: 1.45;
     }
   }
 
