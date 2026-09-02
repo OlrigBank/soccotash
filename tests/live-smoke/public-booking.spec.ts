@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 const PUBLIC_PAGES = [
-  { path: '/', heading: 'Stay at Olrig Bank in Kendal' },
-  { path: '/listings/', heading: 'Places to stay' },
+  { path: '/', heading: 'Olrig Bank' },
+  { path: '/listings/', heading: 'Holiday accommodation at Olrig Bank' },
   { path: '/guest-information/', heading: 'Guest information' },
   { path: '/contact/', heading: 'Contact' },
   { path: '/local-guide/', heading: 'Local guide' },
@@ -14,10 +14,12 @@ test.describe('soccotash public live smoke tests', () => {
 
     await expect(page).toHaveTitle('Olrig Bank');
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Stay at Olrig Bank in Kendal' }),
+      page.getByRole('heading', { level: 1, name: 'Olrig Bank' }),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: 'Request a stay' }).first().click();
+    await page.locator('.mobile-site-menu summary').click();
+    await page.getByRole('navigation', { name: 'Public navigation' })
+      .getByRole('link', { name: 'Request a stay' }).click();
 
     await expect(page).toHaveURL(/\/book\/$/);
     await expect(
@@ -53,14 +55,15 @@ test.describe('soccotash public live smoke tests', () => {
       .first()
       .textContent();
 
-    await arrangement.selectOption({ label: 'Bespoke stay' });
-    await expect(arrangement.locator('option:checked')).toHaveText('Bespoke stay');
+    await arrangement.selectOption('bespoke-arrangement');
+    await expect(arrangement.locator('option:checked')).toHaveText('Request a bespoke stay');
     await expect(page.getByText(/Minimum stay: 1 night\./)).toBeVisible();
     await expect(page.locator('[data-calendar-picker]')).toBeHidden();
-    await expect(page.getByLabel('Arrival')).toBeEditable();
-    await expect(page.getByLabel('Departure')).toBeEditable();
+    await expect(page.locator('#arrival')).toBeEditable();
+    await expect(page.locator('#departure')).toBeEditable();
 
-    await arrangement.selectOption({ label: 'Olrig Bank' });
+    await arrangement.selectOption('main-house');
+    await expect(arrangement.locator('option:checked')).toContainText('Olrig Bank');
     await expect(page.getByText(/Minimum stay: 2 nights\./)).toBeVisible();
     await expect(page.locator('[data-calendar-picker]')).toBeVisible();
     await expect(
