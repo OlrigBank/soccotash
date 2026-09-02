@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E07-F01 and E07-F02.
+Complete.
 
 ## Parent epic
 
-[`E07 — Airbnb Administration Dashboard`](epics/e07-f00-airbnb-admin-dashboard.md)
+[`E07 — Airbnb Administration Dashboard`](../epics/e07-f00-airbnb-admin-dashboard.md)
 
 ## Objective
 
@@ -49,3 +49,30 @@ structured admin view without exposing encrypted access material.
    administration.
 5. Access-code material is not retrievable through this screen or its service.
 
+## Delivered implementation
+
+- Added a strict UUID detail query and `/admin/airbnb/reservations/[id]/` page,
+  returning a content-free `404` for invalid or unknown identifiers.
+- Displayed booking/stay facts, party composition, source status, cancellation
+  policy and confirmation code with mapped property names.
+- Added a visibly private host-notes and guest-profile section. The service
+  selects only a boolean access-code-presence expression and never retrieves
+  ciphertext, key metadata or decrypted material.
+- Added ordered guest, host and Airbnb service entries with preserved whitespace,
+  displayed timestamps and explicit exact/year-unknown/unresolved labels.
+- Added separate host-earnings and guest-paid panels with formatted GBP totals,
+  signed line items and parent/child hierarchy.
+- Added linked-review navigation and safe multi-capture provenance with private
+  relative paths, capture times, preferred status and abbreviated hashes.
+- Preserved the originating reservation filter/pagination URL through a bounded
+  admin-only return target.
+
+## Validation
+
+- Integration coverage verifies full and sparse fields, three timestamp
+  precision cases, escaped markup-like message text, financial hierarchy,
+  negative values, linked review UUIDs, provenance and unknown UUID behavior.
+- Serialized service checks exclude ciphertext and raw financial panel text.
+- A representative live Agent2 record returned both verified financial
+  perspectives, ordered conversation entries and safe provenance.
+- Route contract tests and Astro type checking pass.

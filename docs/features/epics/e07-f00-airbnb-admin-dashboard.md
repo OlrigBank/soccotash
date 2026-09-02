@@ -2,8 +2,8 @@
 
 ## Status
 
-Active. E07-F01 and E07-F02 are complete. This epic is based on the completed
-E06 private import branch and is not merged into `development`.
+Active. E07-F01 through E07-F03 are complete. This epic is based on the
+completed E06 private import branch and is not merged into `development`.
 
 ## Epic summary
 
@@ -69,10 +69,10 @@ reservation list.
 
 ### E07-F03 — Reservation detail, conversation and finances
 
-[Feature record](../e07-f03-reservation-detail-conversation-and-finances.md)
+[Feature record](../completed/e07-f03-reservation-detail-conversation-and-finances.md)
 
-Display a reservation's stay, party, private context, ordered conversation,
-financial panels and provenance.
+Delivered reservation stay/party/private context, ordered conversation,
+financial panels, linked reviews and provenance.
 
 ### E07-F04 — Review list and detail
 

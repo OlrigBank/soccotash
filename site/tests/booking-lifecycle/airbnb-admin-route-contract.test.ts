@@ -7,6 +7,7 @@ const layoutUrl = new URL('../../src/layouts/AdminLayout.astro', import.meta.url
 const dashboardUrl = new URL('../../src/pages/admin/index.astro', import.meta.url);
 const airbnbUrl = new URL('../../src/pages/admin/airbnb/index.astro', import.meta.url);
 const reservationsUrl = new URL('../../src/pages/admin/airbnb/reservations/index.astro', import.meta.url);
+const reservationDetailUrl = new URL('../../src/pages/admin/airbnb/reservations/[id]/index.astro', import.meta.url);
 
 test('Airbnb records inherit the authenticated admin-only route boundary', async () => {
   const [middleware, layout, dashboard, airbnb] = await Promise.all([
@@ -20,6 +21,19 @@ test('Airbnb records inherit the authenticated admin-only route boundary', async
   assert.match(dashboard, /href="\/admin\/airbnb\/"/u);
   assert.match(airbnb, /Access-code material is not available/u);
   assert.doesNotMatch(airbnb, /access_code_ciphertext|raw_extraction/u);
+});
+
+test('Airbnb reservation detail uses UUID lookup and excludes access-code retrieval', async () => {
+  const [list, detail] = await Promise.all([readFile(reservationsUrl, 'utf8'), readFile(reservationDetailUrl, 'utf8')]);
+  assert.match(list, /returnTo=\$\{returnTo\}/u);
+  assert.match(detail, /getAirbnbReservationDetail\(Astro\.params\.id/u);
+  assert.match(detail, /new Response\('Imported reservation not found\.', \{ status: 404 \}\)/u);
+  assert.match(detail, /requestedReturn.*startsWith\('\/admin\/airbnb\/reservations\/\?'/su);
+  assert.match(detail, /Private host information/u);
+  assert.match(detail, /Year not shown/u);
+  assert.match(detail, /Financial panels/u);
+  assert.match(detail, /Source provenance/u);
+  assert.doesNotMatch(detail, /access_code_ciphertext|accessCodeCiphertext|raw_extraction|set:html/u);
 });
 
 test('Airbnb reservation list retains filters, supports pagination and has responsive alternatives', async () => {

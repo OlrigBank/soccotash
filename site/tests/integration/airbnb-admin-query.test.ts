@@ -5,6 +5,7 @@ import test from 'node:test';
 import pg from 'pg';
 import {
   AIRBNB_ADMIN_MAX_PAGE_SIZE,
+  getAirbnbReservationDetail,
   getAirbnbDashboardSummary,
   listAirbnbReservations,
   listAirbnbReviews,
@@ -80,6 +81,46 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
        VALUES ($1,$2,'confirmed','stay_listing_identity',1,'{}','automatic',NOW())`,
       [review.rows[0].id, reservations.rows[0].id],
     );
+    const bookingSource = await database.query<{ id: string }>(
+      `INSERT INTO airbnb_source_documents
+         (import_batch_id, document_type, relative_path, sha256, source_external_id,
+          page_count, captured_at, raw_extraction)
+       VALUES ($1,'booking','private/booking.pdf',$2,'7001',2,NOW(),'{}') RETURNING id::text`,
+      [batch.rows[0].id, '7'.repeat(64)],
+    );
+    await database.query(
+      `INSERT INTO airbnb_reservation_documents (reservation_id,source_document_id,is_preferred)
+       VALUES ($1,$2,TRUE)`, [reservations.rows[0].id, bookingSource.rows[0].id],
+    );
+    await database.query(
+      `INSERT INTO airbnb_conversation_entries
+         (reservation_id,position,entry_type,sender_type,sender_display_name,body,
+          displayed_date,displayed_time,sent_at,timestamp_precision,raw_entry)
+       VALUES
+         ($1,0,'message','guest','Percent% Guest','Hello <script>','Oct 1, 2026','1:00 PM',NOW(),'exact','{}'),
+         ($1,1,'message','host','Host','Welcome','Oct 2','2:00 PM',NULL,'year_unknown','{}'),
+         ($1,2,'service_event','airbnb','Airbnb service','Confirmed','Yesterday','3:00 PM',NULL,'unresolved','{}')`,
+      [reservations.rows[0].id],
+    );
+    const financial = await database.query<{ id: string; perspective: string }>(
+      `INSERT INTO airbnb_financial_summaries
+         (reservation_id,perspective,currency,total_minor,arithmetic_status,raw_display_text,captured_at)
+       VALUES ($1,'host_earnings','GBP',9500,'verified','private raw panel',NOW()),
+              ($1,'guest_paid','GBP',12000,'verified','private guest panel',NOW())
+       RETURNING id::text,perspective`, [reservations.rows[0].id],
+    );
+    const hostSummary = financial.rows.find((row) => row.perspective === 'host_earnings')!;
+    const parent = await database.query<{ id: string }>(
+      `INSERT INTO airbnb_financial_line_items
+         (financial_summary_id,position,item_type,description,amount_minor,raw_display_text)
+       VALUES ($1,0,'accommodation','Room fee',10000,'private parent') RETURNING id::text`, [hostSummary.id],
+    );
+    await database.query(
+      `INSERT INTO airbnb_financial_line_items
+         (financial_summary_id,parent_line_item_id,position,item_type,description,amount_minor,raw_display_text)
+       VALUES ($1,$2,1,'nightly_charge','First night',10000,'private child'),
+              ($1,NULL,2,'host_service_fee','Host fee',-500,'private fee')`, [hostSummary.id, parent.rows[0].id],
+    );
 
     const parsed = parseAirbnbReservationListQuery(new URLSearchParams('pageSize=999&sort=unsafe&search=%'));
     assert.equal(parsed.pageSize, AIRBNB_ADMIN_MAX_PAGE_SIZE);
@@ -130,6 +171,19 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
     assert.equal('publicText' in reviews.items[0], false);
     assert.equal('privateFeedback' in reviews.items[0], false);
     assert.deepEqual(await getAirbnbDashboardSummary(database), { reservations: 3, reviews: 1, proposedLinks: 0 });
+    const detail = await getAirbnbReservationDetail(literalPercent.items[0].id, database);
+    assert.ok(detail);
+    assert.deepEqual(detail.conversation.map((entry) => entry.timestampPrecision), ['exact', 'year_unknown', 'unresolved']);
+    assert.equal(detail.conversation[0].body, 'Hello <script>');
+    assert.equal(detail.financialSummaries.length, 2);
+    assert.equal(detail.financialSummaries[0].lineItems[1].parentPosition, 0);
+    assert.equal(detail.provenance[0].abbreviatedHash, '777777777777');
+    assert.equal(detail.reviewLinks[0].reviewId.length, 36);
+    const serialized = JSON.stringify(detail);
+    assert.equal(serialized.includes('deadbeef'), false);
+    assert.equal(serialized.includes('private raw panel'), false);
+    assert.equal(await getAirbnbReservationDetail('not-a-uuid', database), null);
+    assert.equal(await getAirbnbReservationDetail(crypto.randomUUID(), database), null);
   } finally {
     await database.end();
     await control.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);
