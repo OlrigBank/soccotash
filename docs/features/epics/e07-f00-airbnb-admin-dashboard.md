@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed. This epic is based on the completed E06 private import branch and is
-not merged into `development`.
+Active. E07-F01 is complete. This epic is based on the completed E06 private
+import branch and is not merged into `development`.
 
 ## Epic summary
 
@@ -55,9 +55,10 @@ identity. No public endpoint is added.
 
 ### E07-F01 — Admin query service and authorization boundary
 
-[Feature record](../e07-f01-admin-query-service-and-authorization-boundary.md)
+[Feature record](../completed/e07-f01-admin-query-service-and-authorization-boundary.md)
 
-Create typed, paginated read models and prove the admin-only privacy boundary.
+Delivered typed, paginated read models and proved the admin-only privacy
+boundary.
 
 ### E07-F02 — Reservation list and filtering
 
@@ -119,4 +120,3 @@ verification before the branch is considered merge-ready.
 6. Public routes and generated public artifacts contain no imported private
    data.
 7. Existing booking, review and application regression suites remain green.
-

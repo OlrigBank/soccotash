@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F01 through E06-F05.
+Complete.
 
 ## Parent epic
 
-[`E07 — Airbnb Administration Dashboard`](epics/e07-f00-airbnb-admin-dashboard.md)
+[`E07 — Airbnb Administration Dashboard`](../epics/e07-f00-airbnb-admin-dashboard.md)
 
 ## Objective
 
@@ -53,3 +53,28 @@ with bounded pagination and an explicit sensitive-field exclusion contract.
 4. Sensitive excluded columns cannot be selected through service options.
 5. The admin dashboard reports the imported domain without exposing content.
 
+## Delivered implementation
+
+- Added a dedicated typed `airbnb-admin` repository with dashboard counts and
+  paginated reservation/review summary queries.
+- Added bounded, allow-listed parsing for pagination, sorting, dates, property,
+  status, link state, rating, private-feedback presence and text search.
+- Escaped PostgreSQL wildcard characters in user searches and parameterized all
+  values; sort expressions are selected only from fixed internal mappings.
+- Added explicit summary and future detail read models. Ordinary list results
+  exclude review bodies, private notes, conversations, financial values, raw
+  extraction and all access-code fields.
+- Added Airbnb navigation and dashboard entries plus a protected section landing
+  page and non-broken placeholders for the subsequent feature routes.
+
+## Validation
+
+- The live Agent2 service reports 89 reservations, 52 reviews and six proposed
+  reconciliation links.
+- Runtime field-shape checks confirm reservation and review pages expose only
+  their allow-listed summary keys and use UUID identifiers.
+- PostgreSQL integration coverage proves bounds, stable ordering, literal
+  wildcard search, combined filters and sensitive-field exclusion.
+- Route contract coverage proves all new pages inherit the existing admin
+  redirect/API `401` boundary and appear in desktop/mobile navigation.
+- Astro type checking and the 77-test booking-lifecycle suite pass.

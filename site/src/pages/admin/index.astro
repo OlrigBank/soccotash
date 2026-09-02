@@ -4,6 +4,7 @@ import { PAGES_CMS_SECTIONS } from '../../lib/admin/pages-cms';
 import { getPool } from '../../lib/booking/db';
 import { countPricingPlans } from '../../lib/pricing/repository';
 import { countNotificationAlerts } from '../../lib/admin/notification-alerts';
+import { getAirbnbDashboardSummary } from '../../lib/airbnb-admin/repository';
 
 export const prerender = false;
 
@@ -11,7 +12,7 @@ const featureBranch = 'agent/cancellation-lifecycle-acc-test';
 const featureIteration = 4;
 const featureCompareUrl = `https://github.com/OlrigBank/soccotash/compare/${featureBranch}`;
 
-const [listingCount, bookingCount, syncRows, pricingPlanCount, alertCount] = await Promise.all([
+const [listingCount, bookingCount, syncRows, pricingPlanCount, alertCount, airbnbSummary] = await Promise.all([
   Promise.resolve(3),
   getPool().query("SELECT count(*)::int AS count FROM provisional_bookings WHERE status = 'pending'"),
   getPool().query(
@@ -19,6 +20,7 @@ const [listingCount, bookingCount, syncRows, pricingPlanCount, alertCount] = awa
   ),
   countPricingPlans(),
   countNotificationAlerts(),
+  getAirbnbDashboardSummary(),
 ]);
 ---
 <AdminLayout title="Dashboard">
@@ -66,6 +68,11 @@ const [listingCount, bookingCount, syncRows, pricingPlanCount, alertCount] = awa
       <span>Alerts</span>
       <strong>{alertCount}</strong>
       <small>{alertCount === 1 ? 'item needs attention' : 'items need attention'}</small>
+    </a>
+    <a class="admin-summary-card" href="/admin/airbnb/">
+      <span>Airbnb records</span>
+      <strong>{airbnbSummary.reservations}</strong>
+      <small>{airbnbSummary.reviews} reviews · {airbnbSummary.proposedLinks} proposals</small>
     </a>
   </section>
 
