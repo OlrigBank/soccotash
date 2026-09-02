@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F02 and E06-F03.
+Complete.
 
 ## Parent epic
 
-[`E06 — Storing Exported Airbnb Data`](epics/e06-f00-storing-exported-airbnb-data.md)
+[`E06 — Storing Exported Airbnb Data`](../epics/e06-f00-storing-exported-airbnb-data.md)
 
 ## Objective
 
@@ -52,3 +52,30 @@ Name similarity alone must never confirm a link.
 4. Manual decisions are immutable audit events or fully audited state changes.
 5. Re-running reconciliation produces no duplicate links and preserves manual
    decisions.
+
+## Delivered implementation
+
+- Added deterministic candidate generation using exact property, arrival,
+  departure and night-count evidence, with normalized identity compatibility
+  used only as supporting evidence.
+- Automatic confirmation requires exactly one identity-compatible candidate for
+  both the review and reservation; stay-only alternatives remain proposed.
+- Added partial unique indexes enforcing at most one confirmed link per review
+  and per reservation.
+- Added immutable manual candidate decisions. A manual confirmation can
+  explicitly supersede an automatic confirmation, with both changes recorded
+  in the existing administrator audit log; it cannot supersede another manual
+  confirmation silently.
+- Reconciliation uses conflict-safe inserts, preserves manual decisions and
+  reports counts without private content.
+
+## Validation
+
+- Reconciled all 52 imported reviews against 89 reservations.
+- Generated 58 explainable candidates: 52 automatically confirmed and six
+  ambiguous stay-only alternatives left proposed.
+- Every review has exactly one confirmed link, and no confirmation lacks exact
+  stay/listing evidence plus compatible identity evidence.
+- An unchanged rerun added no links.
+- Focused PostgreSQL tests cover unique matches, repeated stay dates, an absent
+  candidate, manual supersession, immutable decisions and audit records.

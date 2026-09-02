@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E06-F01 through E06-F04 are complete.
+Active. E06-F01 through E06-F05 are complete.
 
 ## Epic summary
 
@@ -206,10 +206,10 @@ line items, retaining raw text and reconciling displayed arithmetic.
 
 ### E06-F05 — Review-to-reservation reconciliation
 
-[Feature record](../e06-f05-review-reservation-reconciliation.md)
+[Feature record](../completed/e06-f05-review-reservation-reconciliation.md)
 
-Generate auditable candidate links from listing and stay evidence, confirm only
-unambiguous matches and provide a safe manual-review path.
+Delivered auditable candidate links from exact listing/stay evidence, strict
+automatic confirmation and an immutable, audited manual-review path.
 
 ### E06-F06 — Full import verification and operations
 
