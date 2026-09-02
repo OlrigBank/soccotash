@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('the homepage replaces its phone booking link with one compact Quick Check dock', async () => {
+test('the homepage uses one responsive Quick Check booking band', async () => {
   const [layout, homepage, component, publicTheme] = await Promise.all([
     source('src/layouts/BaseLayout.astro'),
     source('src/pages/index.astro'),
@@ -12,13 +12,13 @@ test('the homepage replaces its phone booking link with one compact Quick Check 
     source('src/styles/green-theme.css'),
   ]);
 
-  assert.match(layout, /activePath === '\/'[\s\S]*mobile-contact-bar--quick-check[\s\S]*mobileDock=\{true\}/);
-  assert.match(layout, /idPrefix="homepage-mobile-booking"[\s\S]*submitLabel="Quick Check"/);
-  assert.match(layout, /\) : \([\s\S]*mobile-contact-bar__book[\s\S]*Check availability/);
-  assert.match(homepage, /@media \(max-width: 699px\)[\s\S]*\.home-hero__content :global\(\.compact-booking-panel\)[\s\S]*display: none/);
+  assert.doesNotMatch(layout, /homepage-mobile-booking|mobile-contact-bar--quick-check/);
+  assert.match(layout, /activePath !== '\/'[\s\S]*mobile-contact-bar__book[\s\S]*Check availability/);
+  assert.match(homepage, /class="home-booking-band"[\s\S]*idPrefix="homepage-booking"[\s\S]*mobileDock=\{true\}/);
+  assert.match(homepage, /@media \(max-width: 699px\)[\s\S]*\.home-booking-band[\s\S]*position: fixed[\s\S]*bottom: 0/);
   assert.match(component, /compact-booking-panel--mobile-dock/);
   assert.match(component, /grid-template-columns: minmax\(0, 1\.65fr\) minmax\(0, 0\.9fr\) minmax\(5\.25rem, 0\.8fr\)/);
-  assert.match(component, /@media \(min-width: 700px\)[\s\S]*\.compact-booking-panel--mobile-dock[\s\S]*display: none/);
+  assert.doesNotMatch(component, /@media \(min-width: 700px\)[\s\S]*\.compact-booking-panel--mobile-dock[\s\S]*display: none/);
   assert.match(publicTheme, /:root:root\s*\{[\s\S]*--accent: #49654a;[\s\S]*--accent-dark: #314733;/);
 });
 
@@ -30,8 +30,8 @@ test('mobile date, guest and result content use mutually exclusive upward-openin
   assert.match(component, /panel\.dataset\.openSheet = sheet/);
   assert.match(component, /bottom: calc\(4rem \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(component, /max-height: calc\(100dvh - 5rem - env\(safe-area-inset-bottom\)\)/);
-  assert.match(component, /role=\{mobileDock \? 'dialog'/);
-  assert.match(component, /aria-modal=\{mobileDock \? 'true'/);
+  assert.match(component, /data-compact-mobile-dialog/);
+  assert.match(component, /mobileQuery\.addEventListener\('change', syncResponsiveMode\)/);
   assert.match(component, /data-compact-sheet-close="date"/);
   assert.match(component, /data-compact-sheet-close="guests"/);
   assert.match(component, /data-compact-sheet-close="result"/);

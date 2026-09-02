@@ -83,6 +83,17 @@ Playwright UI coverage for the completed landing-page experience.
 - made all 9 garden photographs available in the outdoor gallery; and
 - gave each gallery independent navigation and a scoped full-screen viewer.
 
+### E04-F08 — Unify the responsive landing page
+
+[Feature record](../completed/e04-f08-unify-responsive-landing-page.md)
+
+- removed the landing page's persistent desktop navigation sidebar;
+- widened and centred the shared responsive content shell;
+- unified homepage Quick Check across desktop and mobile presentations;
+- harmonised reviews as an item-based responsive carousel showing one, two or
+  three cards according to available width; and
+- preserved the hero photograph with a compact, localised desktop copy panel.
+
 ## Epic constraints
 
 - Keep Quick Check authoritative behaviour and continuation state unchanged.
@@ -94,6 +105,5 @@ Playwright UI coverage for the completed landing-page experience.
 
 ## Remaining work
 
-Continue further agreed landing-page iterations, then complete one final
-feature that adds permanent Playwright UI tests for the finished responsive
-experience.
+Complete one final feature that adds permanent Playwright UI tests for the
+finished responsive experience.
