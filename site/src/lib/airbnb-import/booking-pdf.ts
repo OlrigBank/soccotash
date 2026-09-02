@@ -14,6 +14,28 @@ export interface ParsedConversationEntry {
   reactions: string[];
 }
 
+export interface ParsedFinancialLineItem {
+  position: number;
+  parentPosition: number | null;
+  itemType: 'accommodation' | 'nightly_charge' | 'adjustment' | 'host_service_fee' | 'guest_service_fee' | 'tax' | 'total' | 'other';
+  description: string;
+  serviceDate: string | null;
+  quantity: number | null;
+  unitAmountMinor: number | null;
+  amountMinor: number;
+  rawDisplayText: string;
+}
+
+export interface ParsedFinancialSummary {
+  perspective: 'host_earnings' | 'guest_paid';
+  currency: 'GBP';
+  totalMinor: number;
+  arithmeticStatus: 'verified' | 'not_determinable' | 'discrepancy';
+  arithmeticDifferenceMinor: number | null;
+  rawDisplayText: string;
+  lineItems: ParsedFinancialLineItem[];
+}
+
 export interface ParsedAirbnbBooking {
   source: { conversationId: string; capturedAt: string };
   heading: string;
@@ -44,6 +66,7 @@ export interface ParsedAirbnbBooking {
   };
   conversationEntries: ParsedConversationEntry[];
   financialRaw: string;
+  financialSummaries: ParsedFinancialSummary[];
 }
 
 function nonEmptyLines(value: string): string[] {
@@ -222,6 +245,113 @@ function parseConversation(value: string, heading: string): ParsedConversationEn
   });
 }
 
+function moneyMinor(value: string): number | null {
+  const match = value.trim().match(/^(-?)£([\d,]+\.\d{2})$/u);
+  return match ? (match[1] ? -1 : 1) * Math.round(Number(match[2].replaceAll(',', '')) * 100) : null;
+}
+
+function financialItemType(description: string): ParsedFinancialLineItem['itemType'] {
+  if (/^total\s*\(/iu.test(description)) return 'total';
+  if (/host service fee/iu.test(description)) return 'host_service_fee';
+  if (/guest service fee/iu.test(description)) return 'guest_service_fee';
+  if (/tax|vat(?!\))/iu.test(description)) return 'tax';
+  if (/adjustment|discount|non-refundable/iu.test(description)) return 'adjustment';
+  if (/^[A-Z][a-z]{2},\s+\d{2}\/\d{2}/u.test(description)) return 'nightly_charge';
+  if (/nights? room fee|£[\d,.]+\s+x\s+\d+ nights?/iu.test(description)) return 'accommodation';
+  return 'other';
+}
+
+function serviceDate(description: string, arrival: string): string | null {
+  const match = description.match(/^[A-Z][a-z]{2},\s+(\d{2})\/(\d{2})/u);
+  if (!match) return null;
+  const arrivalYear = Number(arrival.slice(0, 4));
+  const arrivalMonth = Number(arrival.slice(5, 7));
+  const month = Number(match[1]);
+  const year = arrivalYear + (month < arrivalMonth ? 1 : 0);
+  return isoDate(year, month - 1, Number(match[2]));
+}
+
+function parseFinancialPanel(
+  perspective: ParsedFinancialSummary['perspective'],
+  rows: string[],
+  arrival: string,
+  headlineHostTotalMinor: number | null,
+): ParsedFinancialSummary {
+  const values = rows.map((row) => row.trim()).filter(Boolean);
+  const totalMinor = values.length ? moneyMinor(values[0]) : null;
+  if (totalMinor === null) throw new Error(`${perspective} panel has no displayed total`);
+  const lineItems: ParsedFinancialLineItem[] = [];
+  let parentPosition: number | null = null;
+  for (let index = 1; index < values.length; index += 1) {
+    const description = values[index];
+    const amount = values[index + 1] ? moneyMinor(values[index + 1]) : null;
+    if (amount === null) throw new Error(`${perspective} financial row has no amount: ${description}`);
+    index += 1;
+    const type = financialItemType(description);
+    const quantityMatch = description.match(/^£([\d,]+\.\d{2})\s+x\s+(\d+) nights?$/iu);
+    const currentPosition = lineItems.length;
+    const parsedServiceDate = serviceDate(description, arrival);
+    const isChild = parsedServiceDate !== null && parentPosition !== null;
+    lineItems.push({
+      position: currentPosition,
+      parentPosition: isChild ? parentPosition : null,
+      itemType: type,
+      description,
+      serviceDate: parsedServiceDate,
+      quantity: quantityMatch ? Number(quantityMatch[2]) : null,
+      unitAmountMinor: quantityMatch ? Math.round(Number(quantityMatch[1].replaceAll(',', '')) * 100) : null,
+      amountMinor: amount,
+      rawDisplayText: `${description}\n${values[index]}`,
+    });
+    if (type === 'accommodation' || (type === 'adjustment' && !isChild)) parentPosition = currentPosition;
+    if (type === 'host_service_fee' || type === 'guest_service_fee' || type === 'total') parentPosition = null;
+  }
+  const topLevelComponents = lineItems.filter((item) => item.parentPosition === null && item.itemType !== 'total');
+  const nonTotalSum = topLevelComponents
+    .reduce((sum, item) => sum + item.amountMinor, 0);
+  const difference = totalMinor - nonTotalSum;
+  const headlineDifference = perspective === 'host_earnings' && headlineHostTotalMinor !== null
+    ? totalMinor - headlineHostTotalMinor : 0;
+  const isDeterminable = topLevelComponents.length > 0;
+  return {
+    perspective,
+    currency: 'GBP',
+    totalMinor,
+    arithmeticStatus: headlineDifference !== 0 || (isDeterminable && difference !== 0)
+      ? 'discrepancy' : isDeterminable ? 'verified' : 'not_determinable',
+    arithmeticDifferenceMinor: headlineDifference !== 0 ? headlineDifference
+      : isDeterminable && difference !== 0 ? difference : null,
+    rawDisplayText: values.join('\n'),
+    lineItems,
+  };
+}
+
+function parseFinancials(raw: string, reservation: ParsedAirbnbBooking['reservation']): ParsedFinancialSummary[] {
+  const lines = raw.replaceAll('\r', '').split('\n');
+  const headerIndex = lines.findIndex((line) => line.includes('You earn') && line.includes('Guest paid'));
+  if (headerIndex < 0) {
+    const compact = lines.map((line) => line.trim()).filter(Boolean);
+    const hostIndex = compact.indexOf('You earn');
+    const guestIndex = compact.indexOf('Guest paid');
+    if (hostIndex < 0 || guestIndex <= hostIndex) throw new Error('Financial section has no perspective headings');
+    return [
+      parseFinancialPanel('host_earnings', compact.slice(hostIndex + 1, guestIndex), reservation.arrival, reservation.headlineHostTotalMinor),
+      parseFinancialPanel('guest_paid', compact.slice(guestIndex + 1), reservation.arrival, null),
+    ];
+  }
+  const guestColumn = lines[headerIndex].indexOf('Guest paid');
+  const hostRows: string[] = [];
+  const guestRows: string[] = [];
+  for (const line of lines.slice(headerIndex + 1)) {
+    hostRows.push(line.slice(0, guestColumn));
+    guestRows.push(line.slice(guestColumn));
+  }
+  return [
+    parseFinancialPanel('host_earnings', hostRows, reservation.arrival, reservation.headlineHostTotalMinor),
+    parseFinancialPanel('guest_paid', guestRows, reservation.arrival, null),
+  ];
+}
+
 export function parseAirbnbBookingPdfText(layoutText: string): ParsedAirbnbBooking {
   const identity = layoutText.match(/PRIVATE AIRBNB BOOKING RECORD\s+([\s\S]*?)\s+Conversation ID (\d+) · Captured ([^\s]+)/u);
   if (!identity) throw new Error('PDF has no Airbnb booking identity');
@@ -244,5 +374,6 @@ export function parseAirbnbBookingPdfText(layoutText: string): ParsedAirbnbBooki
     reservation: parsedReservation,
     conversationEntries,
     financialRaw: finance[1].trim(),
+    financialSummaries: parseFinancials(finance[1], parsedReservation),
   };
 }

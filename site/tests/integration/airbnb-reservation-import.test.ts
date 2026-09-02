@@ -93,11 +93,53 @@ test('booking PDF parser preserves abbreviated stays and unresolved message date
   assert.equal(parsed.conversationEntries[0].timestampPrecision, 'exact');
   assert.equal(parsed.conversationEntries[1].timestampPrecision, 'unresolved');
   assert.equal(parsed.conversationEntries[1].entryType, 'service_event');
+  assert.deepEqual(parsed.financialSummaries.map((summary) => summary.totalMinor), [10000, 12000]);
+  assert.ok(parsed.financialSummaries.every((summary) => summary.arithmeticStatus === 'not_determinable'));
 
   const cancelled = parseAirbnbBookingPdfText(
     bookingText().replace('Booking confirmed.', 'You canceled this reservation.'),
   );
   assert.equal(cancelled.reservation.sourceStatusText, 'Cancelled');
+});
+
+test('financial panels preserve signed hierarchy, quantities and reconciliation', () => {
+  const financial = ` You earn                             Guest paid
+ £234.25                              £284.17
+ 3 nights room fee                    £81.00 x 3 nights
+ £270.00                              £243.00
+ Thu, 10/24                           Guest service fee
+ £90.00                               £41.17
+ Fri, 10/25                           Total (GBP)
+ £90.00                               £284.17
+ Sat, 10/26
+ £90.00
+ Nightly rate adjustment
+ -£27.00
+ Thu, 10/24 (Non-refundable option)
+ -£9.00
+ Fri, 10/25 (Non-refundable option)
+ -£9.00
+ Sat, 10/26 (Non-refundable option)
+ -£9.00
+ Host service fee (3.0% + VAT)
+ -£8.75
+ Total (GBP)
+ £234.25`;
+  const parsed = parseAirbnbBookingPdfText(bookingText().replace(
+    ` You earn
+ £100.00
+ Guest paid
+ £120.00`,
+    financial,
+  ));
+  const host = parsed.financialSummaries[0];
+  const guest = parsed.financialSummaries[1];
+  assert.equal(host.arithmeticStatus, 'verified');
+  assert.equal(host.lineItems.filter((item) => item.parentPosition !== null).length, 6);
+  assert.equal(host.lineItems.find((item) => item.itemType === 'host_service_fee')?.amountMinor, -875);
+  assert.equal(guest.lineItems[0].quantity, 3);
+  assert.equal(guest.lineItems[0].unitAmountMinor, 8100);
+  assert.equal(guest.arithmeticStatus, 'verified');
 });
 
 test('Airbnb reservation import deduplicates captures and rolls back conflicts', async () => {
@@ -118,6 +160,7 @@ test('Airbnb reservation import deduplicates captures and rolls back conflicts',
     assert.equal(first.documentsAdded, 1);
     assert.equal(first.reservationsAdded, 1);
     assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_conversation_entries')).rows[0].count, 2);
+    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_financial_summaries')).rows[0].count, 2);
     assert.equal((await database.query(
       `SELECT encode(access_code_ciphertext, 'escape') AS encrypted
          FROM airbnb_reservation_private_details`,

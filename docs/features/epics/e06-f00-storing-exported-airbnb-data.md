@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E06-F01, E06-F02 and E06-F03 are complete.
+Active. E06-F01 through E06-F04 are complete.
 
 ## Epic summary
 
@@ -199,10 +199,10 @@ imports while retaining and reconciling both source collections.
 
 ### E06-F04 — Financial breakdown import and reconciliation
 
-[Feature record](../e06-f04-financial-breakdown-import.md)
+[Feature record](../completed/e06-f04-financial-breakdown-import.md)
 
-Parse both financial perspectives into signed minor-unit totals and ordered
-line items, retaining raw text and reporting reconciliation discrepancies.
+Delivered both financial perspectives as signed minor-unit totals and ordered
+line items, retaining raw text and reconciling displayed arithmetic.
 
 ### E06-F05 — Review-to-reservation reconciliation
 

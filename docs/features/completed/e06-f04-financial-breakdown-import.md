@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F03.
+Complete.
 
 ## Parent epic
 
-[`E06 — Storing Exported Airbnb Data`](epics/e06-f00-storing-exported-airbnb-data.md)
+[`E06 — Storing Exported Airbnb Data`](../epics/e06-f00-storing-exported-airbnb-data.md)
 
 ## Objective
 
@@ -44,3 +44,28 @@ text.
 4. Line ordering and parent/child relationships reproduce the source panel.
 5. Every headline/host discrepancy is either resolved or explicitly flagged.
 6. No financial value appears in ordinary import logs.
+
+## Delivered implementation
+
+- Extended the private booking parser to produce host-earnings and guest-paid
+  summaries with integer GBP minor units.
+- Stored ordered accommodation, nightly, adjustment, service-fee, total and
+  fallback rows, including dated parent-child relationships, signed values,
+  quantities and unit prices.
+- Preserved each panel's complete displayed text and rejected conflicting
+  financial evidence on repeated or duplicate captures.
+- Reconciled top-level arithmetic and the reservation headline host total,
+  recording a difference only where evidence disagrees.
+- Kept financial amounts out of routine command output.
+
+## Validation
+
+- All 89 reservations have exactly two summaries: 89 `host_earnings` and 89
+  `guest_paid`.
+- All 178 summaries reconcile as `verified` against 933 ordered line items.
+- The imported hierarchy contains 353 child rows and preserves 256 negative
+  adjustments or fees.
+- Focused tests cover signed fees, dated adjustment children, quantities, unit
+  prices, both perspectives and arithmetic verification.
+- An unchanged rerun added no source documents or reservations and matched all
+  103 captures without duplicating financial rows.

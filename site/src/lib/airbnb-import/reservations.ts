@@ -62,6 +62,61 @@ async function insertConversation(client: PoolClient, reservationId: string, boo
   }
 }
 
+async function syncFinancialSummaries(
+  client: PoolClient,
+  reservationId: string,
+  booking: ParsedAirbnbBooking,
+): Promise<void> {
+  const existing = await client.query<{
+    perspective: string; currency: string; total_minor: string; arithmetic_status: string;
+    arithmetic_difference_minor: string | null; raw_display_text: string;
+  }>(
+    `SELECT perspective, currency, total_minor::text, arithmetic_status,
+            arithmetic_difference_minor::text, raw_display_text
+       FROM airbnb_financial_summaries WHERE reservation_id=$1`,
+    [reservationId],
+  );
+  if (existing.rowCount) {
+    if (existing.rowCount !== booking.financialSummaries.length) {
+      throw new AirbnbReservationImportConflict(booking.source.conversationId, 'financial perspectives are incomplete');
+    }
+    for (const summary of booking.financialSummaries) {
+      const stored = existing.rows.find((row) => row.perspective === summary.perspective);
+      if (!stored || stored.currency !== summary.currency || Number(stored.total_minor) !== summary.totalMinor
+        || stored.arithmetic_status !== summary.arithmeticStatus
+        || (stored.arithmetic_difference_minor === null ? null : Number(stored.arithmetic_difference_minor)) !== summary.arithmeticDifferenceMinor
+        || stored.raw_display_text !== summary.rawDisplayText) {
+        throw new AirbnbReservationImportConflict(booking.source.conversationId, `${summary.perspective} financial evidence conflicts`);
+      }
+    }
+    return;
+  }
+  for (const summary of booking.financialSummaries) {
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO airbnb_financial_summaries
+         (reservation_id, perspective, currency, total_minor, arithmetic_status,
+          arithmetic_difference_minor, raw_display_text, captured_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz) RETURNING id::text`,
+      [reservationId, summary.perspective, summary.currency, summary.totalMinor,
+        summary.arithmeticStatus, summary.arithmeticDifferenceMinor, summary.rawDisplayText,
+        booking.source.capturedAt],
+    );
+    const ids = new Map<number, string>();
+    for (const item of summary.lineItems) {
+      const line = await client.query<{ id: string }>(
+        `INSERT INTO airbnb_financial_line_items
+           (financial_summary_id, parent_line_item_id, position, item_type,
+            description, service_date, quantity, unit_amount_minor, amount_minor, raw_display_text)
+         VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10) RETURNING id::text`,
+        [inserted.rows[0].id, item.parentPosition === null ? null : ids.get(item.parentPosition),
+          item.position, item.itemType, item.description, item.serviceDate, item.quantity,
+          item.unitAmountMinor, item.amountMinor, item.rawDisplayText],
+      );
+      ids.set(item.position, line.rows[0].id);
+    }
+  }
+}
+
 async function insertReservation(
   client: PoolClient,
   document: AirbnbBookingImportDocument,
@@ -110,6 +165,7 @@ async function insertReservation(
     );
   }
   await insertConversation(client, reservationId, booking);
+  await syncFinancialSummaries(client, reservationId, booking);
 }
 
 export async function importAirbnbReservations(
@@ -177,6 +233,7 @@ export async function importAirbnbReservations(
         documentsAdded += 1;
       }
       if (existing.rowCount) {
+        await syncFinancialSummaries(client, existing.rows[0].id, document.booking);
         await client.query(
           `INSERT INTO airbnb_reservation_documents (reservation_id, source_document_id, is_preferred)
            VALUES ($1, $2, FALSE) ON CONFLICT (source_document_id) DO NOTHING`,
