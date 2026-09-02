@@ -41,6 +41,7 @@ blob-report/
 .env
 .env.*
 !.env.example
+!.env.agent2.example
 site/.env
 site/.env.*
 !site/.env.example

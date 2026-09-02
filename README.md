@@ -79,6 +79,52 @@ Stop the stack without deleting PostgreSQL data:
 npm run docker:down
 ```
 
+## Two local development instances
+
+Two copies of the project can run concurrently. They use different Docker
+projects, application images, networks, volumes, ports, and PostgreSQL
+databases, so development and database migrations in one instance do not alter
+the other.
+
+| Instance | Checkout | HTTP | HTTPS | PostgreSQL | Docker project |
+| --- | --- | --- | --- | --- | --- |
+| Primary | `soccotash` | `http://localhost:8080` | port `8443` | `127.0.0.1:5433` | `olrigbank` |
+| Agent 2 | `soccotash2` | `http://localhost:8082` | port `8444` | `127.0.0.1:5434` | `olrigbank2` |
+
+The standard `npm run docker:*` commands operate the primary/shared setup. In
+the `soccotash2` checkout, always use the `npm run docker:isolated:*` commands
+below to target Agent 2.
+
+### Start Agent 2 for the first time
+
+```bash
+cp .env.agent2.example .env.agent2
+# Replace the example password and set OLRIGBANK_HTTPS_HOST if required.
+npm run docker:isolated:up
+```
+
+Open `http://localhost:8082/` or `https://<LAN-address>:8444/`. The isolated
+PostgreSQL service is exposed only on loopback at port `5434`.
+
+### Operate Agent 2
+
+```bash
+npm run docker:isolated:logs
+npm run docker:isolated:sync
+npm run docker:isolated:report
+npm run docker:isolated:backup
+npm run docker:isolated:restore -- backups/olrigbank-YYYYMMDD-HHMMSS.dump
+npm run docker:isolated:down
+```
+
+Stopping Agent 2 does not stop the primary instance. Its database data remains
+in the `olrigbank2_isolated-postgres-data` volume unless that volume is
+explicitly removed.
+
+Booking regression tests can target it with
+`BOOKING_REGRESSION_BASE_URL=http://127.0.0.1:8082`; fixture setup must use the
+isolated database URL on port `5434`.
+
 See `docs/booking-calendar-service.md` and `docs/deployment-guide.md` for the complete workflow.
 See `docs/olrigbank-migration.md` for the side-by-side migration and independent
 Render Blueprint procedure.
@@ -86,7 +132,8 @@ Render Blueprint procedure.
 ## Source structure
 
 ```text
-compose.yaml                         Local application and PostgreSQL stack
+compose.yaml                         Primary/shared local application definition
+compose.isolated.yaml                Isolated Agent 2 database and Compose overrides
 site/                               Astro/Node application
 site/db/                            Ordered PostgreSQL migrations
 site/src/content/local-guide/       Local guide entries

@@ -1,0 +1,52 @@
+name: ${COMPOSE_PROJECT_NAME:-olrigbank2}
+
+# Additive override for a second, fully isolated local development instance.
+# Use together with compose.yaml; do not run this file by itself.
+x-isolated-app-image: &isolated-app-image
+  image: ${OLRIGBANK_IMAGE:-olrigbank-web:local-2}
+
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    networks:
+      - soccotash-shared
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-soccotash}
+      POSTGRES_USER: ${POSTGRES_USER:-soccotash}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.agent2}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - isolated-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  site:
+    <<: *isolated-app-image
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
+
+  calendar-sync:
+    <<: *isolated-app-image
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
+
+  booking-report:
+    <<: *isolated-app-image
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-soccotash}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-soccotash}
+
+networks:
+  soccotash-shared:
+    external: false
+    name: ${SOCCOTASH_DOCKER_NETWORK:-olrigbank2_default}
+
+volumes:
+  isolated-postgres-data:

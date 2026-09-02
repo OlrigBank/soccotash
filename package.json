@@ -28,7 +28,14 @@
     "docker:logs": "docker compose logs -f site",
     "docker:sync": "docker compose --profile tools run --rm calendar-sync",
     "docker:report": "docker compose --profile tools run --rm booking-report",
-    "docker:backup": "./backup-db.bash"
+    "docker:backup": "./backup-db.bash",
+    "docker:isolated:up": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml up --build -d",
+    "docker:isolated:down": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml down",
+    "docker:isolated:logs": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml logs -f site",
+    "docker:isolated:sync": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm calendar-sync",
+    "docker:isolated:report": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm booking-report",
+    "docker:isolated:backup": "SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./backup-db.bash",
+    "docker:isolated:restore": "COMPOSE_FILE=compose.yaml:compose.isolated.yaml COMPOSE_ENV_FILES=.env.agent2 SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./restore-db.bash"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
