@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E07-F01 through E07-F04 are complete. This epic is based on the
+Active. E07-F01 through E07-F05 are complete. This epic is based on the
 completed E06 private import branch and is not merged into `development`.
 
 ## Epic summary
@@ -83,9 +83,9 @@ stay.
 
 ### E07-F05 — Reconciliation review workflow
 
-[Feature record](../e07-f05-reconciliation-review-workflow.md)
+[Feature record](../completed/e07-f05-reconciliation-review-workflow.md)
 
-Provide an audited UI for proposed candidate confirmation and rejection.
+Delivered an audited UI for proposed candidate confirmation and rejection.
 
 ### E07-F06 — Security, accessibility and release verification
 

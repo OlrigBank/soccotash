@@ -4,9 +4,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
 import pg from 'pg';
 import {
-  decideAirbnbReviewReservationLink,
   reconcileAirbnbReviews,
 } from '../../src/lib/airbnb-import/reconciliation.ts';
+import {
+  decideAirbnbReconciliationCandidate,
+  listAirbnbReconciliationCandidates,
+} from '../../src/lib/airbnb-admin/repository.ts';
 
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 
@@ -71,6 +74,7 @@ test('reconciliation confirms unique evidence and preserves immutable manual dec
     await reservation('1001', 'Alice Smith', '2026-01-01', '2026-01-03');
     await reservation('1002', 'Bob Jones', '2026-02-01', '2026-02-03');
     await reservation('1003', 'Different Guest', '2026-02-01', '2026-02-03');
+    await reservation('1004', 'Another Guest', '2026-02-01', '2026-02-03');
     await review('2001', 'Alice Smith', '2026-01-01', '2026-01-03');
     await review('2002', 'Bob', '2026-02-01', '2026-02-03');
     await review('2003', 'Nobody', '2026-03-01', '2026-03-03');
@@ -78,36 +82,44 @@ test('reconciliation confirms unique evidence and preserves immutable manual dec
     const first = await reconcileAirbnbReviews(database);
     assert.deepEqual(
       { reviews: first.reviewsConsidered, candidates: first.candidatesFound, confirmed: first.automaticallyConfirmed, proposed: first.proposed },
-      { reviews: 3, candidates: 3, confirmed: 2, proposed: 1 },
+      { reviews: 3, candidates: 4, confirmed: 2, proposed: 2 },
     );
-    const proposed = await database.query<{ id: string }>(
-      `SELECT id::text FROM airbnb_review_reservation_links WHERE link_status='proposed'`,
-    );
-    await decideAirbnbReviewReservationLink(database, {
-      linkId: proposed.rows[0].id,
+    const proposed = await listAirbnbReconciliationCandidates(database);
+    assert.equal(proposed.length, 2);
+    assert.match(proposed[0].id, /^[0-9a-f-]{36}$/u);
+    assert.equal(proposed[0].evidence.identityCompatible, false);
+    await decideAirbnbReconciliationCandidate({
+      candidateId: proposed[0].id,
       decision: 'confirmed',
       adminUserId: admin.rows[0].id,
-    });
+    }, database);
+    await decideAirbnbReconciliationCandidate({
+      candidateId: proposed[1].id,
+      decision: 'rejected',
+      adminUserId: admin.rows[0].id,
+    }, database);
     await assert.rejects(
-      decideAirbnbReviewReservationLink(database, {
-        linkId: proposed.rows[0].id,
+      decideAirbnbReconciliationCandidate({
+        candidateId: proposed[0].id,
         decision: 'rejected',
         adminUserId: admin.rows[0].id,
-      }),
-      /already been decided/u,
+      }, database),
+      (error: unknown) => error instanceof Error && 'code' in error && error.code === 'CONFLICT',
     );
     const rerun = await reconcileAirbnbReviews(database);
     assert.equal(rerun.linksAdded, 0);
-    assert.equal(rerun.manualDecisionsPreserved, 2);
+    assert.equal(rerun.manualDecisionsPreserved, 3);
     assert.equal((await database.query(
       `SELECT count(*)::int AS count FROM admin_audit_log
         WHERE action IN ('airbnb_review_reservation_decided', 'airbnb_review_reservation_superseded')`,
-    )).rows[0].count, 2);
+    )).rows[0].count, 3);
     assert.equal((await database.query(
       `SELECT count(*)::int AS count FROM airbnb_review_reservation_links
         WHERE review_id=(SELECT review_id FROM airbnb_review_reservation_links WHERE id=$1)
           AND link_status='confirmed'`,
-      [proposed.rows[0].id],
+      [(await database.query<{ id: string }>(
+        `SELECT id::text FROM airbnb_review_reservation_links WHERE public_id=$1::uuid`, [proposed[0].id],
+      )).rows[0].id],
     )).rows[0].count, 1);
   } finally {
     await database.end();

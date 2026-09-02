@@ -980,6 +980,16 @@ main {
 .airbnb-linked-stays { display: grid; gap: 0.7rem; padding: 0; list-style: none; }
 .airbnb-linked-stays > li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.8rem; align-items: center; padding: 0.8rem; border: 1px solid var(--line); border-radius: 0.8rem; }
 .airbnb-linked-stays div { display: grid; gap: 0.2rem; }
+.airbnb-reconciliation-list { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.airbnb-reconciliation-list > li { padding: 1rem; border: 1px solid var(--line); border-radius: 0.9rem; }
+.airbnb-reconciliation-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.airbnb-reconciliation-comparison article { padding: 0.85rem; background: #f7f5f0; border-radius: 0.7rem; }
+.airbnb-reconciliation-comparison h3 { margin: 0.25rem 0; }
+.airbnb-evidence-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+.airbnb-evidence-grid div { padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.airbnb-evidence-grid dt { color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+.airbnb-evidence-grid dd { margin: 0.2rem 0 0; }
+.airbnb-decision-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
 .status-badge {
   display: inline-flex;
   padding: 0.2rem 0.55rem;
@@ -1179,6 +1189,9 @@ main {
   .airbnb-conversation-entry { max-width: 100%; }
   .airbnb-rating-grid { grid-template-columns: minmax(0, 1fr); }
   .airbnb-linked-stays > li { grid-template-columns: minmax(0, 1fr); }
+  .airbnb-reconciliation-comparison,
+  .airbnb-evidence-grid { grid-template-columns: minmax(0, 1fr); }
+  .airbnb-decision-actions .admin-button { width: 100%; }
 }
 
 @media (max-width: 430px) {

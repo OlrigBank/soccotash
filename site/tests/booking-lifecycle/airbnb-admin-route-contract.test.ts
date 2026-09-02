@@ -10,6 +10,8 @@ const reservationsUrl = new URL('../../src/pages/admin/airbnb/reservations/index
 const reservationDetailUrl = new URL('../../src/pages/admin/airbnb/reservations/[id]/index.astro', import.meta.url);
 const reviewsUrl = new URL('../../src/pages/admin/airbnb/reviews/index.astro', import.meta.url);
 const reviewDetailUrl = new URL('../../src/pages/admin/airbnb/reviews/[id]/index.astro', import.meta.url);
+const reconciliationUrl = new URL('../../src/pages/admin/airbnb/reconciliation/index.astro', import.meta.url);
+const reconciliationApiUrl = new URL('../../src/pages/api/admin/airbnb/reconciliation/index.ts', import.meta.url);
 
 test('Airbnb records inherit the authenticated admin-only route boundary', async () => {
   const [middleware, layout, dashboard, airbnb] = await Promise.all([
@@ -23,6 +25,22 @@ test('Airbnb records inherit the authenticated admin-only route boundary', async
   assert.match(dashboard, /href="\/admin\/airbnb\/"/u);
   assert.match(airbnb, /Access-code material is not available/u);
   assert.doesNotMatch(airbnb, /access_code_ciphertext|raw_extraction/u);
+});
+
+test('Airbnb reconciliation UI requires explicit audited POST decisions', async () => {
+  const [page, api] = await Promise.all([readFile(reconciliationUrl, 'utf8'), readFile(reconciliationApiUrl, 'utf8')]);
+  assert.match(page, /listAirbnbReconciliationCandidates/u);
+  assert.match(page, /A similar name is never sufficient by itself/u);
+  assert.match(page, /data-decision="confirmed"/u);
+  assert.match(page, /data-decision="rejected"/u);
+  assert.match(page, /window\.confirm/u);
+  assert.match(page, /confirmation: true/u);
+  assert.match(api, /if \(!locals\.adminUser\).*status: 401/su);
+  assert.match(api, /isSameOrigin\(request\).*status: 403/su);
+  assert.match(api, /input\.confirmation !== true/u);
+  assert.match(api, /adminUserId: locals\.adminUser\.id/u);
+  assert.match(api, /error\.code === 'CONFLICT' \? 409/u);
+  assert.match(api, /export const ALL[\s\S]*status: 405/u);
 });
 
 test('Airbnb review list and detail keep private text out of summaries and use UUID links', async () => {

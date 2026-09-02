@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import { getPool } from '../booking/db.ts';
+import { decideAirbnbReviewReservationLink } from '../airbnb-import/reconciliation.ts';
 
 type QueryDatabase = Pick<pg.Pool, 'query'> | Pick<pg.PoolClient, 'query'>;
 
@@ -177,6 +178,31 @@ export interface AirbnbReviewReservationLink {
     nightsExact?: boolean;
     identityCompatible?: boolean;
   };
+}
+
+export interface AirbnbReconciliationCandidate {
+  id: string;
+  confidence: number;
+  review: { id: string; reviewerDisplayName: string; propertyId: string | null; sourceListingName: string; arrival: string; departure: string };
+  reservation: { id: string; bookerDisplayName: string; propertyId: string | null; sourceListingName: string; arrival: string; departure: string };
+  evidence: {
+    propertyExact: boolean;
+    arrivalExact: boolean;
+    departureExact: boolean;
+    nightsExact: boolean;
+    identityCompatible: boolean;
+    stayCandidateCount: number;
+    identityCompatibleCandidateCount: number;
+  };
+}
+
+export class AirbnbAdminDecisionError extends Error {
+  readonly code: 'INVALID_INPUT' | 'NOT_FOUND' | 'CONFLICT';
+  constructor(code: 'INVALID_INPUT' | 'NOT_FOUND' | 'CONFLICT', message: string) {
+    super(message);
+    this.name = 'AirbnbAdminDecisionError';
+    this.code = code;
+  }
 }
 
 function integer(value: string | null, fallback: number, minimum: number, maximum: number): number {
@@ -543,4 +569,67 @@ export async function getAirbnbReviewDetail(
       arrival: iso(row.arrival), departure: iso(row.departure), evidence: row.evidence,
     })),
   };
+}
+
+export async function listAirbnbReconciliationCandidates(
+  database: QueryDatabase = getPool(),
+): Promise<AirbnbReconciliationCandidate[]> {
+  const result = await database.query(
+    `SELECT link.public_id::text AS id, link.confidence::text, link.evidence,
+            review.public_id::text AS review_id, review.reviewer_display_name,
+            review.property_id AS review_property_id, review.source_listing_name AS review_listing,
+            review.arrival AS review_arrival, review.departure AS review_departure,
+            reservation.public_id::text AS reservation_id, reservation.booker_display_name,
+            reservation.property_id AS reservation_property_id,
+            reservation.source_listing_name AS reservation_listing,
+            reservation.arrival AS reservation_arrival, reservation.departure AS reservation_departure
+       FROM airbnb_review_reservation_links link
+       JOIN airbnb_reviews review ON review.id=link.review_id
+       JOIN airbnb_reservations reservation ON reservation.id=link.reservation_id
+      WHERE link.link_status='proposed'
+      ORDER BY link.confidence DESC, review.arrival DESC, link.id DESC
+      LIMIT 100`,
+  );
+  return result.rows.map((row) => ({
+    id: row.id, confidence: Number(row.confidence), evidence: row.evidence,
+    review: {
+      id: row.review_id, reviewerDisplayName: row.reviewer_display_name,
+      propertyId: row.review_property_id, sourceListingName: row.review_listing,
+      arrival: iso(row.review_arrival), departure: iso(row.review_departure),
+    },
+    reservation: {
+      id: row.reservation_id, bookerDisplayName: row.booker_display_name,
+      propertyId: row.reservation_property_id, sourceListingName: row.reservation_listing,
+      arrival: iso(row.reservation_arrival), departure: iso(row.reservation_departure),
+    },
+  }));
+}
+
+export async function decideAirbnbReconciliationCandidate(
+  input: { candidateId: string; decision: 'confirmed' | 'rejected'; adminUserId: string },
+  database?: pg.Pool,
+): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(input.candidateId)
+    || !['confirmed', 'rejected'].includes(input.decision) || !/^\d+$/u.test(input.adminUserId)) {
+    throw new AirbnbAdminDecisionError('INVALID_INPUT', 'Enter a valid reconciliation decision.');
+  }
+  const connection = database ?? getPool();
+  const link = await connection.query<{ id: string }>(
+    `SELECT id::text FROM airbnb_review_reservation_links WHERE public_id=$1::uuid`,
+    [input.candidateId],
+  );
+  if (!link.rowCount) throw new AirbnbAdminDecisionError('NOT_FOUND', 'Reconciliation candidate not found.');
+  try {
+    await decideAirbnbReviewReservationLink(connection, {
+      linkId: link.rows[0].id,
+      decision: input.decision,
+      adminUserId: input.adminUserId,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (/already been decided|existing manual confirmation/u.test(message)) {
+      throw new AirbnbAdminDecisionError('CONFLICT', message);
+    }
+    throw error;
+  }
 }

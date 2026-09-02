@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E07-F01, E07-F03 and E07-F04.
+Complete.
 
 ## Parent epic
 
-[`E07 — Airbnb Administration Dashboard`](epics/e07-f00-airbnb-admin-dashboard.md)
+[`E07 — Airbnb Administration Dashboard`](../epics/e07-f00-airbnb-admin-dashboard.md)
 
 ## Objective
 
@@ -47,3 +47,30 @@ reservation candidates using the immutable, audited E06 decision service.
 4. Failed or repeated actions leave link state unchanged.
 5. The UI never implies that matching names alone are sufficient evidence.
 
+## Delivered implementation
+
+- Added stable UUIDs for reconciliation links without exposing internal sequence
+  identifiers.
+- Replaced the placeholder with a bounded proposed-candidate workspace showing
+  review/reservation stay and listing evidence side by side, compatibility and
+  ambiguity counts, plus links to both full records.
+- Added deliberate confirm/reject controls with a browser confirmation step and
+  an explicit confirmation value in the request.
+- Added an authenticated, same-origin, JSON-only POST endpoint that resolves the
+  UUID server-side and supplies the signed-in administrator ID to the E06
+  transactional decision service.
+- Added non-destructive `409` handling for replayed/already-decided candidates
+  and competing manual confirmations, and `405` handling for other methods.
+- Manual confirmation explicitly rejects and audits a superseded automatic
+  confirmation; manual rejection leaves the existing confirmation in place.
+
+## Validation
+
+- The read-only live Agent2 check returns all six proposals with link, review
+  and reservation UUIDs and complete non-content evidence. None has compatible
+  identity evidence, so none is presented as a safe automatic match.
+- Synthetic PostgreSQL coverage verifies confirmation supersession, rejection,
+  audit events, immutable decisions, rerun preservation and one confirmed link.
+- Runtime endpoint tests cover anonymous, cross-site, wrong-content-type,
+  missing-confirmation, invalid-input and non-POST requests.
+- No decision was applied to the six real proposals during verification.
