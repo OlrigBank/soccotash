@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E06-F01 and E06-F02 are complete.
+Active. E06-F01, E06-F02 and E06-F03 are complete.
 
 ## Epic summary
 
@@ -192,10 +192,10 @@ ratings, private feedback and ordered feedback tags.
 
 ### E06-F03 — Reservation and conversation import
 
-[Feature record](../e06-f03-reservation-and-conversation-import.md)
+[Feature record](../completed/e06-f03-reservation-and-conversation-import.md)
 
-Parse booking PDFs into canonical reservations, party/private details and
-ordered conversation entries while deduplicating the two source collections.
+Delivered canonical reservation, private-detail and ordered-conversation
+imports while retaining and reconciling both source collections.
 
 ### E06-F04 — Financial breakdown import and reconciliation
 

@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F01.
+Complete.
 
 ## Parent epic
 
-[`E06 — Storing Exported Airbnb Data`](epics/e06-f00-storing-exported-airbnb-data.md)
+[`E06 — Storing Exported Airbnb Data`](../epics/e06-f00-storing-exported-airbnb-data.md)
 
 ## Objective
 
@@ -57,3 +57,30 @@ dates.
 4. Access-code values never appear in logs, committed fixtures or ordinary
    reservation queries.
 5. Re-running the importer is idempotent.
+
+## Delivered implementation
+
+- Added a private booking-PDF parser and transactional command-line importer.
+- Canonical reservations are keyed by Airbnb conversation ID, while every PDF
+  remains linked as provenance; conflicting duplicate captures abort the batch.
+- Conversation messages and Airbnb service events retain source order, wording
+  and displayed timestamps. Dates without enough evidence are explicitly
+  recorded as `year_unknown` or `unresolved` rather than inferred.
+- Suggested access codes are AES-256-GCM encrypted before database insertion.
+  Plaintext codes are excluded from raw extraction, diagnostics and tests.
+- The source PDFs do not reliably expose reaction attribution as structured
+  data, so reaction rows are not invented; any displayed content remains in the
+  lossless message body and source extraction.
+
+## Validation
+
+- Imported 103 booking PDFs into 89 canonical reservations and 103 provenance
+  links, correctly reconciling 14 duplicate captures.
+- Imported 1,084 ordered conversation entries, including 466 year-unknown and
+  nine unresolved displayed timestamps.
+- Stored 45 confirmation codes and encrypted nine suggested access codes.
+- Derived five cancelled and 55 confirmed reservations from explicit
+  conversation evidence; 29 remain unset where the source gives no status.
+- An unchanged rerun added no documents or reservations and matched all 103
+  captures.
+- Focused PostgreSQL integration tests and the Astro type-check pass.
