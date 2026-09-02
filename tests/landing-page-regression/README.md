@@ -18,5 +18,15 @@ LANDING_PAGE_REGRESSION_BASE_URL=http://127.0.0.1:8081 \
 npm run test:landing-page-regression
 ```
 
+The suite also permits the explicitly authorised Render development origin:
+
+```bash
+LANDING_PAGE_REGRESSION_BASE_URL=https://soccotash.onrender.com \
+npm run test:landing-page-regression
+```
+
+All other remote origins—including production—are refused. The suite opens and
+closes Quick Check controls but never submits the form.
+
 Use `npm run test:landing-page-regression:headed` for an interactive run and
 `npm run show:landing-page-regression-report` to inspect the HTML report.
