@@ -86,9 +86,9 @@ projects, application images, networks, volumes, ports, and PostgreSQL
 databases, so development and database migrations in one instance do not alter
 the other.
 
-| Instance | Checkout | HTTP | HTTPS | PostgreSQL | Docker project |
-| --- | --- | --- | --- | --- | --- |
-| Primary | `soccotash` | `http://localhost:8080` | port `8443` | `127.0.0.1:5433` | `olrigbank` |
+| Instance | Checkout | HTTP                    | HTTPS | PostgreSQL | Docker project |
+| --- | --- |-------------------------| --- | --- | --- |
+| Primary | `soccotash` | `http://localhost:8081` | port `8443` | `127.0.0.1:5433` | `olrigbank` |
 | Agent 2 | `soccotash2` | `http://localhost:8082` | port `8444` | `127.0.0.1:5434` | `olrigbank2` |
 
 The standard `npm run docker:*` commands operate the primary/shared setup. In

@@ -7,7 +7,7 @@ collections.
 
 ## Parent epic
 
-[`E05 — Capturing All Details from Airbnb Messages`](epics/e05-f00-capturing-all-details-from-airbnb-messages.md)
+[`E05 — Capturing All Details from Airbnb Messages`](../epics/e05-f00-capturing-all-details-from-airbnb-messages.md)
 
 ## Purpose
 
