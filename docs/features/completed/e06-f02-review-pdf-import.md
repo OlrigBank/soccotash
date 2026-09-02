@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F01.
+Complete.
 
 ## Parent epic
 
-[`E06 — Storing Exported Airbnb Data`](epics/e06-f00-storing-exported-airbnb-data.md)
+[`E06 — Storing Exported Airbnb Data`](../epics/e06-f00-storing-exported-airbnb-data.md)
 
 ## Objective
 
@@ -48,3 +48,32 @@ and feedback-tag records with immutable source provenance.
 3. All 23 available private notes are retained only in private storage.
 4. Re-running the import changes no canonical or child-row counts.
 5. Existing public-review JSON generation remains independent and unchanged.
+
+## Delivered implementation
+
+- Added `src/lib/airbnb-import/reviews.ts` as the transactional persistence
+  boundary for review evidence.
+- Added `scripts/import-airbnb-reviews.ts` to hash PDFs, obtain page counts,
+  reuse the proven private review parser and import normalized records.
+- Added the `reviews:import-private` package command.
+- Records a durable pending/completed/failed batch without placing review text
+  or private feedback in diagnostics.
+- Treats an existing document hash and matching review as unchanged.
+- Accepts an additional source document only when its canonical review payload
+  exactly matches stored evidence.
+- Rolls back source and domain rows when a repeated review ID conflicts.
+- Imports category ratings and normalized feedback tags in displayed order.
+
+## Validation completed
+
+- Added a PostgreSQL integration test covering normalized review, rating and
+  feedback rows, private feedback, unchanged reruns, additional identical
+  evidence and transactional conflict rollback.
+- Imported the complete private source set into Agent 2: 52 documents, 52
+  canonical reviews, 23 private notes, 312 category ratings and 463 feedback
+  tags.
+- Repeated the same 52-document import: zero documents and reviews were added,
+  and all 52 reviews were unchanged.
+- All 23 PostgreSQL integration tests and all 27 review/parser tests passed.
+- `astro check` completed with zero errors and one pre-existing unused-variable
+  hint in `src/pages/admin/login.astro`.

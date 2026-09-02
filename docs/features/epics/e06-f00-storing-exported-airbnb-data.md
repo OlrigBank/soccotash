@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. E06-F01 is complete.
+Active. E06-F01 and E06-F02 are complete.
 
 ## Epic summary
 
@@ -185,10 +185,10 @@ review/reservation links.
 
 ### E06-F02 — Review PDF import
 
-[Feature record](../e06-f02-review-pdf-import.md)
+[Feature record](../completed/e06-f02-review-pdf-import.md)
 
-Parse and import the 52 review PDFs, detailed ratings, private feedback and
-ordered feedback tags idempotently.
+Delivered an idempotent transactional import of the 52 review PDFs, detailed
+ratings, private feedback and ordered feedback tags.
 
 ### E06-F03 — Reservation and conversation import
 
