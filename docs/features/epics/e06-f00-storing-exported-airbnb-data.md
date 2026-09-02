@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Active. E06-F01 is complete.
 
 ## Epic summary
 
@@ -177,9 +177,9 @@ audit. Guest name alone is never an acceptable confirmed match.
 
 ### E06-F01 — Private import schema and provenance
 
-[Feature record](../e06-f01-private-import-schema-and-provenance.md)
+[Feature record](../completed/e06-f01-private-import-schema-and-provenance.md)
 
-Create the migration, constraints, indexes and private-table boundary for
+Delivered the migration, constraints, indexes and private-table boundary for
 import batches, source documents, reservations, messages, finances, reviews and
 review/reservation links.
 
