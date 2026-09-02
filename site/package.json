@@ -30,6 +30,7 @@
     "reviews:import-private": "node --experimental-strip-types ./scripts/import-airbnb-reviews.ts",
     "airbnb:import-bookings": "node --experimental-strip-types ./scripts/import-airbnb-message-bookings.ts",
     "airbnb:reconcile-reviews": "node --experimental-strip-types ./scripts/reconcile-airbnb-reviews.ts",
+    "airbnb:verify": "node --experimental-strip-types ./scripts/verify-airbnb-import.ts",
     "test:reviews": "node --test ./tests/reviews/*.test.mjs",
     "test:booking-lifecycle": "node --experimental-strip-types --test ./tests/booking-lifecycle/*.test.ts",
     "test:booking-integration": "node --experimental-strip-types --test --test-concurrency=1 ./tests/integration/*.test.ts"

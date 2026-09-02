@@ -2,7 +2,8 @@
 
 ## Status
 
-Active. E06-F01 through E06-F05 are complete.
+Complete. E06-F01 through E06-F06 are delivered and verified in the isolated
+Agent 2 environment. The epic has not been merged into `development`.
 
 ## Epic summary
 
@@ -213,10 +214,10 @@ automatic confirmation and an immutable, audited manual-review path.
 
 ### E06-F06 — Full import verification and operations
 
-[Feature record](../e06-f06-full-import-verification-and-operations.md)
+[Feature record](../completed/e06-f06-full-import-verification-and-operations.md)
 
-Run the complete import against the isolated Agent 2 database, verify counts
-and relationships, prove idempotency and document backup, restore and recovery.
+Delivered complete source/database verification, idempotency checks and a
+successful isolated backup/restore drill with repeatable operating guidance.
 
 ## Privacy and security requirements
 

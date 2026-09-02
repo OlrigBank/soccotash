@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed; depends on E06-F01 through E06-F05.
+Complete.
 
 ## Parent epic
 
-[`E06 — Storing Exported Airbnb Data`](epics/e06-f00-storing-exported-airbnb-data.md)
+[`E06 — Storing Exported Airbnb Data`](../epics/e06-f00-storing-exported-airbnb-data.md)
 
 ## Objective
 
@@ -64,3 +64,29 @@ baseline explicitly rather than weakening these checks silently.
    accessing production or the primary local database.
 8. No source PDF, extracted private content or generated reconciliation payload
    is committed.
+
+## Delivered implementation
+
+- Added a source-only dry run that parses all private PDFs, inventories external
+  identities and validates the reviewed baseline before database access.
+- Added full database verification of hashes, canonical/provenance counts,
+  category coverage, conversation presence, financial perspectives and
+  reconciliation results.
+- Documented the isolated import sequence, idempotent rerun, conflict handling,
+  restart, backup/restore drill, retention and safe cleanup in
+  [`Private Airbnb import operations`](../../airbnb-private-import-operations.md).
+- Kept verification output aggregate-only and all private source artifacts
+  ignored.
+
+## Validation
+
+- Dry run found 155 unique PDF hashes: 52 reviews and 103 booking captures
+  representing 89 conversations and 312 category ratings.
+- Database verification matched every source hash and confirmed 52 reviews, 89
+  reservations, 103 reservation/document links, 1,084 conversation entries,
+  178 financial summaries, 52 confirmed links and six proposed alternatives.
+- Complete unchanged reruns added no domain records.
+- A PostgreSQL custom-format backup restored into a separately named temporary
+  Agent 2 database with matching canonical counts and sorted-hash fingerprint;
+  the temporary database and dump were removed after the drill.
+- The complete PostgreSQL integration suite and private review tests pass.
