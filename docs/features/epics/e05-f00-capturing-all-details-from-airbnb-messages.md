@@ -4,9 +4,8 @@
 
 Complete for the inbox state captured on 1 September 2026.
 
-The implementation and documentation remain on
-`agent/capture-airbnb-message-bookings`. Private source captures and generated
-PDFs are intentionally excluded from Git.
+The implementation and documentation are merged into `development`. Private
+source captures and generated PDFs are intentionally excluded from Git.
 
 ## Epic summary
 
@@ -15,7 +14,8 @@ signed-in Airbnb active inbox and message archive. For every qualifying booking,
 will preserve the complete displayed conversation, reservation details, host
 earnings breakdown and guest-paid breakdown in a verified local PDF.
 
-All work is developed on `agent/capture-airbnb-message-bookings`.
+The completed implementation was developed on
+`agent/capture-airbnb-message-bookings` and merged into `development`.
 
 This epic follows the capture and verification principles recorded in
 [`airbnb-review-chrome-pdf-workflow.md`](../../airbnb-review-chrome-pdf-workflow.md),
@@ -60,6 +60,13 @@ A guided local workflow should:
   visual inspection of contact sheets containing all 181 rendered pages.
 - Confirmed that all raw capture data, inventory files and generated PDFs are
   covered by repository ignore rules.
+- Continued the non-archived discovery to a scroll-exhausted total of 86 unique
+  conversations after three stable bottom checks, correcting the initial
+  15-entry checkpoint that had relied on Airbnb's premature end marker.
+- Classified the complete non-archived collection as 59 qualifying bookings
+  and 27 non-booking or support conversations.
+- Generated and verified 59 active-inbox booking PDFs containing 244 A4 pages
+  and 710 displayed messages or Airbnb service events.
 
 ## Implementation delivered
 
@@ -140,7 +147,7 @@ A guided local workflow should:
 
 ### E05-F01 — Archive discovery and booking classification
 
-[Feature record](../e05-f01-airbnb-message-archive-discovery.md)
+[Feature record](../completed/e05-f01-airbnb-message-archive-discovery.md)
 
 - Expand or scroll the active inbox and archive until all available entries are indexed.
 - Record list position, conversation URL/ID, guest label, listing, stay dates

@@ -6,7 +6,7 @@ Completed and approved on 1 September 2026.
 
 ## Parent epic
 
-[E04 — Rapid Cleanup of the Landing Page](./epics/e04-f00-rapid-cleanup-of-landing-page.md)
+[E04 — Rapid Cleanup of the Landing Page](../epics/completed/e04-f00-rapid-cleanup-of-landing-page.md)
 
 ## Context
 

@@ -88,8 +88,7 @@ if (propertyId && !fixedProperty) {
       id={`${idPrefix}-calendar`}
       class="compact-date-calendar"
       data-compact-date-calendar
-      role={mobileDock ? 'dialog' : undefined}
-      aria-modal={mobileDock ? 'true' : undefined}
+      data-compact-mobile-dialog={mobileDock ? 'true' : undefined}
       aria-labelledby={mobileDock ? `${idPrefix}-calendar-title` : undefined}
     >
       <legend id={`${idPrefix}-calendar-title`}>Choose arrival and departure</legend>
@@ -115,8 +114,7 @@ if (propertyId && !fixedProperty) {
         <summary><span>Guests</span><strong data-compact-guests-summary>2 adults</strong></summary>
         <div
           class="compact-guests__popover"
-          role={mobileDock ? 'dialog' : undefined}
-          aria-modal={mobileDock ? 'true' : undefined}
+          data-compact-mobile-dialog={mobileDock ? 'true' : undefined}
           aria-label={mobileDock ? 'Choose guests' : undefined}
         >
           {mobileDock ? (
@@ -160,8 +158,7 @@ if (propertyId && !fixedProperty) {
   <div
     class="compact-booking-response"
     data-compact-booking-response
-    role={mobileDock ? 'dialog' : undefined}
-    aria-modal={mobileDock ? 'true' : undefined}
+    data-compact-mobile-dialog={mobileDock ? 'true' : undefined}
     aria-label={mobileDock ? 'Quick Check result' : undefined}
   >
     {mobileDock ? (
@@ -229,7 +226,22 @@ if (propertyId && !fixedProperty) {
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
     const responsePanel = panel.querySelector<HTMLElement>('[data-compact-booking-response]');
     const sheetBackdrop = panel.querySelector<HTMLButtonElement>('[data-compact-sheet-backdrop]');
-    const mobileDock = panel.dataset.mobileDock === 'true';
+    const mobileQuery = matchMedia('(max-width: 699px)');
+    let mobileDock = panel.dataset.mobileDock === 'true' && mobileQuery.matches;
+    const syncResponsiveMode = () => {
+      mobileDock = panel.dataset.mobileDock === 'true' && mobileQuery.matches;
+      panel.querySelectorAll<HTMLElement>('[data-compact-mobile-dialog]').forEach((dialog) => {
+        if (mobileDock) {
+          dialog.setAttribute('role', 'dialog');
+          dialog.setAttribute('aria-modal', 'true');
+        } else {
+          dialog.removeAttribute('role');
+          dialog.removeAttribute('aria-modal');
+        }
+      });
+    };
+    mobileQuery.addEventListener('change', syncResponsiveMode);
+    syncResponsiveMode();
     const suggestedStay = panel.dataset.autoSelectProperty === 'true';
     const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
     const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
@@ -887,6 +899,9 @@ if (propertyId && !fixedProperty) {
     margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line);
   }
   .compact-booking-result[hidden], .compact-booking-panel__bespoke[hidden] { display: none; }
+  .compact-sheet__header,
+  .compact-sheet__close,
+  .compact-sheet-backdrop { display: none; }
   .compact-booking-result__heading { display: flex; gap: 1rem; align-items: baseline; justify-content: space-between; }
   .compact-booking-result__heading h3 { margin: 0; }
   .compact-booking-result__heading strong { font-size: 1.35rem; white-space: nowrap; }
@@ -1057,9 +1072,4 @@ if (propertyId && !fixedProperty) {
     }
   }
 
-  @media (min-width: 700px) {
-    .compact-booking-panel--mobile-dock {
-      display: none;
-    }
-  }
 </style>

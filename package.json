@@ -23,12 +23,22 @@
     "test:planner-regression": "playwright test --config=playwright.planner-regression.config.ts",
     "test:planner-regression:headed": "playwright test --config=playwright.planner-regression.config.ts --headed",
     "show:planner-regression-report": "playwright show-report playwright-report/planner-regression",
+    "test:landing-page-regression": "playwright test --config=playwright.landing-page.config.ts",
+    "test:landing-page-regression:headed": "playwright test --config=playwright.landing-page.config.ts --headed",
+    "show:landing-page-regression-report": "playwright show-report playwright-report/landing-page-regression",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f site",
     "docker:sync": "docker compose --profile tools run --rm calendar-sync",
     "docker:report": "docker compose --profile tools run --rm booking-report",
-    "docker:backup": "./backup-db.bash"
+    "docker:backup": "./backup-db.bash",
+    "docker:isolated:up": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml up --build -d",
+    "docker:isolated:down": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml down",
+    "docker:isolated:logs": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml logs -f site",
+    "docker:isolated:sync": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm calendar-sync",
+    "docker:isolated:report": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm booking-report",
+    "docker:isolated:backup": "SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./backup-db.bash",
+    "docker:isolated:restore": "COMPOSE_FILE=compose.yaml:compose.isolated.yaml COMPOSE_ENV_FILES=.env.agent2 SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./restore-db.bash"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

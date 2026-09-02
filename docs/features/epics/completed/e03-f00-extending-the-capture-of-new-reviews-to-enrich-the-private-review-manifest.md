@@ -11,9 +11,7 @@ Airbnb reviews. The operator should be able to discover what is new, capture it
 once, enrich the private manifest and deliberately publish approved projections
 without repeating the complete historical browser exercise.
 
-This epic follows the completed
-[`capturing-airbnb-reviews.md`](../capturing-airbnb-reviews.md) baseline. It does
-not replace Airbnb as the source of truth or assume a stable supported Airbnb
+It does not replace Airbnb as the source of truth or assume a stable supported Airbnb
 API.
 
 ## Remaining problem
