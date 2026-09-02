@@ -79,7 +79,9 @@ test('opens and closes the responsive Quick Check controls without submitting', 
   await expect(calendar).toBeHidden();
 
   const guests = panel.locator('[data-compact-guests]');
-  await guests.locator('summary').click();
+  const guestsSummary = guests.locator('summary');
+  await guestsSummary.focus();
+  await guestsSummary.press('Enter');
   await expect(panel.locator('.compact-guests__popover')).toBeVisible();
   await panel.getByRole('button', { name: 'Add children' }).click();
   await panel.getByRole('button', { name: 'Done' }).click();
