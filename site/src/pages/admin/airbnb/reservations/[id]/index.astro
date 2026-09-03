@@ -1,0 +1,52 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { getAirbnbReservationDetail } from '../../../../../lib/airbnb-admin/repository';
+import { getProperty } from '../../../../../lib/booking/config';
+export const prerender = false;
+const reservation = await getAirbnbReservationDetail(Astro.params.id || '');
+if (!reservation) return new Response('Imported reservation not found.', { status: 404 });
+const requestedReturn = Astro.url.searchParams.get('returnTo');
+const returnTo = requestedReturn === '/admin/airbnb/reservations/' || requestedReturn?.startsWith('/admin/airbnb/reservations/?') ? requestedReturn : '/admin/airbnb/reservations/';
+const propertyName = (reservation.propertyId && getProperty(reservation.propertyId)?.name) || reservation.sourceListingName;
+const dateFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' });
+const displayDate = (value: string | null) => value ? dateFormatter.format(new Date(`${value}T00:00:00Z`)) : 'Not stated';
+const displayTime = (value: string | null) => value ? value.slice(0, 5) : 'Not stated';
+const money = (minor: number, currency: string) => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(minor / 100);
+const precisionLabel = { exact: 'Exact date', date_inferred: 'Date inferred', year_unknown: 'Year not shown', unresolved: 'Relative date unresolved' } as const;
+---
+<AdminLayout title={`Airbnb reservation · ${reservation.bookerDisplayName}`}>
+  <header class="admin-page-header"><div><p class="eyebrow">Airbnb reservation</p><h1>{reservation.bookerDisplayName}</h1><p>{propertyName} · {displayDate(reservation.arrival)} – {displayDate(reservation.departure)}</p></div><a class="admin-button admin-button--secondary" href={returnTo}>Back to reservations</a></header>
+  <div class="admin-alert admin-alert--info" role="note">Private imported Airbnb record. Access-code values are never available in this interface.</div>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="stay-heading"><h2 id="stay-heading">Stay and booking</h2>
+    <dl class="airbnb-detail-grid">
+      <div><dt>Property</dt><dd>{propertyName}</dd></div><div><dt>Source status</dt><dd>{reservation.sourceStatus || 'Not stated'}</dd></div>
+      <div><dt>Arrival</dt><dd>{displayDate(reservation.arrival)} at {displayTime(reservation.checkInTime)}</dd></div><div><dt>Departure</dt><dd>{displayDate(reservation.departure)} at {displayTime(reservation.checkOutTime)}</dd></div>
+      <div><dt>Nights</dt><dd>{reservation.nights}</dd></div><div><dt>Booking date</dt><dd>{displayDate(reservation.bookingDate)}</dd></div>
+      <div><dt>Confirmation code</dt><dd>{reservation.confirmationCode || 'Not present in source'}</dd></div><div><dt>Cancellation policy</dt><dd>{reservation.cancellationPolicy}</dd></div>
+    </dl>
+  </section>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="party-heading"><h2 id="party-heading">Party</h2>
+    {reservation.partyDisplayName && reservation.partyDisplayName !== reservation.bookerDisplayName && <p>{reservation.partyDisplayName}</p>}
+    <dl class="airbnb-detail-grid"><div><dt>Total party</dt><dd>{reservation.partySize ?? 'Not stated'}</dd></div><div><dt>Adults</dt><dd>{reservation.adults ?? 'Not stated'}</dd></div><div><dt>Children</dt><dd>{reservation.children ?? 'Not stated'}</dd></div><div><dt>Infants</dt><dd>{reservation.infants ?? 'Not stated'}</dd></div><div><dt>Pets</dt><dd>{reservation.pets ?? 'Not stated'}</dd></div></dl>
+  </section>
+
+  <section class="admin-panel airbnb-detail-section airbnb-private-section" aria-labelledby="private-heading"><p class="eyebrow">Private host information</p><h2 id="private-heading">Notes and guest profile</h2>
+    <div class="airbnb-private-columns"><div><h3>Host notes</h3><p class="airbnb-preserved-text">{reservation.hostNotes || 'No host notes captured.'}</p></div><div><h3>Guest profile</h3><p class="airbnb-preserved-text">{reservation.guestProfileText || 'No guest profile text captured.'}</p></div></div>
+    {reservation.accessCodeRetained && <p><span class="status-badge">Encrypted access code retained</span> The value is deliberately unavailable.</p>}
+  </section>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="conversation-heading"><div class="admin-panel-heading"><div><h2 id="conversation-heading">Conversation</h2><p>{reservation.conversation.length} ordered entries from the captured Airbnb record.</p></div></div>
+    <ol class="airbnb-conversation-list">{reservation.conversation.map((entry) => <li class:list={['airbnb-conversation-entry', `is-${entry.senderType}`]}><header><strong>{entry.senderDisplayName}</strong><span>{entry.displayedDate} at {entry.displayedTime}</span><small>{precisionLabel[entry.timestampPrecision]}{entry.sentAt ? ` · ${dateTimeFormatter.format(new Date(entry.sentAt))}` : ''}</small></header><p class="airbnb-preserved-text">{entry.body}</p>{entry.reactions.length > 0 && <ul class="airbnb-reactions">{entry.reactions.map((reaction) => <li>{reaction.reaction}{reaction.reactorDisplayName ? ` · ${reaction.reactorDisplayName}` : ''}</li>)}</ul>}</li>)}</ol>
+  </section>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="finances-heading"><h2 id="finances-heading">Financial panels</h2>
+    <div class="airbnb-financial-grid">{reservation.financialSummaries.map((summary) => <article class="airbnb-financial-panel"><header><div><p class="eyebrow">{summary.perspective === 'host_earnings' ? 'You earn' : 'Guest paid'}</p><h3>{money(summary.totalMinor, summary.currency)}</h3></div><span class="status-badge">{summary.arithmeticStatus}</span></header><ol>{summary.lineItems.filter((item) => item.parentPosition === null).map((item) => <li><div><span>{item.description}</span><strong>{money(item.amountMinor, summary.currency)}</strong></div>{summary.lineItems.some((child) => child.parentPosition === item.position) && <ol>{summary.lineItems.filter((child) => child.parentPosition === item.position).map((child) => <li><span>{child.description}</span><strong>{money(child.amountMinor, summary.currency)}</strong></li>)}</ol>}</li>)}</ol></article>)}</div>
+  </section>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="links-heading"><h2 id="links-heading">Review links</h2>{reservation.reviewLinks.length ? <ul>{reservation.reviewLinks.map((link) => <li><a href={`/admin/airbnb/reviews/${link.reviewId}/`}>{link.reviewerDisplayName} · {link.overallRating}/5</a> <span class="status-badge">{link.status}</span></li>)}</ul> : <p>No review candidates are linked to this reservation.</p>}</section>
+
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="provenance-heading"><h2 id="provenance-heading">Source provenance</h2><div class="admin-table-wrap"><table><thead><tr><th>Capture</th><th>Private source path</th><th>SHA-256</th><th>Role</th></tr></thead><tbody>{reservation.provenance.map((source) => <tr><td>{dateTimeFormatter.format(new Date(source.capturedAt))}</td><td><code>{source.relativePath}</code></td><td><code>{source.abbreviatedHash}…</code></td><td>{source.isPreferred ? 'Preferred capture' : 'Additional capture'}</td></tr>)}</tbody></table></div></section>
+</AdminLayout>

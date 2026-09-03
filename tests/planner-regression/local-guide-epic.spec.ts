@@ -13,6 +13,7 @@ const TITLE='Playwright Riverside Recommendation';
 const UPDATED_TITLE='Playwright Riverside Walk Recommendation';
 const ORIGINAL_SLUG='playwright-riverside-recommendation';
 const RENAMED_SLUG='playwright-riverside-walk';
+const ALL_PLACES_SLUG='local-guide-migration-all-places';
 
 async function withDatabase<T>(run:(client:PgClient)=>Promise<T>):Promise<T>{
   const client=new Client({connectionString:process.env.DATABASE_URL});await client.connect();
@@ -43,25 +44,58 @@ async function cleanFixture(){await withDatabase(async client=>{
   }catch(error){await client.query('ROLLBACK');throw error}
 })}
 
+async function ensureAllPlacesPlanFixture():Promise<string|null>{return withDatabase(async client=>{
+  const existing=await client.query(`SELECT id::text FROM holiday_plans WHERE public_slug=$1`,[ALL_PLACES_SLUG]);
+  if(existing.rowCount)return null;
+  await client.query('BEGIN');try{
+    const entries=await client.query(`SELECT e.id,r.title,r.summary
+      FROM local_guide_entries e JOIN local_guide_revisions r ON r.id=e.published_revision_id
+      WHERE e.legacy_content_id IS NOT NULL AND e.status='published' ORDER BY e.canonical_slug`);
+    if(entries.rowCount!==39)throw new Error(`The all-places fixture requires 39 published migrated entries; found ${entries.rowCount}.`);
+    const plan=await client.query(`INSERT INTO holiday_plans
+      (plan_type,title,description,publication_status,visibility,duration_days,public_slug)
+      VALUES('example','Local Guide Migration — All Places',
+        'Playwright fixture containing every migrated Local Guide entry.','published','public',1,$1)
+      RETURNING id::text`,[ALL_PLACES_SLUG]);
+    const day=await client.query(`INSERT INTO plan_days(holiday_plan_id,title,summary,position)
+      VALUES($1,'All migrated Local Guide places',
+        'One planner item for every Local Guide entry captured by the database migration.',10)
+      RETURNING id`,[plan.rows[0].id]);
+    for(const [index,entry] of entries.rows.entries())await client.query(`INSERT INTO plan_items
+      (plan_day_id,title,description,item_type,status,position,visibility,local_guide_entry_id)
+      VALUES($1,$2,$3,'activity','idea',$4,'participants',$5)`,
+      [day.rows[0].id,entry.title,entry.summary,(index+1)*10,entry.id]);
+    await client.query('COMMIT');return plan.rows[0].id;
+  }catch(error){await client.query('ROLLBACK');throw error}
+})}
+
+async function removeAllPlacesPlanFixture(id:string|null):Promise<void>{
+  if(!id)return;
+  await withDatabase(client=>client.query(`DELETE FROM holiday_plans WHERE id=$1 AND public_slug=$2`,[id,ALL_PLACES_SLUG]));
+}
+
 test.describe('Local Guide database migration epic',()=>{
   test.afterEach(async()=>{await cleanFixture()});
 
   test('serves every migrated entry and the complete stable-ID example plan',async({request})=>{
-    const state=await withDatabase(async client=>{
-      const entries=await client.query(`SELECT public_id::text,canonical_slug FROM local_guide_entries WHERE legacy_content_id IS NOT NULL ORDER BY canonical_slug`);
-      const plan=await client.query(`SELECT p.public_slug,count(i.id)::int AS item_count,count(i.local_guide_entry_id)::int AS guide_count
-        FROM holiday_plans p JOIN plan_days d ON d.holiday_plan_id=p.id JOIN plan_items i ON i.plan_day_id=d.id
-        WHERE p.public_slug='local-guide-migration-all-places' AND p.publication_status='published' GROUP BY p.id`);
-      const retired=await client.query(`SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=current_schema()
-        AND ((table_name='plan_items' AND column_name='local_guide_slug') OR (table_name='local_guide_entries' AND column_name='migration_source_sha256'))`);
-      return {entries:entries.rows,plan:plan.rows[0],retired:retired.rows};
-    });
-    expect(state.entries).toHaveLength(39);
-    expect(state.retired).toEqual([]);
-    expect(state.plan).toEqual({public_slug:'local-guide-migration-all-places',item_count:39,guide_count:39});
-    for(const entry of state.entries)expect((await request.get(`/local-guide/${entry.canonical_slug}/`)).status()).toBe(200);
-    const plan=await request.get('/holiday-plans/local-guide-migration-all-places/');expect(plan.status()).toBe(200);
-    expect(await plan.text()).toContain('Local Guide');
+    const fixturePlanId=await ensureAllPlacesPlanFixture();
+    try{
+      const state=await withDatabase(async client=>{
+        const entries=await client.query(`SELECT public_id::text,canonical_slug FROM local_guide_entries WHERE legacy_content_id IS NOT NULL ORDER BY canonical_slug`);
+        const plan=await client.query(`SELECT p.public_slug,count(i.id)::int AS item_count,count(i.local_guide_entry_id)::int AS guide_count
+          FROM holiday_plans p JOIN plan_days d ON d.holiday_plan_id=p.id JOIN plan_items i ON i.plan_day_id=d.id
+          WHERE p.public_slug=$1 AND p.publication_status='published' GROUP BY p.id`,[ALL_PLACES_SLUG]);
+        const retired=await client.query(`SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=current_schema()
+          AND ((table_name='plan_items' AND column_name='local_guide_slug') OR (table_name='local_guide_entries' AND column_name='migration_source_sha256'))`);
+        return {entries:entries.rows,plan:plan.rows[0],retired:retired.rows};
+      });
+      expect(state.entries).toHaveLength(39);
+      expect(state.retired).toEqual([]);
+      expect(state.plan).toEqual({public_slug:ALL_PLACES_SLUG,item_count:39,guide_count:39});
+      for(const entry of state.entries)expect((await request.get(`/local-guide/${entry.canonical_slug}/`)).status()).toBe(200);
+      const plan=await request.get(`/holiday-plans/${ALL_PLACES_SLUG}/`);expect(plan.status()).toBe(200);
+      expect(await plan.text()).toContain('Local Guide');
+    }finally{await removeAllPlacesPlanFixture(fixturePlanId)}
   });
 
   test('moves a consented contribution through editorial publication while retaining its planner reference',async({browser,page,request})=>{

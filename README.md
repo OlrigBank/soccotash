@@ -128,6 +128,8 @@ isolated database URL on port `5434`.
 See `docs/booking-calendar-service.md` and `docs/deployment-guide.md` for the complete workflow.
 See `docs/olrigbank-migration.md` for the side-by-side migration and independent
 Render Blueprint procedure.
+See [`docs/airbnb-private-import-operations.md`](docs/airbnb-private-import-operations.md)
+for the private Agent 2 Airbnb import, verification and recovery procedure.
 
 ## Source structure
 
