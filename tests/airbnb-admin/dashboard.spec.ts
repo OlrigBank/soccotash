@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import pg from 'pg';
+import { redactAirbnbAccessCodes } from '../../site/src/lib/airbnb-admin/privacy.ts';
 
 const { Client } = pg;
 const ADMIN_EMAIL = 'playwright-airbnb-admin@example.test';
@@ -25,6 +26,19 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel('Password').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/admin\/$/u);
+}
+
+async function reservationWithEmbeddedAccessCode(): Promise<string> {
+  return withDatabase(async (client) => {
+    const result = await client.query(`SELECT reservation.public_id::text AS id,entry.body
+      FROM airbnb_reservations reservation
+      JOIN airbnb_conversation_entries entry ON entry.reservation_id=reservation.id
+      WHERE entry.body ~* '(access[ -]?code|key[ -]?box|lock[ -]?box|door[ -]?code|code[[:space:]]*(is|:))'
+      ORDER BY reservation.id,entry.position`);
+    const matching = result.rows.find((row) => redactAirbnbAccessCodes(row.body) !== row.body);
+    if (!matching) throw new Error('The imported baseline has no message containing a redactable access code.');
+    return matching.id;
+  });
 }
 
 test.beforeAll(async () => {
@@ -83,6 +97,11 @@ test('authenticated dashboard workflows are semantic, keyboard reachable and vie
   await expect(page.getByRole('heading', { level: 2, name: 'Financial panels' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Notes and guest profile' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+
+  await page.goto(`/admin/airbnb/reservations/${await reservationWithEmbeddedAccessCode()}/`);
+  const conversationText = await page.locator('.airbnb-conversation-list').innerText();
+  expect(conversationText).toContain('[Access code redacted]');
+  expect(conversationText).not.toMatch(/(?:access\s+code|door\s+code|key\s*box\s+code|lock\s*box\s+code|code(?:\s+for\s+(?:that|the)\s+(?:box|door))?)\s*(?:is|:|=)\s*(?=[a-z0-9-]*\d)[a-z0-9-]{3,16}/iu);
 
   await page.goto('/admin/airbnb/reviews/');
   await page.getByRole('link', { name: /Open review/u }).first().click();

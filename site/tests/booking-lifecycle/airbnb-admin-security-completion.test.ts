@@ -34,6 +34,7 @@ test('Airbnb routes retain the shared authenticated layout and forbidden fields 
   const renderedSurface = routes.join('\n');
   assert.doesNotMatch(renderedSurface, /access_code_ciphertext|accessCodeCiphertext|raw_extraction|rawExtraction|AIRBNB_IMPORT_ENCRYPTION_KEY/u);
   assert.doesNotMatch(repository, /SELECT\s+\*/iu);
+  assert.match(repository, /redactAirbnbAccessCodes\(row\.body\)/u);
   assert.doesNotMatch(repository, /console\.(?:log|info|debug).*guest|console\.(?:log|info|debug).*message/iu);
   assert.match(renderedSurface, /<AdminLayout/u);
 });

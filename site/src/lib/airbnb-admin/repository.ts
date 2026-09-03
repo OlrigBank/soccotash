@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { getPool } from '../booking/db.ts';
 import { decideAirbnbReviewReservationLink } from '../airbnb-import/reconciliation.ts';
+import { redactAirbnbAccessCodes } from './privacy.ts';
 
 type QueryDatabase = Pick<pg.Pool, 'query'> | Pick<pg.PoolClient, 'query'>;
 
@@ -478,7 +479,7 @@ export async function getAirbnbReservationDetail(
     accessCodeRetained: reservation.access_code_retained,
     conversation: conversationResult.rows.map((row) => ({
       position: Number(row.position), entryType: row.entry_type, senderType: row.sender_type,
-      senderDisplayName: row.sender_display_name, body: row.body,
+      senderDisplayName: row.sender_display_name, body: redactAirbnbAccessCodes(row.body),
       displayedDate: row.displayed_date, displayedTime: row.displayed_time,
       sentAt: row.sent_at instanceof Date ? row.sent_at.toISOString() : row.sent_at,
       timestampPrecision: row.timestamp_precision, reactions: row.reactions,

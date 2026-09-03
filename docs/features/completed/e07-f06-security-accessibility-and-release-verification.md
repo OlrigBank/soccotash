@@ -56,6 +56,8 @@ merging it into `development`.
 
 - Applied `private, no-store` and `X-Robots-Tag` headers to every admin page,
   admin API response, redirect and maintenance-token response.
+- Redacted credential-shaped access codes embedded in imported conversation
+  text at the admin read boundary while preserving the original source evidence.
 - Added static privacy contracts covering all Airbnb UI routes, forbidden
   service/render fields and representative public-route isolation.
 - Made the shared skip-link target programmatically focusable.

@@ -127,7 +127,7 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
          (reservation_id,position,entry_type,sender_type,sender_display_name,body,
           displayed_date,displayed_time,sent_at,timestamp_precision,raw_entry)
        VALUES
-         ($1,0,'message','guest','Percent% Guest','Hello <script>','Oct 1, 2026','1:00 PM',NOW(),'exact','{}'),
+         ($1,0,'message','guest','Percent% Guest','Hello <script>. The code for that box is 2468.','Oct 1, 2026','1:00 PM',NOW(),'exact','{}'),
          ($1,1,'message','host','Host','Welcome','Oct 2','2:00 PM',NULL,'year_unknown','{}'),
          ($1,2,'service_event','airbnb','Airbnb service','Confirmed','Yesterday','3:00 PM',NULL,'unresolved','{}')`,
       [reservations.rows[0].id],
@@ -209,7 +209,9 @@ test('Airbnb admin queries are bounded, deterministic and privacy-minimized', as
     const detail = await getAirbnbReservationDetail(literalPercent.items[0].id, database);
     assert.ok(detail);
     assert.deepEqual(detail.conversation.map((entry) => entry.timestampPrecision), ['exact', 'year_unknown', 'unresolved']);
-    assert.equal(detail.conversation[0].body, 'Hello <script>');
+    assert.equal(detail.conversation[0].body, 'Hello <script>. The code for that box is [Access code redacted].');
+    const storedMessage = await database.query(`SELECT body FROM airbnb_conversation_entries WHERE reservation_id=$1 AND position=0`, [reservations.rows[0].id]);
+    assert.equal(storedMessage.rows[0].body, 'Hello <script>. The code for that box is 2468.');
     assert.equal(detail.financialSummaries.length, 2);
     assert.equal(detail.financialSummaries[0].lineItems[1].parentPosition, 0);
     assert.equal(detail.provenance[0].abbreviatedHash, '777777777777');
