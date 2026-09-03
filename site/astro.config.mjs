@@ -22,6 +22,7 @@ if (process.env.RENDER_EXTERNAL_HOSTNAME) {
 export default defineConfig({
   site: 'https://olrig-bank.com',
   trailingSlash: 'always',
+  devToolbar: { enabled: false },
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   security: {

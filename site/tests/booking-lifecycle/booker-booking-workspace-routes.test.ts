@@ -7,14 +7,14 @@ const root = new URL('../../', import.meta.url);
 test('the private Booker area is separate from public-site navigation', async () => {
   const layout = await readFile(new URL('src/layouts/BookerLayout.astro', root), 'utf8');
 
-  assert.match(layout, />Your booking</);
-  assert.match(layout, /Visit Olrig Bank website/);
+  assert.match(layout, /areaTitle = 'Your booking'/);
+  assert.match(layout, /Visit the public website/);
   assert.match(layout, /href="\/" target="_blank" rel="noopener noreferrer"/);
   assert.doesNotMatch(layout, /Request a stay|Listings|Guest information|Local guide|Explore Olrig Bank/);
   assert.match(layout, /noindex,nofollow,noarchive/);
 });
 
-test('the booking home exposes isolated Reservation, Chat and Holiday Planner workspaces', async () => {
+test('the booking home exposes isolated Reservation, Messages and Holiday Planner workspaces', async () => {
   const [page, route, component] = await Promise.all([
     readFile(new URL('src/pages/booking/manage/[token]/index.astro', root), 'utf8'),
     readFile(new URL('src/pages/booking/manage/[token]/[workspace]/index.astro', root), 'utf8'),
@@ -27,7 +27,7 @@ test('the booking home exposes isolated Reservation, Chat and Holiday Planner wo
   }
   assert.match(route, /Booking workspace not found/);
   assert.match(route, /Astro\.rewrite\(target\)/);
-  assert.match(page, /Back to booking/);
+  assert.match(page, /Booking overview/);
   assert.match(page, /workspace === 'reservation'/);
   assert.match(page, /workspace === 'messages'/);
   assert.match(page, /workspace === 'holiday-planner'/);

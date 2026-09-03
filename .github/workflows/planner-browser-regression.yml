@@ -1,37 +1,39 @@
-name: Public-experience browser regression
+name: Holiday-planner browser regression
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [development]
   push:
     branches: [development]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  responsive-public-experience:
+  planner-regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: soccotash
-          POSTGRES_PASSWORD: playwright-public-regression
-          POSTGRES_DB: soccotash_public_regression
+          POSTGRES_PASSWORD: playwright-planner-regression
+          POSTGRES_DB: soccotash_planner_regression
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U soccotash -d soccotash_public_regression"
+          --health-cmd "pg_isready -U soccotash -d soccotash_planner_regression"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
-      DATABASE_URL: postgresql://soccotash:playwright-public-regression@127.0.0.1:5432/soccotash_public_regression
+      DATABASE_URL: postgresql://soccotash:playwright-planner-regression@127.0.0.1:5432/soccotash_planner_regression
       DATABASE_SSL: "false"
       BOOKING_PUBLIC_URL: http://127.0.0.1:8080
+      PLANNER_REGRESSION_BASE_URL: http://127.0.0.1:8080
+      PLANNER_REGRESSION_ALLOW_MUTATION: "yes"
 
     steps:
       - name: Check out repository
@@ -55,16 +57,16 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run public-experience regression
-        run: npm run test:public-experience-regression
+      - name: Run planner regression
+        run: npm run test:planner-regression
 
-      - name: Upload report and failure evidence
+      - name: Upload report and private failure evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
-          name: public-experience-regression-${{ github.run_number }}
+          name: planner-regression-${{ github.run_number }}
           path: |
-            playwright-report/landing-page-regression/
-            test-results/landing-page-regression/
+            playwright-report/planner-regression/
+            test-results/planner-regression/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7

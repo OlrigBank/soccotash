@@ -3,7 +3,15 @@ import { getProperties } from '../lib/booking/config';
 const properties = getProperties();
 ---
 <section class="booking-panel" data-booking-calendar>
+  <ol class="booking-progress" aria-label="Booking request progress" data-booking-progress>
+    <li class="is-current" data-progress-step="1"><span>1</span><strong>Choose</strong></li>
+    <li data-progress-step="2"><span>2</span><strong>Check</strong></li>
+    <li data-progress-step="3"><span>3</span><strong>Request</strong></li>
+  </ol>
   <form class="booking-form" data-booking-form>
+    <fieldset class="booking-step" data-booking-step="1">
+      <legend><span>Step 1</span> Choose your stay</legend>
+      <p class="booking-step-intro">Select an arrangement, dates and everyone who will be staying.</p>
     <div class="booking-field booking-property-field">
       <label for="property">Stay arrangement</label>
       <select id="property" name="propertyId" required>
@@ -47,6 +55,7 @@ const properties = getProperties();
       <label for="departure">Departure</label>
       <input id="departure" name="departure" type="date" required />
     </div>
+    <p class="booking-date-alternative">The date fields mirror the calendar and also let you enter exact dates directly.</p>
     <div class="booking-field"><label for="adults">Adults <small>Age 13 or over on arrival</small></label><input id="adults" name="adults" type="number" min="1" value="2" required /></div>
     <div class="booking-field"><label for="children">Children <small>Ages 2–12 on arrival</small></label><input id="children" name="children" type="number" min="0" value="0" required /></div>
     <div class="booking-field"><label for="infants">Infants <small>Under 2 on arrival</small></label><input id="infants" name="infants" type="number" min="0" value="0" required /></div>
@@ -61,12 +70,21 @@ const properties = getProperties();
     </div>
     <p class="booking-rule" data-party-summary aria-live="polite">Your party includes 2 adults.</p>
     <p class="booking-rule" data-booking-rule></p>
-    <button class="button" type="button" data-check-availability>Check availability</button>
-    <p class="booking-status" role="status" aria-live="polite" data-booking-status>
-      Choose dates to check availability.
-    </p>
-    <section class="booking-quote" data-booking-quote hidden aria-live="polite"></section>
-    <div class="booking-contact" data-booking-contact hidden>
+    </fieldset>
+
+    <fieldset class="booking-step" data-booking-step="2">
+      <legend><span>Step 2</span> Check availability and price</legend>
+      <p class="booking-step-intro">We will check the latest calendar and calculate the current provisional price before asking for your contact details.</p>
+      <button class="button booking-check-action" type="button" data-check-availability>Check availability</button>
+      <p class="booking-status" role="status" aria-live="polite" data-booking-status>
+        Choose dates to check availability.
+      </p>
+      <section class="booking-quote" data-booking-quote hidden aria-live="polite"></section>
+    </fieldset>
+
+    <fieldset class="booking-step booking-contact" data-booking-contact data-booking-step="3" hidden>
+      <legend><span>Step 3</span> Send your request</legend>
+      <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
       <div class="booking-field">
         <label for="guest-name">Booker name</label>
         <input id="guest-name" name="name" autocomplete="name" maxlength="120" required />
@@ -92,7 +110,7 @@ const properties = getProperties();
       </div>
       <div class="booking-submit-review" data-booking-submit-review hidden></div>
       <button class="button" type="submit" data-submit-booking>Request booking</button>
-    </div>
+    </fieldset>
   </form>
   <p class="booking-note" data-booking-availability-note>
     Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.
@@ -132,6 +150,17 @@ const properties = getProperties();
   const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
   const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const bookingAvailabilityNote = root?.querySelector<HTMLElement>('[data-booking-availability-note]');
+  const progressItems = [...(root?.querySelectorAll<HTMLElement>('[data-progress-step]') ?? [])];
+
+  function setProgress(currentStep: number) {
+    for (const item of progressItems) {
+      const step = Number(item.dataset.progressStep);
+      item.classList.toggle('is-complete', step < currentStep);
+      item.classList.toggle('is-current', step === currentStep);
+      if (step === currentStep) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    }
+  }
 
   function renderPetDetails() {
     if (!petDetails || !petDetailRows) return;
@@ -237,6 +266,7 @@ const properties = getProperties();
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
+    setProgress(1);
   }
 
   function updatePartySummary() {
@@ -282,6 +312,7 @@ const properties = getProperties();
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
+    setProgress(1);
     if (status) status.textContent = 'Choose dates to check availability.';
   }
 
@@ -327,7 +358,7 @@ const properties = getProperties();
     const panel = document.createElement('section');
     panel.className = 'booking-calendar-month';
 
-    const heading = document.createElement('h3');
+    const heading = document.createElement('h2');
     heading.textContent = monthFormatter.format(month);
     panel.append(heading);
 
@@ -425,6 +456,7 @@ const properties = getProperties();
       }
       if (contact) contact.hidden = true;
       clearReviewedQuote();
+      setProgress(1);
       if (status) status.textContent = 'Choose a departure date.';
       setCalendarMessage(`Arrival selected: ${dayFormatter.format(parseIso(value))}. Now choose the departure date.`);
       renderCalendar();
@@ -446,6 +478,7 @@ const properties = getProperties();
     if (departure) departure.value = value;
     if (contact) contact.hidden = true;
     clearReviewedQuote();
+    setProgress(1);
     if (status) status.textContent = 'Dates selected. Use Check availability to confirm them.';
     setCalendarMessage(`${dayFormatter.format(parseIso(selectionStart))} to ${dayFormatter.format(parseIso(value))} selected.`);
     renderCalendar();
@@ -474,6 +507,7 @@ const properties = getProperties();
     }
     if (contact) contact.hidden = true;
     clearReviewedQuote();
+    setProgress(1);
     if (status) status.textContent = start && end
       ? isBespokeStay()
         ? 'Preferred dates entered. Continue to add your contact details.'
@@ -497,6 +531,7 @@ const properties = getProperties();
       updatePartySummary();
       if (contact) contact.hidden = true;
       clearReviewedQuote();
+      setProgress(1);
       if (status) status.textContent = 'Booking details changed. Check availability and price again.';
     });
   }
@@ -669,11 +704,13 @@ const properties = getProperties();
       status.textContent = `Choose a departure date at least ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'} after arrival.`;
       contact.hidden = true;
       clearReviewedQuote();
+      setProgress(1);
       return false;
     }
 
     const bespokeStay = propertyId === 'bespoke-arrangement';
     status.textContent = bespokeStay ? 'Preparing your Bespoke stay request…' : 'Checking the latest calendar…';
+    setProgress(2);
     window.olrigAnalytics?.track('availability_started', { property: propertyId });
     contact.hidden = true;
     clearReviewedQuote();
@@ -698,6 +735,7 @@ const properties = getProperties();
           status.textContent = 'Those dates are unavailable. Please choose different dates.';
           window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'unavailable' });
           clearReviewedQuote();
+          setProgress(1);
           return false;
         }
       }
@@ -734,6 +772,7 @@ const properties = getProperties();
           ? `The dates appear available. ${availabilityBody.refreshWarning} ${nextStep}`
           : `The dates currently appear available. ${nextStep}`;
       contact.hidden = false;
+      setProgress(3);
       window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'available' });
       return true;
     } catch {
@@ -799,6 +838,7 @@ const properties = getProperties();
           reviewedQuoteKey = currentKey;
           renderQuote(body.quote);
           contact.hidden = false;
+          setProgress(3);
           status.textContent = body.error || 'The provisional cost changed. Review the updated calculation and submit again.';
           quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {

@@ -70,6 +70,8 @@ function recommendationLabel(count: number) { return `${count} ${count === 1 ? '
   robots={notFound || Astro.response.status === 503 ? 'noindex,nofollow' : ''}
   socialImage={entry?.imagePath}
   socialImageAlt={entry?.title}
+  showSidebar={false}
+  pageClass="public-content-page"
 >
   {Astro.response.status === 503 ? <section class="hero"><h1>Local Guide unavailable</h1><p>Please try again shortly.</p></section> : notFound ? <section class="hero"><h1>Page not found</h1><p>The requested page could not be found.</p></section> : kind === 'category' && category ? (
     <div><section class="hero"><h1>{category.label}</h1><p>{category.description || recommendationLabel(categoryEntries.length)}</p></section>

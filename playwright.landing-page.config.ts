@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-const baseURL = process.env.LANDING_PAGE_REGRESSION_BASE_URL || 'http://127.0.0.1:8080';
+const baseURL = process.env.PUBLIC_EXPERIENCE_REGRESSION_BASE_URL || process.env.LANDING_PAGE_REGRESSION_BASE_URL || 'http://127.0.0.1:8080';
 const target = new URL(baseURL);
 const developmentPort = target.port || (target.protocol === 'https:' ? '443' : '80');
 const approvedRenderOrigin = 'https://soccotash.onrender.com';
@@ -8,7 +8,7 @@ const isLocal = ['127.0.0.1', 'localhost'].includes(target.hostname);
 const isApprovedRender = target.origin === approvedRenderOrigin;
 
 if (!isLocal && !isApprovedRender) {
-  throw new Error(`Landing-page regression tests refuse unapproved origin ${target.origin}.`);
+  throw new Error(`Public-experience regression tests refuse unapproved origin ${target.origin}.`);
 }
 
 export default defineConfig({
@@ -45,6 +45,7 @@ export default defineConfig({
     timeout: 120_000,
   } : undefined,
   projects: [
+    { name: 'phone-320x800', use: { viewport: { width: 320, height: 800 } } },
     { name: 'phone-390x844', use: { viewport: { width: 390, height: 844 } } },
     { name: 'tablet-768x1024', use: { viewport: { width: 768, height: 1024 } } },
     { name: 'desktop-1440x900', use: { viewport: { width: 1440, height: 900 } } },

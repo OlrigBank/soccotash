@@ -6,7 +6,7 @@ const pageUrl = new URL('../../src/pages/planner/ai/[token]/index.astro', import
 const planUrl = new URL('../../src/pages/planner/ai/[token]/plan.json.ts', import.meta.url);
 const schemaUrl = new URL('../../src/pages/planner/ai/[token]/schema.json.ts', import.meta.url);
 const instructionsUrl = new URL('../../src/lib/planner/ai-instructions.ts', import.meta.url);
-const layoutUrl = new URL('../../src/layouts/BaseLayout.astro', import.meta.url);
+const layoutUrl = new URL('../../src/layouts/BookerLayout.astro', import.meta.url);
 
 test('collaboration views require the temporary AI capability and privacy headers', async () => {
   const [page, plan, schema] = await Promise.all([pageUrl, planUrl, schemaUrl].map(url => readFile(url, 'utf8')));

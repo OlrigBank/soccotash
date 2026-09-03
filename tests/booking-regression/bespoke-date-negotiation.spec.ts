@@ -76,6 +76,8 @@ test.describe('bespoke blocked-date negotiation', () => {
 
   test('restores blocked dates after a negotiated bespoke offer is cancelled', async ({ browser, page }) => {
     await page.goto('/book/');
+    await expect(page.getByRole('list', { name: 'Booking request progress' }).locator('[aria-current="step"]')).toContainText('Choose');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     await page.getByRole('combobox', { name: 'Stay arrangement' }).selectOption('bespoke-arrangement');
     await page.locator('#arrival').fill(ARRIVAL);
     await page.locator('#departure').fill(DEPARTURE);
@@ -87,6 +89,10 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByRole('button', { name: 'Request booking' }).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
     const bookerUrl = page.url();
+    await expect(page.getByRole('banner')).toContainText('Private stay area');
+    await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
     const adminContext = await browser.newContext({ locale: 'en-GB', timezoneId: 'Europe/London' });
     const adminPage = await adminContext.newPage();

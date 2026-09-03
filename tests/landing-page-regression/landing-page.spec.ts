@@ -2,19 +2,58 @@ import { expect, test } from '@playwright/test';
 
 const expectedVisibleReviews = (width: number) => width >= 1000 ? 3 : width >= 520 ? 2 : 1;
 
+const publicRoutes = [
+  { path: '/', heading: 'Olrig Bank', status: 200 },
+  { path: '/listings/', heading: 'Holiday accommodation at Olrig Bank', status: 200 },
+  { path: '/listings/olrig-bank/', heading: 'Large group and family holiday house in Kendal', status: 200 },
+  { path: '/local-guide/', heading: 'Local guide', status: 200 },
+  { path: '/book/', heading: 'Request a stay', status: 200 },
+  { path: '/e09-page-that-does-not-exist/', heading: 'Page not found', status: 404 },
+] as const;
+
 test.beforeEach(async ({ page }) => {
   const faults: string[] = [];
   page.on('console', (message) => {
+    if (page.url().includes('/e09-page-that-does-not-exist/') && message.type() === 'error' && message.text().includes('404')) return;
     if (message.type() === 'error') faults.push(`console: ${message.text()}`);
   });
   page.on('pageerror', (error) => faults.push(`page: ${error.message}`));
   page.on('requestfailed', (request) => faults.push(`request: ${request.url()} (${request.failure()?.errorText})`));
-  (page as typeof page & { landingPageFaults?: string[] }).landingPageFaults = faults;
+  (page as typeof page & { publicExperienceFaults?: string[] }).publicExperienceFaults = faults;
 });
 
 test.afterEach(async ({ page }) => {
-  const faults = (page as typeof page & { landingPageFaults?: string[] }).landingPageFaults ?? [];
-  expect(faults, 'the landing page should not emit browser or network failures').toEqual([]);
+  const faults = (page as typeof page & { publicExperienceFaults?: string[] }).publicExperienceFaults ?? [];
+  expect(faults, 'the public experience should not emit unexpected browser or network failures').toEqual([]);
+});
+
+test('protects the representative public journey and shared landmarks', async ({ page }) => {
+  for (const route of publicRoutes) {
+    const response = await page.goto(route.path);
+    expect(response?.status(), route.path).toBe(route.status);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(route.heading);
+    await expect(page.getByRole('banner')).toBeVisible();
+    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.getByRole('contentinfo')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), route.path).toBe(false);
+  }
+});
+
+test('retains keyboard-visible focus and moves from discovery into booking', async ({ page }) => {
+  await page.goto('/listings/');
+  await page.keyboard.press('Tab');
+  const skipLink = page.getByRole('link', { name: 'Skip to main content' });
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+  await skipLink.press('Enter');
+  await expect(page.getByRole('main')).toBeFocused();
+
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Check availability' }).click();
+  await expect(page).toHaveURL(/\/book\/$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Request a stay' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Booking request progress' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 });
 
 test('renders the shared responsive shell without overflow', async ({ page }, testInfo) => {

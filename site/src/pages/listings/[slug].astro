@@ -88,6 +88,8 @@ const structuredData = vacationRentalStructuredData({
   description={entry.data.description ?? entry.data.summary}
   socialImage={entry.data.image}
   socialImageAlt={entry.data.imageAlt ?? entry.data.title}
+  showSidebar={false}
+  pageClass="public-content-page"
 >
   <script
     slot="head"

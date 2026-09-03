@@ -165,7 +165,7 @@ test.describe('Local Guide database migration epic',()=>{
     expect(stableId).toBe(guideIdentity.id);
 
     await admin.locator('summary',{hasText:'Advanced URL settings'}).click();await admin.getByLabel('Public URL slug').fill(RENAMED_SLUG);
-    await confirmedAction('Change public URL');await expect(admin.locator('code')).toHaveText(RENAMED_SLUG);
+    await confirmedAction('Change public URL');await expect(admin.getByText(RENAMED_SLUG,{exact:true})).toBeVisible();
     const alias=await request.get(`/local-guide/${ORIGINAL_SLUG}/`,{maxRedirects:0});expect(alias.status()).toBe(301);
     expect(alias.headers().location).toBe(`/local-guide/${RENAMED_SLUG}/`);
     await page.reload();await expect(page.getByRole('link',{name:`Open the Local Guide entry for ${TITLE} in a new tab`})).toHaveAttribute('href',`/local-guide/${RENAMED_SLUG}/`);
