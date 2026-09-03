@@ -1,5 +1,5 @@
 ---
-import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import BookerLayout from '../../../../layouts/BookerLayout.astro';
 import PlannerItinerary from '../../../../components/PlannerItinerary.astro';
 import { AI_COLLABORATION_INSTRUCTIONS as instructions } from '../../../../lib/planner/ai-instructions.ts';
 import { AI_PLAN_FORMAT, AI_PLAN_VERSION } from '../../../../lib/planner/ai-representation.ts';
@@ -19,8 +19,9 @@ const plan = await getHolidayPlan(access.planId);
 if (!plan) return new Response('AI collaboration not found.', { status: 404 });
 const capabilityPath = `/planner/ai/${token}`;
 ---
-<BaseLayout title={`AI collaboration · ${plan.title}`} description="Restricted Olrig Bank Holiday Planner collaboration." showSidebar={false} robots="noindex,nofollow,noarchive" analytics={false}>
-  <header class="hero"><p class="eyebrow">Temporary AI collaboration</p><h1>Help develop this holiday plan</h1><p>{instructions.purpose}</p></header>
+<BookerLayout title={`AI collaboration · ${plan.title}`} description="Restricted Olrig Bank Holiday Planner collaboration." robots="noindex,nofollow,noarchive" analytics={false} homeHref={Astro.url.pathname} homeLabel="AI collaboration overview" areaLabel="Restricted planning area" areaTitle="AI collaboration" footerLabel="Private planning service">
+  <div class="private-planner-page private-planner-page--technical">
+  <header class="hero private-planner-hero"><p class="eyebrow">Temporary AI collaboration · read and propose only</p><h1>Help develop {plan.title}</h1><p>{instructions.purpose}</p></header>
   <section class="booking-panel" aria-labelledby="machine-heading">
     <h2 id="machine-heading">Machine-readable plan</h2>
     <p>Format <code>{AI_PLAN_FORMAT}</code>, protocol version <code>{AI_PLAN_VERSION}</code>, current plan revision <strong>{plan.revision}</strong>.</p>
@@ -31,4 +32,5 @@ const capabilityPath = `/planner/ai/${token}`;
   <section class="booking-panel"><h2>Returning proposed changes</h2><p>Validate proposed changes against the <a href={`${capabilityPath}/proposal-schema.json`}>proposal JSON Schema</a>, then send one JSON document with <code>POST {capabilityPath}/proposals</code> and <code>Content-Type: application/json</code>.</p><p>Submission stores a pending proposal only. It never changes the live plan; an authorised guest must review and approve it later.</p></section>
   <aside class="booking-panel"><strong>Restricted representation</strong><p>This page excludes booking credentials, contact and payment details, participants, private items, reservation notes, administrator notes and Local Guide consent.</p></aside>
   <PlannerItinerary plan={plan} showPrintButton={false}/>
-</BaseLayout>
+  </div>
+</BookerLayout>

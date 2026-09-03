@@ -14,6 +14,7 @@ const {
   socialImage = '/media/images/listings/house.jpeg',
   socialImageAlt = 'The stone front of Olrig Bank in Kendal',
   socialType = 'website',
+  pageClass = '',
 } = Astro.props;
 
 const pageTitle = title.includes('Olrig Bank') ? title : `${title} | Olrig Bank`;
@@ -56,7 +57,7 @@ function isCurrent(href: string) {
     {analytics && <Analytics />}
     <slot name="head" />
   </head>
-  <body>
+  <body class="public-ui">
     <a class="skip-link" href="#main-content">Skip to main content</a>
 
     <div class="site-shell mobile-first-shell">
@@ -89,7 +90,7 @@ function isCurrent(href: string) {
         </div>
       </header>
 
-      <div class:list={['page-grid', showSidebar ? 'has-sidebar' : 'no-sidebar']}>
+      <div class:list={['page-grid', showSidebar ? 'has-sidebar' : 'no-sidebar', pageClass]}>
         {showSidebar ? (
           <div class="desktop-sidebar-wrap">
             <SideMenu activePath={activePath} />
@@ -107,7 +108,7 @@ function isCurrent(href: string) {
             <p class="footer-eyebrow">Stay with us</p>
             <h2>Book direct</h2>
             <p>Book directly with us for a personal welcome, clear advice and the very best stay we can offer.</p>
-            <a class="footer-book-button" href="/book/">Book now</a>
+            <a class="footer-book-button" href="/book/">Check availability</a>
           </div>
 
           <nav class="footer-navigation" aria-label="Footer navigation">
@@ -123,7 +124,7 @@ function isCurrent(href: string) {
         </div>
       </footer>
 
-      {activePath !== '/' ? (
+      {activePath !== '/' && activePath !== '/book/' ? (
         <nav class="mobile-contact-bar" aria-label="Quick booking actions">
           <a class="mobile-contact-bar__book" href="/book/">Check availability</a>
         </nav>
@@ -304,6 +305,67 @@ function isCurrent(href: string) {
 
   .page-grid.no-sidebar {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-grid.public-content-page {
+    padding-top: clamp(1.25rem, 3vw, 2.5rem);
+  }
+
+  .public-content-page > main > .hero,
+  .public-content-page > main > div > .hero,
+  .public-content-page .listing-opening__description {
+    max-width: 58rem;
+    padding: clamp(0.75rem, 2.5vw, 1.75rem) 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .public-content-page .hero h1 {
+    max-width: 18ch;
+    font-size: clamp(2.2rem, 6vw, 4.5rem);
+  }
+
+  .public-content-page .hero > p:not(.eyebrow, .listing-facts, .listing-opening__contact) {
+    max-width: var(--reading-width);
+    font-size: clamp(1rem, 2vw, 1.15rem);
+  }
+
+  .public-content-page .prose,
+  .public-content-page .card,
+  .public-content-page .space-card,
+  .public-content-page .local-guide-tree {
+    box-shadow: 0 10px 28px rgba(32, 49, 43, 0.06);
+  }
+
+  .public-content-page .section-heading {
+    max-width: var(--reading-width);
+  }
+
+  .page-grid.booking-journey-page {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(70rem, calc(100% - 1rem));
+    padding-top: clamp(1.25rem, 3vw, 2.5rem);
+  }
+
+  .booking-journey-page > main > .hero {
+    max-width: 52rem;
+    padding: clamp(0.75rem, 2.5vw, 1.75rem) 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .booking-journey-page .hero h1 {
+    max-width: 14ch;
+    font-size: clamp(2.4rem, 7vw, 4.75rem);
+  }
+
+  .booking-journey-reassurance {
+    padding-left: 0.8rem;
+    border-left: 3px solid var(--accent);
+    color: var(--ink) !important;
+    font-weight: 700;
   }
 
   .site-footer {

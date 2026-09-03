@@ -1,4 +1,4 @@
-name: Landing-page browser regression
+name: Public-experience browser regression
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  responsive-landing-page:
+  responsive-public-experience:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -34,14 +34,14 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run landing-page regression
-        run: npm run test:landing-page-regression
+      - name: Run public-experience regression
+        run: npm run test:public-experience-regression
 
       - name: Upload report and failure evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
-          name: landing-page-regression-${{ github.run_number }}
+          name: public-experience-regression-${{ github.run_number }}
           path: |
             playwright-report/landing-page-regression/
             test-results/landing-page-regression/

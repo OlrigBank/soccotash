@@ -425,21 +425,21 @@ const bookingLandingUrl = new URL(`/booking/manage/${token}/`, Astro.url).toStri
   robots="noindex,nofollow,noarchive"
 >
   <header class="booker-page-header">
-    <div><p class="eyebrow">{bookingTitle}</p><h1>{offer.guestName}</h1><p>{propertyName} · {offer.arrival} to {offer.departure}</p></div>
-    {workspace && <a class="button button--secondary" href={`/booking/manage/${token}/`}>Back to booking</a>}
+    <div><p class="eyebrow">{bookingTitle}</p><h1>{propertyName}</h1><p>For {offer.guestName} · {offer.arrival} to {offer.departure}</p></div>
+    {workspace && <a class="button button--secondary" href={`/booking/manage/${token}/`}>Booking overview</a>}
   </header>
 
-  {!workspace && <nav class="booker-workspace-list" aria-label="Your booking">
-    <a href={`/booking/manage/${token}/reservation/`}><span>Reservation</span><strong>{propertyName}</strong><small>Dates, status, price, payments and responses</small></a>
-    <a href={`/booking/manage/${token}/messages/`}><span>Chat</span><strong>Conversation with Olrig Bank</strong><small>{conversationMessages.length} message{conversationMessages.length === 1 ? '' : 's'}</small></a>
-    <a href={`/booking/manage/${token}/holiday-planner/`}><span>Holiday Planner</span><strong>{holidayPlan?.title ?? 'Plan your stay'}</strong><small>{holidayPlan ? `${holidayPlan.days.length} planned day${holidayPlan.days.length === 1 ? '' : 's'}` : confirmedBooking ? 'Create your private plan' : 'Available after confirmation'}</small></a>
-  </nav>}
+  <nav class:list={['booker-workspace-list', workspace && 'booker-workspace-list--compact']} aria-label="Your booking">
+    <a href={`/booking/manage/${token}/reservation/`} aria-current={workspace === 'reservation' ? 'page' : undefined}><span>Reservation</span><strong>{propertyName}</strong><small>Dates, status, price, payments and responses</small></a>
+    <a href={`/booking/manage/${token}/messages/`} aria-current={workspace === 'messages' ? 'page' : undefined}><span>Messages</span><strong>Conversation with Olrig Bank</strong><small>{conversationMessages.length} message{conversationMessages.length === 1 ? '' : 's'}</small></a>
+    <a href={`/booking/manage/${token}/holiday-planner/`} aria-current={workspace === 'holiday-planner' ? 'page' : undefined}><span>Holiday Planner</span><strong>{holidayPlan?.title ?? 'Plan your stay'}</strong><small>{holidayPlan ? `${holidayPlan.days.length} planned day${holidayPlan.days.length === 1 ? '' : 's'}` : confirmedBooking ? 'Create your private plan' : 'Available after confirmation'}</small></a>
+  </nav>
 
   {!workspace && <section class="customer-booking-card customer-booking-access-card">
     <div>
       <p class="eyebrow">Your private booking page</p>
       <h2>Save this booking link</h2>
-      <p>Bookmark this landing page or keep its address somewhere safe. Your reservation, chat and Holiday Planner are all available from here.</p>
+        <p>Bookmark this landing page or keep its address somewhere safe. Your Reservation, Messages and Holiday Planner are all available from here.</p>
       <p class="customer-booking-security-note">Anyone with this link can view and respond to the booking, so do not share it publicly.</p>
     </div>
     <div class="customer-booking-access-actions">

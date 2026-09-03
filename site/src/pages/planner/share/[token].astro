@@ -1,5 +1,5 @@
 ---
-import BaseLayout from '../../../layouts/BaseLayout.astro';
+import BookerLayout from '../../../layouts/BookerLayout.astro';
 import PlannerItinerary from '../../../components/PlannerItinerary.astro';
 import { getHolidayPlan } from '../../../lib/planner/repository.ts';
 import { resolvePlanShareCredential } from '../../../lib/planner/share-access.ts';
@@ -7,4 +7,4 @@ export const prerender=false;
 Astro.response.headers.set('Cache-Control','private, no-store');Astro.response.headers.set('Referrer-Policy','no-referrer');Astro.response.headers.set('X-Robots-Tag','noindex, nofollow, noarchive');
 const access=await resolvePlanShareCredential(String(Astro.params.token||''),true);if(!access)return new Response('Shared holiday plan not found.',{status:404});const plan=await getHolidayPlan(access.planId);if(!plan)return new Response('Shared holiday plan not found.',{status:404});
 ---
-<BaseLayout title={plan.title} description="A read-only shared Olrig Bank holiday itinerary." showSidebar={false} robots="noindex,nofollow,noarchive"><aside class="booking-panel no-print"><strong>Read-only shared itinerary</strong><p>This link cannot change the plan or access booking details.</p></aside><PlannerItinerary plan={plan}/></BaseLayout>
+<BookerLayout title={plan.title} description="A read-only shared Olrig Bank holiday itinerary." robots="noindex,nofollow,noarchive" analytics={false} homeHref={Astro.url.pathname} homeLabel="Shared itinerary" areaLabel="Private planning area" areaTitle="Shared itinerary" footerLabel="Private planning service"><div class="private-planner-page"><aside class="booking-panel private-access-summary no-print"><p class="eyebrow">Read-only shared itinerary</p><h1>{plan.title}</h1><p>This private link can view the shared itinerary. It cannot change the plan or access booking details.</p></aside><PlannerItinerary plan={plan}/></div></BookerLayout>

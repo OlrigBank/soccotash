@@ -56,13 +56,19 @@ test.describe('local Docker Holiday Planner regression',()=>{
     const invitationField=page.locator('[data-invitation-link]');await expect(invitationField).toHaveValue(/^http:\/\//);
     const invitationUrl=await invitationField.inputValue();
     const editorContext=await browser.newContext();const editorPage=await editorContext.newPage();
-    await editorPage.goto(invitationUrl);await expect(editorPage.getByText('Shared Holiday Planner · editor')).toBeVisible();
+    await editorPage.goto(invitationUrl);
+    await expect(editorPage.getByText(/editor access · revision/i)).toBeVisible();
+    await expect(editorPage.getByText(/Your access: You can edit this plan/)).toBeVisible();
+    await expect(editorPage.getByRole('banner')).toContainText('Private planning area');
+    await editorPage.setViewportSize({width:390,height:844});
+    expect(await editorPage.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
     await editorContext.close();
 
     await page.locator('#create-share-form').getByRole('button',{name:'Create share link'}).click();
     const shareField=page.locator('[data-share-link]');await expect(shareField).toHaveValue(/^http:\/\//);
     const shareUrl=await shareField.inputValue();
     const sharePage=await browser.newPage();await sharePage.goto(shareUrl);
+    await expect(sharePage.getByText('Read-only shared itinerary')).toBeVisible();
     await expect(sharePage.getByText('Walk to Kendal Castle')).toBeVisible();
     await expect(sharePage.locator('body')).not.toContainText('Planner Editor');await sharePage.close();
 
@@ -70,7 +76,8 @@ test.describe('local Docker Holiday Planner regression',()=>{
     const aiField=page.locator('[data-ai-capability-link]');await expect(aiField).toHaveValue(/^http:\/\//);
     const aiUrl=await aiField.inputValue();
     const aiPage=await browser.newPage();await aiPage.goto(aiUrl);
-    await expect(aiPage.getByRole('heading',{name:'Help develop this holiday plan'})).toBeVisible();
+    await expect(aiPage.getByRole('heading',{name:/Help develop/})).toBeVisible();
+    await expect(aiPage.getByText(/read and propose only/i)).toBeVisible();
     const planRepresentation=await aiPage.evaluate(async()=>await (await fetch(`${location.pathname.replace(/\/$/,'')}/plan.json`)).json());
     expect(planRepresentation.trip.title).toBe(`${BOOKER}'s holiday plan`);
     expect(JSON.stringify(planRepresentation)).not.toContain(EMAIL);

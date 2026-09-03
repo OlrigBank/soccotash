@@ -55,7 +55,7 @@ test('the homepage uses the shared centred shell without the persistent sidebar'
   assert.match(layout, /showSidebar = true/);
   assert.match(layout, /showSidebar \? 'has-sidebar' : 'no-sidebar'/);
   assert.match(layout, /\.page-grid\.no-sidebar\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.doesNotMatch(listing, /showSidebar=\{false\}/);
+  assert.match(listing, /showSidebar=\{false\}/, 'public discovery pages should now share the landing-page shell');
 });
 
 test('the homepage follows Quick Check with stay comparison then photographic discovery', async () => {
