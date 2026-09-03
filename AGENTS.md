@@ -6,6 +6,15 @@
   identifiers, even when the request uses an American spelling or contains a
   spelling mistake.
 
+## Branch workflow
+
+- Do all development work on a dedicated agent branch created from
+  `development`; do not commit or push implementation changes directly to
+  `development`.
+- Use a pull request from the agent branch into `development` for review and
+  integration. Keep `development` as the shared integration branch and leave
+  its history to reviewed merges.
+
 ## Browser verification for UI work
 
 - Treat Chrome DevTools inspection as a required completion step for every
