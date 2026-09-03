@@ -12,5 +12,11 @@ export default defineConfig({
   reporter:[['list'],['html',{outputFolder:'playwright-report/planner-regression',open:'never'}]],
   use:{baseURL:target.origin,actionTimeout:15_000,navigationTimeout:20_000,locale:'en-GB',timezoneId:'Europe/London',
     trace:{mode:'on',screenshots:true,snapshots:true,sources:true},video:'on',screenshot:'only-on-failure'},
+  webServer:{
+    command:'npm --prefix site run dev -- --host 127.0.0.1 --port 8080',
+    url:target.origin,
+    reuseExistingServer:!process.env.CI,
+    timeout:120_000,
+  },
   projects:[{name:'docker-chromium',use:{...devices['Desktop Chrome']}}],
 });
