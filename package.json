@@ -18,6 +18,7 @@
     "test:live-smoke:headed": "playwright test --config=playwright.live-smoke.config.ts --headed",
     "show:live-smoke-report": "playwright show-report playwright-report/live-smoke",
     "test:booking-regression": "playwright test --config=playwright.booking-regression.config.ts",
+    "test:airbnb-admin-ui": "playwright test --config=playwright.airbnb-admin.config.ts",
     "test:booking-regression:headed": "playwright test --config=playwright.booking-regression.config.ts --headed",
     "show:booking-regression-report": "playwright show-report playwright-report/booking-regression",
     "test:planner-regression": "playwright test --config=playwright.planner-regression.config.ts",

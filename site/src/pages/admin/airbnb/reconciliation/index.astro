@@ -1,0 +1,40 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { listAirbnbReconciliationCandidates } from '../../../../lib/airbnb-admin/repository';
+import { getProperty } from '../../../../lib/booking/config';
+export const prerender = false;
+const candidates = await listAirbnbReconciliationCandidates();
+const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const displayDate = (value: string) => formatter.format(new Date(`${value}T00:00:00Z`));
+const propertyName = (id: string | null, source: string) => (id && getProperty(id)?.name) || source;
+---
+<AdminLayout title="Airbnb reconciliation">
+  <header class="admin-page-header"><div><p class="eyebrow">Airbnb records</p><h1>Reconciliation</h1><p>Review ambiguous reservation alternatives using stay, listing and supporting identity evidence.</p></div><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Airbnb overview</a></header>
+  <div id="reconciliation-message" class="admin-alert" role="status" aria-live="polite" hidden></div>
+  <div class="admin-alert admin-alert--info" role="note">A similar name is never sufficient by itself. Inspect the exact stay and listing evidence before making a decision.</div>
+  <section class="admin-panel" aria-labelledby="proposals-heading"><div class="admin-panel-heading"><div><h2 id="proposals-heading">Proposed candidates</h2><p>{candidates.length ? `${candidates.length} candidates require a decision.` : 'No candidates currently require review.'}</p></div></div>
+    {candidates.length ? <ol class="airbnb-reconciliation-list">{candidates.map((candidate) => <li data-candidate={candidate.id}>
+      <div class="airbnb-reconciliation-comparison"><article><p class="eyebrow">Review</p><h3>{candidate.review.reviewerDisplayName}</h3><p><strong>{propertyName(candidate.review.propertyId, candidate.review.sourceListingName)}</strong><br />{displayDate(candidate.review.arrival)} – {displayDate(candidate.review.departure)}</p><a href={`/admin/airbnb/reviews/${candidate.review.id}/`}>Open full review</a></article><article><p class="eyebrow">Reservation candidate</p><h3>{candidate.reservation.bookerDisplayName}</h3><p><strong>{propertyName(candidate.reservation.propertyId, candidate.reservation.sourceListingName)}</strong><br />{displayDate(candidate.reservation.arrival)} – {displayDate(candidate.reservation.departure)}</p><a href={`/admin/airbnb/reservations/${candidate.reservation.id}/`}>Open full reservation</a></article></div>
+      <dl class="airbnb-evidence-grid"><div><dt>Property</dt><dd>{candidate.evidence.propertyExact ? 'Exact' : 'Different'}</dd></div><div><dt>Arrival</dt><dd>{candidate.evidence.arrivalExact ? 'Exact' : 'Different'}</dd></div><div><dt>Departure</dt><dd>{candidate.evidence.departureExact ? 'Exact' : 'Different'}</dd></div><div><dt>Nights</dt><dd>{candidate.evidence.nightsExact ? 'Exact' : 'Different'}</dd></div><div><dt>Identity</dt><dd>{candidate.evidence.identityCompatible ? 'Compatible supporting evidence' : 'Not compatible'}</dd></div><div><dt>Alternatives</dt><dd>{candidate.evidence.stayCandidateCount} stay candidates · {candidate.evidence.identityCompatibleCandidateCount} identity-compatible</dd></div></dl>
+      <div class="airbnb-decision-actions"><button class="admin-button" type="button" data-decision="confirmed">Confirm this match</button><button class="admin-button admin-button--danger" type="button" data-decision="rejected">Reject candidate</button></div>
+    </li>)}</ol> : <div class="pricing-empty-page"><h3>Reconciliation is clear</h3><p>All current candidates have been decided. Future imports may create new proposals.</p></div>}
+  </section>
+</AdminLayout>
+<script>
+  const message = document.querySelector<HTMLElement>('#reconciliation-message');
+  document.querySelectorAll<HTMLButtonElement>('[data-decision]').forEach((button) => button.addEventListener('click', async () => {
+    const candidate = button.closest<HTMLElement>('[data-candidate]'); const decision = button.dataset.decision;
+    if (!candidate?.dataset.candidate || (decision !== 'confirmed' && decision !== 'rejected')) return;
+    const prompt = decision === 'confirmed' ? 'Confirm this review and reservation match? This may supersede an automatic match.' : 'Reject this review and reservation candidate?';
+    if (!window.confirm(prompt)) return;
+    candidate.querySelectorAll<HTMLButtonElement>('button').forEach((item) => { item.disabled = true; });
+    try {
+      const response = await fetch('/api/admin/airbnb/reconciliation/', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ candidateId: candidate.dataset.candidate, decision, confirmation: true }) });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || 'The reconciliation decision failed.'); window.location.reload();
+    } catch (error) {
+      if (message) { message.hidden = false; message.className = 'admin-alert admin-alert--error'; message.textContent = error instanceof Error ? error.message : 'The reconciliation decision failed.'; }
+      candidate.querySelectorAll<HTMLButtonElement>('button').forEach((item) => { item.disabled = false; });
+    }
+  }));
+</script>

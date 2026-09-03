@@ -1,0 +1,22 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { getAirbnbReviewDetail } from '../../../../../lib/airbnb-admin/repository';
+import { getProperty } from '../../../../../lib/booking/config';
+export const prerender = false;
+const review = await getAirbnbReviewDetail(Astro.params.id || '');
+if (!review) return new Response('Imported review not found.', { status: 404 });
+const requestedReturn = Astro.url.searchParams.get('returnTo');
+const returnTo = requestedReturn === '/admin/airbnb/reviews/' || requestedReturn?.startsWith('/admin/airbnb/reviews/?') ? requestedReturn : '/admin/airbnb/reviews/';
+const propertyName = (review.propertyId && getProperty(review.propertyId)?.name) || review.sourceListingName;
+const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' });
+const displayDate = (value: string) => formatter.format(new Date(`${value}T00:00:00Z`));
+---
+<AdminLayout title={`Airbnb review · ${review.reviewerDisplayName}`}>
+  <header class="admin-page-header"><div><p class="eyebrow">Airbnb review</p><h1>{review.reviewerDisplayName}</h1><p>{propertyName} · stayed {displayDate(review.arrival)} – {displayDate(review.departure)}</p></div><a class="admin-button admin-button--secondary" href={returnTo}>Back to reviews</a></header>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="review-heading"><div class="admin-panel-heading"><div><p class="eyebrow">Public review</p><h2 id="review-heading">{review.overallRating}/5 · published {displayDate(review.publishedOn)}</h2></div></div><p class="airbnb-preserved-text airbnb-review-body">{review.publicText}</p></section>
+  <section class="admin-panel airbnb-detail-section airbnb-private-section" aria-labelledby="feedback-heading"><p class="eyebrow">Private host information</p><h2 id="feedback-heading">Private feedback</h2><p class="airbnb-preserved-text">{review.privateFeedback || 'No private feedback was captured.'}</p></section>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="ratings-heading"><h2 id="ratings-heading">Detailed ratings</h2><ol class="airbnb-rating-grid">{review.categoryRatings.map((rating) => <li><header><h3>{rating.displayName}</h3><strong>{rating.rating}/5</strong></header>{rating.feedbackTags.length ? <ul>{rating.feedbackTags.map((tag) => <li>{tag}</li>)}</ul> : <p>No feedback tags.</p>}</li>)}</ol></section>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="reservation-links-heading"><h2 id="reservation-links-heading">Reservation links</h2>{review.reservationLinks.length ? <ul class="airbnb-linked-stays">{review.reservationLinks.map((link) => <li><div><strong>{(link.propertyId && getProperty(link.propertyId)?.name) || link.sourceListingName}</strong><span>{link.bookerDisplayName} · {displayDate(link.arrival)} – {displayDate(link.departure)}</span></div><span class="status-badge">{link.status}</span><a class="admin-button admin-button--secondary" href={`/admin/airbnb/reservations/${link.reservationId}/`}>Open reservation</a></li>)}</ul> : <p>No reservation candidates are linked to this review.</p>}</section>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="review-provenance-heading"><h2 id="review-provenance-heading">Source provenance</h2><dl class="airbnb-detail-grid"><div><dt>Captured</dt><dd>{dateTimeFormatter.format(new Date(review.provenance.capturedAt))}</dd></div><div><dt>Private source path</dt><dd><code>{review.provenance.relativePath}</code></dd></div><div><dt>SHA-256</dt><dd><code>{review.provenance.abbreviatedHash}…</code></dd></div><div><dt>Document type</dt><dd>{review.provenance.documentType}</dd></div></dl></section>
+</AdminLayout>

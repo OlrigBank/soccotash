@@ -1,0 +1,48 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../../lib/booking/config';
+import { listAirbnbReservations, parseAirbnbReservationListQuery } from '../../../../lib/airbnb-admin/repository';
+export const prerender = false;
+const query = parseAirbnbReservationListQuery(Astro.url.searchParams);
+const results = await listAirbnbReservations(query);
+const propertyNames = new Map(getProperties().map((property) => [property.id, property.name]));
+const pageCount = Math.max(1, Math.ceil(results.total / results.pageSize));
+const dateFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const displayDate = (value: string) => dateFormatter.format(new Date(`${value}T00:00:00Z`));
+const statusLabel = (value: string | null) => value || 'Not stated';
+const linkLabel = (value: 'confirmed' | 'proposed' | null) => value === 'confirmed' ? 'Review linked' : value === 'proposed' ? 'Review proposed' : 'No review link';
+const pageUrl = (page: number) => { const params = new URLSearchParams(Astro.url.searchParams); if (page <= 1) params.delete('page'); else params.set('page', String(page)); const value = params.toString(); return `/admin/airbnb/reservations/${value ? `?${value}` : ''}`; };
+const firstItem = results.total ? (results.page - 1) * results.pageSize + 1 : 0;
+const lastItem = Math.min(results.total, results.page * results.pageSize);
+const returnTo = encodeURIComponent(`${Astro.url.pathname}${Astro.url.search}`);
+---
+<AdminLayout title="Airbnb reservations">
+  <header class="admin-page-header"><div><p class="eyebrow">Airbnb records</p><h1>Reservations</h1><p>Find private imported stays without loading conversations, notes or financial details.</p></div><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Airbnb overview</a></header>
+  <section class="admin-panel airbnb-filter-panel" aria-labelledby="reservation-filters-heading">
+    <div class="admin-panel-heading"><div><h2 id="reservation-filters-heading">Filter reservations</h2><p>Filters are applied securely in the database.</p></div></div>
+    <form method="get" class="airbnb-filter-grid">
+      <label>Guest or group<input type="search" name="search" value={query.search || ''} maxlength="200" autocomplete="off" /></label>
+      <label>Property<select name="property"><option value="">All properties</option>{getProperties().map((property) => <option value={property.id} selected={query.propertyId === property.id}>{property.name}</option>)}</select></label>
+      <label>Arriving from<input type="date" name="from" value={query.arrivalFrom || ''} /></label>
+      <label>Arriving to<input type="date" name="to" value={query.arrivalTo || ''} /></label>
+      <label>Source status<select name="status"><option value="">All statuses</option><option value="confirmed" selected={query.status === 'confirmed'}>Confirmed</option><option value="cancelled" selected={query.status === 'cancelled'}>Cancelled</option><option value="unset" selected={query.status === 'unset'}>Not stated</option></select></label>
+      <label>Review link<select name="link"><option value="">All link states</option><option value="confirmed" selected={query.link === 'confirmed'}>Confirmed link</option><option value="proposed" selected={query.link === 'proposed'}>Proposed link</option><option value="unlinked" selected={query.link === 'unlinked'}>No candidate</option></select></label>
+      <label>Order<select name="sort"><option value="arrival-desc" selected={query.sort === 'arrival-desc'}>Latest arrival first</option><option value="arrival-asc" selected={query.sort === 'arrival-asc'}>Earliest arrival first</option><option value="captured-desc" selected={query.sort === 'captured-desc'}>Latest captured first</option></select></label>
+      <label>Per page<select name="pageSize">{[10, 25, 50, 100].map((size) => <option value={size} selected={query.pageSize === size}>{size}</option>)}</select></label>
+      <div class="airbnb-filter-actions"><button class="admin-button" type="submit">Apply filters</button><a class="admin-button admin-button--secondary" href="/admin/airbnb/reservations/">Clear</a></div>
+    </form>
+  </section>
+  <section class="admin-panel" aria-labelledby="reservation-results-heading">
+    <div class="admin-panel-heading"><div><h2 id="reservation-results-heading">Imported stays</h2><p aria-live="polite">{results.total ? `Showing ${firstItem}–${lastItem} of ${results.total}` : 'No reservations match these filters.'}</p></div></div>
+    {results.items.length ? <>
+      <div class="admin-table-wrap airbnb-reservation-table"><table><thead><tr><th>Stay</th><th>Guest</th><th>Party</th><th>Status</th><th>Review</th><th><span class="visually-hidden">Action</span></th></tr></thead><tbody>{results.items.map((reservation) => <tr>
+        <td><strong>{propertyNames.get(reservation.propertyId || '') || reservation.sourceListingName}</strong><small>{displayDate(reservation.arrival)} – {displayDate(reservation.departure)} · {reservation.nights} {reservation.nights === 1 ? 'night' : 'nights'}</small></td>
+        <td><strong>{reservation.bookerDisplayName}</strong>{reservation.partyDisplayName && reservation.partyDisplayName !== reservation.bookerDisplayName && <small>{reservation.partyDisplayName}</small>}</td><td>{reservation.partySize ?? '—'}</td>
+        <td><span class="status-badge">{statusLabel(reservation.sourceStatus)}</span>{reservation.confirmationCodePresent && <small>Confirmation code retained</small>}</td><td>{linkLabel(reservation.reviewLinkStatus)}</td>
+        <td><a href={`/admin/airbnb/reservations/${reservation.id}/?returnTo=${returnTo}`} aria-label={`Open imported reservation for ${reservation.bookerDisplayName}`}>Open</a></td>
+      </tr>)}</tbody></table></div>
+      <div class="airbnb-reservation-cards">{results.items.map((reservation) => <article class="airbnb-reservation-card"><p class="eyebrow">{propertyNames.get(reservation.propertyId || '') || reservation.sourceListingName}</p><h3>{reservation.bookerDisplayName}</h3>{reservation.partyDisplayName && reservation.partyDisplayName !== reservation.bookerDisplayName && <p>{reservation.partyDisplayName}</p>}<dl><div><dt>Stay</dt><dd>{displayDate(reservation.arrival)} – {displayDate(reservation.departure)}</dd></div><div><dt>Party</dt><dd>{reservation.partySize ?? 'Not stated'}</dd></div><div><dt>Status</dt><dd>{statusLabel(reservation.sourceStatus)}</dd></div><div><dt>Review</dt><dd>{linkLabel(reservation.reviewLinkStatus)}</dd></div></dl><a class="admin-button admin-button--secondary" href={`/admin/airbnb/reservations/${reservation.id}/?returnTo=${returnTo}`}>Open reservation</a></article>)}</div>
+      {pageCount > 1 && <nav class="airbnb-pagination" aria-label="Reservation pages">{results.page > 1 ? <a class="admin-button admin-button--secondary" href={pageUrl(results.page - 1)}>Previous</a> : <span></span>}<span>Page {Math.min(results.page, pageCount)} of {pageCount}</span>{results.page < pageCount ? <a class="admin-button admin-button--secondary" href={pageUrl(results.page + 1)}>Next</a> : <span></span>}</nav>}
+    </> : <div class="pricing-empty-page"><h3>No matching reservations</h3><p>Change or clear the filters to see other imported stays.</p></div>}
+  </section>
+</AdminLayout>
