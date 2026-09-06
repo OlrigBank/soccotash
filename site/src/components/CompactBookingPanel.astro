@@ -352,6 +352,7 @@ if (propertyId && !fixedProperty) {
         : property.dataset.minimumNights,
     ) || 1;
     const openCalendar = () => {
+      if (guests?.open) guests.open = false;
       openMobileSheet('date', dateTrigger || departure);
       const selectedDate = arrival.value || today();
       calendarMonth = monthStart(selectedDate);
@@ -473,9 +474,10 @@ if (propertyId && !fixedProperty) {
       else if (guests) guests.open = false;
     });
     guests?.addEventListener('toggle', () => {
-      if (!mobileDock) return;
-      if (guests.open) openMobileSheet('guests', guests.querySelector('summary'));
-      else if (activeMobileSheet === 'guests') closeMobileSheet(false);
+      if (guests.open) {
+        setCalendarOpen(false);
+        if (mobileDock) openMobileSheet('guests', guests.querySelector('summary'));
+      } else if (mobileDock && activeMobileSheet === 'guests') closeMobileSheet(false);
     });
     updateGuestsSummary();
     updateDateLabels();

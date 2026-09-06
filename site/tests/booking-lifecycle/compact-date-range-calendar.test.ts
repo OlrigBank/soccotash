@@ -20,6 +20,8 @@ test('compact panels select arrival and departure on one calendar', async () => 
   assert.match(component, /:global\(button:is\(\.is-arrival, \.is-departure\)\)[\s\S]*background: var\(--soft-accent\)/);
   assert.match(component, /input\.addEventListener\('click', openCalendar\)/);
   assert.match(component, /setCalendarOpen\(false\)[\s\S]*\(dateTrigger \|\| departure\)\.focus/);
+  assert.match(component, /const openCalendar = \(\) => \{[\s\S]*if \(guests\?\.open\) guests\.open = false;/);
+  assert.match(component, /guests\?\.addEventListener\('toggle', \(\) => \{[\s\S]*setCalendarOpen\(false\)/);
   assert.match(component, /aria-controls=\{`\$\{idPrefix\}-calendar`\}/);
   assert.match(component, /aria-expanded="false"/);
   assert.match(component, /compact-booking-panel--calendar-ready:not\(\.compact-booking-panel--calendar-open\)/);
