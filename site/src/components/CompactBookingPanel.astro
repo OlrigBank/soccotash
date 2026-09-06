@@ -65,6 +65,7 @@ if (propertyId && !fixedProperty) {
       </label>
     )}
 
+    <div class="compact-booking-date-picker">
     {autoSelectProperty ? (
       <button class="compact-booking-date-trigger" type="button" data-compact-date-trigger aria-controls={`${idPrefix}-calendar`} aria-expanded="false">
         <span><small>Check-in</small><strong data-compact-arrival-label>Add date</strong></span>
@@ -109,6 +110,7 @@ if (propertyId && !fixedProperty) {
       </div>
       <div class="compact-date-calendar__days" data-compact-calendar-days></div>
     </fieldset>
+    </div>
     {autoSelectProperty ? (
       <details class="compact-guests" data-compact-guests>
         <summary><span>Guests</span><strong data-compact-guests-summary>2 adults</strong></summary>
@@ -852,6 +854,15 @@ if (propertyId && !fixedProperty) {
   .compact-guests__row input::-webkit-inner-spin-button { appearance: none; }
   .compact-guests__done { width: 100%; margin-top: 0.6rem; justify-content: center; }
   .compact-booking-field--property { grid-column: span 2; }
+  .compact-booking-date-picker {
+    position: relative;
+    display: grid;
+    grid-column: span 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    min-width: 0;
+  }
+  .compact-booking-date-trigger { grid-column: 1 / -1; }
   .compact-booking-field--recommendation {
     grid-column: 1 / -1;
     padding: 0.8rem 0.9rem;
@@ -861,7 +872,12 @@ if (propertyId && !fixedProperty) {
   }
   .compact-booking-field--recommendation[hidden] { display: none; }
   .compact-date-calendar {
-    grid-column: 1 / -1; min-width: 0; margin: 0; padding: 0.8rem;
+    position: absolute;
+    z-index: 6;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    width: min(32rem, calc(100vw - 2rem));
+    min-width: 0; margin: 0; padding: 0.8rem;
     border: 1px solid var(--line); border-radius: 0.75rem; background: #fff;
   }
   .compact-date-calendar legend { padding: 0 0.35rem; font-weight: 700; }
@@ -939,6 +955,11 @@ if (propertyId && !fixedProperty) {
       align-items: stretch;
     }
 
+    .compact-booking-panel--mobile-dock .compact-booking-date-picker {
+      grid-column: auto;
+      display: block;
+    }
+
     .compact-booking-panel--mobile-dock :is(.compact-booking-date-trigger, .compact-guests > summary) {
       min-height: 44px;
       padding: 0.3rem 0.42rem;
@@ -973,6 +994,7 @@ if (propertyId && !fixedProperty) {
 
     .compact-booking-panel--mobile-dock :is(.compact-date-calendar, .compact-guests__popover, .compact-booking-response) {
       position: fixed;
+      top: auto;
       z-index: 4;
       right: 0.5rem;
       bottom: calc(4rem + env(safe-area-inset-bottom));

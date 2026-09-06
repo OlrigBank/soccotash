@@ -8,6 +8,7 @@ test('compact panels select arrival and departure on one calendar', async () => 
   const component = await readFile(componentUrl, 'utf8');
 
   assert.match(component, /data-compact-date-calendar/);
+  assert.match(component, /compact-booking-date-picker/);
   assert.match(component, /Choose arrival and departure/);
   assert.match(component, /button\.addEventListener\('click', \(\) => selectDate\(value\)\)/);
   assert.match(component, /arrival\.value = value[\s\S]*departure\.value = ''/);
@@ -25,6 +26,7 @@ test('compact panels select arrival and departure on one calendar', async () => 
   assert.match(component, /aria-controls=\{`\$\{idPrefix\}-calendar`\}/);
   assert.match(component, /aria-expanded="false"/);
   assert.match(component, /compact-booking-panel--calendar-ready:not\(\.compact-booking-panel--calendar-open\)/);
+  assert.match(component, /\.compact-date-calendar \{[\s\S]*position: absolute;[\s\S]*top: calc\(100% \+ 0\.4rem\)/);
   assert.match(component, /'Quick Check'/);
 });
 
