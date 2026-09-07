@@ -4,8 +4,10 @@ This read-only Playwright suite protects the completed public experience at the
 approved 320×800, 390×844, 768×1024 and 1440×900 viewports. It checks the shared
 shell, representative content and discovery routes, the transition into the
 booking journey, navigation, keyboard focus, Quick Check sheets, the review
-carousel, overflow and the desktop hero without submitting availability or
-booking requests.
+carousel, overflow and the desktop hero. Local-only Quick Check scenarios use
+intercepted availability and quote responses to verify listing arrangements,
+responsive state preservation, failures, quote invalidation and continuation.
+They never create booking requests or send messages.
 
 Run against the primary local Docker site:
 
@@ -27,8 +29,10 @@ PUBLIC_EXPERIENCE_REGRESSION_BASE_URL=https://soccotash.onrender.com \
 npm run test:public-experience-regression
 ```
 
-All other remote origins—including production—are refused. The suite opens and
-closes Quick Check controls but never submits the form.
+All other remote origins—including production—are refused. Remote runs only
+open and close Quick Check controls. The response-fixture tests in
+`quick-check.spec.ts` are skipped outside localhost; locally they intercept
+availability and pricing and block any attempt to create a booking request.
 
 Use `npm run test:public-experience-regression:headed` for an interactive run
 and `npm run show:public-experience-regression-report` to inspect the HTML

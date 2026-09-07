@@ -13,9 +13,9 @@ test('the homepage uses one responsive Quick Check booking band', async () => {
   ]);
 
   assert.doesNotMatch(layout, /homepage-mobile-booking|mobile-contact-bar--quick-check/);
-  assert.match(layout, /activePath !== '\/'[\s\S]*mobile-contact-bar__book[\s\S]*Check availability/);
-  assert.match(homepage, /class="home-booking-band"[\s\S]*idPrefix="homepage-booking"[\s\S]*mobileDock=\{true\}/);
-  assert.match(homepage, /@media \(max-width: 699px\)[\s\S]*\.home-booking-band[\s\S]*position: fixed[\s\S]*bottom: 0/);
+  assert.match(layout, /!hasBookingPanel[\s\S]*quick-check-band--mobile-only[\s\S]*<CompactBookingPanel/);
+  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*idPrefix="homepage-booking"[\s\S]*mobileDock=\{true\}/);
+  assert.match(layout, /@media \(max-width: 699px\)[\s\S]*\.quick-check-band[\s\S]*position: fixed[\s\S]*bottom: 0/);
   assert.match(component, /compact-booking-panel--mobile-dock/);
   assert.match(component, /grid-template-columns: minmax\(0, 1\.65fr\) minmax\(0, 0\.9fr\) minmax\(5\.25rem, 0\.8fr\)/);
   assert.doesNotMatch(component, /@media \(min-width: 700px\)[\s\S]*\.compact-booking-panel--mobile-dock[\s\S]*display: none/);
@@ -28,10 +28,10 @@ test('mobile date, guest and result content use mutually exclusive upward-openin
   assert.match(component, /type MobileSheet = 'date' \| 'guests' \| 'result'/);
   assert.match(component, /if \(activeMobileSheet && activeMobileSheet !== sheet\) closeMobileSheet\(false\)/);
   assert.match(component, /panel\.dataset\.openSheet = sheet/);
-  assert.match(component, /bottom: calc\(4rem \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(component, /max-height: calc\(100dvh - 5rem - env\(safe-area-inset-bottom\)\)/);
+  assert.match(component, /bottom: var\(--quick-check-dock-height/);
+  assert.match(component, /max-height: calc\(100dvh - var\(--quick-check-dock-height/);
   assert.match(component, /data-compact-mobile-dialog/);
-  assert.match(component, /mobileQuery\.addEventListener\('change', syncResponsiveMode\)/);
+  assert.match(component, /mobileQuery\.addEventListener\('change', syncResponsiveModeAfterSelection\)/);
   assert.match(component, /data-compact-sheet-close="date"/);
   assert.match(component, /data-compact-sheet-close="guests"/);
   assert.match(component, /data-compact-sheet-close="result"/);
