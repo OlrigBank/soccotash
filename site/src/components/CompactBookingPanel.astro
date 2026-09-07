@@ -38,7 +38,7 @@ if (propertyId && !fixedProperty) {
   data-fixed-property={fixedProperty?.id}
   data-submit-label={submitLabel}
   data-auto-select-property={autoSelectProperty ? 'true' : undefined}
-  data-properties={autoSelectProperty ? JSON.stringify(properties.map(({ id, name, minimumNights, maximumGuests }) => ({ id, name, minimumNights, maximumGuests }))) : undefined}
+  data-properties={autoSelectProperty ? JSON.stringify(properties.map(({ id, name, listingSlug, minimumNights, maximumGuests }) => ({ id, name, listingSlug, minimumNights, maximumGuests }))) : undefined}
   aria-labelledby={heading ? `${idPrefix}-heading` : undefined}
   aria-label={heading ? undefined : 'Quick Check'}
 >
@@ -149,11 +149,25 @@ if (propertyId && !fixedProperty) {
       </>
     )}
 
+    {autoSelectProperty ? (
+      <>
+        <div class="compact-booking-field compact-booking-quick-result" data-compact-quick-total hidden>
+          <span>Total</span>
+          <strong data-compact-quick-total-value></strong>
+        </div>
+        <div class="compact-booking-field compact-booking-quick-result" data-compact-quick-stay hidden>
+          <span>Stay</span>
+          <a data-compact-quick-stay-value></a>
+        </div>
+      </>
+    ) : null}
+
     <div class="compact-booking-panel__action">
       <button class="button" type="submit" data-compact-booking-submit>
         {fixedBespoke ? 'Start a bespoke request' : submitLabel}
       </button>
     </div>
+    <p class="compact-booking-panel__quick-message" data-compact-quick-message role="status" aria-live="polite"></p>
 
   </form>
 
@@ -226,6 +240,11 @@ if (propertyId && !fixedProperty) {
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
+    const quickStay = panel.querySelector<HTMLElement>('[data-compact-quick-stay]');
+    const quickStayValue = panel.querySelector<HTMLAnchorElement>('[data-compact-quick-stay-value]');
+    const quickTotal = panel.querySelector<HTMLElement>('[data-compact-quick-total]');
+    const quickTotalValue = panel.querySelector<HTMLElement>('[data-compact-quick-total-value]');
+    const quickMessage = panel.querySelector<HTMLElement>('[data-compact-quick-message]');
     const responsePanel = panel.querySelector<HTMLElement>('[data-compact-booking-response]');
     const sheetBackdrop = panel.querySelector<HTMLButtonElement>('[data-compact-sheet-backdrop]');
     const mobileQuery = matchMedia('(max-width: 699px)');
@@ -461,6 +480,19 @@ if (propertyId && !fixedProperty) {
       if (pets) parts.push(`${pets} ${pets === 1 ? 'pet' : 'pets'}`);
       guestsSummary.textContent = parts.join(', ');
     };
+    const prepopulateFromQuery = () => {
+      const params = new URLSearchParams(window.location.search);
+      const queryArrival = params.get('arrival');
+      const queryDeparture = params.get('departure');
+      if (queryArrival && queryArrival >= today()) arrival.value = queryArrival;
+      if (queryDeparture && queryDeparture > arrival.value) departure.value = queryDeparture;
+      if (arrival.value) departure.min = addDays(arrival.value, minimumNights());
+      for (const name of ['adults', 'children', 'infants', 'pets']) {
+        const value = params.get(name);
+        const input = form.elements.namedItem(name);
+        if (value !== null && input instanceof HTMLInputElement && /^\d+$/.test(value)) input.value = value;
+      }
+    };
     panel.querySelectorAll<HTMLButtonElement>('[data-compact-guest-adjust]').forEach((button) => {
       button.addEventListener('click', () => {
         const input = form.elements.namedItem(button.dataset.compactGuestAdjust || '');
@@ -481,6 +513,7 @@ if (propertyId && !fixedProperty) {
         if (mobileDock) openMobileSheet('guests', guests.querySelector('summary'));
       } else if (mobileDock && activeMobileSheet === 'guests') closeMobileSheet(false);
     });
+    prepopulateFromQuery();
     updateGuestsSummary();
     updateDateLabels();
     calendar.addEventListener('keydown', (event) => {
@@ -543,6 +576,14 @@ if (propertyId && !fixedProperty) {
       status.textContent = '';
       if (action) action.hidden = false;
       if (recommendation) recommendation.hidden = true;
+      if (quickStay) quickStay.hidden = true;
+      if (quickStayValue) {
+        quickStayValue.textContent = '';
+        quickStayValue.removeAttribute('href');
+      }
+      if (quickTotal) quickTotal.hidden = true;
+      if (quickMessage) quickMessage.textContent = '';
+      submit.textContent = isBespoke() ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
     };
     const continuationHref = () => {
       const data = new FormData(form);
@@ -575,20 +616,23 @@ if (propertyId && !fixedProperty) {
       clearResult();
     };
     const renderSuggestedResult = (guestTotalPence: number, currency = 'GBP') => {
-      const price = document.createElement('p');
-      price.className = 'compact-booking-result__estimate';
-      const total = document.createElement('strong');
-      total.textContent = money(guestTotalPence, currency);
-      price.append(total, ' total');
-      const stay = document.createElement('p');
-      stay.className = 'compact-booking-result__stay';
-      stay.textContent = recommendation?.dataset.name || '';
-      const reassurance = document.createElement('p');
-      reassurance.className = 'compact-booking-result__reassurance';
-      reassurance.textContent = "You won't be charged yet";
-      result.append(price, stay, continueLink('Reserve'), reassurance);
-      result.hidden = false;
-      if (action) action.hidden = true;
+      if (quickStay && quickStayValue && recommendation?.dataset.name && recommendation.dataset.slug) {
+        quickStayValue.textContent = recommendation.dataset.name;
+        const params = new URLSearchParams();
+        const formData = new FormData(form);
+        for (const name of ['arrival', 'departure', 'adults', 'children', 'infants', 'pets']) {
+          params.set(name, String(formData.get(name) ?? ''));
+        }
+        quickStayValue.href = `/listings/${recommendation.dataset.slug}/?${params.toString()}`;
+        quickStay.hidden = false;
+      }
+      if (quickTotal && quickTotalValue) {
+        quickTotalValue.textContent = money(guestTotalPence, currency);
+        quickTotal.hidden = false;
+      }
+      submit.textContent = 'Book';
+      if (quickMessage) quickMessage.textContent = "You won't be charged yet.";
+      result.hidden = true;
     };
     const renderHostPriced = (body: QuoteResponse) => {
       if (suggestedStay && body.estimatedPricing) {
@@ -625,6 +669,7 @@ if (propertyId && !fixedProperty) {
       title.textContent = 'These dates currently appear available';
       const total = document.createElement('strong');
       total.textContent = money(Number(body.guestTotalPence || 0), body.currency || 'GBP');
+      submit.textContent = 'Book';
       heading.append(title);
       if (!suggestedStay) heading.append(total);
       result.append(heading);
@@ -686,7 +731,7 @@ if (propertyId && !fixedProperty) {
           const partySize = ['adults', 'children', 'infants']
             .reduce((total, name) => total + Number(data.get(name) || 0), 0);
           const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
-            id: string; name: string; minimumNights: number; maximumGuests: number;
+            id: string; name: string; listingSlug: string; minimumNights: number; maximumGuests: number;
           }>;
           const candidates = configured
             .filter((candidate) => candidate.id !== 'bespoke-arrangement' && candidate.maximumGuests >= partySize)
@@ -712,7 +757,8 @@ if (propertyId && !fixedProperty) {
           property.value = selected.id;
           property.dataset.minimumNights = String(selected.minimumNights);
           if (recommendation) {
-            recommendation.dataset.name = selected.name;
+            recommendation.dataset.name = selected.name.replace(/\s+\(max \d+ guests\)$/i, '');
+            recommendation.dataset.slug = selected.listingSlug;
             recommendation.hidden = false;
           }
         } else if (!isBespoke()) {
@@ -871,6 +917,19 @@ if (propertyId && !fixedProperty) {
     background: var(--panel-bg);
   }
   .compact-booking-field--recommendation[hidden] { display: none; }
+  .compact-booking-quick-result {
+    min-height: 58px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: #fff;
+  }
+  .compact-booking-quick-result[hidden] { display: none; }
+  .compact-booking-quick-result > span { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+  .compact-booking-quick-result > :is(strong, a) { overflow: hidden; font-size: 0.92rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+  .compact-booking-quick-result > a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.15em; }
+  .compact-booking-panel__quick-message { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.85rem; }
+  .compact-booking-panel__quick-message:empty { display: none; }
   .compact-date-calendar {
     position: absolute;
     z-index: 6;
@@ -990,6 +1049,24 @@ if (propertyId && !fixedProperty) {
       border-radius: 0.4rem;
       font-size: 0.72rem;
       line-height: 1.05;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-quick-result {
+      grid-column: auto;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0.3rem 0.42rem;
+      border-radius: 0.4rem;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-quick-result > span {
+      font-size: 0.62rem;
+      line-height: 1;
+    }
+
+    .compact-booking-panel--mobile-dock .compact-booking-quick-result > :is(strong, a) {
+      font-size: 0.72rem;
+      line-height: 1.1;
     }
 
     .compact-booking-panel--mobile-dock :is(.compact-date-calendar, .compact-guests__popover, .compact-booking-response) {

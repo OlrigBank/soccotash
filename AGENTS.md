@@ -43,3 +43,9 @@ Implement requested changes autonomously on the task branch.
 You may edit files, install project dependencies, run builds and tests, and commit changes.
 Make routine implementation decisions without asking.
 Ask before merging, deploying, force-pushing, deleting unrelated work, or changing production data.
+
+## With each UI implementation
+
+Provide a clear name for each implemented UI pattern so the owner and AI can
+use it as shorthand in future discussions. For each pattern, indicate whether
+it is an off-the-shelf browser or library control, or a custom UI pattern.
