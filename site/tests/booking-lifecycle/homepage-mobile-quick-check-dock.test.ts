@@ -22,10 +22,10 @@ test('the homepage uses one responsive Quick Check booking band', async () => {
   assert.match(publicTheme, /:root:root\s*\{[\s\S]*--accent: #49654a;[\s\S]*--accent-dark: #314733;/);
 });
 
-test('mobile date, guest and result content use mutually exclusive upward-opening sheets', async () => {
+test('mobile date and guest content use mutually exclusive upward-opening sheets', async () => {
   const component = await source('src/components/CompactBookingPanel.astro');
 
-  assert.match(component, /type MobileSheet = 'date' \| 'guests' \| 'result'/);
+  assert.match(component, /type MobileSheet = 'date' \| 'guests'/);
   assert.match(component, /if \(activeMobileSheet && activeMobileSheet !== sheet\) closeMobileSheet\(false\)/);
   assert.match(component, /panel\.dataset\.openSheet = sheet/);
   assert.match(component, /bottom: var\(--quick-check-dock-height/);
@@ -34,7 +34,6 @@ test('mobile date, guest and result content use mutually exclusive upward-openin
   assert.match(component, /mobileQuery\.addEventListener\('change', syncResponsiveModeAfterSelection\)/);
   assert.match(component, /data-compact-sheet-close="date"/);
   assert.match(component, /data-compact-sheet-close="guests"/);
-  assert.match(component, /data-compact-sheet-close="result"/);
   assert.match(component, /data-compact-sheet-backdrop/);
 });
 
@@ -50,16 +49,13 @@ test('date and guest sheets distinguish completed selections from cancellation',
   assert.match(component, /sheetBackdrop\?\.addEventListener\('click', \(\) => closeMobileSheet\(false\)\)/);
   assert.match(component, /event\.key === 'Escape' && activeMobileSheet[\s\S]*closeMobileSheet\(false\)/);
   assert.match(component, /event\.key === 'Tab' && activeMobileSheet[\s\S]*event\.shiftKey[\s\S]*last\.focus\(\)/);
-  assert.match(component, /closingSheet === 'result' && action[\s\S]*action\.hidden = false/);
   assert.match(component, /returnTarget\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
-test('every mobile Quick Check outcome is surfaced in the result sheet without changing continuation state', async () => {
+test('Quick Check outcomes remain inline without opening a result sheet', async () => {
   const component = await source('src/components/CompactBookingPanel.astro');
 
-  assert.match(component, /new MutationObserver\(syncResponseSheet\)/);
-  assert.match(component, /Boolean\(status\.textContent\?\.trim\(\)\) \|\| !result\.hidden/);
-  assert.match(component, /openMobileSheet\('result', submit\)/);
+  assert.doesNotMatch(component, /openMobileSheet\('result'/);
   assert.match(component, /Those dates are unavailable/);
   assert.match(component, /Checking the latest availability and price/);
   assert.match(component, /Please try again or continue to the full request form/);

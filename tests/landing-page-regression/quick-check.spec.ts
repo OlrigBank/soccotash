@@ -26,6 +26,13 @@ async function chooseDates(page: Page) {
   await days.nth(13).click();
   await expect(panel.locator('[data-compact-date-calendar]')).toBeHidden();
 }
+async function chooseStay(page: Page, propertyId?: string) {
+  const panel = page.locator(panelSelector);
+  const selected = propertyId || await panel.locator('[name="propertyId"]').inputValue();
+  await panel.locator('[data-compact-stay-menu] summary').click();
+  await panel.locator(`[data-compact-stay-link="${selected}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/listings/${listings.find(([, id]) => id === selected)![0]}/`));
+}
 async function fixtures(page: Page, outcome = 'available') {
   await page.route('**/api/availability/**', route => route.fulfill({ json: { blocks: outcome === 'unavailable' ? [{ start: '2030-01-01' }] : [] } }));
   await page.route('**/api/quote/**', route => route.fulfill({ json: outcome === 'host' ? { pricingAvailable: false, hostDecisionRequired: true } : { pricingAvailable: true, eligible: true, guestTotalPence: 123400, currency: 'GBP', nights: 4, lines: [] } }));
@@ -37,7 +44,7 @@ test('each listing has image-first Quick Check and defaults to its own arrangeme
     const panel = page.locator(panelSelector);
     await expect(panel).toHaveCount(1);
     await expect(panel.locator('[name="propertyId"]')).toHaveValue(property);
-    await expect(panel.getByRole('combobox', { name: 'Stay', exact: true })).toHaveValue(property);
+    await expect(panel.locator('[name="propertyId"]')).toHaveValue(property);
     await expect(panel.locator('[data-compact-date-trigger]')).toBeVisible();
     const order = await page.evaluate(() => {
       const image = document.querySelector('.listing-hero-image')!.getBoundingClientRect();
@@ -92,7 +99,7 @@ test('selection survives breakpoint changes, pop-ups return focus and Book conti
   }
   await panel.getByRole('button', { name: 'Quick Check', exact: true }).click();
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,234.00');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('cottage');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('cottage');
   await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const clearance = await page.evaluate(() => ({ footer: document.querySelector('.footer-copyright')!.getBoundingClientRect().bottom, dock: document.querySelector('.quick-check-band')!.getBoundingClientRect().top }));
@@ -153,14 +160,14 @@ test('the Stay link preserves the complete checked panel and Book continues to s
   await chooseDates(page);
   const panel = page.locator(panelSelector);
   await panel.locator('[data-compact-booking-submit]').click();
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('cottage');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('cottage');
   const displayedResult = () => panel.evaluate(element => ({
-    stay: element.querySelector<HTMLSelectElement>('[data-compact-stay-select]')?.selectedOptions[0].textContent,
+    stay: element.querySelector('[data-compact-stay-name]')?.textContent,
     counts: [...element.querySelectorAll<HTMLInputElement>('[name="adults"], [name="children"], [name="infants"], [name="pets"]')].map(input => [input.name, input.value]),
-    text: ['arrival-label', 'departure-label', 'guests-summary', 'quick-total-value', 'quick-stay-value', 'quick-message', 'booking-submit', 'booking-status'].map(name => element.querySelector(`[data-compact-${name}]`)?.textContent),
+    text: ['arrival-label', 'departure-label', 'guests-summary', 'quick-total-value', 'stay-name', 'quick-message', 'booking-submit', 'booking-status'].map(name => element.querySelector(`[data-compact-${name}]`)?.textContent),
   }));
   const original = await displayedResult();
-  await panel.locator('[data-compact-quick-stay-value]').click();
+  await chooseStay(page);
   await expect(page).toHaveURL(/\/listings\/cottage\/\?/);
   await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
   expect(await displayedResult()).toEqual(original);
@@ -199,7 +206,7 @@ for (const storedState of ['missing', 'expired', 'mismatched', 'malformed', 'dis
         sessionStorage.setItem(key, JSON.stringify(saved));
       }
     }, storedState);
-    await panel.locator('[data-compact-quick-stay-value]').click();
+    await chooseStay(page);
     await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,456.00');
     await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
     expect(quoteChecks).toBe(2);
@@ -215,7 +222,7 @@ test('a restored host-priced estimate keeps the same total, guidance and action'
   await panel.locator('[data-compact-booking-submit]').click();
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£890.00');
   const guidance = await panel.locator('[data-compact-booking-status]').textContent();
-  await panel.locator('[data-compact-quick-stay-value]').click();
+  await chooseStay(page);
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£890.00');
   await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
   await expect(panel.locator('[data-compact-booking-status]')).toHaveText(guidance!);
@@ -240,7 +247,7 @@ test('an expired result cannot retain Book when the dates have become unavailabl
     sessionStorage.setItem('olrig-quick-check-result', JSON.stringify(saved));
   });
   await fixtures(page, 'unavailable');
-  await panel.locator('[data-compact-quick-stay-value]').click();
+  await chooseStay(page);
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('unavailable');
   await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
   await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Quick Check');
@@ -289,7 +296,8 @@ test('an existing host-priced result remains available when moving from desktop 
   await panel.locator('[data-compact-booking-submit]').click();
   await expect(panel.getByRole('link', { name: 'Continue with request' })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 800 });
-  await expect(panel.getByRole('dialog', { name: 'Quick Check result' })).toBeVisible();
+  await expect(panel.getByRole('dialog', { name: 'Quick Check result' })).toHaveCount(0);
+  await expect(panel.locator('[data-compact-booking-status]')).toBeVisible();
   await expect(panel.getByRole('link', { name: 'Continue with request' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
 });
@@ -346,7 +354,7 @@ test('the active result follows ordinary navigation and listing entry changes an
   for (const path of ['/contact/', '/guest-information/', '/local-guide/', '/', '/listings/cottage/']) {
     await page.goto(path);
     await expect(panel).toBeVisible();
-    await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('cottage');
+    await expect(panel.locator('[name="propertyId"]')).toHaveValue('cottage');
     await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,000.00');
     await expect(panel.locator('[name="arrival"]')).toHaveValue(arrival);
     await expect(panel.locator('[name="children"]')).toHaveValue('1');
@@ -356,17 +364,17 @@ test('the active result follows ordinary navigation and listing entry changes an
   }
   expect(requests).toHaveLength(1);
   await page.goto('/listings/olrig-bank/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('main-house');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('main-house');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£2,000.00');
   expect(requests).toHaveLength(2);
   expect(requests[1]).toEqual({ ...requests[0], propertyId: 'main-house' });
   await page.goto('/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('main-house');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('main-house');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£2,000.00');
   await page.goBack();
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£2,000.00');
   await page.goBack();
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('cottage');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('cottage');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,000.00');
   expect(requests).toHaveLength(3);
 });
@@ -378,16 +386,16 @@ test('Stay dropdown rechecks the unchanged party and dates and keeps the manual 
   const panel = page.locator(panelSelector);
   await panel.locator('[data-compact-booking-submit]').click();
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,000.00');
-  const selector = panel.getByRole('combobox', { name: 'Stay', exact: true });
-  await selector.selectOption('whole-property');
+  const selector = panel.locator('[name="propertyId"]');
+  await chooseStay(page, 'whole-property');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£3,000.00');
   expect(requests[1]).toEqual({ ...requests[0], propertyId: 'whole-property' });
-  await expect(panel.getByRole('link', { name: 'View stay: Olrig Bank++' })).toHaveAttribute('href', /\/listings\/event\//);
+  await expect(page).toHaveURL(/\/listings\/event\//);
   await page.goto('/');
   await expect(selector).toHaveValue('whole-property');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£3,000.00');
   expect(requests).toHaveLength(2);
-  await selector.selectOption('main-house');
+  await chooseStay(page, 'main-house');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£2,000.00');
   expect(requests[2]).toEqual({ ...requests[0], propertyId: 'main-house' });
 });
@@ -400,16 +408,16 @@ test('unavailable stay changes clear the previous quote, remain selected and can
   await panel.locator('[data-compact-booking-submit]').click();
   await expect(panel.locator('[data-compact-quick-total]')).toBeVisible();
   await fixtures(page, 'unavailable');
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('main-house');
+  await chooseStay(page, 'main-house');
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('unavailable');
   await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
   await page.goto('/contact/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('main-house');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('main-house');
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('unavailable');
   await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
   await page.keyboard.press('Escape');
   await stayPriceFixtures(page);
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('cottage');
+  await chooseStay(page, 'cottage');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,000.00');
 });
 
@@ -427,17 +435,15 @@ test('a late quote cannot overwrite a newer Stay dropdown choice', async ({ page
     if (propertyId === 'main-house') { started(); await pending; }
     await route.fulfill({ json: { pricingAvailable: true, guestTotalPence: propertyId === 'main-house' ? 200000 : 300000 } });
   });
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('main-house');
+  await chooseStay(page, 'main-house');
   await requested;
   await page.keyboard.press('Escape');
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('whole-property');
+  await chooseStay(page, 'whole-property');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£3,000.00');
-  const lateResponse = page.waitForResponse(response => response.url().includes('/api/quote/') && response.request().postDataJSON().propertyId === 'main-house');
   release();
-  await lateResponse;
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£3,000.00');
   await page.goto('/contact/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('whole-property');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('whole-property');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£3,000.00');
 });
 
@@ -446,15 +452,15 @@ test('Stay dropdown can enter and leave Bespoke without claiming an availability
   await page.goto('/listings/cottage/');
   await chooseDates(page);
   const panel = page.locator(panelSelector);
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('bespoke-arrangement');
+  await chooseStay(page, 'bespoke-arrangement');
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('Your dates are not reserved');
   await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
   expect(requests).toHaveLength(0);
   await page.goto('/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('bespoke-arrangement');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('bespoke-arrangement');
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('Your dates are not reserved');
   await page.keyboard.press('Escape');
-  await panel.getByRole('combobox', { name: 'Stay', exact: true }).selectOption('cottage');
+  await chooseStay(page, 'cottage');
   await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,000.00');
   expect(requests).toHaveLength(1);
 });
@@ -492,10 +498,61 @@ test('changing to a listing with a longer minimum stay retains dates and explain
   const panel = page.locator(panelSelector);
   await panel.locator('[data-compact-booking-submit]').click();
   await page.goto('/listings/olrig-bank/');
-  await expect(panel.locator('[data-compact-stay-select]')).toHaveValue('main-house');
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('main-house');
   await expect(panel.locator('[name="arrival"]')).toHaveValue(arrival);
   await expect(panel.locator('[name="departure"]')).toHaveValue(departure);
   await expect(panel.locator('[data-compact-booking-status]')).toContainText('at least 2 nights');
   await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
   expect(requests).toHaveLength(0);
+});
+
+
+test('over-capacity arrival retains the party, shows inline red validation and requires another check', async ({ page }) => {
+  const requests = await stayPriceFixtures(page);
+  await page.goto('/listings/olrig-bank/?adults=4&children=1&infants=1&pets=2');
+  await chooseDates(page);
+  const panel = page.locator(panelSelector);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+  await chooseStay(page, 'cottage');
+  const summary = panel.locator('[data-compact-guests] summary');
+  await expect(summary).toHaveAttribute('aria-invalid', 'true');
+  await expect(panel.locator('[data-compact-guests-summary]')).toHaveCSS('color', 'rgb(180, 35, 24)');
+  await expect(panel.locator('[data-compact-booking-status]')).toContainText('maximum of 4 guests');
+  await expect(panel.locator('[data-compact-booking-status]')).toBeInViewport();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Check');
+  await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
+  await expect(panel.locator('[name="adults"]')).toHaveValue('4');
+  expect(requests).toHaveLength(1);
+  await panel.getByRole('button', { name: 'Check', exact: true }).click();
+  expect(requests).toHaveLength(1);
+  await expect(panel.getByRole('dialog')).toHaveCount(0);
+  await summary.click();
+  await panel.getByRole('button', { name: 'Remove adults' }).click();
+  await panel.getByRole('button', { name: 'Remove adults' }).click();
+  await panel.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(summary).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(panel.locator('[data-compact-booking-status]')).toBeEmpty();
+  await expect(panel.locator('[data-compact-booking-submit]')).not.toHaveText('Book');
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+  expect(requests).toHaveLength(2);
+});
+
+test('Stay links support keyboard selection and immediate navigation without dates', async ({ page }) => {
+  await page.goto('/listings/cottage/');
+  const panel = page.locator(panelSelector);
+  const summary = panel.locator('[data-compact-stay-menu] summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(panel.getByRole('link', { name: 'Olrig Bank', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(summary).toBeFocused();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('link', { name: 'Olrig Bank', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/listings\/olrig-bank\//);
+  await expect(panel.locator('[data-compact-stay-name]')).toHaveText('Olrig Bank');
+  await expect(panel.getByRole('link', { name: /View stay/ })).toHaveCount(0);
 });

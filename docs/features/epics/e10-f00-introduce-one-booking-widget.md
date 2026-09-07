@@ -345,9 +345,57 @@ Verification:
   created and no customer was contacted; persisted request creation remains
   outside these browser checks.
 
+### E10-F02 follow-up — Stay links and inline capacity validation
+
+- **Stay links menu** is a custom dropdown/drop-up built from native `<details>`,
+  `<summary>` and anchors. Each arrangement is a link that immediately navigates
+  to its listing, carrying dates and the complete party. There is no separate
+  View stay link. Opening the menu does not change the selection; Escape closes
+  it and returns focus. Links also retain normal browser link behaviour.
+- **Inline Quick Check feedback** is a custom status line using a native live
+  region. Availability, host confirmation and error messages stay within the
+  panel; they never open a result dialog. Date and guest selection sheets remain.
+- **Guest capacity validation** is a custom error state: on arrival and after
+  edits, a party above the configured stay `maximumGuests` retains its counts,
+  colours the guest summary red, associates it with an explanatory status line,
+  hides the previous total and changes Book to **Check**. The party includes
+  adults, children and infants, excluding pets, as in automatic stay selection.
+  No availability/quote request is made until the party fits. Correcting the
+  party removes the error but requires a fresh check before Book returns.
+- Existing capacity configuration is used: Cottage 4, Olrig Bank 10, whole
+  property and bespoke 12. Olrig Bank's public title says “max 8 guests”; this
+  pre-existing difference from `maximumGuests: 10` is not a pricing or occupancy
+  policy change in this feature. Server occupancy assessment still runs when
+  quoting and continuing a valid selection.
+
+Verification (7 September 2026):
+
+- Rebuilt and restarted the local production container. Astro check: 0 errors,
+  0 warnings, two existing administration hints. Lifecycle suite: 85 passed.
+- Playwright: 125 passed, three expected desktop-only checks skipped at smaller
+  widths. Projects: 320×800, 390×844, 768×1024 and 1440×900. Permanent coverage
+  now exercises immediate Stay-link navigation, keyboard operation, complete
+  result transfer, destination rechecks, capacity rejection and recovery, stale
+  response rejection, storage fallback, host pricing, unavailable/error states,
+  Bespoke and continuation to the full booking form.
+- Chrome DevTools inspected the rebuilt application at the same four widths:
+  empty state, over-capacity arrival, red guest count and accessible error
+  association, visible keyboard focus, Stay menu bounds and navigation, host
+  estimate restored on the landing page, and an actual local availability
+  response. No document overflow or console errors were observed. The Stay menu
+  has bounded vertical scrolling; result messages remain inline.
+- Lighthouse snapshots: mobile capacity state and desktop open Stay menu each
+  scored 100 for accessibility, best practices, SEO and agentic browsing, with
+  no failed audits. Reports: `/tmp/e10-links-lighthouse-phone/` and
+  `/tmp/e10-links-lighthouse-desktop/`. These audits exclude performance.
+- Price and host-outcome browser checks used disposable local fixtures. No
+  booking was created, no customer was contacted, and the DevTools session
+  fixture was cleared afterwards. Production inventory/prices were not tested.
+
 ### E10-F02 follow-up — Persistent Quick Check and selectable stays
 
-This supersedes the earlier fixed-listing and link-only transfer behaviour.
+This supersedes the earlier fixed-listing and link-only transfer behaviour. The
+Stay control and result presentation are further updated in the follow-up below.
 
 - The active selection and recent provisional result follow navigation within
   the browser tab, including the landing page, ordinary public links, reloads
