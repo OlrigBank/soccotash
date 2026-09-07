@@ -33,8 +33,10 @@ landing page, making the same task feel inconsistent.
   Quick Check dock and remove the inline Check a stay panel from that layout.
 - On tablet and desktop, replace Check a stay with the landing page's Quick
   Check presentation, immediately below the main image.
-- Preserve listing-specific arrangements, Bespoke enquiry behaviour and
-  continuation into the existing full booking request.
+- Keep the active Quick Check across navigation, including the landing page.
+- Let visitors select another stay and recheck the same dates and guests. Entering
+  a listing selects its own stay and rechecks when the arrangement changes.
+- Preserve Bespoke enquiry behaviour and continuation into the full request.
 
 ## Experience boundary
 
@@ -42,7 +44,8 @@ Cover the landing page as the reference implementation, all four accommodation
 listings, and other public pages that currently show the bottom mobile Check
 availability action. Inventory those consumers before implementation and record
 which routes change. Image repositioning applies to accommodation listings;
-other public pages receive only the applicable booking-action replacement.
+other public pages retain a mobile dock and show an inline panel above their
+content on tablet/desktop when there is an active selection.
 
 The full `/book/` form, private booking pages and administration workflows are
 outside the replacement scope. This epic does not commit to replacing `/book/`.
@@ -65,9 +68,12 @@ UI pattern). Reuse the existing date range picker and Guests popover.
 
 ## Workflow and behaviour principles
 
-- Share the presentation and interactions without coupling them to automatic
-  stay selection: listings keep their arrangement fixed, while the landing
-  page and generic public dock can find a suitable stay.
+- Share the current selection and provisional result across public page
+  navigation in the same browser tab, including back/forward navigation.
+- Entering a listing selects its own arrangement; a different arrangement gets
+  a fresh check using the retained dates and guests. Within a page, the Stay
+  dropdown can check any arrangement. Generic pages retain the chosen stay;
+  Find a suitable stay opts back into automatic selection.
 - Preserve adults, children, infants, pets and dates across responsive layout
   changes and continuation to `/book/`, without re-entry.
 - Expose exactly one booking entry control per responsive layout; hidden
@@ -185,11 +191,14 @@ confirmation that the screen renders.
    immediately beneath the main image, before the listing description.
 4. The main listing image is at the top of page content below the public header,
    with page title, accessible structure and existing content preserved.
-5. Listings retain their fixed stay arrangement. Landing-page and generic dock
-   stay selection continues to work, and Bespoke remains an honest enquiry.
+5. The Stay selector rechecks the existing dates/party for another arrangement.
+   Listing entry selects the destination arrangement and rechecks when it
+   differs from the saved stay. Bespoke remains an honest enquiry.
 6. Dates and all guest/pet counts survive responsive changes and continuation
-   into `/book/` without re-entry. Following the checked Stay link to a listing
-   also preserves Total, Stay, reassurance/guidance and the Book action.
+   into `/book/` without re-entry. Public navigation preserves the active
+   selection, Total, Stay, reassurance/guidance and Book action, including when
+   returning to the landing page. A different destination listing replaces
+   the previous result with its newly checked result.
 7. Changed inputs invalidate checked results. Availability, pricing, occupancy,
    request creation and changed-quote protections retain server authority.
 8. The dock does not obscure content or footer actions. Changed layouts have no
@@ -335,6 +344,67 @@ Verification:
 - Browser availability/pricing responses were local fixtures. No booking was
   created and no customer was contacted; persisted request creation remains
   outside these browser checks.
+
+### E10-F02 follow-up — Persistent Quick Check and selectable stays
+
+This supersedes the earlier fixed-listing and link-only transfer behaviour.
+
+- The active selection and recent provisional result follow navigation within
+  the browser tab, including the landing page, ordinary public links, reloads
+  and back/forward history. Explicit date/party URL inputs take precedence over
+  saved inputs. No price is taken from a URL or submitted as authoritative data.
+- Stay is a labelled native dropdown with the four arrangements and a **Find a
+  suitable stay** option. Changing it preserves the dates and guest/pet counts,
+  invalidates the previous result and checks the new arrangement automatically.
+  **View stay** remains a separate link to the selected listing.
+- On entry to a listing, its arrangement takes precedence over the saved stay.
+  For example, Cottage → Olrig Bank carries the dates and party, selects Olrig
+  Bank and checks it again. A recent matching result can be reused when entering
+  the same listing. Returning to a generic page retains the latest chosen stay.
+- Edited, pending and unsuccessful selections replace the old saved result so
+  navigation cannot resurrect an obsolete price. Expired or missing results
+  are refreshed; late responses cannot overwrite a newer selection. A stricter
+  minimum stay retains the entered dates and explains the required change.
+- Bespoke selections preserve the enquiry path without availability/quote calls.
+- Generic public pages display an active panel above their content on desktop
+  and tablet; mobile uses the dock. With no active selection, those pages keep
+  the existing mobile-only entry point. `/book/`, private and administration
+  workflows remain outside the widget replacement scope.
+
+UI pattern names: **Persistent Quick Check** (custom session-state pattern);
+**Stay selector** (off-the-shelf native `<select>`; the browser/OS chooses the
+popup direction); **View stay link** (native link with custom selection transfer).
+
+Verification:
+
+- The final local Docker build passed with `astro check` reporting 0 errors,
+  0 warnings and the two existing administration hints. All 85 booking lifecycle
+  checks passed.
+- `npm run test:public-experience-regression -- --workers=4` passed 117 browser
+  checks. The three desktop-only hero checks were skipped at smaller widths.
+  Projects cover 320×800, 390×844, 768×1024 and 1440×900, with existing additional
+  checks across the 699px/700px breakpoint.
+- New browser coverage verifies ordinary navigation through Contact, Guest
+  information, Local Guide, landing and listing pages; matching-result reuse;
+  destination-arrangement rechecks; dropdown changes with identical date/party
+  payloads; back/forward history; failed and overlapping checks; Bespoke;
+  retained edits; and a stricter destination minimum stay without losing dates.
+- Chrome DevTools inspected the rebuilt application at 320×800, 768×1024 and
+  1440×900. It verified the Stay label, native keyboard popup and Escape handling,
+  visible focus, restoration on Contact and the landing page, and a fresh
+  destination-specific availability request on entering another listing. No
+  document overflow or unexpected console warnings/errors were found.
+- Desktop and mobile Lighthouse snapshot audits of the active panel scored 100
+  in every reported category with no failures. The first mobile audit identified
+  a View stay accessible-name mismatch and undersized link target; both were
+  corrected before the passing audits. Reports are in
+  `/tmp/e10-stay-lighthouse-*-final/` in the verification environment.
+- Browser price/success scenarios use local response fixtures and block request
+  creation. No customer was contacted or booking created. These checks do not
+  exercise persisted request creation or administration/private workflows.
+- Ordinary navigation persistence uses session storage within one browser tab.
+  With storage disabled, the explicit View stay link still transfers its inputs
+  and refreshes the result, but unrelated navigation cannot recover that state.
 
 ## Verification plan
 

@@ -100,6 +100,11 @@ function isCurrent(href: string) {
         ) : null}
 
         <main id="main-content" tabindex="-1">
+          {activePath !== '/' && activePath !== '/book/' && !hasBookingPanel && !activePath.startsWith('/admin/') ? (
+            <div class="quick-check-band quick-check-band--mobile-only">
+              <CompactBookingPanel source="public" heading="" idPrefix="public-booking" autoSelectProperty={true} mobileDock={true} />
+            </div>
+          ) : null}
           <slot />
         </main>
       </div>
@@ -126,11 +131,6 @@ function isCurrent(href: string) {
         </div>
       </footer>
 
-      {activePath !== '/' && activePath !== '/book/' && !hasBookingPanel && !activePath.startsWith('/admin/') ? (
-        <div class="quick-check-band quick-check-band--mobile-only">
-          <CompactBookingPanel source="public" heading="" idPrefix="public-booking" autoSelectProperty={true} mobileDock={true} />
-        </div>
-      ) : null}
       {activePath.startsWith('/admin/') ? (
         <nav class="mobile-contact-bar" aria-label="Quick booking actions">
           <a class="mobile-contact-bar__book" href="/book/">Check availability</a>
@@ -513,7 +513,7 @@ function isCurrent(href: string) {
   }
 
   @media (min-width: 700px) {
-    .quick-check-band--mobile-only, .mobile-contact-bar { display: none; }
+    .quick-check-band--mobile-only:not(:has([data-active-stay])), .mobile-contact-bar { display: none; }
 
     .site-footer .footer-inner {
       grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);

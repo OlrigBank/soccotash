@@ -82,7 +82,7 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.match(compactPanel, /for \(const candidate of candidates\)/);
   assert.doesNotMatch(compactPanel, /continueLink\('Reserve'\)/);
   assert.match(compactPanel, /quickTotalValue\.textContent = money\(guestTotalPence, currency\)/);
-  assert.match(compactPanel, /quickStayValue\.textContent = stayName/);
+  assert.match(compactPanel, /quickStayValue\.textContent = 'View stay'/);
   assert.match(compactPanel, /quickStayValue\.href = `\/listings\/\$\{staySlug\}/);
   assert.match(compactPanel, /submit\.textContent = 'Book'/);
   assert.match(compactPanel, /result\.hidden = true/);

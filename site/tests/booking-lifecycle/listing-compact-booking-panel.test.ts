@@ -5,7 +5,7 @@ import YAML from 'yaml';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('standard listing pages use their configured immutable booking arrangement', async () => {
+test('standard listing pages use their configured default booking arrangement', async () => {
   const [template, propertiesSource, component] = await Promise.all([
     source('src/pages/listings/[slug].astro'),
     source('src/data/booking/properties.yml'),

@@ -13,7 +13,7 @@ test('compact booking panel uses authoritative availability and quote APIs', asy
   assert.match(component, /provisional total/);
   assert.match(component, /data-compact-quick-stay/);
   assert.match(component, /data-compact-quick-total/);
-  assert.match(component, /quickStayValue\.textContent = stayName/);
+  assert.match(component, /quickStayValue\.textContent = 'View stay'/);
   assert.match(component, /quickStayValue\.href = `\/listings\/\$\{staySlug\}/);
   assert.match(component, /prepopulateFromQuery/);
   assert.match(component, /recommendation\.dataset\.name = selected\.name\.replace/);
@@ -41,7 +41,7 @@ test('compact booking panel exposes honest unavailable, host-priced, error and b
 test('compact booking results are invalidated when booking inputs change', async () => {
   const component = await readFile(componentUrl, 'utf8');
   assert.match(component, /addEventListener\('input', clearResult\)/);
-  assert.match(component, /property\.addEventListener\('change', updateMode\)/);
+  assert.match(component, /property\.addEventListener\('change',[\s\S]*updateMode\(true\)/);
   assert.match(component, /result\.replaceChildren\(\)/);
   assert.match(component, /if \(action\) action\.hidden = false/);
 });

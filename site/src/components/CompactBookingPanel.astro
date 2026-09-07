@@ -37,12 +37,10 @@ if (propertyId && !fixedProperty) {
   data-compact-booking-panel
   data-mobile-dock={mobileDock ? 'true' : undefined}
   data-source={source}
-  data-fixed-property={fixedProperty?.id}
-  data-stay-name={fixedProperty?.name.replace(/\s+\(max \d+ guests\)$/i, '')}
-  data-stay-slug={fixedProperty?.listingSlug}
+  data-listing-property={fixedProperty?.id}
   data-submit-label={submitLabel}
   data-auto-select-property={autoSelectProperty ? 'true' : undefined}
-  data-properties={autoSelectProperty ? JSON.stringify(properties.map(({ id, name, listingSlug, minimumNights, maximumGuests }) => ({ id, name, listingSlug, minimumNights, maximumGuests }))) : undefined}
+  data-properties={quickCheck ? JSON.stringify(properties.map(({ id, name, listingSlug, minimumNights, maximumGuests }) => ({ id, name, listingSlug, minimumNights, maximumGuests }))) : undefined}
   aria-labelledby={heading ? `${idPrefix}-heading` : undefined}
   aria-label={heading ? undefined : 'Quick Check'}
 >
@@ -54,9 +52,7 @@ if (propertyId && !fixedProperty) {
   <noscript><p><a href={fixedProperty ? `/book/?propertyId=${fixedProperty.id}` : '/book/'}>Continue to the full request form</a></p></noscript>
 
   <form id={`${idPrefix}-form`} class="compact-booking-form" data-compact-booking-form>
-    {autoSelectProperty ? null : fixedProperty && quickCheck ? (
-      <input type="hidden" name="propertyId" value={fixedProperty.id} data-minimum-nights={fixedProperty.minimumNights} />
-    ) : fixedProperty ? (
+    {quickCheck ? null : fixedProperty ? (
       <div class="compact-booking-field compact-booking-field--property">
         <span>Stay arrangement</span>
         <strong>{fixedProperty.name}</strong>
@@ -164,9 +160,17 @@ if (propertyId && !fixedProperty) {
           <span>Total</span>
           <strong data-compact-quick-total-value></strong>
         </div>
-        <div class="compact-booking-field compact-booking-quick-result" data-compact-quick-stay hidden>
-          <span>Stay</span>
-          <a data-compact-quick-stay-value></a>
+        <div class="compact-booking-field compact-booking-quick-result compact-booking-stay" data-compact-quick-stay>
+          <label for={`${idPrefix}-stay`}>Stay</label>
+          <select id={`${idPrefix}-stay`} name="propertyId" data-compact-stay-select>
+            <option value="">Find a suitable stay</option>
+            {properties.map((stay) => (
+              <option value={stay.id} selected={stay.id === fixedProperty?.id} data-minimum-nights={stay.minimumNights}>
+                {stay.name.replace(/\s+\(max \d+ guests\)$/i, '')}
+              </option>
+            ))}
+          </select>
+          <a data-compact-quick-stay-value hidden>View stay</a>
         </div>
       </>
     ) : null}
@@ -191,8 +195,8 @@ if (propertyId && !fixedProperty) {
       <button class="compact-sheet__close" type="button" data-compact-sheet-close="result" aria-label="Close Quick Check result">×</button>
     ) : null}
     {autoSelectProperty ? (
-      <div class="compact-booking-field compact-booking-field--property compact-booking-field--recommendation" data-compact-booking-recommendation hidden>
-        <input type="hidden" name="propertyId" value="" form={`${idPrefix}-form`} />
+      <div class="compact-booking-recommendation" data-compact-booking-recommendation>
+        {!quickCheck ? <input type="hidden" name="propertyId" value="" form={`${idPrefix}-form`} /> : null}
         <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>
       </div>
     ) : null}
@@ -277,6 +281,10 @@ if (propertyId && !fixedProperty) {
     let checkedHref = '';
     let inputRevision = 0;
     const suggestedStay = panel.dataset.autoSelectProperty === 'true';
+    const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
+      id: string; name: string; listingSlug: string; minimumNights: number; maximumGuests: number;
+    }>;
+    let initialising = true;
     const dateTrigger = panel.querySelector<HTMLButtonElement>('[data-compact-date-trigger]');
     const arrivalLabel = panel.querySelector<HTMLElement>('[data-compact-arrival-label]');
     const departureLabel = panel.querySelector<HTMLElement>('[data-compact-departure-label]');
@@ -346,8 +354,10 @@ if (propertyId && !fixedProperty) {
       if (sheetBackdrop) sheetBackdrop.hidden = true;
       if (closingSheet === 'date') {
         if (!commit) {
+          const changed = arrival.value !== dateSnapshot.arrival || departure.value !== dateSnapshot.departure;
           arrival.value = dateSnapshot.arrival;
           departure.value = dateSnapshot.departure;
+          if (changed) rememberSelection();
           updateDateLabels();
           renderCalendar();
         }
@@ -355,8 +365,10 @@ if (propertyId && !fixedProperty) {
       }
       if (closingSheet === 'guests') {
         if (!commit) {
+          const changed = guestInputs().some((input) => input.value !== guestSnapshot[input.name]);
           for (const input of guestInputs()) input.value = guestSnapshot[input.name] ?? input.value;
           updateGuestsSummary();
+          if (changed) rememberSelection();
         }
         if (guests) guests.open = false;
       }
@@ -450,6 +462,7 @@ if (propertyId && !fixedProperty) {
       }
       updateDateLabels();
       renderCalendar();
+      rememberSelection();
       if (departure.value) {
         if (mobileDock) closeMobileSheet(true);
         else {
@@ -493,8 +506,7 @@ if (propertyId && !fixedProperty) {
       if (pets) parts.push(`${pets} ${pets === 1 ? 'pet' : 'pets'}`);
       guestsSummary.textContent = parts.join(', ');
     };
-    const prepopulateFromQuery = () => {
-      const params = new URLSearchParams(window.location.search);
+    const prepopulateFromQuery = (params = new URLSearchParams(window.location.search)) => {
       const queryArrival = params.get('arrival');
       const queryDeparture = params.get('departure');
       const validDate = (value: string | null): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(parseDate(value).getTime()) && dateIso(parseDate(value)) === value);
@@ -530,9 +542,7 @@ if (propertyId && !fixedProperty) {
         if (mobileDock) openMobileSheet('guests', guests.querySelector('summary'));
       } else if (mobileDock && activeMobileSheet === 'guests') closeMobileSheet(false);
     });
-    prepopulateFromQuery();
-    updateGuestsSummary();
-    updateDateLabels();
+
     calendar.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       if (mobileDock) closeMobileSheet(false);
@@ -595,19 +605,21 @@ if (propertyId && !fixedProperty) {
     const clearResult = () => {
       checkedHref = '';
       inputRevision += 1;
+      submit.disabled = false;
       result.hidden = true;
       result.replaceChildren();
       status.textContent = '';
       if (action) action.hidden = false;
-      if (recommendation) recommendation.hidden = true;
-      if (quickStay) quickStay.hidden = true;
+
+
       if (quickStayValue) {
-        quickStayValue.textContent = '';
+        quickStayValue.hidden = true;
         quickStayValue.removeAttribute('href');
       }
       if (quickTotal) quickTotal.hidden = true;
       if (quickMessage) quickMessage.textContent = '';
       submit.textContent = isBespoke() ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
+      if (!initialising) rememberSelection();
     };
     const continuationHref = () => {
       const data = new FormData(form);
@@ -628,11 +640,11 @@ if (propertyId && !fixedProperty) {
       }));
       return link;
     };
-    const updateMode = () => {
+    const updateMode = (preserveDates = false) => {
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
       submit.textContent = bespoke ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
-      if (arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
+      if (!preserveDates && arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
         departure.value = '';
         updateDateLabels();
         calendarMessage.textContent = 'The minimum stay changed. Choose your departure date again.';
@@ -641,15 +653,19 @@ if (propertyId && !fixedProperty) {
       clearResult();
     };
     const renderSuggestedResult = (guestTotalPence: number, currency = 'GBP') => {
-      const stayName = panel.dataset.stayName || recommendation?.dataset.name;
-      const staySlug = panel.dataset.staySlug || recommendation?.dataset.slug;
+      const selectedStay = configured.find((stay) => stay.id === property.value);
+      const stayName = selectedStay?.name.replace(/\s+\(max \d+ guests\)$/i, '') || recommendation?.dataset.name;
+      const staySlug = selectedStay?.listingSlug || recommendation?.dataset.slug;
       if (quickStay && quickStayValue && stayName && staySlug) {
-        quickStayValue.textContent = stayName;
+        quickStayValue.textContent = 'View stay';
+        quickStayValue.setAttribute('aria-label', `View stay: ${stayName}`);
+        quickStayValue.hidden = false;
         const params = new URLSearchParams();
         const formData = new FormData(form);
         for (const name of ['arrival', 'departure', 'adults', 'children', 'infants', 'pets']) {
           params.set(name, String(formData.get(name) ?? ''));
         }
+        params.set('propertyId', property.value);
         params.set('quickCheck', 'checked');
         quickStayValue.href = `/listings/${staySlug}/?${params.toString()}`;
         quickStay.hidden = false;
@@ -742,55 +758,87 @@ if (propertyId && !fixedProperty) {
       result.hidden = false;
     };
 
-    // This is a provisional display snapshot, never an authoritative booking quote.
-    // /book/ and final submission still recheck availability and pricing on the server.
+    // Only non-contact selections and provisional display results are retained.
+    // The full request and submission APIs remain authoritative for price/availability.
     const checkedResultStorageKey = 'olrig-quick-check-result';
-    const rememberCheckedResult = (quote: QuoteResponse) => {
-      if (!checkedHref) return;
+    const rememberSelection = (quote?: QuoteResponse) => {
+      panel.toggleAttribute('data-active-stay', Boolean(arrival.value && departure.value));
       try {
         sessionStorage.setItem(checkedResultStorageKey, JSON.stringify({
           version: 1,
-          checkedAt: Date.now(),
+          checkedAt: quote ? Date.now() : 0,
           selection: continuationHref(),
-          quote: {
+          quote: quote ? {
             pricingAvailable: quote.pricingAvailable,
             guestTotalPence: quote.guestTotalPence,
             currency: quote.currency,
             estimatedPricing: quote.estimatedPricing,
             restrictions: quote.restrictions,
             warnings: quote.warnings,
-          },
+          } : undefined,
         }));
       } catch {
-        // Storage can be disabled. The marked Stay link then triggers a fresh check.
+        // Marked View stay links still transfer inputs when storage is disabled.
       }
     };
-    const restoreCheckedResult = () => {
-      if (!panel.dataset.fixedProperty || !arrival.value || !departure.value
-        || new URLSearchParams(location.search).get('quickCheck') !== 'checked') return;
+    const initialiseFromSession = () => {
+      if (mobileDock) closeMobileSheet(true);
+      setCalendarOpen(false);
+      if (guests) guests.open = false;
+      initialising = true;
+      let saved: { version?: number; selection?: string; checkedAt?: number; quote?: QuoteResponse } | null = null;
+      let savedParams: URLSearchParams | undefined;
       try {
-        const saved = JSON.parse(sessionStorage.getItem(checkedResultStorageKey) || 'null');
-        const quote: QuoteResponse | undefined = saved?.quote;
-        const price = quote?.pricingAvailable === true ? quote : quote?.estimatedPricing;
-        const validGuidance = [quote?.restrictions, quote?.warnings].every((items) =>
-          items === undefined || (Array.isArray(items) && items.every((item) => typeof item === 'string')));
-        if (saved?.version === 1 && saved.selection === continuationHref()
-          && typeof saved.checkedAt === 'number' && saved.checkedAt <= Date.now()
-          && Date.now() - saved.checkedAt < 15 * 60 * 1000
-          && quote && price && Number.isSafeInteger(price.guestTotalPence)
-          && Number(price.guestTotalPence) >= 0 && (!price.currency || price.currency === 'GBP')
-          && validGuidance) {
-          if (quote.pricingAvailable) renderQuote(quote);
-          else renderHostPriced(quote);
-          return;
+        saved = JSON.parse(sessionStorage.getItem(checkedResultStorageKey) || 'null');
+        if (saved?.version === 1 && typeof saved.selection === 'string') {
+          const url = new URL(saved.selection, location.origin);
+          if (url.origin === location.origin && url.pathname === '/book/') savedParams = url.searchParams;
         }
       } catch {
-        // An unreadable or malformed snapshot must not prevent continuation.
+        // An unreadable snapshot must not prevent choosing a stay.
       }
-      form.requestSubmit();
+      const query = new URLSearchParams(location.search);
+      const explicitInputs = ['arrival', 'departure', 'adults', 'children', 'infants', 'pets', 'propertyId'].some((name) => query.has(name));
+      const params = explicitInputs ? query : savedParams || query;
+      arrival.value = '';
+      departure.value = '';
+      for (const input of guestInputs()) input.value = input.name === 'adults' ? '2' : '0';
+      const requestedStay = panel.dataset.listingProperty || params.get('propertyId') || '';
+      property.value = configured.some((stay) => stay.id === requestedStay) ? requestedStay : '';
+      prepopulateFromQuery(params);
+      updateMode(!explicitInputs);
+      updateGuestsSummary();
+      updateDateLabels();
+      renderCalendar();
+      panel.toggleAttribute('data-active-stay', Boolean(arrival.value && departure.value));
+      initialising = false;
+      if (!arrival.value || !departure.value) return;
+
+      const quote = saved?.quote;
+      const price = quote?.pricingAvailable === true ? quote : quote?.estimatedPricing;
+      const validPrice = price ? Number.isSafeInteger(price.guestTotalPence)
+        && Number(price.guestTotalPence) >= 0 && (!price.currency || price.currency === 'GBP')
+        : quote?.pricingAvailable === false;
+      const validGuidance = [quote?.restrictions, quote?.warnings].every((items) =>
+        items === undefined || (Array.isArray(items) && items.every((item) => typeof item === 'string')));
+      if (savedParams && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
+        && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
+        && quote && validPrice && validGuidance) {
+        if (quote.pricingAvailable === true) renderQuote(quote);
+        else renderHostPriced(quote);
+        return;
+      }
+      // A different listing always selects its own stay and obtains a fresh result.
+      if (savedParams || query.get('quickCheck') === 'checked') form.requestSubmit();
     };
 
-    property.addEventListener('change', updateMode);
+    property.addEventListener('change', () => {
+      if (mobileDock) closeMobileSheet(true);
+      setCalendarOpen(false);
+      if (guests) guests.open = false;
+      updateMode(true);
+      if (arrival.value && departure.value) form.requestSubmit();
+    });
     for (const input of form.querySelectorAll<HTMLInputElement>('input')) input.addEventListener('input', clearResult);
 
     form.addEventListener('submit', async (event) => {
@@ -806,18 +854,19 @@ if (propertyId && !fixedProperty) {
         return;
       }
 
+      if (property.value && departure.value < addDays(arrival.value, minimumNights())) {
+        status.textContent = `This stay needs at least ${minimumNights()} nights. Choose a later departure date.`;
+        return;
+      }
       const revision = inputRevision;
       submit.disabled = true;
       status.textContent = 'Checking the latest availability and price…';
       const data = new FormData(form);
       let safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value || 'none' };
       try {
-        if (suggestedStay) {
+        if (!property.value) {
           const partySize = ['adults', 'children', 'infants']
             .reduce((total, name) => total + Number(data.get(name) || 0), 0);
-          const configured = JSON.parse(panel.dataset.properties || '[]') as Array<{
-            id: string; name: string; listingSlug: string; minimumNights: number; maximumGuests: number;
-          }>;
           const candidates = configured
             .filter((candidate) => candidate.id !== 'bespoke-arrangement' && candidate.maximumGuests >= partySize)
             .sort((a, b) => a.maximumGuests - b.maximumGuests);
@@ -899,7 +948,7 @@ if (propertyId && !fixedProperty) {
         status.textContent = '';
         if (quote.pricingAvailable) renderQuote(quote);
         else renderHostPriced(quote);
-        rememberCheckedResult(quote);
+        rememberSelection(quote);
         window.olrigAnalytics?.track('compact_booking_result', {
           ...safeAnalytics, result: quote.pricingAvailable ? 'available' : 'host_priced',
         });
@@ -910,7 +959,7 @@ if (propertyId && !fixedProperty) {
         result.hidden = false;
         window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
       } finally {
-        submit.disabled = false;
+        if (revision === inputRevision) submit.disabled = false;
       }
     });
 
@@ -930,9 +979,10 @@ if (propertyId && !fixedProperty) {
       const height = band.getBoundingClientRect().height;
       document.documentElement.style.setProperty('--quick-check-dock-height', `${height}px`);
     }).observe(band);
-    updateMode();
-    renderCalendar();
-    restoreCheckedResult();
+    initialiseFromSession();
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) initialiseFromSession();
+    });
   });
 </script>
 
@@ -944,6 +994,7 @@ if (propertyId && !fixedProperty) {
     background: var(--panel-bg);
     box-shadow: var(--shadow);
   }
+  .compact-booking-recommendation { display: contents; }
   .compact-booking-panel noscript a { color: var(--ink); background: var(--panel-bg); }
   .compact-booking-panel__heading { margin-bottom: 1rem; }
   .compact-booking-panel__heading :is(p, h2) { margin: 0; }
@@ -1033,8 +1084,11 @@ if (propertyId && !fixedProperty) {
     background: #fff;
   }
   .compact-booking-quick-result[hidden] { display: none; }
-  .compact-booking-quick-result > span { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+  .compact-booking-quick-result > :is(span, label) { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
   .compact-booking-quick-result > :is(strong, a) { overflow: hidden; font-size: 0.92rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+  .compact-booking-stay select { min-height: 44px; padding: 0; border: 0; border-radius: 0; font-weight: 800; }
+  .compact-booking-stay > a { display: flex; align-items: center; min-height: 32px; font-size: 0.78rem; }
+  .compact-booking-stay > a[hidden] { display: none; }
   .compact-booking-quick-result > a { color: inherit; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.15em; }
   .compact-booking-panel__quick-message { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.85rem; }
   .compact-booking-panel :is(button, summary, a):focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 3px; }
@@ -1170,18 +1224,19 @@ if (propertyId && !fixedProperty) {
       border-radius: 0.4rem;
     }
 
-    .compact-booking-panel--mobile-dock .compact-booking-quick-result > span {
+    .compact-booking-panel--mobile-dock .compact-booking-quick-result > :is(span, label) {
       font-size: 0.62rem;
       line-height: 1;
     }
 
-    .compact-booking-panel--mobile-dock .compact-booking-quick-result > :is(strong, a) {
+    .compact-booking-panel--mobile-dock .compact-booking-quick-result > :is(strong, a, select) {
       font-size: 0.72rem;
       line-height: 1.1;
       white-space: normal;
       overflow-wrap: anywhere;
     }
 
+    .compact-booking-panel--mobile-dock .compact-booking-stay { grid-column: span 2; }
     .compact-booking-panel--mobile-dock :is(.compact-date-calendar, .compact-guests__popover, .compact-booking-response) {
       position: fixed;
       top: auto;
