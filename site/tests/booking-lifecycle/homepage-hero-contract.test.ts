@@ -80,11 +80,12 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.doesNotMatch(compactPanel, /Suggested stay arrangement/);
   assert.match(compactPanel, /\.sort\(\(a, b\) => a\.maximumGuests - b\.maximumGuests\)/);
   assert.match(compactPanel, /for \(const candidate of candidates\)/);
-  assert.match(compactPanel, /continueLink\('Reserve'\)/);
-  assert.match(compactPanel, /price\.append\(total, ' total'\)/);
-  assert.match(compactPanel, /stay\.textContent = recommendation\?\.dataset\.name/);
-  assert.match(compactPanel, /result\.append\(price, stay, continueLink\('Reserve'\), reassurance\)/);
-  assert.match(compactPanel, /if \(action\) action\.hidden = true/);
+  assert.doesNotMatch(compactPanel, /continueLink\('Reserve'\)/);
+  assert.match(compactPanel, /quickTotalValue\.textContent = money\(guestTotalPence, currency\)/);
+  assert.match(compactPanel, /quickStayValue\.textContent = recommendation\.dataset\.name/);
+  assert.match(compactPanel, /quickStayValue\.href = `\/listings\/\$\{recommendation\.dataset\.slug\}/);
+  assert.match(compactPanel, /submit\.textContent = 'Book'/);
+  assert.match(compactPanel, /result\.hidden = true/);
   assert.match(compactPanel, /if \(suggestedStay && body\.estimatedPricing\)/);
   assert.match(compactPanel, /renderSuggestedResult\([\s\S]*body\.estimatedPricing\.guestTotalPence/);
   assert.match(compactPanel, /You won't be charged yet/);

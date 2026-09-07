@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. No Airbnb dataset has been written to either Render development or
+Completed. All Airbnb dataset have been written to Render development and
 production by this epic.
 
 ## Epic summary

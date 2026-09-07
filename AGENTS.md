@@ -36,3 +36,16 @@ These browser requirements do not apply to a change that cannot affect rendered
 UI, such as an isolated database migration, internal script or documentation-only
 edit. If a supposedly non-UI change alters generated markup, routing, response
 headers or client behaviour, perform the relevant browser checks.
+
+## Implementation of a feature or epic goal
+
+Implement requested changes autonomously on the task branch.
+You may edit files, install project dependencies, run builds and tests, and commit changes.
+Make routine implementation decisions without asking.
+Ask before merging, deploying, force-pushing, deleting unrelated work, or changing production data.
+
+## With each UI implementation
+
+Provide a clear name for each implemented UI pattern so the owner and AI can
+use it as shorthand in future discussions. For each pattern, indicate whether
+it is an off-the-shelf browser or library control, or a custom UI pattern.

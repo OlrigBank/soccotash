@@ -11,6 +11,20 @@ test('compact booking panel uses authoritative availability and quote APIs', asy
   assert.doesNotMatch(component, /nightlyPrice|pricePerNight|calculatePrice/);
   assert.match(component, /These dates currently appear available/);
   assert.match(component, /provisional total/);
+  assert.match(component, /data-compact-quick-stay/);
+  assert.match(component, /data-compact-quick-total/);
+  assert.match(component, /quickStayValue\.textContent = recommendation\.dataset\.name/);
+  assert.match(component, /quickStayValue\.href = `\/listings\/\$\{recommendation\.dataset\.slug\}/);
+  assert.match(component, /prepopulateFromQuery/);
+  assert.match(component, /recommendation\.dataset\.name = selected\.name\.replace/);
+  assert.match(component, /recommendation\.dataset\.slug = selected\.listingSlug/);
+  assert.match(component, /quickTotalValue\.textContent = money\(guestTotalPence, currency\)/);
+  assert.match(component, /submit\.textContent = 'Book'/);
+  assert.match(component, /submit\.textContent = isBespoke\(\) \? 'Start a bespoke request'/);
+  assert.match(component, /data-compact-quick-message/);
+  assert.match(component, /quickMessage\.textContent = "You won't be charged yet\."/);
+  assert.match(component, /result\.hidden = true;/);
+  assert.doesNotMatch(component, /continueLink\('Reserve'\)/);
 });
 
 test('compact booking panel exposes honest unavailable, host-priced, error and bespoke states', async () => {
