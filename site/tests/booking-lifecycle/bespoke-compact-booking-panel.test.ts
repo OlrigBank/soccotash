@@ -18,7 +18,7 @@ test('the Bespoke listing is fixed to the administrator-priced arrangement', asy
   assert.equal(bespoke?.listingSlug, 'bespoke');
   assert.equal(bespoke?.administratorPriced, true);
   assert.match(listingTemplate, /const bespokeListing = bookingProperty\?\.id === 'bespoke-arrangement'/);
-  assert.match(listingTemplate, /bespokeListing \? 'Tell us about your preferred stay'/);
+  assert.match(listingTemplate, /bespokeListing \? 'Want to discuss your plans first\?'/);
 });
 
 test('Bespoke is rendered as an enquiry before JavaScript and bypasses live checking', async () => {

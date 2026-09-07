@@ -35,7 +35,7 @@ export default defineConfig({
   },
   metadata: {
     targetOrigin: target.origin,
-    safetyMode: 'read-only interactions; Quick Check submission prohibited',
+    safetyMode: 'read-only interactions; local Quick Check response fixtures; request creation prohibited',
     productionAllowed: false,
   },
   webServer: isLocal ? {
