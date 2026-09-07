@@ -33,7 +33,7 @@ test('the public content shell retains purposeful layouts and shared navigation'
   assert.match(layout, /\.public-content-page \.hero h1/);
   assert.match(layout, />Check availability<\/a>/);
   assert.doesNotMatch(layout, />Book now<\/a>/);
-  assert.match(listingDetail, /class:list=\{\["listing-opening"/);
+  assert.match(listingDetail, /class="listing-opening"/);
   assert.match(listingDetail, /<CompactBookingPanel/);
   assert.match(localGuide, /<LocalGuideTree nodes=\{tree\}/);
 });

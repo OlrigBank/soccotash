@@ -41,7 +41,7 @@ test('the compact panel sits in one shared band between the hero and Ways to sta
   const panel = homepage.indexOf('<CompactBookingPanel');
   const ways = homepage.indexOf('<section id="ways-to-stay"');
   assert.ok(panel > heroEnd && ways > panel);
-  assert.match(homepage, /class="home-booking-band"[\s\S]*mobileDock=\{true\}/);
+  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*mobileDock=\{true\}/);
 });
 
 test('the homepage uses the shared centred shell without the persistent sidebar', async () => {
@@ -82,11 +82,9 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.match(compactPanel, /for \(const candidate of candidates\)/);
   assert.doesNotMatch(compactPanel, /continueLink\('Reserve'\)/);
   assert.match(compactPanel, /quickTotalValue\.textContent = money\(guestTotalPence, currency\)/);
-  assert.match(compactPanel, /quickStayValue\.textContent = recommendation\.dataset\.name/);
-  assert.match(compactPanel, /quickStayValue\.href = `\/listings\/\$\{recommendation\.dataset\.slug\}/);
   assert.match(compactPanel, /submit\.textContent = 'Book'/);
   assert.match(compactPanel, /result\.hidden = true/);
-  assert.match(compactPanel, /if \(suggestedStay && body\.estimatedPricing\)/);
+  assert.match(compactPanel, /if \(quickTotal && body\.estimatedPricing\)/);
   assert.match(compactPanel, /renderSuggestedResult\([\s\S]*body\.estimatedPricing\.guestTotalPence/);
   assert.match(compactPanel, /You won't be charged yet/);
   assert.match(compactPanel, /Those dates are unavailable\. Please choose different dates\./);

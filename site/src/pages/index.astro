@@ -43,7 +43,7 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     </div>
   </section>
 
-  <div class="home-booking-band">
+  <div class="home-booking-band quick-check-band">
     <CompactBookingPanel
       source="homepage"
       heading=""
@@ -178,12 +178,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
   .ways-to-stay {
     margin-top: 1.5rem;
     scroll-margin-top: 6rem;
-  }
-
-  .home-booking-band {
-    position: relative;
-    z-index: 2;
-    margin: 0.75rem 0 1.5rem;
   }
 
   .ways-to-stay > h2 {
@@ -370,21 +364,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     font-size: clamp(0.84rem, 2.2vw, 1rem);
     font-weight: 800;
     letter-spacing: 0.01em;
-  }
-
-  @media (max-width: 699px) {
-    .home-booking-band {
-      position: fixed;
-      z-index: 30;
-      right: 0;
-      bottom: 0;
-      left: 0;
-      width: auto;
-      margin: 0;
-      padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(36, 43, 46, 0.97);
-    }
   }
 
   @media (min-width: 700px) {
