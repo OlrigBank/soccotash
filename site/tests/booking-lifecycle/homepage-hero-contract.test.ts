@@ -86,7 +86,7 @@ test('the suggested stay confirms availability without exposing quote details', 
   assert.match(compactPanel, /quickStayValue\.href = `\/listings\/\$\{staySlug\}/);
   assert.match(compactPanel, /submit\.textContent = 'Book'/);
   assert.match(compactPanel, /result\.hidden = true/);
-  assert.match(compactPanel, /if \(suggestedStay && body\.estimatedPricing\)/);
+  assert.match(compactPanel, /if \(quickTotal && body\.estimatedPricing\)/);
   assert.match(compactPanel, /renderSuggestedResult\([\s\S]*body\.estimatedPricing\.guestTotalPence/);
   assert.match(compactPanel, /You won't be charged yet/);
   assert.match(compactPanel, /Those dates are unavailable\. Please choose different dates\./);

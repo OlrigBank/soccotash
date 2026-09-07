@@ -6,7 +6,8 @@ shell, representative content and discovery routes, the transition into the
 booking journey, navigation, keyboard focus, Quick Check sheets, the review
 carousel, overflow and the desktop hero. Local-only Quick Check scenarios use
 intercepted availability and quote responses to verify listing arrangements,
-responsive state preservation, failures, quote invalidation and continuation.
+responsive state preservation, complete checked-result transfer, saved-result
+expiry/storage failures, quote invalidation and continuation.
 They never create booking requests or send messages.
 
 Run against the primary local Docker site:

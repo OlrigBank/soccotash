@@ -188,7 +188,8 @@ confirmation that the screen renders.
 5. Listings retain their fixed stay arrangement. Landing-page and generic dock
    stay selection continues to work, and Bespoke remains an honest enquiry.
 6. Dates and all guest/pet counts survive responsive changes and continuation
-   into `/book/` without re-entry.
+   into `/book/` without re-entry. Following the checked Stay link to a listing
+   also preserves Total, Stay, reassurance/guidance and the Book action.
 7. Changed inputs invalidate checked results. Availability, pricing, occupancy,
    request creation and changed-quote protections retain server authority.
 8. The dock does not obscure content or footer actions. Changed layouts have no
@@ -292,6 +293,48 @@ Verification and limitations:
 - Screenshots and Lighthouse reports are available in `/tmp/e10-*` in the local
   verification environment. Automated scenarios remain in the repository for
   repeatable coverage.
+
+### E10-F02 follow-up — Complete checked-result continuation
+
+Following the landing page's checked Stay link now restores the complete Quick
+Check panel on the selected listing: both dates, adults, children, infants,
+pets, Total, Stay, reassurance, server guidance and the Book action. Host-priced
+estimates retain their total and explanation on the listing too.
+
+UI pattern name: **Checked Quick Check continuation** (custom state-transfer
+pattern using the browser's native session storage).
+
+The saved display result is matched to the complete selection and fixed listing
+arrangement, and expires after 15 minutes. It contains only provisional quote
+and non-contact selection data. Prices are not added to the URL or trusted by
+the booking APIs. If storage is unavailable, missing, malformed, expired or for
+a different selection, the marked Stay link triggers a fresh availability and
+price check automatically. Unavailable dates then remove the former Total and
+Book state. Editing the restored inputs still invalidates the result; `/book/`
+and final submission retain server revalidation.
+
+Verification:
+
+- Docker production build passed; `astro check` reported 0 errors and 0 warnings.
+- All 85 booking lifecycle checks passed.
+- The public-experience Playwright suite passed 89 checks, with the three
+  desktop-only hero checks skipped at smaller widths. New coverage compares
+  every displayed field before/after navigation, verifies no duplicate check
+  for a recent matching result, and verifies the fresh server check on `/book/`.
+  It covers expired, missing, mismatched, malformed and disabled storage,
+  host-priced estimates, subsequent edits and newly unavailable dates.
+- Chrome DevTools inspected the rebuilt local app at 320×800, 768×1024 and
+  1440×900. A local fixture carried the exact £1,234.00 total, four guest/pet
+  counts, dates, Stay, reassurance and Book action from landing page to listing,
+  without another availability/quote request. The restored mobile controls
+  retained visible keyboard focus and Escape dismissal. No document overflow
+  or console warnings/errors were found.
+- Desktop and mobile Lighthouse snapshot audits of the restored result scored
+  100 in every reported category with no failures. Screenshots and reports are
+  in `/tmp/e10-continuation-*` in the verification environment.
+- Browser availability/pricing responses were local fixtures. No booking was
+  created and no customer was contacted; persisted request creation remains
+  outside these browser checks.
 
 ## Verification plan
 

@@ -650,6 +650,7 @@ if (propertyId && !fixedProperty) {
         for (const name of ['arrival', 'departure', 'adults', 'children', 'infants', 'pets']) {
           params.set(name, String(formData.get(name) ?? ''));
         }
+        params.set('quickCheck', 'checked');
         quickStayValue.href = `/listings/${staySlug}/?${params.toString()}`;
         quickStay.hidden = false;
       }
@@ -664,7 +665,7 @@ if (propertyId && !fixedProperty) {
     };
     const renderHostPriced = (body: QuoteResponse) => {
       status.textContent = 'Jenna will confirm availability and the final price. Continue with your request.';
-      if (suggestedStay && body.estimatedPricing) {
+      if (quickTotal && body.estimatedPricing) {
         renderSuggestedResult(
           Number(body.estimatedPricing.guestTotalPence || 0),
           body.estimatedPricing.currency || 'GBP',
@@ -739,6 +740,54 @@ if (propertyId && !fixedProperty) {
       }
       result.append(continueLink('Continue with request'));
       result.hidden = false;
+    };
+
+    // This is a provisional display snapshot, never an authoritative booking quote.
+    // /book/ and final submission still recheck availability and pricing on the server.
+    const checkedResultStorageKey = 'olrig-quick-check-result';
+    const rememberCheckedResult = (quote: QuoteResponse) => {
+      if (!checkedHref) return;
+      try {
+        sessionStorage.setItem(checkedResultStorageKey, JSON.stringify({
+          version: 1,
+          checkedAt: Date.now(),
+          selection: continuationHref(),
+          quote: {
+            pricingAvailable: quote.pricingAvailable,
+            guestTotalPence: quote.guestTotalPence,
+            currency: quote.currency,
+            estimatedPricing: quote.estimatedPricing,
+            restrictions: quote.restrictions,
+            warnings: quote.warnings,
+          },
+        }));
+      } catch {
+        // Storage can be disabled. The marked Stay link then triggers a fresh check.
+      }
+    };
+    const restoreCheckedResult = () => {
+      if (!panel.dataset.fixedProperty || !arrival.value || !departure.value
+        || new URLSearchParams(location.search).get('quickCheck') !== 'checked') return;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(checkedResultStorageKey) || 'null');
+        const quote: QuoteResponse | undefined = saved?.quote;
+        const price = quote?.pricingAvailable === true ? quote : quote?.estimatedPricing;
+        const validGuidance = [quote?.restrictions, quote?.warnings].every((items) =>
+          items === undefined || (Array.isArray(items) && items.every((item) => typeof item === 'string')));
+        if (saved?.version === 1 && saved.selection === continuationHref()
+          && typeof saved.checkedAt === 'number' && saved.checkedAt <= Date.now()
+          && Date.now() - saved.checkedAt < 15 * 60 * 1000
+          && quote && price && Number.isSafeInteger(price.guestTotalPence)
+          && Number(price.guestTotalPence) >= 0 && (!price.currency || price.currency === 'GBP')
+          && validGuidance) {
+          if (quote.pricingAvailable) renderQuote(quote);
+          else renderHostPriced(quote);
+          return;
+        }
+      } catch {
+        // An unreadable or malformed snapshot must not prevent continuation.
+      }
+      form.requestSubmit();
     };
 
     property.addEventListener('change', updateMode);
@@ -850,6 +899,7 @@ if (propertyId && !fixedProperty) {
         status.textContent = '';
         if (quote.pricingAvailable) renderQuote(quote);
         else renderHostPriced(quote);
+        rememberCheckedResult(quote);
         window.olrigAnalytics?.track('compact_booking_result', {
           ...safeAnalytics, result: quote.pricingAvailable ? 'available' : 'host_priced',
         });
@@ -882,6 +932,7 @@ if (propertyId && !fixedProperty) {
     }).observe(band);
     updateMode();
     renderCalendar();
+    restoreCheckedResult();
   });
 </script>
 

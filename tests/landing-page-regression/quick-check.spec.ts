@@ -142,20 +142,107 @@ test('Bespoke continues with preferred dates without availability or quote reque
   expect(checks).toBe(0);
 });
 
-test('generic Quick Check selects a stay and transfers dates and party to its listing', async ({ page }) => {
+test('the Stay link preserves the complete checked panel and Book continues to server revalidation', async ({ page }) => {
+  await fixtures(page);
+  let quoteChecks = 0;
+  await page.route('**/api/quote/**', route => {
+    quoteChecks++;
+    return route.fulfill({ json: { pricingAvailable: true, guestTotalPence: 123400, currency: 'GBP', warnings: ['Please discuss your pet requirements with Jenna.'] } });
+  });
+  await page.goto('/?adults=2&children=1&infants=1&pets=2');
+  await chooseDates(page);
+  const panel = page.locator(panelSelector);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(panel.locator('[data-compact-quick-stay-value]')).toContainText('Cottage at Olrig Bank');
+  const displayedResult = () => panel.evaluate(element => ({
+    counts: [...element.querySelectorAll<HTMLInputElement>('[name="adults"], [name="children"], [name="infants"], [name="pets"]')].map(input => [input.name, input.value]),
+    text: ['arrival-label', 'departure-label', 'guests-summary', 'quick-total-value', 'quick-stay-value', 'quick-message', 'booking-submit', 'booking-status'].map(name => element.querySelector(`[data-compact-${name}]`)?.textContent),
+  }));
+  const original = await displayedResult();
+  await panel.locator('[data-compact-quick-stay-value]').click();
+  await expect(page).toHaveURL(/\/listings\/cottage\/\?/);
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+  expect(await displayedResult()).toEqual(original);
+  expect(quoteChecks).toBe(1);
+  await expect(panel.locator('[name="propertyId"]')).toHaveValue('cottage');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(page).toHaveURL(/\/book\/\?/);
+  await expect.poll(() => quoteChecks).toBe(2);
+});
+
+for (const storedState of ['missing', 'expired', 'mismatched', 'malformed', 'disabled'] as const) {
+  test(`the listing refreshes automatically when saved state is ${storedState}`, async ({ page }) => {
+    await fixtures(page);
+    let quoteChecks = 0;
+    await page.route('**/api/quote/**', route => {
+      quoteChecks++;
+      return route.fulfill({ json: { pricingAvailable: true, guestTotalPence: quoteChecks === 1 ? 123400 : 145600, currency: 'GBP' } });
+    });
+    if (storedState === 'disabled') await page.addInitScript(() => {
+      Object.defineProperty(window, 'sessionStorage', { get() { throw new DOMException('Storage disabled', 'SecurityError'); } });
+    });
+    await page.goto('/');
+    await chooseDates(page);
+    const panel = page.locator(panelSelector);
+    await panel.locator('[data-compact-booking-submit]').click();
+    await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,234.00');
+    if (storedState !== 'disabled') await page.evaluate(state => {
+      const key = 'olrig-quick-check-result';
+      if (state === 'missing') sessionStorage.removeItem(key);
+      else if (state === 'malformed') sessionStorage.setItem(key, '{bad JSON');
+      else {
+        const saved = JSON.parse(sessionStorage.getItem(key)!);
+        if (state === 'expired') saved.checkedAt = Date.now() - 16 * 60 * 1000;
+        else saved.selection = '/book/?propertyId=main-house';
+        sessionStorage.setItem(key, JSON.stringify(saved));
+      }
+    }, storedState);
+    await panel.locator('[data-compact-quick-stay-value]').click();
+    await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£1,456.00');
+    await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+    expect(quoteChecks).toBe(2);
+  });
+}
+
+test('a restored host-priced estimate keeps the same total, guidance and action', async ({ page }) => {
+  await fixtures(page);
+  await page.route('**/api/quote/**', route => route.fulfill({ json: { pricingAvailable: false, estimatedPricing: { guestTotalPence: 89000, currency: 'GBP' } } }));
+  await page.goto('/');
+  await chooseDates(page);
+  const panel = page.locator(panelSelector);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£890.00');
+  const guidance = await panel.locator('[data-compact-booking-status]').textContent();
+  await panel.locator('[data-compact-quick-stay-value]').click();
+  await expect(panel.locator('[data-compact-quick-total-value]')).toHaveText('£890.00');
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+  await expect(panel.locator('[data-compact-booking-status]')).toHaveText(guidance!);
+  await page.keyboard.press('Escape');
+  await panel.locator('[data-compact-guests] summary').click();
+  await panel.getByRole('button', { name: 'Add pets' }).click();
+  await panel.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Quick Check');
+});
+
+test('an expired result cannot retain Book when the dates have become unavailable', async ({ page }) => {
   await fixtures(page);
   await page.goto('/');
   await chooseDates(page);
   const panel = page.locator(panelSelector);
   await panel.locator('[data-compact-booking-submit]').click();
-  const stay = panel.locator('[data-compact-quick-stay-value]');
-  await expect(stay).toContainText('Cottage at Olrig Bank');
-  const arrival = await panel.locator('[name="arrival"]').inputValue();
-  await stay.click();
-  await expect(page).toHaveURL(/\/listings\/cottage\/\?/);
-  await expect(page.locator('[name="arrival"]')).toHaveValue(arrival);
-  await expect(page.locator('[name="adults"]')).toHaveValue('2');
-  await expect(page.locator('[name="propertyId"]')).toHaveValue('cottage');
+  await expect(panel.locator('[data-compact-quick-total]')).toBeVisible();
+  await page.evaluate(() => {
+    const saved = JSON.parse(sessionStorage.getItem('olrig-quick-check-result')!);
+    saved.checkedAt = 0;
+    sessionStorage.setItem('olrig-quick-check-result', JSON.stringify(saved));
+  });
+  await fixtures(page, 'unavailable');
+  await panel.locator('[data-compact-quick-stay-value]').click();
+  await expect(panel.locator('[data-compact-booking-status]')).toContainText('unavailable');
+  await expect(panel.locator('[data-compact-quick-total]')).toBeHidden();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Quick Check');
 });
 
 test('changing guests invalidates a checked price and discards an in-flight response', async ({ page }) => {
