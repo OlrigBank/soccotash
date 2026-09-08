@@ -2,8 +2,9 @@
 
 ## Status
 
-In progress. E12-F01 is implemented and locally verified on 8 September 2026,
-awaiting owner review. Further features remain undefined.
+Completed and closed with owner approval on 8 September 2026. E12-F01,
+including the expanded garden gallery, is accepted. No further features remain
+in this epic.
 
 ## Epic summary
 
@@ -15,7 +16,7 @@ default and a more selective photo gallery.
 
 ### E12-F01 — Refine landing-page copy and photographs
 
-[Feature record](../e12-f01-refine-landing-page-copy-and-photographs.md)
+[Feature record](../../completed/e12-f01-refine-landing-page-copy-and-photographs.md)
 
 - Remove the visible opening heading and apply the owner's revised copy.
 - Start fresh landing-page selections with six adults, preserving explicit and
@@ -25,5 +26,6 @@ default and a more selective photo gallery.
 
 ## Delivery
 
-Use a dedicated task branch for each feature and record browser evidence and UI
-pattern names. Merging and deployment require owner approval.
+Implementation and verification are complete on `agent/e12-f01-refine-landing-page`.
+The owner authorised branch publication and a pull request into `development`.
+Merge and hosted deployment are separate from this epic closure.

@@ -2,11 +2,13 @@
 
 ## Status
 
-Implemented and locally verified on 8 September 2026 on
-`agent/e12-f01-refine-landing-page`. Awaiting owner review; not merged or deployed
-to a hosted environment.
+Completed and accepted by the owner on 8 September 2026, including the garden
+follow-up. E12 is closed. Implementation is on
+`agent/e12-f01-refine-landing-page`; branch publication and a pull request into
+`development` are authorised. This acceptance does not mark the branch merged
+or deployed to a hosted environment.
 
-Part of [E12 — Quick cosmetic refinements](epics/e12-f00-quick-cosmetic-refinements.md).
+Part of [E12 — Quick cosmetic refinements](../epics/completed/e12-f00-quick-cosmetic-refinements.md).
 
 ## Result
 
@@ -90,10 +92,10 @@ Original assets and other pages' inventories remain available.
 
 ## Evidence
 
-- [Phone, 390×844](evidence/e12-f01/phone-390x844.png)
-- [Tablet, 768×1024](evidence/e12-f01/tablet-768x1024.png)
-- [Desktop, 1440×900](evidence/e12-f01/desktop-1440x900.png)
-- [Lighthouse scores and findings](evidence/e12-f01/lighthouse-summary.json)
+- [Phone, 390×844](../evidence/e12-f01/phone-390x844.png)
+- [Tablet, 768×1024](../evidence/e12-f01/tablet-768x1024.png)
+- [Desktop, 1440×900](../evidence/e12-f01/desktop-1440x900.png)
+- [Lighthouse scores and findings](../evidence/e12-f01/lighthouse-summary.json)
 
 Full local audit reports are in `/tmp/e12-lighthouse-mobile/` and
 `/tmp/e12-lighthouse-desktop/`. The Playwright report is in
@@ -119,5 +121,5 @@ errors were observed. The repeated mobile Lighthouse audit retained scores of
 previously documented footer contrast finding. No customer data or messaging was
 used during this follow-up.
 
-[Expanded garden gallery screenshot](evidence/e12-f01/garden-desktop.png).
+[Expanded garden gallery screenshot](../evidence/e12-f01/garden-desktop.png).
 The latest full audit is available locally at `/tmp/e12-garden-lighthouse/`.
