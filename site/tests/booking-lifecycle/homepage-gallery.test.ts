@@ -38,6 +38,10 @@ const expectedInside = [
 
 const expectedGarden = [
   'fb82fcb3-02ad-482b-8ec0-72e4959303d2.jpeg',
+  'dd595a45-a9f6-496c-bc89-d6fbda0a5dfe.jpeg',
+  '30a19f63-0d54-4ab6-a0b3-4e37582ebb19.jpeg',
+  'abfacbab-c4dc-4914-bce6-5ae41d0f5c97.jpeg',
+  '386b6e75-15ef-4ed5-8854-b508443a808e.jpeg',
 ].map((path) => `/media/images/spaces/garden/${path}`);
 
 test('the home gallery exposes the curated ordered indoor and garden inventories', async () => {
@@ -46,7 +50,7 @@ test('the home gallery exposes the curated ordered indoor and garden inventories
   const garden = parsePhotos(source, 'gardenPhotos');
   assert.deepEqual(inside.map((photo) => photo.src), expectedInside);
   assert.deepEqual(garden.map((photo) => photo.src), expectedGarden);
-  assert.equal(new Set([...inside, ...garden].map((photo) => photo.src)).size, 20);
+  assert.equal(new Set([...inside, ...garden].map((photo) => photo.src)).size, 24);
   assert.ok(inside.every((photo) => photo.alt.trim() && photo.caption.trim()));
   assert.ok(garden.every((photo) => photo.alt.trim() && photo.caption.trim()));
   assert.ok(inside.slice(10).every((photo) => photo.alt.includes('Cottage') && photo.caption.startsWith('Cottage')));

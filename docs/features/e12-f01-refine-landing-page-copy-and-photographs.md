@@ -34,10 +34,11 @@ precedence; direct Cottage and booking-page entry retain two adults.
 
 **Inside the house** replaces **Inside Olrig Bank**. The gallery retains the
 first existing photograph of each room or space in its previous order: ten
-main-house and nine Cottage photographs. The garden retains only
-`fb82fcb3-02ad-482b-8ec0-72e4959303d2.jpeg`, showing seating and the greenhouse.
+main-house and nine Cottage photographs. Following owner review, the garden shows five photographs: seating and the
+greenhouse, the wide lawn beneath trees, lawn beside the house, a sunny poppy
+border and a flowering shrub.
 Single-image collections omit navigation arrows, counters and the redundant
-rail tab stop. The garden image still opens in the keyboard-accessible viewer.
+rail tab stop. The garden collection uses the existing navigation and keyboard-accessible viewer.
 Original assets and other pages' inventories remain available.
 
 ## UI pattern names
@@ -46,7 +47,7 @@ Original assets and other pages' inventories remain available.
 | --- | --- | --- |
 | Landing-page introduction | Custom | Responsive image and copy panel with a visually hidden H1. |
 | Quick Check guest selector | Existing custom pattern using native details/summary and inputs | Landing-page default of six adults; explicit and saved choices persist. |
-| Curated photo gallery | Custom pattern using a native dialog | One view per room; single garden image; keyboard opening, navigation, dismissal and focus return. |
+| Curated photo gallery | Custom pattern using a native dialog | One view per room; five garden images; keyboard opening, navigation, dismissal and focus return. |
 
 ## Verification
 
@@ -97,3 +98,26 @@ Original assets and other pages' inventories remain available.
 Full local audit reports are in `/tmp/e12-lighthouse-mobile/` and
 `/tmp/e12-lighthouse-desktop/`. The Playwright report is in
 `playwright-report/landing-page-regression/`.
+
+## Garden follow-up — 8 September 2026
+
+At the owner's request, expanded the garden collection from one to five existing
+photographs to show more lawn and flowers. The **Curated photo gallery** remains
+the existing custom pattern using a native dialog; its navigation and counters
+now apply to both collections.
+
+Rebuilt the local Docker site (Astro check and build passed), passed the gallery
+inventory test, and reran the landing-page browser suite: **29 passed, 3 skipped**
+across 320×800, 390×844, 768×1024 and 1440×900. The gallery test navigates all four
+additional garden images and checks captions, counts and keyboard focus return.
+
+Chrome DevTools inspection at 390×844, 768×1024 and 1440×900 confirmed all five
+images loaded, no document overflow, intentional rail scrolling, accessible
+captions, visible focus, viewer navigation and Escape dismissal. No console
+errors were observed. The repeated mobile Lighthouse audit retained scores of
+96 accessibility and 100 best practices, SEO and agentic browsing, with only the
+previously documented footer contrast finding. No customer data or messaging was
+used during this follow-up.
+
+[Expanded garden gallery screenshot](evidence/e12-f01/garden-desktop.png).
+The latest full audit is available locally at `/tmp/e12-garden-lighthouse/`.

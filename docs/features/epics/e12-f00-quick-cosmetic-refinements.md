@@ -20,7 +20,7 @@ default and a more selective photo gallery.
 - Remove the visible opening heading and apply the owner's revised copy.
 - Start fresh landing-page selections with six adults, preserving explicit and
   saved selections and other entry points' defaults.
-- Show one photograph per interior room or space and one garden photograph.
+- Show one photograph per interior room or space and a selection of garden photographs showing seating, lawn and flowers.
 - Retain accessible headings, keyboard operation and booking continuation.
 
 ## Delivery

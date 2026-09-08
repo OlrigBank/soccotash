@@ -194,9 +194,9 @@ test('curates one image per room and keeps both photo viewers keyboard accessibl
   await expect(inside.locator('[data-gallery-photo]')).toHaveCount(19);
   const rooms = await inside.locator('[data-gallery-photo] img').evaluateAll(images => images.map(image => image.getAttribute('src')!.split('/').slice(0, -1).join('/')));
   expect(new Set(rooms).size).toBe(19);
-  await expect(garden.locator('[data-gallery-photo]')).toHaveCount(1);
-  await expect(garden.locator('[data-gallery-photo] img')).toHaveAttribute('src', '/media/images/spaces/garden/fb82fcb3-02ad-482b-8ec0-72e4959303d2.jpeg');
-  await expect(garden.locator('[data-gallery-previous], [data-gallery-next], [data-gallery-count], [data-gallery-viewer-previous], [data-gallery-viewer-next], [data-gallery-viewer-count]')).toHaveCount(0);
+  await expect(garden.locator('[data-gallery-photo]')).toHaveCount(5);
+  await expect(garden.locator('[data-gallery-photo] img').first()).toHaveAttribute('src', '/media/images/spaces/garden/fb82fcb3-02ad-482b-8ec0-72e4959303d2.jpeg');
+  await expect(garden.locator('[data-gallery-previous], [data-gallery-next], [data-gallery-count], [data-gallery-viewer-previous], [data-gallery-viewer-next], [data-gallery-viewer-count]')).toHaveCount(6);
 
   for (const collection of [inside, garden]) {
     const photo = collection.locator('[data-gallery-photo]').first();
@@ -212,6 +212,13 @@ test('curates one image per room and keeps both photo viewers keyboard accessibl
       await page.keyboard.press('ArrowRight');
       await expect(dialog.locator('[data-gallery-viewer-count]')).toHaveText('2 / 19');
       await expect(dialog.locator('[data-gallery-viewer-caption]')).toHaveText('Main house · Lounge seating');
+    } else {
+      for (const caption of ['The garden beneath the trees', 'The lawn beside the house', 'The sunny flower border', 'Flowers around the garden']) {
+        await page.keyboard.press('ArrowRight');
+        await expect(dialog.locator('[data-gallery-viewer-caption]')).toHaveText(caption);
+        await expect(dialog.locator('[data-gallery-viewer-image]')).toBeVisible();
+      }
+      await expect(dialog.locator('[data-gallery-viewer-count]')).toHaveText('5 / 5');
     }
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
