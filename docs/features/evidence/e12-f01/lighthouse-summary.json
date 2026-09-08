@@ -1,0 +1,180 @@
+{
+  "mobile": {
+    "url": "http://127.0.0.1:8080/",
+    "categories": {
+      "accessibility": 0.96,
+      "best-practices": 1,
+      "seo": 1,
+      "agentic-browsing": 1
+    },
+    "failures": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "subItemsHeading": {
+                "key": "relatedNode",
+                "valueType": "node"
+              },
+              "label": "Failing Elements"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-0-P",
+                "path": "1,HTML,1,BODY,1,DIV,2,FOOTER,0,DIV,0,DIV,2,P",
+                "selector": "footer.site-footer > div.footer-inner > div.footer-book-direct > p",
+                "boundingRect": {
+                  "top": 3635,
+                  "bottom": 3689,
+                  "left": 16,
+                  "right": 396,
+                  "width": 380,
+                  "height": 54
+                },
+                "snippet": "<p>",
+                "nodeLabel": "Book directly with us for a personal welcome, clear advice and the very best st\u2026",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.4 (foreground color: #64726b, background color: #2f373a, font size: 12.6pt (16.8px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-FOOTER",
+                      "path": "1,HTML,1,BODY,1,DIV,2,FOOTER",
+                      "selector": "body.public-ui > div.site-shell > footer.site-footer",
+                      "boundingRect": {
+                        "top": 3520,
+                        "bottom": 4075,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 555
+                      },
+                      "snippet": "<footer class=\"site-footer\">",
+                      "nodeLabel": "STAY WITH US\n\nBook direct\n\nBook directly with us for a personal welcome, clear \u2026"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "impact": "serious",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "desktop": {
+    "url": "http://127.0.0.1:8080/",
+    "categories": {
+      "accessibility": 0.96,
+      "best-practices": 1,
+      "seo": 1,
+      "agentic-browsing": 1
+    },
+    "failures": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "subItemsHeading": {
+                "key": "relatedNode",
+                "valueType": "node"
+              },
+              "label": "Failing Elements"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-0-P",
+                "path": "1,HTML,1,BODY,1,DIV,2,FOOTER,0,DIV,0,DIV,2,P",
+                "selector": "footer.site-footer > div.footer-inner > div.footer-book-direct > p",
+                "boundingRect": {
+                  "top": 3330,
+                  "bottom": 3384,
+                  "left": 78,
+                  "right": 750,
+                  "width": 672,
+                  "height": 54
+                },
+                "snippet": "<p>",
+                "nodeLabel": "Book directly with us for a personal welcome, clear advice and the very best st\u2026",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.4 (foreground color: #64726b, background color: #2f373a, font size: 12.6pt (16.8px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-FOOTER",
+                      "path": "1,HTML,1,BODY,1,DIV,2,FOOTER",
+                      "selector": "body.public-ui > div.site-shell > footer.site-footer",
+                      "boundingRect": {
+                        "top": 3170,
+                        "bottom": 3553,
+                        "left": 0,
+                        "right": 1335,
+                        "width": 1335,
+                        "height": 383
+                      },
+                      "snippet": "<footer class=\"site-footer\">",
+                      "nodeLabel": "STAY WITH US\n\nBook direct\n\nBook directly with us for a personal welcome, clear \u2026"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "impact": "serious",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
