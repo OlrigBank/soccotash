@@ -81,7 +81,8 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByRole('link', { name: 'Start a bespoke request' }).click();
     await page.getByLabel('Booker name').fill('Playwright Bespoke Regression');
     await page.getByLabel('Booker email').fill(EMAIL);
-    await page.getByRole('button', { name: 'Request booking' }).click();
+    await page.getByRole('button', { name: 'Continue to review' }).click();
+  await page.getByRole('button', { name: 'Request booking' }).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
     const bookerUrl = page.url();
     await expect(page.getByRole('banner')).toContainText('Private stay area');

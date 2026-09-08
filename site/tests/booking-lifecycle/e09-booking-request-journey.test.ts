@@ -16,15 +16,16 @@ test('the booking page uses a focused no-sidebar journey with honest expectation
   assert.match(layout, /\.page-grid\.booking-journey-page/);
 });
 
-test('the request journey embeds one shared panel and two stages', async () => {
+test('the request journey embeds one shared panel and three stages', async () => {
   const component = await source('src/components/BookingCalendar.astro');
   assert.match(component, /aria-label="Booking request progress"/);
   assert.match(component, /<CompactBookingPanel[^>]*requestPage=\{true\}/);
   assert.match(component, /Check your stay/);
-  assert.match(component, /Send your request/);
+  assert.match(component, /Collect Booker detail/);
+  assert.match(component, /Review and send request/);
   assert.doesNotMatch(component, /data-check-availability|data-calendar-months|data-booking-step="3"/);
   assert.match(component, /booking-panel-continue/);
-  assert.match(component, /form\.focus/);
+  assert.match(component, /form\?\.focus/);
 });
 
 test('workflow restructuring retains authoritative checks and safe submission', async () => {

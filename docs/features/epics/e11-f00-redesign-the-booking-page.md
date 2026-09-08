@@ -4,16 +4,17 @@
 
 In progress. E11-F01 is accepted and closed as of 8 September 2026.
 The owner has pushed the implementation on `agent/e11-redesign-booking-page`
-and confirmed this feature/step is complete. The epic remains open for the next
-planning session; later features remain undefined.
+and confirmed this feature/step is complete. E11-F02 is implemented on
+`agent/e11-f02-booker-details-review` and awaits owner acceptance. Features
+after F02 remain undefined.
 
 ## Epic summary
 
 Follow [E10 — Introduce one booking widget](e10-f00-introduce-one-booking-widget.md)
 by bringing the shared booking panel into `/book/`. Simplify the request journey
 and remove duplicate stay selection, availability checking and pricing controls.
-The first feature is now accepted and closed. Define the remaining sequence in
-the next planning session using the delivered behaviour and evidence below.
+The first feature is accepted and closed. F02 builds on it with booker-detail
+collection and an explicit review step; subsequent features remain undefined.
 
 ## Starting point
 
@@ -49,10 +50,12 @@ pages and administration workflows are not being redesigned.
 
 ## Design direction
 
-Keep the compact panel inline on `/book/` at every width. Present two stages:
-**Check your stay** and **Send your request**. The panel owns checking and
-provisional pricing; its Book action on `/book/` reveals and focuses request
-details rather than navigating back to the same page.
+Keep the compact panel inline when editing a stay on `/book/` at every width.
+F01 introduced shared checking and request details. F02 presents three stages:
+**Check your stay**, **Collect Booker detail**, and **Review and send request**.
+The panel owns checking and provisional pricing. Its Book action opens details;
+a previously checked arrival opens details immediately during a fresh check.
+Details and review show a stay summary with Edit stay.
 
 Show two calendar months side by side when space permits and stack them on
 narrow screens. Open at the selected arrival month and its following month;
@@ -110,7 +113,37 @@ Completion evidence.
 6. Add permanent regression coverage and record rebuilt-app verification before
    owner acceptance.
 
-Later features remain undefined. Candidates from the initial review include
+### E11-F02 — Collect booker details and review the request
+
+**Status: implemented; owner acceptance pending.** F01 remains accepted and closed.
+
+- Use three steps: **Check your stay**, **Collect Booker detail**, and
+  **Review and send request**.
+- A matching checked session or explicit successful continuation marker opens
+  step 2 immediately while fresh checks run. Ordinary date links start at step 1.
+  Navigation intent never authorises a price or availability claim.
+- Show a stay summary with Edit stay above details. Preserve answers through
+  editing, retries and conflicts; require fresh checks before final review.
+- Collect name, email and Mobile number first, followed by optional WhatsApp
+  consent, applicable pet questions, optional promo code and optional message.
+  Retain existing contact validation: a name and at least one contact method.
+- Review all supplied details and the current price in step 3, with Edit stay,
+  Edit details and Request booking actions. Retain explicit changed-price review
+  and safe private-page continuation.
+- Store a trimmed, case-preserving optional promo code (maximum 80 characters)
+  separately from the message and display it in host booking details. No code
+  validation against campaigns or automatic discount is introduced. Explain:
+  “Jenna will review your code. No discount has been applied to this total.”
+- Verify entry rules, check failures, editing, validation, promo persistence,
+  host visibility and submission using permanent tests and non-notifying local
+  fixtures. Rebuild and inspect phone, tablet and desktop with Chrome DevTools
+  and Lighthouse before recording completion for owner acceptance.
+
+UI patterns: **Booking step navigation**, **Stay summary with edit** and
+**Request review** are custom patterns. **Booker details form** uses native
+form controls.
+
+Features after F02 remain undefined. Candidates from the initial review include
 broader contact-form styling, copy refinement, footer contrast and further
 page-layout changes. F01 corrects display/accessibility issues required by the
 replacement and moved controls, without expanding into a general redesign.
@@ -237,10 +270,76 @@ customer contact, private-page redesign or administration acceptance run was
 performed. These limitations remain part of the accepted F01 record. F01 is
 closed; only the next feature definition is pending.
 
+### E11-F02
+
+Implemented on 8 September 2026 on `agent/e11-f02-booker-details-review`.
+Owner acceptance is pending.
+
+- Added the three-step journey, immediate checked-stay entry, stay summary/Edit
+  stay, contact-first details, conditional pets, optional promo code and final
+  review with Edit details and explicit request submission.
+- Successful shared-panel continuation links carry `bookingContinue=checked`.
+  A matching session result remains valid for entry intent for 15 minutes.
+  Ordinary date links remain at step 1. Both entry paths obtain fresh checks;
+  background failures preserve answers and disable progression until resolved.
+- Extended the typed panel integration with check state, retry and lifecycle
+  notifications. Price-change review remains usable after editing details;
+  availability conflicts focus the stay editor. Dates and party summaries use
+  British date formatting and singular/plural labels.
+- Added optional `promoCode` to the request API and repository, with additive
+  migration `058_booking_promo_code.sql` (`promo_code VARCHAR(80)`, nullable).
+  The server rejects non-string/oversized codes, trims outer whitespace,
+  preserves case and stores missing/blank codes as NULL. Host reservation
+  details show the code for review. Pricing rules and totals are unchanged.
+- Booker answers remain in page memory through edits; no new contact information
+  is added to URLs or browser storage. No promotion-management workflow or
+  automatic discount is included.
+
+Verification:
+
+- Final local Docker build and startup passed, including the additive migration.
+  Astro reported 0 errors, 0 warnings and the same two existing administration
+  hints. All 86 booking lifecycle test files passed.
+- The final public-experience Playwright suite passed 189 checks with three
+  expected desktop-only skips. Its 64 focused booking-page checks cover checked
+  and ordinary entry, session expiry/mismatch, storage-disabled continuation,
+  background failures/retry, conditional pets, contact validation, promo review,
+  editing, changed-price resubmission, conflicts and the shared calendar.
+- The final `npm run test:booking-request` passed with disposable far-future
+  Bespoke fixtures. It verified persisted party/pet data, trimmed code and host
+  reservation display, private-page reload, rejected invalid codes, and missing
+  or blank-code compatibility. A disposable administrator session supplied host
+  access. Fixtures had no email or WhatsApp consent; notification deliveries for
+  the UI request were skipped. All fixture bookings and the administrator were
+  removed in `finally`.
+- Chrome DevTools inspected the rebuilt application at 320×800 and 390×844 with
+  mobile/touch emulation, 768×1024 tablet and 1440×900 desktop. Checked contact
+  ordering, pet fields, details/review/editing, focus and Tab operation, visible
+  focus, accessible names, calendar Escape/focus return, retained answers,
+  availability failure/retry and real unavailable-date responses. No console
+  errors or overflow in these representative layouts were observed.
+- An additional 320px desktop-window check (with a 15px scrollbar, leaving 305px
+  of content width) exposed the pre-existing public shell's 320px minimum width.
+  The 320px mobile viewport fits. This narrow desktop limitation remains a
+  later shared-layout candidate.
+- Final Lighthouse snapshots: review desktop and phone accessibility 96;
+  details phone accessibility 97; best practices, SEO and agentic browsing 100.
+  The sole failed audit remains the existing footer paragraph contrast (2.4:1).
+  Reports: `/tmp/e11-f02-lighthouse-review-desktop/`,
+  `/tmp/e11-f02-lighthouse-review-phone-final/` and
+  `/tmp/e11-f02-lighthouse-details-phone-final/`. Snapshot audits do not measure
+  performance. The footer issue remains outside F02 and is not a new regression.
+
+Limitations: standard submission/changed-price success is covered by intercepted
+browser responses; real persisted creation uses non-notifying Bespoke fixtures.
+Host code visibility was exercised by Playwright; interactive DevTools focused
+on the public journey. The wider administration negotiation suite was not run.
+No production deployment or customer contact was performed by verification.
+
 ### Next planning session
 
-Use the accepted F01 implementation as the baseline. Agree the next feature's
-scope and acceptance criteria before implementation. The contact-form styling,
+Use the accepted F01 record and F02 delivery above as the baseline for the next
+planning session. Agree later scope and acceptance criteria before implementation. The contact-form styling,
 copy, footer contrast and page-layout ideas above are candidates, not committed
 features. No further F01 implementation work is outstanding.
 

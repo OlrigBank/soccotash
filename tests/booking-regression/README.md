@@ -11,6 +11,11 @@ continuation and reload, then deletes its fixture in `finally`. It does not
 change pricing plans or standard availability. Trace, video and screenshots
 are disabled for this test.
 
+The F02 persistence check also covers rejected malformed/oversized promo codes,
+trimmed case-preserving storage, missing/blank-code compatibility and host
+visibility using a disposable administrator session. All booking and
+administrator fixtures are removed in `finally`.
+
 ## Bespoke negotiation
 
 This controlled Playwright suite records the complete Bespoke blocked-date

@@ -246,6 +246,11 @@ if (propertyId && !fixedProperty) {
     const calendarLegend = panel.querySelector<HTMLElement>('[data-compact-calendar-legend]')!;
     const requestPage = panel.dataset.requestPage === 'true';
     let checkedQuote: QuoteResponse | null = null;
+    let initialContinuation = false;
+    let checking = false;
+    let checkError = '';
+    const notifyCheck = () => panel.dispatchEvent(new CustomEvent('booking-panel-check'));
+
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
@@ -724,6 +729,7 @@ if (propertyId && !fixedProperty) {
     };
     const clearResult = () => {
       checkedQuote = null;
+      checking = false; checkError = '';
       panel.dispatchEvent(new CustomEvent('booking-panel-invalidated'));
       checkedHref = '';
       inputRevision += 1;
@@ -752,7 +758,7 @@ if (propertyId && !fixedProperty) {
     const continueLink = (label: string) => {
       const link = document.createElement('a');
       link.className = 'button compact-booking-result__continue';
-      link.href = requestPage ? '#booking-request-details' : continuationHref();
+      link.href = requestPage ? '#booking-request-details' : continuationHref() + (checkedQuote ? '&bookingContinue=checked' : '');
       if (requestPage) link.addEventListener('click', (event) => { event.preventDefault(); continueRequest(); });
       link.textContent = label;
       link.addEventListener('click', () => window.olrigAnalytics?.track('compact_booking_continued', {
@@ -927,6 +933,14 @@ if (propertyId && !fixedProperty) {
         : quote?.pricingAvailable === false;
       const validGuidance = [quote?.restrictions, quote?.warnings].every((items) =>
         items === undefined || (Array.isArray(items) && items.every((item) => typeof item === 'string')));
+      initialContinuation = requestPage && Boolean(property.value && arrival.value >= today()
+        && departure.value >= addDays(arrival.value, minimumNights())
+        && departure.value <= addDays(arrival.value, 365))
+        && (query.get('bookingContinue') === 'checked' || Boolean(savedParams
+          && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
+          && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
+          && quote && validPrice && validGuidance));
+      notifyCheck();
       if (!requestPage && savedParams && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
         && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
         && quote && validPrice && validGuidance) {
@@ -960,7 +974,7 @@ if (propertyId && !fixedProperty) {
       event.preventDefault();
       if (checkedHref) {
         if (requestPage) continueRequest();
-        else window.location.assign(checkedHref);
+        else window.location.assign(checkedHref + '&bookingContinue=checked');
         return;
       }
       clearResult();
@@ -975,6 +989,7 @@ if (propertyId && !fixedProperty) {
         return;
       }
       const revision = inputRevision;
+      checking = true; checkError = ''; notifyCheck();
       submit.disabled = true;
       status.textContent = 'Checking the latest availability and price…';
       const data = new FormData(form);
@@ -1078,7 +1093,11 @@ if (propertyId && !fixedProperty) {
         result.hidden = false;
         window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
       } finally {
-        if (revision === inputRevision) submit.disabled = false;
+        if (revision === inputRevision) {
+          submit.disabled = false; checking = false;
+          checkError = checkedQuote ? '' : status.textContent || 'The stay could not be checked. Please try again.';
+          notifyCheck();
+        }
       }
     });
 
@@ -1113,11 +1132,14 @@ if (propertyId && !fixedProperty) {
     };
     panel.bookingPanel = {
       getState,
+      getCheckState: () => ({ initialContinuation, checking, error: checkError }),
+      check: () => { clearResult(); form.requestSubmit(); },
       invalidate: clearResult,
       setQuote: (quote) => {
         clearResult(); checkedQuote = quote;
         if (quote.pricingAvailable) renderQuote(quote); else renderHostPriced(quote);
         rememberSelection(quote);
+        notifyCheck();
       },
     };
     property.addEventListener('change', () => {

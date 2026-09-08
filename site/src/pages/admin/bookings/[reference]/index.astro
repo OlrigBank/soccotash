@@ -578,6 +578,7 @@ if (arrangementAssigned) {
           <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
           <div><dt>WhatsApp</dt><dd><span class={`status-badge status-${booking.whatsappConsentStatus}`}>{booking.whatsappConsentStatus.replaceAll('_', ' ')}</span></dd></div>
           <div><dt>Party</dt><dd>{formatPartyComposition(booking, ' · ')}</dd></div>
+          {booking.promoCode && <div data-booking-promo-code><dt>Promo code</dt><dd>{booking.promoCode}<small>For host review; no automatic discount applied.</small></dd></div>}
           <div><dt>Received</dt><dd>{new Date(booking.createdAt).toLocaleString('en-GB')}</dd></div>
         </dl>
         {booking.occupancyAssessmentOutcome && <div class="pricing-message" role="status"><strong>Occupancy assessment: {booking.occupancyAssessmentOutcome.replaceAll('_', ' ')}</strong>{booking.occupancyAssessmentReasons.length > 0 && <ul>{booking.occupancyAssessmentReasons.map((reason) => <li>{reason.message}</li>)}</ul>}</div>}

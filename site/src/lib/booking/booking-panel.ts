@@ -26,9 +26,12 @@ export type PanelQuote = {
 };
 
 export type BookingPanelState = { selection: StaySelection; quote: PanelQuote | null };
+export type BookingPanelCheck = { initialContinuation: boolean; checking: boolean; error: string };
 export type BookingPanelElement = HTMLElement & {
   bookingPanel?: {
     getState: () => BookingPanelState;
+    getCheckState: () => BookingPanelCheck;
+    check: () => void;
     invalidate: () => void;
     setQuote: (quote: PanelQuote) => void;
   };

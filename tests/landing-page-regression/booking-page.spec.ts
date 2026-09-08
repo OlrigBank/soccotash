@@ -23,7 +23,7 @@ async function openDates(page: Page) {
 }
 async function continueToDetails(page: Page) {
   await page.getByRole('button', { name: 'Book', exact: true }).click();
-  await expect(page.getByRole('form', { name: 'Send your request' })).toBeFocused();
+  await expect(page.getByRole('form', { name: 'Booking request' })).toBeFocused();
 }
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
@@ -46,12 +46,13 @@ test('incoming stay is freshly checked and continues inline to validated request
   await continueToDetails(page);
   await expect(page).toHaveURL(url);
   await expect(page.locator('[data-pet-details]')).toBeHidden();
-  await page.getByRole('button', { name: 'Request booking' }).click();
+  await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.getByLabel('Booker name')).toBeFocused();
   await page.getByLabel('Booker name').fill('Disposable browser fixture');
-  await page.getByRole('button', { name: 'Request booking' }).click();
+  await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.getByLabel('Booker email')).toBeFocused();
-  await page.getByLabel('Booker telephone').fill('01632 960123');
+  await page.getByLabel('Mobile number').fill('01632 960123');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
   const request = page.waitForRequest('**/api/provisional-bookings/**');
   await page.getByRole('button', { name: 'Request booking' }).click();
   expect((await request).postDataJSON()).toMatchObject({ propertyId: 'main-house', adults: 6, pets: 0, petDetails: [], reviewedPricing: { planId: 'fixture', planVersion: 1, guestTotalPence: 173000 } });
@@ -128,14 +129,16 @@ test('pet answers and contact details survive edits and rechecking', async ({ pa
   await page.goto(url.replace('pets=0', 'pets=1')); await continueToDetails(page);
   await page.getByLabel('Booker name').fill('Retained fixture');
   await page.locator('[data-pet-breed]').fill('Labrador');
+  await page.getByRole('button', { name: 'Edit stay', exact: true }).click();
   await page.locator('[data-compact-guests] summary').click();
   await noOverflow(page);
   await page.getByRole('button', { name: 'Add children' }).click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Request booking' })).toBeDisabled();
+  await expect(page.locator('[data-continue-review]')).toBeDisabled();
   await page.locator('[data-compact-booking-submit]').click(); await continueToDetails(page);
   await expect(page.getByLabel('Booker name')).toHaveValue('Retained fixture');
   await expect(page.locator('[data-pet-breed]')).toHaveValue('Labrador');
+  await page.getByRole('button', { name: 'Edit stay', exact: true }).click();
   await page.locator('[data-compact-guests] summary').click();
   await page.getByRole('button', { name: 'Remove pets' }).click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -147,7 +150,8 @@ test('pet answers and contact details survive edits and rechecking', async ({ pa
 test('changed quote needs another explicit submission and safe continuation uses returned private path', async ({ page }) => {
   await page.goto(url); await continueToDetails(page);
   await page.getByLabel('Booker name').fill('Changed quote fixture');
-  await page.getByLabel('Booker telephone').fill('01632 960123');
+  await page.getByLabel('Mobile number').fill('01632 960123');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
   let submissions = 0;
   const privatePath = `/booking/manage/${'fixture'.repeat(7)}/`;
   await page.route('**/api/provisional-bookings/**', route => {
@@ -161,6 +165,8 @@ test('changed quote needs another explicit submission and safe continuation uses
   await expect(page.locator('[data-booking-submit-review]')).toContainText('£1,800.00');
   await expect(page.locator('[data-booking-submit-review]')).toBeFocused();
   expect(submissions).toBe(1);
+  await page.getByRole('button', { name: 'Edit details' }).click();
+  await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.getByLabel('Booker name')).toHaveValue('Changed quote fixture');
   await page.getByRole('button', { name: 'Request booking' }).click();
   await expect(page).toHaveURL(privatePath);
@@ -218,4 +224,87 @@ test('automatic stay selection refreshes an already open neutral calendar', asyn
   await expect(page.locator('[name="propertyId"]')).toHaveValue('cottage');
   await expect(page.locator('[data-date="2026-10-25"]')).toBeDisabled();
   await expect(page.locator('[data-date="2026-10-25"]')).toHaveAccessibleName(/unavailable/);
+});
+
+test('checked continuation opens details during recheck and recovers without losing answers', async ({ page }) => {
+  let release: () => void = () => {};
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/quote/**', async route => { await pending; return route.fulfill({ status: 503, json: { error: 'Price service temporarily unavailable.' } }); });
+  await page.goto(url + '&bookingContinue=checked');
+  await expect(page.locator('[data-progress-step="2"]')).toHaveAttribute('aria-current', 'step');
+  await expect(page.locator('[data-stay-editor]')).toBeHidden();
+  await expect(page.locator('[data-stay-check-status]')).toContainText('Checking');
+  await page.getByLabel('Booker name').fill('Retained during check');
+  await page.getByLabel('Mobile number').fill('01632 960123');
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
+  release();
+  await expect(page.locator('[data-stay-check-status]')).toContainText('temporarily unavailable');
+  await page.route('**/api/quote/**', route => route.fulfill({ json: quote }));
+  await page.getByRole('button', { name: 'Retry stay check' }).click();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeEnabled();
+  await expect(page.getByLabel('Booker name')).toHaveValue('Retained during check');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  await expect(page.locator('[data-progress-step="3"]')).toHaveAttribute('aria-current', 'step');
+  await noOverflow(page);
+});
+
+test('matching checked session opens details, mismatched or expired sessions do not', async ({ page }) => {
+  await page.goto('/book/');
+  for (const kind of ['matching', 'mismatched', 'expired']) {
+    await page.evaluate(({ selection, quote, kind }) => sessionStorage.setItem('olrig-quick-check-result', JSON.stringify({
+      version: 1, selection: kind === 'mismatched' ? selection.replace('adults=6', 'adults=4') : selection,
+      checkedAt: new Date('2026-09-08T12:00:00Z').getTime() - (kind === 'expired' ? 16 * 60 * 1000 : 0), quote,
+    })), { selection: url, quote, kind });
+    await page.goto(url);
+    await expect(page.locator(`[data-progress-step="${kind === 'matching' ? 2 : 1}"]`)).toHaveAttribute('aria-current', 'step');
+  }
+});
+
+test('successful continuation carries intent when session storage is unavailable', async ({ page }) => {
+  await page.addInitScript(() => { Storage.prototype.setItem = () => { throw new Error('Storage unavailable'); }; Storage.prototype.getItem = () => { throw new Error('Storage unavailable'); }; });
+  await page.goto(url.replace('/book/', '/contact/'));
+  await page.locator('[data-compact-booking-submit]').click();
+  await expect(page.getByRole('button', { name: 'Book', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Book', exact: true }).click();
+  await expect(page).toHaveURL(/bookingContinue=checked/);
+  await expect(page.locator('[data-booking-contact]')).toBeVisible();
+});
+
+test('review includes all answers and editing preserves them without applying a promo discount', async ({ page }) => {
+  await page.goto(url.replace('pets=0', 'pets=1') + '&bookingContinue=checked');
+  await page.getByLabel('Booker name').fill('Review fixture');
+  await page.getByLabel('Booker email').fill('fixture@example.test');
+  await page.getByLabel('Mobile number').fill('+441632960123');
+  await page.locator('#whatsapp-consent').check();
+  await page.locator('[data-pet-breed]').fill('Labrador');
+  await page.getByLabel('Promo code (optional)').fill('  AutumnCase  ');
+  await page.getByLabel('Message to Olrig Bank (optional)').fill('Review fixture message');
+  expect(await page.locator('[data-booking-contact] input').evaluateAll(inputs => inputs.slice(0, 3).map(input => input.getAttribute('name')))).toEqual(['name', 'email', 'telephone']);
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  await expect(page.locator('[data-booking-answers]')).toContainText('AutumnCase');
+  await expect(page.locator('[data-booking-answers]')).toContainText('Labrador');
+  await expect(page.locator('[data-booking-answers]')).toContainText('Consent given');
+  await expect(page.locator('[data-booking-submit-review]')).toContainText('£1,730.00');
+  await page.getByRole('button', { name: 'Edit details' }).click();
+  await expect(page.getByLabel('Promo code (optional)')).toHaveValue('  AutumnCase  ');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  await page.getByRole('button', { name: 'Edit stay', exact: true }).click();
+  await continueToDetails(page);
+  await expect(page.getByLabel('Booker name')).toHaveValue('Review fixture');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  const request = page.waitForRequest('**/api/provisional-bookings/**');
+  await page.getByRole('button', { name: 'Request booking' }).click();
+  expect((await request).postDataJSON()).toMatchObject({ promoCode: '  AutumnCase  ', message: 'Review fixture message', reviewedPricing: { guestTotalPence: 173000 } });
+});
+
+test('submission conflict opens stay correction and retains booker details', async ({ page }) => {
+  await page.goto(url + '&bookingContinue=checked');
+  await page.getByLabel('Booker name').fill('Conflict fixture');
+  await page.getByLabel('Mobile number').fill('01632 960123');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  await page.route('**/api/provisional-bookings/**', route => route.fulfill({ status: 409, json: { error: 'Those dates are no longer available.' } }));
+  await page.getByRole('button', { name: 'Request booking' }).click();
+  await expect(page.locator('[data-progress-step="1"]')).toHaveAttribute('aria-current', 'step');
+  await expect(page.locator('[data-booking-status]')).toContainText('no longer available');
+  await expect(page.getByLabel('Booker name')).toHaveValue('Conflict fixture');
 });

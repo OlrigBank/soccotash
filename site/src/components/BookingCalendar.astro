@@ -4,19 +4,23 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
 <section class="booking-panel" data-booking-calendar>
   <ol class="booking-progress" aria-label="Booking request progress">
     <li class="is-current" data-progress-step="1" aria-current="step"><span>1</span><strong>Check your stay</strong></li>
-    <li data-progress-step="2"><span>2</span><strong>Send your request</strong></li>
+    <li data-progress-step="2"><span>2</span><strong>Collect Booker detail</strong></li>
+    <li data-progress-step="3"><span>3</span><strong>Review and send request</strong></li>
   </ol>
+  <div data-stay-editor>
   <CompactBookingPanel source="booking" requestPage={true} quickCheck={true} autoSelectProperty={true} heading="Check your stay" idPrefix="request-stay" />
   <p class="booking-note">Check the provisional total, then choose Book to enter your details. Your request does not confirm a booking or take payment.</p>
-  <form class="booking-form" data-booking-form id="booking-request-details" tabindex="-1" aria-label="Send your request">
+  </div>
+  <section class="booking-stay-summary" data-stay-summary hidden aria-label="Your stay">
+    <p data-stay-summary-text></p>
+    <p data-stay-check-status role="status" aria-live="polite"></p>
+    <button class="button" type="button" data-edit-stay>Edit stay</button>
+    <button class="button" type="button" data-retry-stay hidden>Retry stay check</button>
+  </section>
+  <form class="booking-form" data-booking-form id="booking-request-details" tabindex="-1" aria-label="Booking request">
     <fieldset class="booking-step booking-contact" data-booking-contact data-booking-step="2" hidden disabled>
-      <legend><span>Step 2</span> Send your request</legend>
+      <legend><span>Step 2</span> Collect Booker detail</legend>
       <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
-    <div class="booking-field booking-field-wide" data-pet-details hidden>
-      <p><strong>Tell us about each pet</strong></p>
-      <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
-      <div data-pet-detail-rows></div>
-    </div>
       <div class="booking-field">
         <label for="guest-name">Booker name</label>
         <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required />
@@ -26,7 +30,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
       </div>
       <div class="booking-field">
-        <label for="guest-telephone">Booker telephone</label>
+        <label for="guest-telephone">Mobile number</label>
         <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" aria-describedby="whatsapp-consent-help" />
       </div>
       <div class="booking-field booking-field-wide">
@@ -36,11 +40,27 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         </label>
         <p id="whatsapp-consent-help" class="booking-note">Provide at least an email address or a telephone number. WhatsApp remains optional; if selected, enter a telephone number with its country code (for example, +44).</p>
       </div>
+    <div class="booking-field booking-field-wide" data-pet-details hidden>
+      <p><strong>Tell us about each pet</strong></p>
+      <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
+      <div data-pet-detail-rows></div>
+    </div>
+      <div class="booking-field booking-field-wide">
+        <label for="guest-promo-code">Promo code (optional)</label>
+        <input id="guest-promo-code" name="promoCode" maxlength="80" aria-describedby="promo-code-help" />
+        <p id="promo-code-help" class="booking-note">Jenna will review your code. No discount has been applied to this total.</p>
+      </div>
       <div class="booking-field booking-field-wide">
         <label for="guest-message">Message to Olrig Bank (optional)</label>
         <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
       </div>
-      <div class="booking-submit-review" data-booking-submit-review hidden></div>
+      <button class="button" type="button" data-continue-review disabled>Continue to review</button>
+    </fieldset>
+    <fieldset class="booking-step" data-booking-review hidden>
+      <legend><span>Step 3</span> Review and send request</legend>
+      <div class="booking-submit-review" data-booking-submit-review tabindex="-1"></div>
+      <dl class="booking-answers" data-booking-answers></dl>
+      <button class="button" type="button" data-edit-details>Edit details</button>
       <button class="button" type="submit" data-submit-booking>Request booking</button>
     </fieldset>
     <p class="booking-status" data-booking-status role="status" aria-live="polite"></p>
@@ -64,9 +84,35 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
   let reviewedState: BookingPanelState | null = null;
   let submitting = false;
+  let activeStep = 1;
+  let initialEntryHandled = false;
+  const stayEditor = root?.querySelector<HTMLElement>('[data-stay-editor]');
+  const staySummary = root?.querySelector<HTMLElement>('[data-stay-summary]');
+  const staySummaryText = root?.querySelector<HTMLElement>('[data-stay-summary-text]');
+  const checkStatus = root?.querySelector<HTMLElement>('[data-stay-check-status]');
+  const retryStay = root?.querySelector<HTMLButtonElement>('[data-retry-stay]');
+  const review = root?.querySelector<HTMLFieldSetElement>('[data-booking-review]');
+  const answers = root?.querySelector<HTMLElement>('[data-booking-answers]');
+  const continueReview = root?.querySelector<HTMLButtonElement>('[data-continue-review]');
   const money = (pence: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(pence / 100);
 
+  const dateLabel = (value: string) => {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(parsed);
+  };
+  const partyLabel = (selection: BookingPanelState['selection']) => [
+    `${selection.adults} adult${selection.adults === 1 ? '' : 's'}`,
+    selection.children ? `${selection.children} child${selection.children === 1 ? '' : 'ren'}` : '',
+    selection.infants ? `${selection.infants} infant${selection.infants === 1 ? '' : 's'}` : '',
+    selection.pets ? `${selection.pets} pet${selection.pets === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join(', ');
+
   function setProgress(step: number) {
+    activeStep = step;
+    if (stayEditor) stayEditor.hidden = step !== 1;
+    if (staySummary) staySummary.hidden = step === 1;
+    if (contact) contact.hidden = step !== 2;
+    if (review) review.hidden = step !== 3;
     root?.querySelectorAll<HTMLElement>('[data-progress-step]').forEach((item) => {
       const current = Number(item.dataset.progressStep);
       item.classList.toggle('is-current', current === step);
@@ -98,9 +144,8 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     submitReview.replaceChildren();
     const summary = document.createElement('p');
     const { selection, quote } = state;
-    const date = (value: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
     const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
-    summary.textContent = `${stay} · ${date(selection.arrival)} – ${date(selection.departure)} · ${selection.adults} adults, ${selection.children} children, ${selection.infants} infants, ${selection.pets} pets`;
+    summary.textContent = `${stay} · ${dateLabel(selection.arrival)} – ${dateLabel(selection.departure)} · ${partyLabel(selection)}`;
     const total = document.createElement('strong');
     total.textContent = quote?.pricingAvailable ? `Provisional total: ${money(Number(quote.guestTotalPence || 0))}`
       : quote?.estimatedPricing ? `Estimated total: ${money(Number(quote.estimatedPricing.guestTotalPence || 0))}. Jenna will confirm the final price.`
@@ -120,35 +165,107 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     submitReview.hidden = false;
   }
 
+  function focusForm() {
+    form?.focus({ preventScroll: true });
+    form?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  }
+
+  function updateCheck() {
+    const state = panel?.bookingPanel?.getState();
+    const check = panel?.bookingPanel?.getCheckState();
+    if (!state || !check) return;
+    if (staySummaryText) {
+      const selection = state.selection;
+      const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
+      staySummaryText.textContent = `${stay} · ${dateLabel(selection.arrival)} – ${dateLabel(selection.departure)} · ${partyLabel(selection)}`;
+    }
+    if (checkStatus) checkStatus.textContent = check.checking ? 'Checking the latest availability and price…'
+      : check.error || (state.quote ? state.quote.pricingAvailable
+        ? `Provisional total: ${money(Number(state.quote.guestTotalPence || 0))}`
+        : 'Jenna will confirm availability and the final price.' : 'Check your stay before continuing to review.');
+    if (retryStay) retryStay.hidden = !check.error || check.checking;
+    if (continueReview) continueReview.disabled = !state.quote || check.checking;
+    if (!initialEntryHandled && check.initialContinuation) {
+      initialEntryHandled = true;
+      if (contact) contact.disabled = false;
+      renderPetDetails();
+      setProgress(2);
+      // Keep the progress and stay summary visible on entry; do not steal typing focus.
+    }
+  }
+
   function continueRequest(state: BookingPanelState) {
     if (!contact || !form || !state.quote || submitting) return;
-    reviewedState = state;
     renderPetDetails();
-    renderReview(state);
-    contact.hidden = false;
     contact.disabled = false;
-    if (submitButton) submitButton.disabled = false;
     if (status) status.textContent = '';
     if (reviewButton) reviewButton.hidden = true;
     setProgress(2);
-    form.focus({ preventScroll: true });
-    form.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    updateCheck();
+    focusForm();
   }
   panel?.addEventListener('booking-panel-continue', (event) => continueRequest((event as CustomEvent<BookingPanelState>).detail));
+  panel?.addEventListener('booking-panel-check', updateCheck);
   panel?.addEventListener('booking-panel-invalidated', () => {
     reviewedState = null;
     if (submitButton) submitButton.disabled = true;
-    if (submitReview) submitReview.hidden = true;
-    if (contact && !contact.hidden && !submitting) {
-      if (status) status.textContent = 'Your stay has changed. Check it again and choose Book before sending your request.';
-      if (reviewButton) reviewButton.hidden = false;
-    }
+    if (continueReview) continueReview.disabled = true;
+    if (activeStep === 3 && !submitting) setProgress(2);
+    updateCheck();
+  });
+  function editStay() {
+    if (submitting) return;
+    reviewedState = null;
+    if (status) status.textContent = '';
+    if (reviewButton) reviewButton.hidden = true;
     setProgress(1);
+    panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.focus();
+    panel?.scrollIntoView({ block: 'start' });
+  }
+  root?.querySelector('[data-edit-stay]')?.addEventListener('click', editStay);
+  reviewButton?.addEventListener('click', editStay);
+  retryStay?.addEventListener('click', () => panel?.bookingPanel?.check());
+  root?.querySelector('[data-edit-details]')?.addEventListener('click', () => {
+    if (submitting) return;
+    reviewedState = null;
+    setProgress(2); focusForm();
   });
-  reviewButton?.addEventListener('click', () => {
-    panel?.querySelector<HTMLButtonElement>('[data-compact-booking-submit]')?.focus();
-    panel?.scrollIntoView({ block: 'center' });
+  function validateDetails() {
+    if (email) email.setCustomValidity(!email.value.trim() && !telephone?.value.trim() ? 'Provide an email address or a telephone number.' : '');
+    return Boolean(form?.reportValidity());
+  }
+  function renderAnswers() {
+    if (!form || !answers) return;
+    answers.replaceChildren();
+    const add = (label: string, value: string) => {
+      const term = document.createElement('dt'); term.textContent = label;
+      const description = document.createElement('dd'); description.textContent = value;
+      answers.append(term, description);
+    };
+    const data = new FormData(form);
+    add('Booker name', String(data.get('name') || ''));
+    add('Booker email', String(data.get('email') || 'Not supplied'));
+    add('Mobile number', String(data.get('telephone') || 'Not supplied'));
+    add('WhatsApp messages', whatsappConsent?.checked ? 'Consent given' : 'Not requested');
+    for (const [index, row] of [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].entries()) {
+      const value = (selector: string) => row.querySelector<HTMLInputElement | HTMLSelectElement>(selector)?.value || '';
+      add(`Pet ${index + 1}`, [value('[data-pet-species]') === 'other' ? value('[data-pet-other]') : value('[data-pet-species]'), value('[data-pet-breed]'), value('[data-pet-size]'), row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked ? 'Service animal' : ''].filter(Boolean).join(' · '));
+    }
+    const promoCode = String(data.get('promoCode') || '').trim();
+    add('Promo code', promoCode ? `${promoCode} — Jenna will review your code. No discount has been applied to this total.` : 'Not supplied');
+    add('Message to Olrig Bank', String(data.get('message') || '').trim() || 'Not supplied');
+  }
+  continueReview?.addEventListener('click', () => {
+    const state = panel?.bookingPanel?.getState();
+    if (submitting || !state?.quote || !validateDetails()) return;
+    reviewedState = state;
+    renderReview(state); renderAnswers();
+    if (submitButton) submitButton.disabled = false;
+    if (status) status.textContent = '';
+    setProgress(3); focusForm();
   });
+  // Component scripts may initialise in either order.
+  updateCheck();
   whatsappConsent?.addEventListener('change', () => {
     if (telephone) telephone.required = Boolean(whatsappConsent.checked);
   });
@@ -157,6 +274,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!form || !status || !contact || submitting) return;
+    if (activeStep !== 3) { continueReview?.click(); return; }
     const currentState = panel?.bookingPanel?.getState();
     if (!reviewedState?.quote || !currentState?.quote || JSON.stringify(reviewedState) !== JSON.stringify(currentState)) {
       status.textContent = 'Check your stay and choose Book before sending your request.';
@@ -164,7 +282,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       return;
     }
     if (email && !email.value.trim() && !telephone?.value.trim()) email.setCustomValidity('Provide an email address or a telephone number.');
-    if (!form.reportValidity()) return;
+    if (!form.checkValidity()) { setProgress(2); validateDetails(); return; }
     const data = new FormData(form);
     const state = reviewedState;
     const quote = state.quote!;
@@ -183,8 +301,11 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       } : { pricingAvailable: false },
     };
     submitting = true;
+    let returnToStay = false;
     contact.disabled = true;
     panel?.setAttribute('inert', '');
+    if (review) review.disabled = true;
+    if (staySummary) staySummary.inert = true;
     status.textContent = 'Rechecking the price and creating your private booking page…';
     try {
       const response = await fetch('/api/provisional-bookings/', {
@@ -196,13 +317,15 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
           panel?.bookingPanel?.setQuote(body.quote as PanelQuote);
           reviewedState = panel?.bookingPanel?.getState() || null;
           if (reviewedState) renderReview(reviewedState);
-          setProgress(2);
+          setProgress(3);
           status.textContent = body.error || 'The provisional price changed. Review the updated total and submit again.';
           submitReview?.scrollIntoView({ block: 'center' });
           submitReview?.setAttribute('tabindex', '-1'); submitReview?.focus({ preventScroll: true });
         } else {
           if (response.status === 409 || response.status === 422) {
             panel?.bookingPanel?.invalidate();
+            setProgress(1);
+            returnToStay = true;
             if (reviewButton) reviewButton.hidden = false;
           }
           status.textContent = body.error || 'The request could not be saved. Please try again.';
@@ -223,12 +346,27 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       submitting = false;
       contact.disabled = false;
       panel?.removeAttribute('inert');
+      if (review) review.disabled = false;
+      if (staySummary) staySummary.inert = false;
       if (submitButton) submitButton.disabled = !reviewedState;
+      if (returnToStay) {
+        panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.focus();
+        panel?.scrollIntoView({ block: 'start' });
+      }
     }
   });
 </script>
 <style>
-  .booking-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .booking-progress { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  [data-stay-editor][hidden], [data-stay-summary][hidden], [data-booking-contact][hidden], [data-booking-review][hidden], [data-retry-stay][hidden] { display: none; }
+  .booking-stay-summary { padding: 1rem; border: 1px solid var(--border, #c5cdc7); border-radius: 1rem; margin-block: 1rem; }
+  .booking-stay-summary p { overflow-wrap: anywhere; }
+  .booking-answers { grid-column: 1 / -1; margin: 0; }
+  .booking-answers :global(dt) { font-weight: 700; margin-top: 1rem; }
+  .booking-answers :global(dd) { margin: 0.25rem 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .booking-submit-review { grid-column: 1 / -1; overflow-wrap: anywhere; }
+  .booking-progress strong { overflow-wrap: anywhere; }
+  @media (max-width: 480px) { .booking-progress { gap: 0.5rem; } .booking-progress li { padding: 0.65rem; } }
   .booking-field[hidden] { display: none; }
   .booking-field :global(label.booking-consent) { display: flex; align-items: flex-start; gap: 0.75rem; font-weight: 400; }
   .booking-field :global(.booking-consent input[type='checkbox']) { flex: 0 0 1.4rem; width: 1.4rem; min-height: 1.4rem; margin-top: 0.2rem; padding: 0; }
