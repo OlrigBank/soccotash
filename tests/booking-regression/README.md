@@ -1,5 +1,25 @@
 # Replayable booking regression
 
+## Booking-page continuation
+
+Run `npm run test:booking-request` against the rebuilt local app on port 8080
+and local PostgreSQL on port 5433. It reads the local database credentials from
+`.env`. When `DATABASE_URL` is set, the check uses that local database instead
+of the port-5433 fallback, including under the CI booking-regression configuration.
+The site origin comes from the active Playwright configuration. This focused
+E11 check creates a uniquely named, far-future Bespoke request with a fictitious telephone number, no email and no WhatsApp consent.
+It verifies the saved party and pet details, skipped notifications, private-page
+continuation and reload, then deletes its fixture in `finally`. It does not
+change pricing plans or standard availability. Trace, video and screenshots
+are disabled for this test.
+
+The F02 persistence check also covers rejected malformed/oversized promo codes,
+trimmed case-preserving storage, missing/blank-code compatibility and host
+visibility using a disposable administrator session. All booking and
+administrator fixtures are removed in `finally`.
+
+## Bespoke negotiation
+
 This controlled Playwright suite records the complete Bespoke blocked-date
 negotiation journey. It creates disposable local data, signs in as a disposable
 administrator, opens the requested dates, publishes and accepts a resource-backed

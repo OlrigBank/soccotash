@@ -30,12 +30,12 @@ test('the full form accepts only validated compact state and obtains a fresh quo
   ]);
 
   assert.match(compact, /params\.set\(name, String\(data\.get\(name\) \?\? ''\)\)/);
-  assert.match(fullForm, /params\.has\('propertyId'\)/);
-  assert.match(fullForm, /Array\.from\(propertySelect\.options\)\.some/);
-  assert.match(fullForm, /isValidTransferredDate\(requestedArrival\)/);
-  assert.match(fullForm, /Number\.isInteger\(value\)/);
-  assert.match(fullForm, /requestedDeparture >= addDays\(requestedArrival, selectedRules\(\)\.minimumNights\)/);
-  assert.match(fullForm, /hasCompleteTransferredStay[\s\S]*await checkAvailability\(\)/);
+  assert.match(compact, /const explicitInputs/);
+  assert.match(compact, /validDate\(queryArrival\)/);
+  assert.match(compact, /Number\.isSafeInteger/);
+  assert.match(compact, /!requestPage && savedParams/);
+  assert.match(compact, /requestPage && arrival\.value && departure\.value/);
+  assert.match(fullForm, /requestPage=\{true\}/);
 });
 
 test('changed selections invalidate the reviewed quote and submission rechecks server state', async () => {
@@ -44,11 +44,11 @@ test('changed selections invalidate the reviewed quote and submission rechecks s
     source('src/pages/api/provisional-bookings.ts'),
   ]);
 
-  assert.match(fullForm, /input\.addEventListener\('input',[\s\S]*clearReviewedQuote\(\)/);
-  assert.match(fullForm, /if \(!reviewedQuote \|\| reviewedQuoteKey !== currentKey\)[\s\S]*checkAvailability\(\)/);
+  assert.match(fullForm, /booking-panel-invalidated/);
+  assert.match(fullForm, /JSON\.stringify\(reviewedState\) !== JSON\.stringify\(currentState\)/);
   assert.match(submissionApi, /getProperty\(String\(input\.propertyId \|\| ''\)\)/);
   assert.match(submissionApi, /assessPublishedOccupancy/);
   assert.match(submissionApi, /getPublishedPricingQuote/);
   assert.match(submissionApi, /quoteChanged/);
-  assert.match(fullForm, /response\.status === 409[\s\S]*renderQuote\(body\.quote\)/);
+  assert.match(fullForm, /response\.status === 409[\s\S]*setQuote\(body\.quote/);
 });

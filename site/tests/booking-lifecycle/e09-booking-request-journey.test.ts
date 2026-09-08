@@ -16,27 +16,24 @@ test('the booking page uses a focused no-sidebar journey with honest expectation
   assert.match(layout, /\.page-grid\.booking-journey-page/);
 });
 
-test('the existing form is organised as one progressive three-step request', async () => {
+test('the request journey embeds one shared panel and three stages', async () => {
   const component = await source('src/components/BookingCalendar.astro');
   assert.match(component, /aria-label="Booking request progress"/);
-  assert.match(component, /data-progress-step="1"[^>]*><span>1<\/span><strong>Choose<\/strong>/);
-  assert.match(component, /data-progress-step="2"[^>]*><span>2<\/span><strong>Check<\/strong>/);
-  assert.match(component, /data-progress-step="3"[^>]*><span>3<\/span><strong>Request<\/strong>/);
-  assert.match(component, /data-booking-step="1"/);
-  assert.match(component, /data-booking-step="2"/);
-  assert.match(component, /data-booking-step="3" hidden/);
-  assert.match(component, /function setProgress\(currentStep: number\)/);
-  assert.match(component, /document\.createElement\('h2'\)/);
-  assert.match(component, /setProgress\(2\)[\s\S]*fetch\(`\/api\/availability/);
-  assert.match(component, /contact\.hidden = false;\s*setProgress\(3\)/);
+  assert.match(component, /<CompactBookingPanel[^>]*requestPage=\{true\}/);
+  assert.match(component, /Check your stay/);
+  assert.match(component, /Collect Booker detail/);
+  assert.match(component, /Review and send request/);
+  assert.doesNotMatch(component, /data-check-availability|data-calendar-months|data-booking-step="3"/);
+  assert.match(component, /booking-panel-continue/);
+  assert.match(component, /form\?\.focus/);
 });
 
-test('workflow restructuring retains authoritative checking and safe submission', async () => {
-  const component = await source('src/components/BookingCalendar.astro');
-  assert.match(component, /fetch\(`\/api\/availability\/\?\$\{params\}`\)/);
-  assert.match(component, /fetch\('\/api\/quote\/'/);
+test('workflow restructuring retains authoritative checks and safe submission', async () => {
+  const [component, panel] = await Promise.all([source('src/components/BookingCalendar.astro'), source('src/components/CompactBookingPanel.astro')]);
+  assert.match(panel, /fetch\(`\/api\/availability/);
+  assert.match(panel, /fetch\('\/api\/quote\/'/);
   assert.match(component, /fetch\('\/api\/provisional-bookings\/'/);
-  assert.match(component, /if \(!reviewedQuote \|\| reviewedQuoteKey !== currentKey\)/);
+  assert.match(component, /JSON\.stringify\(reviewedState\) !== JSON\.stringify\(currentState\)/);
   assert.match(component, /response\.status === 409/);
   assert.match(component, /const managePath =[\s\S]*window\.location\.assign\(managePath\)/);
 });

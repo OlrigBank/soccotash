@@ -3,7 +3,8 @@ import { getProperties } from '../lib/booking/config';
 
 interface Props {
   propertyId?: string;
-  source?: 'homepage' | 'listing' | 'public';
+  source?: 'homepage' | 'listing' | 'public' | 'booking';
+  requestPage?: boolean;
   quickCheck?: boolean;
   heading?: string;
   idPrefix?: string;
@@ -14,6 +15,7 @@ interface Props {
 
 const {
   propertyId,
+  requestPage = false,
   source = propertyId ? 'listing' : 'homepage',
   heading = 'Plan your stay',
   idPrefix = `compact-booking-${source}`,
@@ -35,6 +37,7 @@ if (propertyId && !fixedProperty) {
 <section
   class:list={['compact-booking-panel', mobileDock && 'compact-booking-panel--mobile-dock']}
   data-compact-booking-panel
+  data-request-page={requestPage ? 'true' : undefined}
   data-mobile-dock={mobileDock ? 'true' : undefined}
   data-source={source}
   data-listing-property={fixedProperty?.id}
@@ -105,14 +108,14 @@ if (propertyId && !fixedProperty) {
       ) : null}
       <div class="compact-date-calendar__toolbar">
         <button type="button" data-compact-calendar-previous aria-label="Show previous month">←</button>
-        <strong data-compact-calendar-heading></strong>
+        <strong data-compact-calendar-heading>Availability calendar</strong>
         <button type="button" data-compact-calendar-next aria-label="Show next month">→</button>
       </div>
       <p data-compact-calendar-message role="status" aria-live="polite">Choose your arrival date, then your departure date.</p>
-      <div class="compact-date-calendar__weekdays" aria-hidden="true">
-        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-      </div>
-      <div class="compact-date-calendar__days" data-compact-calendar-days></div>
+      <p data-compact-calendar-availability role="status" aria-live="polite"></p>
+      <button type="button" data-compact-calendar-retry hidden>Retry availability</button>
+      <div class="compact-date-calendar__months" data-compact-calendar-months></div>
+      <p class="compact-date-calendar__legend" data-compact-calendar-legend hidden>Available · ▨ Unavailable · Outlined dates: selected arrival and departure</p>
     </fieldset>
     </div>
     {quickCheck ? (
@@ -128,9 +131,9 @@ if (propertyId && !fixedProperty) {
             <button class="compact-sheet__close" type="button" data-compact-sheet-close="guests" aria-label="Close guest selection">×</button>
           ) : null}
           {[
-            ['adults', 'Adults', 'Ages 13+', 1, 2],
-            ['children', 'Children', 'Ages 2–12', 0, 0],
-            ['infants', 'Infants', 'Under 2', 0, 0],
+            ['adults', 'Adults', 'Ages 13+ on arrival', 1, 2],
+            ['children', 'Children', 'Ages 2–12 on arrival', 0, 0],
+            ['infants', 'Infants', 'Under 2 on arrival', 0, 0],
             ['pets', 'Pets', '', 0, 0],
           ].map(([name, label, help, minimum, value]) => (
             <div class="compact-guests__row">
@@ -161,6 +164,13 @@ if (propertyId && !fixedProperty) {
           <strong data-compact-quick-total-value></strong>
         </div>
         <div class="compact-booking-field compact-booking-quick-result compact-booking-stay" data-compact-quick-stay>
+          {requestPage ? (
+            <><label for={`${idPrefix}-stay`}>Stay</label>
+            <select id={`${idPrefix}-stay`} name="propertyId" aria-label="Stay">
+              <option value="">Find a suitable stay</option>
+              {properties.map((stay) => <option value={stay.id}>{stay.name.replace(/\s+\(max \d+ guests\)$/i, '')}</option>)}
+            </select></>
+          ) : (<>
           <input type="hidden" name="propertyId" value={fixedProperty?.id || ''} />
           <details data-compact-stay-menu>
             <summary><span>Stay</span><strong data-compact-stay-name>{fixedProperty?.name.replace(/\s+\(max \d+ guests\)$/i, '') || 'Find a suitable stay'}</strong></summary>
@@ -172,6 +182,7 @@ if (propertyId && !fixedProperty) {
               ))}
             </ul>
           </details>
+          </>)}
         </div>
       </>
     ) : null}
@@ -207,26 +218,8 @@ if (propertyId && !fixedProperty) {
 </section>
 
 <script>
-  type QuoteLine = { label?: string; detail?: string; amountPence?: number };
-  type QuoteResponse = {
-    pricingAvailable?: boolean;
-    administratorPriced?: boolean;
-    hostDecisionRequired?: boolean;
-    eligible?: boolean;
-    currency?: string;
-    nights?: number;
-    guestTotalPence?: number;
-    lines?: QuoteLine[];
-    restrictions?: string[];
-    warnings?: string[];
-    message?: string;
-    error?: string;
-    estimatedPricing?: {
-      currency?: string;
-      nights?: number;
-      guestTotalPence?: number;
-    } | null;
-  };
+  import { nightIsBlocked, rangeIsBlocked } from '../lib/booking/booking-panel';
+  import type { PanelQuote as QuoteResponse, BookingPanelElement, AvailabilityBlock } from '../lib/booking/booking-panel';
 
   const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', {
     style: 'currency', currency,
@@ -234,7 +227,7 @@ if (propertyId && !fixedProperty) {
 
   const today = () => new Date().toISOString().slice(0, 10);
 
-  document.querySelectorAll<HTMLElement>('[data-compact-booking-panel]').forEach((panel) => {
+  document.querySelectorAll<BookingPanelElement>('[data-compact-booking-panel]').forEach((panel) => {
     const form = panel.querySelector<HTMLFormElement>('[data-compact-booking-form]');
     const property = panel.querySelector<HTMLSelectElement | HTMLInputElement>('[name="propertyId"]');
     const arrival = panel.querySelector<HTMLInputElement>('[name="arrival"]');
@@ -247,7 +240,17 @@ if (propertyId && !fixedProperty) {
     const calendar = panel.querySelector<HTMLElement>('[data-compact-date-calendar]');
     const calendarHeading = panel.querySelector<HTMLElement>('[data-compact-calendar-heading]');
     const calendarMessage = panel.querySelector<HTMLElement>('[data-compact-calendar-message]');
-    const calendarDays = panel.querySelector<HTMLElement>('[data-compact-calendar-days]');
+    const calendarDays = panel.querySelector<HTMLElement>('[data-compact-calendar-months]');
+    const calendarAvailability = panel.querySelector<HTMLElement>('[data-compact-calendar-availability]')!;
+    const calendarRetry = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-retry]')!;
+    const calendarLegend = panel.querySelector<HTMLElement>('[data-compact-calendar-legend]')!;
+    const requestPage = panel.dataset.requestPage === 'true';
+    let checkedQuote: QuoteResponse | null = null;
+    let initialContinuation = false;
+    let checking = false;
+    let checkError = '';
+    const notifyCheck = () => panel.dispatchEvent(new CustomEvent('booking-panel-check'));
+
     const calendarPrevious = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-previous]');
     const calendarNext = panel.querySelector<HTMLButtonElement>('[data-compact-calendar-next]');
     const recommendation = panel.querySelector<HTMLElement>('[data-compact-booking-recommendation]');
@@ -321,6 +324,69 @@ if (propertyId && !fixedProperty) {
     const addMonths = (date: Date, months: number) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
     const firstMonth = monthStart(today());
     let calendarMonth = firstMonth;
+    let calendarBlocks: AvailabilityBlock[] = [];
+    let calendarRevision = 0;
+    let calendarLoading = false;
+    let calendarFailed = false;
+    let calendarProperty = '';
+    let availabilityFrom = '';
+    let availabilityTo = '';
+    const hasCalendarStay = () => Boolean(property.value && property.value !== 'bespoke-arrangement');
+    const calendarReady = () => !hasCalendarStay() || (!calendarLoading && !calendarFailed && calendarProperty === property.value);
+    const canDepart = (value: string) => Boolean(arrival.value && !departure.value
+      && value >= addDays(arrival.value, minimumNights())
+      && !rangeIsBlocked(calendarBlocks, arrival.value, value));
+    const loadCalendar = async () => {
+      const revision = ++calendarRevision;
+      calendarBlocks = [];
+      calendarProperty = property.value;
+      calendarFailed = false;
+      calendarRetry.hidden = true;
+      calendarLegend.hidden = !hasCalendarStay();
+      if (!hasCalendarStay()) {
+        calendarLoading = false;
+        calendarAvailability.textContent = property.value === 'bespoke-arrangement'
+          ? 'Preferred dates only. Jenna will confirm availability.'
+          : 'Choose a stay to see its unavailable dates.';
+        renderCalendar();
+        return;
+      }
+      const visibleFrom = dateIso(calendarMonth);
+      const visibleTo = dateIso(addMonths(calendarMonth, 2));
+      availabilityFrom = arrival.value && arrival.value < visibleFrom ? arrival.value : visibleFrom;
+      availabilityTo = departure.value && departure.value > visibleTo ? departure.value : visibleTo;
+      calendarLoading = true;
+      calendarAvailability.textContent = 'Loading current availability…';
+      renderCalendar();
+      try {
+        const params = new URLSearchParams({ property: property.value, from: availabilityFrom, to: availabilityTo });
+        const response = await fetch(`/api/availability/?${params}`);
+        const body = await response.json();
+        if (revision !== calendarRevision) return;
+        if (!response.ok || !Array.isArray(body.blocks) || body.blocks.some((block: AvailabilityBlock) =>
+          !block || !/^\d{4}-\d{2}-\d{2}$/.test(block.startsOn) || !/^\d{4}-\d{2}-\d{2}$/.test(block.endsOn))) {
+          throw new Error('Availability could not be loaded.');
+        }
+        calendarBlocks = body.blocks.map((block: AvailabilityBlock) => ({ startsOn: block.startsOn, endsOn: block.endsOn }));
+        calendarAvailability.textContent = body.refreshWarning
+          ? `Stored availability is shown. ${body.refreshWarning}`
+          : 'Unavailable dates include current reservations and booking holds.';
+        if (arrival.value && departure.value && rangeIsBlocked(calendarBlocks, arrival.value, departure.value)) {
+          clearResult();
+          calendarAvailability.textContent += ' Your selected dates are no longer available. Choose another stay or date range.';
+        }
+      } catch {
+        if (revision !== calendarRevision) return;
+        calendarFailed = true;
+        calendarRetry.hidden = false;
+        calendarAvailability.textContent = 'Availability could not be loaded. Retry to choose dates for this stay.';
+      } finally {
+        if (revision === calendarRevision) {
+          calendarLoading = false;
+          renderCalendar();
+        }
+      }
+    };
     const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     const shortDateLabel = (value: string) => {
@@ -405,42 +471,84 @@ if (propertyId && !fixedProperty) {
           ? `Arrival: ${dayLabel.format(parseDate(arrival.value))}. Now choose your departure date.`
           : 'Choose your arrival date, then your departure date.';
       setCalendarOpen(true);
-      renderCalendar();
+      void loadCalendar();
     };
     const renderCalendar = () => {
-      calendarHeading.textContent = monthLabel.format(calendarMonth);
+      const focusedDate = document.activeElement instanceof HTMLElement && calendarDays.contains(document.activeElement)
+        ? document.activeElement.dataset.date : undefined;
+      calendarHeading.textContent = 'Availability calendar';
       calendarDays.replaceChildren();
-      const offset = (calendarMonth.getUTCDay() + 6) % 7;
-      for (let index = 0; index < offset; index += 1) {
-        const spacer = document.createElement('span');
-        spacer.className = 'compact-date-calendar__spacer';
-        spacer.setAttribute('aria-hidden', 'true');
-        calendarDays.append(spacer);
-      }
-      const daysInMonth = new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth() + 1, 0)).getUTCDate();
-      for (let day = 1; day <= daysInMonth; day += 1) {
-        const value = dateIso(new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth(), day)));
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = String(day);
-        button.dataset.date = value;
-        button.setAttribute('aria-label', dayLabel.format(parseDate(value)));
-        button.disabled = value < today();
-        const selectedArrival = value === arrival.value;
-        const selectedDeparture = value === departure.value;
-        const inRange = Boolean(arrival.value && departure.value && arrival.value < value && value < departure.value);
-        if (selectedArrival) button.classList.add('is-arrival');
-        if (selectedDeparture) button.classList.add('is-departure');
-        if (inRange) button.classList.add('is-in-range');
-        button.setAttribute('aria-pressed', String(selectedArrival || selectedDeparture));
-        if (selectedArrival) button.setAttribute('aria-label', `${dayLabel.format(parseDate(value))}, selected arrival`);
-        if (selectedDeparture) button.setAttribute('aria-label', `${dayLabel.format(parseDate(value))}, selected departure`);
-        button.addEventListener('click', () => selectDate(value));
-        calendarDays.append(button);
+      calendarDays.setAttribute('aria-busy', String(calendarLoading));
+      for (let monthOffset = 0; monthOffset < 2; monthOffset += 1) {
+        const month = addMonths(calendarMonth, monthOffset);
+        const section = document.createElement('section');
+        section.className = 'compact-date-calendar__month';
+        const heading = document.createElement('h3');
+        heading.textContent = monthLabel.format(month);
+        const weekdays = document.createElement('div');
+        weekdays.className = 'compact-date-calendar__weekdays';
+        weekdays.setAttribute('aria-hidden', 'true');
+        for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+          const day = document.createElement('span'); day.textContent = label; weekdays.append(day);
+        }
+        const days = document.createElement('div');
+        days.className = 'compact-date-calendar__days';
+        days.dataset.compactCalendarDays = '';
+        const offset = (month.getUTCDay() + 6) % 7;
+        for (let index = 0; index < offset; index += 1) {
+          const spacer = document.createElement('span');
+          spacer.className = 'compact-date-calendar__spacer';
+          spacer.setAttribute('aria-hidden', 'true');
+          days.append(spacer);
+        }
+        const daysInMonth = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          const value = dateIso(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day)));
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = String(day);
+          button.dataset.date = value;
+          const blocked = hasCalendarStay() && nightIsBlocked(calendarBlocks, value);
+          const departureOnly = blocked && canDepart(value);
+          const selectedArrival = value === arrival.value;
+          const selectedDeparture = value === departure.value;
+          const inRange = Boolean(arrival.value && departure.value && arrival.value < value && value < departure.value);
+          button.disabled = value < today() || !calendarReady() || (blocked && !departureOnly);
+          if (selectedArrival) button.classList.add('is-arrival');
+          if (selectedDeparture) button.classList.add('is-departure');
+          if (inRange) button.classList.add('is-in-range');
+          if (blocked) button.classList.add('is-unavailable');
+          button.setAttribute('aria-pressed', String(selectedArrival || selectedDeparture));
+          const availability = value < today() ? 'past date' : !hasCalendarStay() ? 'availability not checked'
+            : !calendarReady() ? 'availability unknown' : blocked ? departureOnly ? 'unavailable for arrival, available as departure' : 'unavailable' : 'available';
+          button.setAttribute('aria-label', `${dayLabel.format(parseDate(value))}, ${availability}${selectedArrival ? ', selected arrival' : selectedDeparture ? ', selected departure' : inRange ? ', selected stay' : ''}`);
+          button.addEventListener('click', () => selectDate(value));
+          days.append(button);
+        }
+        section.append(heading, weekdays, days);
+        calendarDays.append(section);
       }
       calendarPrevious.disabled = calendarMonth <= firstMonth;
+      calendarNext.disabled = calendarMonth >= addMonths(firstMonth, 22);
+      // The shell intentionally uses overflow-x:hidden as a Chromium repaint
+      // workaround. Keep a floating calendar within its vertical extent so it
+      // cannot create a second page scroller on short pages such as /book/.
+      if (!mobileDock && panel.classList.contains('compact-booking-panel--calendar-open')) {
+        const shell = panel.closest<HTMLElement>('.mobile-first-shell');
+        const space = shell ? shell.getBoundingClientRect().bottom - calendar.getBoundingClientRect().top - 16 : innerHeight;
+        calendar.style.maxHeight = `${Math.max(160, Math.min(innerHeight * 0.75, space))}px`;
+      } else calendar.style.removeProperty('max-height');
+      if (focusedDate) calendarDays.querySelector<HTMLButtonElement>(`[data-date="${focusedDate}"]:not(:disabled)`)?.focus({ preventScroll: true });
     };
     const selectDate = (value: string) => {
+      if (!calendarReady()) return;
+      const choosingDeparture = Boolean(arrival.value && !departure.value && value > arrival.value);
+      if (hasCalendarStay() && (choosingDeparture
+        ? rangeIsBlocked(calendarBlocks, arrival.value, value)
+        : nightIsBlocked(calendarBlocks, value))) {
+        calendarMessage.textContent = 'Those dates include unavailable nights. Choose a different date range.';
+        return;
+      }
       clearResult();
       if (!arrival.value || departure.value || value <= arrival.value) {
         arrival.value = value;
@@ -472,12 +580,13 @@ if (propertyId && !fixedProperty) {
     calendarPrevious.addEventListener('click', () => {
       calendarMonth = addMonths(calendarMonth, -1);
       if (calendarMonth < firstMonth) calendarMonth = firstMonth;
-      renderCalendar();
+      void loadCalendar();
     });
     calendarNext.addEventListener('click', () => {
       calendarMonth = addMonths(calendarMonth, 1);
-      renderCalendar();
+      void loadCalendar();
     });
+    calendarRetry.addEventListener('click', () => void loadCalendar());
     for (const input of [arrival, departure]) {
       input.addEventListener('click', openCalendar);
       input.addEventListener('keydown', (event) => {
@@ -512,7 +621,7 @@ if (propertyId && !fixedProperty) {
       for (const name of ['adults', 'children', 'infants', 'pets']) {
         const value = params.get(name);
         const input = form.elements.namedItem(name);
-        if (value !== null && input instanceof HTMLInputElement && /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= Number(input.min)) input.value = value;
+        if (value !== null && input instanceof HTMLInputElement && /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 99 && Number(value) >= Number(input.min)) input.value = value;
       }
     };
     panel.querySelectorAll<HTMLButtonElement>('[data-compact-guest-adjust]').forEach((button) => {
@@ -520,7 +629,7 @@ if (propertyId && !fixedProperty) {
         const input = form.elements.namedItem(button.dataset.compactGuestAdjust || '');
         if (!(input instanceof HTMLInputElement)) return;
         const minimum = Number(input.min || 0);
-        input.value = String(Math.max(minimum, Number(input.value) + Number(button.dataset.direction || 0)));
+        input.value = String(Math.min(99, Math.max(minimum, Number(input.value) + Number(button.dataset.direction || 0))));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         updateGuestsSummary();
       });
@@ -554,6 +663,10 @@ if (propertyId && !fixedProperty) {
     });
     sheetBackdrop?.addEventListener('click', () => closeMobileSheet(false));
     panel.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !mobileDock && panel.classList.contains('compact-booking-panel--calendar-open')) {
+        setCalendarOpen(false);
+        (dateTrigger || arrival).focus({ preventScroll: true });
+      }
       if (event.key === 'Tab' && activeMobileSheet) {
         const sheet = activeMobileSheet === 'date'
           ? calendar
@@ -615,6 +728,9 @@ if (propertyId && !fixedProperty) {
       return !exceeded;
     };
     const clearResult = () => {
+      checkedQuote = null;
+      checking = false; checkError = '';
+      panel.dispatchEvent(new CustomEvent('booking-panel-invalidated'));
       checkedHref = '';
       inputRevision += 1;
       submit.disabled = false;
@@ -642,7 +758,8 @@ if (propertyId && !fixedProperty) {
     const continueLink = (label: string) => {
       const link = document.createElement('a');
       link.className = 'button compact-booking-result__continue';
-      link.href = continuationHref();
+      link.href = requestPage ? '#booking-request-details' : continuationHref() + (checkedQuote ? '&bookingContinue=checked' : '');
+      if (requestPage) link.addEventListener('click', (event) => { event.preventDefault(); continueRequest(); });
       link.textContent = label;
       link.addEventListener('click', () => window.olrigAnalytics?.track('compact_booking_continued', {
         source: panel.dataset.source || 'unknown',
@@ -816,7 +933,15 @@ if (propertyId && !fixedProperty) {
         : quote?.pricingAvailable === false;
       const validGuidance = [quote?.restrictions, quote?.warnings].every((items) =>
         items === undefined || (Array.isArray(items) && items.every((item) => typeof item === 'string')));
-      if (savedParams && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
+      initialContinuation = requestPage && Boolean(property.value && arrival.value >= today()
+        && departure.value >= addDays(arrival.value, minimumNights())
+        && departure.value <= addDays(arrival.value, 365))
+        && (query.get('bookingContinue') === 'checked' || Boolean(savedParams
+          && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
+          && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
+          && quote && validPrice && validGuidance));
+      notifyCheck();
+      if (!requestPage && savedParams && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
         && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
         && quote && validPrice && validGuidance) {
         if (quote.pricingAvailable === true) renderQuote(quote);
@@ -824,7 +949,7 @@ if (propertyId && !fixedProperty) {
         return;
       }
       // A different listing always selects its own stay and obtains a fresh result.
-      if (savedParams || query.get('quickCheck') === 'checked') form.requestSubmit();
+      if ((requestPage && arrival.value && departure.value) || savedParams || query.get('quickCheck') === 'checked') form.requestSubmit();
     };
 
     stayMenu?.addEventListener('toggle', () => {
@@ -848,12 +973,13 @@ if (propertyId && !fixedProperty) {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (checkedHref) {
-        window.location.assign(checkedHref);
+        if (requestPage) continueRequest();
+        else window.location.assign(checkedHref + '&bookingContinue=checked');
         return;
       }
       clearResult();
       if (!validateCapacity() || !form.reportValidity()) return;
-      if (!arrival.value || !departure.value || departure.value <= arrival.value) {
+      if (!arrival.value || !departure.value || arrival.value < today() || departure.value <= arrival.value || departure.value > addDays(arrival.value, 365)) {
         status.textContent = 'Choose a departure date after the arrival date.';
         return;
       }
@@ -863,6 +989,7 @@ if (propertyId && !fixedProperty) {
         return;
       }
       const revision = inputRevision;
+      checking = true; checkError = ''; notifyCheck();
       submit.disabled = true;
       status.textContent = 'Checking the latest availability and price…';
       const data = new FormData(form);
@@ -895,6 +1022,7 @@ if (propertyId && !fixedProperty) {
           }
           property.value = selected.id;
           property.dataset.minimumNights = String(selected.minimumNights);
+          if (panel.classList.contains('compact-booking-panel--calendar-open')) void loadCalendar();
           if (recommendation) {
             recommendation.dataset.name = selected.name.replace(/\s+\(max \d+ guests\)$/i, '');
             recommendation.dataset.slug = selected.listingSlug;
@@ -920,6 +1048,7 @@ if (propertyId && !fixedProperty) {
         safeAnalytics = { source: panel.dataset.source || 'unknown', property: property.value };
         window.olrigAnalytics?.track('compact_booking_started', safeAnalytics);
         if (isBespoke()) {
+          checkedQuote = { pricingAvailable: false, administratorPriced: true };
           status.textContent = 'Jenna will confirm the accommodation, availability and price. Your dates are not reserved.';
           result.append(continueLink('Start a bespoke request'));
           result.hidden = false;
@@ -949,6 +1078,7 @@ if (propertyId && !fixedProperty) {
           window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
           return;
         }
+        checkedQuote = quote;
         status.textContent = '';
         if (quote.pricingAvailable) renderQuote(quote);
         else renderHostPriced(quote);
@@ -958,12 +1088,16 @@ if (propertyId && !fixedProperty) {
         });
       } catch (error) {
         if (revision !== inputRevision) return;
-        status.textContent = `${error instanceof Error ? error.message : 'The stay could not be checked.'} Please try again or continue to the full request form.`;
-        result.append(continueLink('Continue to request form'));
+        status.textContent = `${error instanceof Error ? error.message : 'The stay could not be checked.'} ${requestPage ? 'Please try again.' : 'Please try again or continue to the full request form.'}`;
+        if (!requestPage) result.append(continueLink('Continue to request form'));
         result.hidden = false;
         window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'error' });
       } finally {
-        if (revision === inputRevision) submit.disabled = false;
+        if (revision === inputRevision) {
+          submit.disabled = false; checking = false;
+          checkError = checkedQuote ? '' : status.textContent || 'The stay could not be checked. Please try again.';
+          notifyCheck();
+        }
       }
     });
 
@@ -982,6 +1116,37 @@ if (propertyId && !fixedProperty) {
       const height = band.getBoundingClientRect().height;
       document.documentElement.style.setProperty('--quick-check-dock-height', `${height}px`);
     }).observe(band);
+    const getState = () => ({
+      selection: {
+        propertyId: property.value, arrival: arrival.value, departure: departure.value,
+        adults: Number((form.elements.namedItem('adults') as HTMLInputElement).value),
+        children: Number((form.elements.namedItem('children') as HTMLInputElement).value),
+        infants: Number((form.elements.namedItem('infants') as HTMLInputElement).value),
+        pets: Number((form.elements.namedItem('pets') as HTMLInputElement).value),
+      },
+      quote: checkedQuote,
+    });
+    const continueRequest = () => {
+      if (!checkedQuote) { form.requestSubmit(); return; }
+      panel.dispatchEvent(new CustomEvent('booking-panel-continue', { detail: getState() }));
+    };
+    panel.bookingPanel = {
+      getState,
+      getCheckState: () => ({ initialContinuation, checking, error: checkError }),
+      check: () => { clearResult(); form.requestSubmit(); },
+      invalidate: clearResult,
+      setQuote: (quote) => {
+        clearResult(); checkedQuote = quote;
+        if (quote.pricingAvailable) renderQuote(quote); else renderHostPriced(quote);
+        rememberSelection(quote);
+        notifyCheck();
+      },
+    };
+    property.addEventListener('change', () => {
+      updateMode(true);
+      if (panel.classList.contains('compact-booking-panel--calendar-open')) void loadCalendar();
+      if (arrival.value && departure.value) form.requestSubmit();
+    });
     initialiseFromSession();
     window.addEventListener('pageshow', (event) => {
       if (event.persisted) initialiseFromSession();
@@ -1108,9 +1273,24 @@ if (propertyId && !fixedProperty) {
     z-index: 6;
     top: calc(100% + 0.4rem);
     left: 0;
-    width: min(32rem, calc(100vw - 2rem));
+    width: min(44rem, calc(100vw - 2rem));
     min-width: 0; margin: 0; padding: 0.8rem;
+    overflow-y: auto;
     border: 1px solid var(--line); border-radius: 0.75rem; background: #fff;
+  }
+  .compact-date-calendar__months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .compact-date-calendar :global(.compact-date-calendar__month) { min-width: 0; }
+  .compact-date-calendar :global(h3) { margin: 0.5rem 0; text-align: center; font-size: 1rem; }
+  .compact-date-calendar__legend, [data-compact-calendar-availability] { font-size: 0.85rem; }
+  .compact-date-calendar :global(.compact-date-calendar__days button.is-unavailable) { background: repeating-linear-gradient(135deg, #ece8df, #ece8df 3px, #d5d0c5 3px, #d5d0c5 5px); text-decoration: line-through; }
+  .compact-date-calendar :global(.compact-date-calendar__days button.is-unavailable:disabled) { opacity: 1; color: #515952; }
+  [data-compact-calendar-retry][hidden], [data-compact-calendar-legend][hidden] { display: none; }
+  @media (max-width: 699px) {
+    .compact-date-calendar__months { grid-template-columns: minmax(0, 1fr); }
+    .compact-booking-panel[data-request-page] .compact-date-calendar { width: 100%; max-height: 65dvh; overflow-y: auto; }
+  }
+  @media (min-width: 700px) {
+    .compact-date-calendar { max-width: calc(100vw - 6rem); }
   }
   .compact-date-calendar legend { padding: 0 0.35rem; font-weight: 700; }
   .compact-date-calendar__toolbar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 0.5rem; }
@@ -1119,25 +1299,25 @@ if (propertyId && !fixedProperty) {
     min-width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-bg); color: var(--ink);
   }
   .compact-date-calendar [data-compact-calendar-message] { min-height: 1.5em; margin: 0.6rem 0; color: var(--muted); font-size: 0.9rem; }
-  .compact-date-calendar__weekdays,
-  .compact-date-calendar__days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.2rem; text-align: center; }
-  .compact-date-calendar__weekdays { margin-bottom: 0.25rem; color: var(--muted); font-size: 0.72rem; font-weight: 700; }
-  .compact-date-calendar__days :global(button) {
+  .compact-date-calendar :global(.compact-date-calendar__weekdays),
+  .compact-date-calendar :global(.compact-date-calendar__days) { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.2rem; text-align: center; }
+  .compact-date-calendar :global(.compact-date-calendar__weekdays) { margin-bottom: 0.25rem; color: var(--muted); font-size: 0.72rem; font-weight: 700; }
+  .compact-date-calendar :global(.compact-date-calendar__days button) {
     min-width: 0; min-height: 40px; padding: 0.2rem; border: 0; border-radius: 0.45rem; background: transparent; color: var(--ink);
   }
-  .compact-date-calendar__days :global(button:not(:disabled):hover),
-  .compact-date-calendar__days :global(button:not(:disabled):focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .compact-date-calendar__days :global(button.is-in-range) {
+  .compact-date-calendar :global(.compact-date-calendar__days button:not(:disabled):hover),
+  .compact-date-calendar :global(.compact-date-calendar__days button:not(:disabled):focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .compact-date-calendar :global(.compact-date-calendar__days button.is-in-range) {
     border-radius: 0;
     background: #eef4eb;
   }
-  .compact-date-calendar__days :global(button:is(.is-arrival, .is-departure)) {
+  .compact-date-calendar :global(.compact-date-calendar__days button:is(.is-arrival, .is-departure)) {
     background: var(--soft-accent);
     color: var(--ink);
     box-shadow: inset 0 0 0 2px var(--accent);
     font-weight: 800;
   }
-  .compact-date-calendar__days :global(button:disabled) { color: var(--muted); opacity: 0.45; }
+  .compact-date-calendar :global(.compact-date-calendar__days button:disabled) { color: var(--muted); opacity: 0.45; }
   .compact-booking-panel:not(.compact-booking-panel--calendar-ready) .compact-date-calendar,
   .compact-booking-panel--calendar-ready:not(.compact-booking-panel--calendar-open) .compact-date-calendar { display: none; }
   .compact-booking-panel--calendar-ready .compact-booking-field input[type='date'] { cursor: pointer; }
@@ -1145,6 +1325,12 @@ if (propertyId && !fixedProperty) {
   .compact-booking-panel__bespoke,
   .compact-booking-panel__status { margin: 0.9rem 0 0; }
   .compact-booking-panel__status { color: var(--muted); }
+  .compact-booking-panel[data-request-page] .compact-booking-stay { grid-column: span 2; }
+  .compact-booking-panel[data-request-page] .compact-booking-stay select { font: inherit; }
+  .compact-booking-panel[data-request-page] .compact-guests__popover { left: 0; right: auto; }
+  @media (max-width: 699px) {
+    .compact-booking-panel[data-request-page] .compact-guests__popover { left: 0; width: min(21rem, calc(100vw - 5.5rem)); }
+  }
   .compact-booking-result {
     margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line);
   }

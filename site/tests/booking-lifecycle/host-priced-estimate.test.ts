@@ -23,11 +23,10 @@ test('compact and full forms label the calculated amount as an unconfirmed estim
 
   assert.match(compact, /Estimated published-price total/);
   assert.match(compact, /This is an indication, continue to get a confirmed quote/);
-  assert.match(fullForm, /Estimated published-price total/);
-  assert.match(fullForm, /This is an indication, not a confirmed quote/);
-  assert.match(fullForm, /Jenna may adjust it when reviewing the arrangement/);
+  assert.match(fullForm, /Estimated total/);
+  assert.match(fullForm, /Jenna will confirm the final price/);
   assert.match(compact, /body\.estimatedPricing\.guestTotalPence/);
   assert.match(compact, /if \(quickTotal && body\.estimatedPricing\)/);
   assert.match(compact, /renderSuggestedResult/);
-  assert.match(fullForm, /body\.estimatedPricing\.guestTotalPence/);
+  assert.match(fullForm, /quote\.estimatedPricing\.guestTotalPence/);
 });

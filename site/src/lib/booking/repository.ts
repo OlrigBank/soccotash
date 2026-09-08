@@ -251,6 +251,7 @@ export async function createProvisionalBooking(input: {
   whatsappConsentRequested?: boolean;
   whatsappConsentVersion?: string | null;
   message?: string;
+  promoCode?: string;
   pricingQuote?: PublishedPricingQuote | null;
 }): Promise<{ reference: string; accessToken: string }> {
   const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
@@ -286,10 +287,10 @@ export async function createProvisionalBooking(input: {
         pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
         guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
         customer_access_token, occupancy_policy_id, occupancy_policy_version,
-        occupancy_assessment_input, occupancy_assessment_outcome, occupancy_assessment_reasons, occupancy_assessed_at)
+        occupancy_assessment_input, occupancy_assessment_outcome, occupancy_assessment_reasons, occupancy_assessed_at, promo_code)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
         CASE WHEN $13 = 'active' THEN NOW() END, $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb,$28,$29,
-        $30,$31,$32::jsonb,$33,$34::jsonb,$35)
+        $30,$31,$32::jsonb,$33,$34::jsonb,$35,$36)
        RETURNING id::text, public_id::text AS reference`,
       [
         input.propertyId, input.arrival, input.departure, compatibilityGuests,
@@ -318,6 +319,7 @@ export async function createProvisionalBooking(input: {
         input.occupancyAssessment?.result.outcome ?? null,
         input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.result.reasons) : null,
         input.occupancyAssessment?.assessedAt ?? null,
+        input.promoCode?.trim() || null,
       ],
     );
     await client.query(
@@ -624,6 +626,7 @@ export type ProvisionalBookingRequest = {
   whatsappConsentVersion: string | null;
   whatsappConsentNumberE164: string | null;
   message: string | null;
+  promoCode?: string | null;
   status: string;
   pricingPlanId?: string | null;
   pricingPlanName?: string | null;
@@ -722,7 +725,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.whatsapp_consent_source AS "whatsappConsentSource",
             pb.whatsapp_consent_version AS "whatsappConsentVersion",
             pb.whatsapp_consent_number_e164 AS "whatsappConsentNumberE164",
-            pb.guest_message AS message, pb.status,
+            pb.guest_message AS message, pb.promo_code AS "promoCode", pb.status,
             pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
             pb.pricing_currency AS "pricingCurrency", pb.accommodation_pence AS "accommodationPence",
             pb.fees_pence AS "feesPence", pb.guest_total_pence AS "guestTotalPence",

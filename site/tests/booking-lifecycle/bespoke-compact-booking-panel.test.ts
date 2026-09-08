@@ -32,5 +32,5 @@ test('Bespoke is rendered as an enquiry before JavaScript and bypasses live chec
   const bespokeBranch = component.match(/if \(isBespoke\(\)\) \{([\s\S]*?)\n\s*return;\n\s*\}/)?.[1] ?? '';
   assert.match(bespokeBranch, /Jenna will confirm the accommodation, availability and price/);
   assert.match(bespokeBranch, /continueLink\('Start a bespoke request'\)/);
-  assert.doesNotMatch(bespokeBranch, /fetch\(|appear available|guestTotalPence|pricingAvailable/);
+  assert.doesNotMatch(bespokeBranch, /fetch\(|appear available|guestTotalPence|pricingAvailable: true/);
 });
