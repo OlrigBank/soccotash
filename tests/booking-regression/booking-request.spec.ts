@@ -2,10 +2,20 @@ import { test, expect } from '@playwright/test';
 import pg from 'pg';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 
-test('E11 persists a non-notifying request and resumes its private page', async ({ page }) => {
+// Keep private fixture links and disposable administrator sessions out of recordings
+// even when this spec is discovered by the wider CI regression configuration.
+test.use({ trace: 'off', video: 'off', screenshot: 'off' });
+
+test('E11 persists a non-notifying request and resumes its private page', async ({ page, baseURL }) => {
+  const origin = new URL(baseURL!).origin;
+  if (!['localhost', '127.0.0.1'].includes(new URL(origin).hostname)) throw new Error('Booking request fixtures require a local service.');
   const name = `E11 disposable ${randomUUID()}`;
   const adminEmail = `e11-${randomUUID()}@example.test`;
-  const database = new pg.Client({
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString && !['localhost', '127.0.0.1'].includes(new URL(connectionString).hostname)) {
+    throw new Error('Booking request fixtures require a local database.');
+  }
+  const database = new pg.Client(connectionString ? { connectionString } : {
     host: '127.0.0.1', port: 5433,
     user: process.env.POSTGRES_USER || 'soccotash',
     password: process.env.POSTGRES_PASSWORD,
@@ -15,7 +25,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
   try {
     for (const promoCode of ['x'.repeat(81), { unexpected: 'object' }]) {
       const response = await page.request.post('/api/provisional-bookings/', {
-        headers: { origin: 'http://127.0.0.1:8080' },
+        headers: { origin },
         data: { propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
       });
       expect(response.status()).toBe(400);
@@ -54,14 +64,14 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     const admin = await database.query("INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'E11 disposable administrator','unusable-test-password') RETURNING id", [adminEmail]);
     const token = randomBytes(32).toString('base64url');
     await database.query("INSERT INTO admin_sessions(admin_user_id,token_hash,expires_at) VALUES($1,$2,NOW()+INTERVAL '10 minutes')", [admin.rows[0].id, createHash('sha256').update(token).digest('hex')]);
-    await page.context().addCookies([{ name: 'olrig_admin_session', value: token, url: 'http://127.0.0.1:8080', httpOnly: true, sameSite: 'Lax' }]);
+    await page.context().addCookies([{ name: 'olrig_admin_session', value: token, url: origin, httpOnly: true, sameSite: 'Lax' }]);
     await page.goto(`/admin/bookings/${saved.rows[0].public_id}/reservation/`);
     await expect(page.locator('[data-booking-promo-code]')).toContainText('Autumn-Test');
     await expect(page.locator('[data-booking-promo-code]')).toContainText('no automatic discount');
     // Missing and blank optional codes retain compatibility and persist as NULL.
     for (const promoCode of [undefined, '   ']) {
       const response = await page.request.post('/api/provisional-bookings/', {
-        headers: { origin: 'http://127.0.0.1:8080' },
+        headers: { origin },
         data: { propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
       });
       expect(response.status()).toBe(201);

@@ -338,6 +338,17 @@ Host code visibility was exercised by Playwright; interactive DevTools focused
 on the public journey. The wider administration negotiation suite was not run.
 No production deployment or customer contact was performed by verification.
 
+### F02 post-acceptance CI correction
+
+PR #145 exposed a test-environment mismatch: the persistence spec was discovered
+by the CI regression suite but still connected to the local Docker database
+port 5433 instead of CI's `DATABASE_URL` on port 5432. The spec now honours
+`DATABASE_URL`, derives request origins and its disposable session cookie from
+the active Playwright base URL, and disables recordings in both configurations.
+It passed locally through both the CI regression configuration (with an explicit
+database URL) and the standalone local command. Product behaviour and F02
+acceptance are unchanged.
+
 ### Next planning session
 
 Use the accepted F01 and F02 records above as the baseline for the next
