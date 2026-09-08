@@ -556,3 +556,48 @@ test('Stay links support keyboard selection and immediate navigation without dat
   await expect(panel.locator('[data-compact-stay-name]')).toHaveText('Olrig Bank');
   await expect(panel.getByRole('link', { name: /View stay/ })).toHaveCount(0);
 });
+
+test('a fresh landing-page selection starts with six adults and carries them into booking', async ({ page }) => {
+  const requests = await stayPriceFixtures(page);
+  await page.goto('/');
+  const panel = page.locator(panelSelector);
+  await expect(panel.locator('[name="adults"]')).toHaveValue('6');
+  await expect(panel.locator('[data-compact-guests-summary]')).toHaveText('6 adults');
+  for (const name of ['children', 'infants', 'pets']) await expect(panel.locator(`[name="${name}"]`)).toHaveValue('0');
+  await chooseDates(page);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(panel.locator('[data-compact-booking-submit]')).toHaveText('Book');
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.every(request => request.adults === 6 && request.propertyId !== 'cottage')).toBe(true);
+  await panel.locator('[data-compact-booking-submit]').click();
+  await expect(page).toHaveURL(/\/book\//);
+  expect(new URL(page.url()).searchParams.get('adults')).toBe('6');
+  await expect(page.locator('[name="adults"]')).toHaveValue('6');
+});
+
+test('landing-page defaults honour explicit and saved guest selections', async ({ page }) => {
+  await fixtures(page);
+  await page.goto('/?adults=3&children=1');
+  const panel = page.locator(panelSelector);
+  await expect(panel.locator('[name="adults"]')).toHaveValue('3');
+  await expect(panel.locator('[name="children"]')).toHaveValue('1');
+  await panel.locator('[data-compact-guests] summary').click();
+  await panel.getByRole('button', { name: 'Add adults', exact: true }).click();
+  await panel.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.goto('/');
+  await expect(panel.locator('[name="adults"]')).toHaveValue('4');
+  await expect(panel.locator('[name="children"]')).toHaveValue('1');
+  await page.reload();
+  await expect(panel.locator('[name="adults"]')).toHaveValue('4');
+  await page.goto('/?adults=5');
+  await expect(panel.locator('[name="adults"]')).toHaveValue('5');
+  await expect(panel.locator('[name="children"]')).toHaveValue('0');
+});
+
+test('fresh direct Cottage and booking visits retain two adults', async ({ page }) => {
+  await page.goto('/listings/cottage/');
+  await expect(page.locator('[name="adults"]')).toHaveValue('2');
+  await expect(page.locator('[data-compact-guests-summary]')).toHaveText('2 adults');
+  await page.goto('/book/');
+  await expect(page.locator('[name="adults"]')).toHaveValue('2');
+});
