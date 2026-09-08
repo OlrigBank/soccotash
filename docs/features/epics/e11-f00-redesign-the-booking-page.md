@@ -2,22 +2,26 @@
 
 ## Status
 
-In progress. E11-F01 is implemented on `agent/e11-redesign-booking-page`.
-Owner acceptance is pending; later features remain undefined.
+In progress. E11-F01 is accepted and closed as of 8 September 2026.
+The owner has pushed the implementation on `agent/e11-redesign-booking-page`
+and confirmed this feature/step is complete. The epic remains open for the next
+planning session; later features remain undefined.
 
 ## Epic summary
 
 Follow [E10 — Introduce one booking widget](e10-f00-introduce-one-booking-widget.md)
 by bringing the shared booking panel into `/book/`. Simplify the request journey
 and remove duplicate stay selection, availability checking and pricing controls.
-Define and accept the first feature before defining the remaining sequence.
+The first feature is now accepted and closed. Define the remaining sequence in
+the next planning session using the delivered behaviour and evidence below.
 
 ## Starting point
 
-Public entry points share `CompactBookingPanel.astro`, with persistent selection
-and provisional results. `/book/` uses `BookingCalendar.astro`, which separately
-implements Choose, Check and Request steps. Its calendar already shows blocked
-dates; the compact calendar shows one month without availability markings.
+Before F01, public entry points shared `CompactBookingPanel.astro`, with
+persistent selection and provisional results. `/book/` used
+`BookingCalendar.astro`, which separately
+implemented Choose, Check and Request steps. Its calendar already showed blocked
+dates; the compact calendar showed one month without availability markings.
 
 ## Problem
 
@@ -85,6 +89,10 @@ Quick Check dock remain shared patterns.
 ## Feature sequence
 
 ### E11-F01 — Shared booking panel and availability calendar
+
+**Status: accepted and closed — 8 September 2026.** All six implementation
+steps below are delivered; verification and limitations are recorded under
+Completion evidence.
 
 1. Add two-month availability rendering to `CompactBookingPanel.astro` for all
    consumers, including selected dates, unavailable dates, valid departure
@@ -156,7 +164,9 @@ Follow E10's iterative and incremental delivery process:
 
 ### E11-F01
 
-Implemented on 8 September 2026. Awaiting owner acceptance.
+Implemented and accepted on 8 September 2026. Closed by the owner's explicit
+confirmation after pushing the work to date. Implementation commit: `ed18eaf`
+on `agent/e11-redesign-booking-page`.
 
 - `/book/` embeds the shared compact panel inline at every width. It freshly
   checks incoming selections, presents the provisional total and continues
@@ -224,7 +234,15 @@ Limitations: most browser outcomes use local API fixtures; actual persisted
 creation was verified for the non-notifying Bespoke path. Standard price-change
 and conflict scenarios use intercepted responses. No production changes,
 customer contact, private-page redesign or administration acceptance run was
-performed. Owner acceptance and the next feature definition are still pending.
+performed. These limitations remain part of the accepted F01 record. F01 is
+closed; only the next feature definition is pending.
+
+### Next planning session
+
+Use the accepted F01 implementation as the baseline. Agree the next feature's
+scope and acceptance criteria before implementation. The contact-form styling,
+copy, footer contrast and page-layout ideas above are candidates, not committed
+features. No further F01 implementation work is outstanding.
 
 ## Verification plan
 
