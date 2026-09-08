@@ -11,6 +11,7 @@ interface Props {
   submitLabel?: string;
   autoSelectProperty?: boolean;
   mobileDock?: boolean;
+  defaultAdults?: number;
 }
 
 const {
@@ -22,6 +23,7 @@ const {
   submitLabel = 'Quick Check',
   autoSelectProperty = false,
   mobileDock = false,
+  defaultAdults = 2,
   quickCheck = autoSelectProperty,
 } = Astro.props;
 const properties = getProperties();
@@ -120,7 +122,7 @@ if (propertyId && !fixedProperty) {
     </div>
     {quickCheck ? (
       <details class="compact-guests" data-compact-guests>
-        <summary><span>Guests</span><strong data-compact-guests-summary>2 adults</strong></summary>
+        <summary><span>Guests</span><strong data-compact-guests-summary>{defaultAdults} {defaultAdults === 1 ? 'adult' : 'adults'}</strong></summary>
         <div
           class="compact-guests__popover"
           role="group"
@@ -131,7 +133,7 @@ if (propertyId && !fixedProperty) {
             <button class="compact-sheet__close" type="button" data-compact-sheet-close="guests" aria-label="Close guest selection">×</button>
           ) : null}
           {[
-            ['adults', 'Adults', 'Ages 13+ on arrival', 1, 2],
+            ['adults', 'Adults', 'Ages 13+ on arrival', 1, defaultAdults],
             ['children', 'Children', 'Ages 2–12 on arrival', 0, 0],
             ['infants', 'Infants', 'Under 2 on arrival', 0, 0],
             ['pets', 'Pets', '', 0, 0],
@@ -150,7 +152,7 @@ if (propertyId && !fixedProperty) {
       </details>
     ) : (
       <>
-        <label class="compact-booking-field" for={`${idPrefix}-adults`}><span>Adults <small>13+</small></span><input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value="2" required /></label>
+        <label class="compact-booking-field" for={`${idPrefix}-adults`}><span>Adults <small>13+</small></span><input id={`${idPrefix}-adults`} name="adults" type="number" min="1" value={defaultAdults} required /></label>
         <label class="compact-booking-field" for={`${idPrefix}-children`}><span>Children <small>2–12</small></span><input id={`${idPrefix}-children`} name="children" type="number" min="0" value="0" required /></label>
         <label class="compact-booking-field" for={`${idPrefix}-infants`}><span>Infants <small>Under 2</small></span><input id={`${idPrefix}-infants`} name="infants" type="number" min="0" value="0" required /></label>
         <label class="compact-booking-field" for={`${idPrefix}-pets`}><span>Pets</span><input id={`${idPrefix}-pets`} name="pets" type="number" min="0" value="0" required /></label>
@@ -913,7 +915,7 @@ if (propertyId && !fixedProperty) {
       const params = explicitInputs ? query : savedParams || query;
       arrival.value = '';
       departure.value = '';
-      for (const input of guestInputs()) input.value = input.name === 'adults' ? '2' : '0';
+      for (const input of guestInputs()) input.value = input.defaultValue;
       const requestedStay = panel.dataset.listingProperty || params.get('propertyId') || '';
       property.value = configured.some((stay) => stay.id === requestedStay) ? requestedStay : '';
       prepopulateFromQuery(params);

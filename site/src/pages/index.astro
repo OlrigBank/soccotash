@@ -36,7 +36,7 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     />
     <div class="home-hero__content">
       <div class="home-hero__copy">
-        <h1>{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
+        <h1 class="visually-hidden">{page?.data.heroTitle ?? page?.data.title ?? 'Olrig Bank'}</h1>
         {page?.data.heroFacts ? <p class="home-hero__facts">{page.data.heroFacts}</p> : null}
         {page?.data.heroText ? <p>{page.data.heroText}</p> : null}
       </div>
@@ -46,6 +46,7 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
   <div class="home-booking-band quick-check-band">
     <CompactBookingPanel
       source="homepage"
+      defaultAdults={6}
       heading=""
       idPrefix="homepage-booking"
       submitLabel="Quick Check"
@@ -343,15 +344,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
     color: #fff;
   }
 
-  .home-hero h1 {
-    max-width: 14ch;
-    margin: 0;
-    color: inherit;
-    font-size: clamp(2.15rem, 10vw, 4.5rem);
-    line-height: 1.02;
-    text-wrap: balance;
-  }
-
   .home-hero p {
     max-width: 48ch;
     margin: 1rem 0 0;
@@ -360,6 +352,7 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
   }
 
   .home-hero .home-hero__facts {
+    margin-top: 0;
     max-width: none;
     font-size: clamp(0.84rem, 2.2vw, 1rem);
     font-weight: 800;
@@ -425,10 +418,6 @@ const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyId
       max-width: 21rem;
       padding: 0.75rem;
       border-radius: 0 0.55rem 0.55rem 0;
-    }
-
-    .home-hero h1 {
-      font-size: clamp(2.75rem, 4.3vw, 3.8rem);
     }
 
     .home-hero p {
