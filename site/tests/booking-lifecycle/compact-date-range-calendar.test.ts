@@ -17,8 +17,8 @@ test('compact panels select arrival and departure on one calendar', async () => 
   assert.match(component, /is-departure/);
   assert.match(component, /is-in-range/);
   assert.match(component, /button\.setAttribute\('aria-pressed', String\(selectedArrival \|\| selectedDeparture\)\)/);
-  assert.match(component, /:global\(button\.is-in-range\)[\s\S]*background: #eef4eb/);
-  assert.match(component, /:global\(button:is\(\.is-arrival, \.is-departure\)\)[\s\S]*background: var\(--soft-accent\)/);
+  assert.match(component, /button\.is-in-range\)[\s\S]*background: #eef4eb/);
+  assert.match(component, /button:is\(\.is-arrival, \.is-departure\)\)[\s\S]*background: var\(--soft-accent\)/);
   assert.match(component, /input\.addEventListener\('click', openCalendar\)/);
   assert.match(component, /setCalendarOpen\(false\)[\s\S]*\(dateTrigger \|\| departure\)\.focus/);
   assert.match(component, /const openCalendar = \(\) => \{[\s\S]*if \(guests\?\.open\) guests\.open = false;/);

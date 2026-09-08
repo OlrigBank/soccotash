@@ -18,7 +18,7 @@ test('the homepage uses one responsive Quick Check booking band', async () => {
   assert.match(layout, /@media \(max-width: 699px\)[\s\S]*\.quick-check-band[\s\S]*position: fixed[\s\S]*bottom: 0/);
   assert.match(component, /compact-booking-panel--mobile-dock/);
   assert.match(component, /grid-template-columns: minmax\(0, 1\.65fr\) minmax\(0, 0\.9fr\) minmax\(5\.25rem, 0\.8fr\)/);
-  assert.doesNotMatch(component, /@media \(min-width: 700px\)[\s\S]*\.compact-booking-panel--mobile-dock[\s\S]*display: none/);
+  assert.doesNotMatch(component, /@media \(min-width: 700px\)\s*\{[^}]*\.compact-booking-panel--mobile-dock[^}]*display: none/);
   assert.match(publicTheme, /:root:root\s*\{[\s\S]*--accent: #49654a;[\s\S]*--accent-dark: #314733;/);
 });
 

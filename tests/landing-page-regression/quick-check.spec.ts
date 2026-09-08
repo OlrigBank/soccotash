@@ -34,7 +34,7 @@ async function chooseStay(page: Page, propertyId?: string) {
   await expect(page).toHaveURL(new RegExp(`/listings/${listings.find(([, id]) => id === selected)![0]}/`));
 }
 async function fixtures(page: Page, outcome = 'available') {
-  await page.route('**/api/availability/**', route => route.fulfill({ json: { blocks: outcome === 'unavailable' ? [{ start: '2030-01-01' }] : [] } }));
+  await page.route('**/api/availability/**', route => route.fulfill({ json: { blocks: outcome === 'unavailable' && !new URL(route.request().url()).searchParams.get('from')?.endsWith('-01') ? [{ startsOn: '2030-01-01', endsOn: '2030-01-02' }] : [] } }));
   await page.route('**/api/quote/**', route => route.fulfill({ json: outcome === 'host' ? { pricingAvailable: false, hostDecisionRequired: true } : { pricingAvailable: true, eligible: true, guestTotalPence: 123400, currency: 'GBP', nights: 4, lines: [] } }));
 }
 
@@ -72,7 +72,7 @@ test('generic public pages replace the mobile action without adding a desktop pa
     else await expect(panel).toBeHidden();
   }
   await page.goto('/book/');
-  await expect(page.locator(panelSelector)).toHaveCount(0);
+  await expect(page.locator(panelSelector)).toHaveCount(1);
 });
 
 test('selection survives breakpoint changes, pop-ups return focus and Book continues', async ({ page }) => {

@@ -75,18 +75,14 @@ test.describe('bespoke blocked-date negotiation', () => {
   test.afterEach(async () => { await cleanRegressionData();if(previousPublishedPricingPlanIds.length)await withDatabase(client=>client.query(`UPDATE pricing_plans SET status='published' WHERE id=ANY($1::bigint[])`,[previousPublishedPricingPlanIds]));previousPublishedPricingPlanIds=[]; });
 
   test('restores blocked dates after a negotiated bespoke offer is cancelled', async ({ browser, page }) => {
-    await page.goto('/book/');
-    await expect(page.getByRole('list', { name: 'Booking request progress' }).locator('[aria-current="step"]')).toContainText('Choose');
+    await page.goto(`/book/?propertyId=bespoke-arrangement&arrival=${ARRIVAL}&departure=${DEPARTURE}&adults=4&children=0&infants=0&pets=0`);
+    await expect(page.getByRole('list', { name: 'Booking request progress' }).locator('[aria-current="step"]')).toContainText('Check your stay');
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
-    await page.getByRole('combobox', { name: 'Stay arrangement' }).selectOption('bespoke-arrangement');
-    await page.locator('#arrival').fill(ARRIVAL);
-    await page.locator('#departure').fill(DEPARTURE);
-    await page.locator('#adults').fill('4');
-    await page.locator('#pets').fill('0');
-    await page.getByRole('button', { name: 'Continue with request' }).click();
+    await page.getByRole('link', { name: 'Start a bespoke request' }).click();
     await page.getByLabel('Booker name').fill('Playwright Bespoke Regression');
     await page.getByLabel('Booker email').fill(EMAIL);
-    await page.getByRole('button', { name: 'Request booking' }).click();
+    await page.getByRole('button', { name: 'Continue to review' }).click();
+  await page.getByRole('button', { name: 'Request booking' }).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
     const bookerUrl = page.url();
     await expect(page.getByRole('banner')).toContainText('Private stay area');

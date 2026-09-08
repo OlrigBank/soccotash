@@ -47,6 +47,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (contactError) return Response.json({ error: contactError }, { status: 400 });
     const whatsappConsentRequested = input.whatsappConsent === 'yes' || input.whatsappConsent === true;
     const message = cleanText(input.message, 2000);
+    if (input.promoCode != null && (typeof input.promoCode !== 'string' || input.promoCode.trim().length > 80)) {
+      return Response.json({ error: 'Enter a promo code of no more than 80 characters.' }, { status: 400 });
+    }
+    const promoCode = typeof input.promoCode === 'string' ? input.promoCode.trim() : '';
     let whatsappConsent: ReturnType<typeof validateWhatsAppConsent>;
     try {
       whatsappConsent = validateWhatsAppConsent({ telephone, requested: whatsappConsentRequested });
@@ -144,6 +148,7 @@ export const POST: APIRoute = async ({ request }) => {
       whatsappConsentRequested,
       whatsappConsentVersion: WHATSAPP_CONSENT_VERSION,
       message,
+      promoCode,
       pricingQuote,
     });
     const saved = await getProvisionalBookingRequest(booking.reference);
