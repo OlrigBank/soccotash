@@ -4,9 +4,9 @@
 
 In progress. E11-F01 is accepted and closed as of 8 September 2026.
 The owner has pushed the implementation on `agent/e11-redesign-booking-page`
-and confirmed this feature/step is complete. E11-F02 is implemented on
-`agent/e11-f02-booker-details-review` and awaits owner acceptance. Features
-after F02 remain undefined.
+and confirmed this feature/step is complete. E11-F02 is also accepted and closed as of
+8 September 2026 on `agent/e11-f02-booker-details-review`. The epic remains
+open for further planning; features after F02 remain undefined.
 
 ## Epic summary
 
@@ -115,7 +115,7 @@ Completion evidence.
 
 ### E11-F02 — Collect booker details and review the request
 
-**Status: implemented; owner acceptance pending.** F01 remains accepted and closed.
+**Status: accepted and closed — 8 September 2026.** F01 remains accepted and closed.
 
 - Use three steps: **Check your stay**, **Collect Booker detail**, and
   **Review and send request**.
@@ -272,8 +272,10 @@ closed; only the next feature definition is pending.
 
 ### E11-F02
 
-Implemented on 8 September 2026 on `agent/e11-f02-booker-details-review`.
-Owner acceptance is pending.
+Implemented and accepted on 8 September 2026 on
+`agent/e11-f02-booker-details-review`. Closed by the owner's explicit acceptance
+of implementation commit `6533f3f`, with the verification evidence and
+limitations recorded below.
 
 - Added the three-step journey, immediate checked-stay entry, stay summary/Edit
   stay, contact-first details, conditional pets, optional promo code and final
@@ -338,10 +340,11 @@ No production deployment or customer contact was performed by verification.
 
 ### Next planning session
 
-Use the accepted F01 record and F02 delivery above as the baseline for the next
-planning session. Agree later scope and acceptance criteria before implementation. The contact-form styling,
+Use the accepted F01 and F02 records above as the baseline for the next
+planning session. Agree later scope and acceptance criteria before implementation.
+The contact-form styling,
 copy, footer contrast and page-layout ideas above are candidates, not committed
-features. No further F01 implementation work is outstanding.
+features. No further F01 or F02 implementation work is outstanding.
 
 ## Verification plan
 
