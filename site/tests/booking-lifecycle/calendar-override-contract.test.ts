@@ -40,7 +40,7 @@ test('the Admin calendar explains that overrides preserve underlying entries', a
 
 test('Bespoke requests start a conversation without consulting availability', async () => {
   const component = await readFile(
-    new URL('../../src/components/BookingCalendar.astro', import.meta.url),
+    new URL('../../src/components/CompactBookingPanel.astro', import.meta.url),
     'utf8',
   );
   const quoteRoute = await readFile(new URL('../../src/pages/api/quote.ts', import.meta.url), 'utf8');
@@ -49,9 +49,9 @@ test('Bespoke requests start a conversation without consulting availability', as
     'utf8',
   );
 
-  assert.match(component, /if \(isBespokeStay\(\)\) \{\s*visibleBlocks = \[\]/);
-  assert.match(component, /if \(!bespokeStay\) \{\s*const params = new URLSearchParams/);
-  assert.match(component, /Your preferred dates have been recorded without an availability check/);
+  assert.match(component, /if \(!hasCalendarStay\(\)\)/);
+  assert.match(component, /else if \(!isBespoke\(\)\)/);
+  assert.match(component, /Preferred dates only. Jenna will confirm availability/);
   assert.match(quoteRoute, /propertyId !== 'bespoke-arrangement' && \(await getBlocks/);
   assert.match(repository, /if \(property\.id !== 'bespoke-arrangement'\) \{/);
 });

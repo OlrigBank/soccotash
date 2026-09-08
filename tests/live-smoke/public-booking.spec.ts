@@ -46,36 +46,17 @@ test.describe('soccotash public live smoke tests', () => {
   }) => {
     await page.goto('/book/');
 
-    const arrangement = page.getByRole('combobox', { name: 'Stay arrangement' });
-    const nextMonths = page.getByRole('button', { name: 'Show next months' });
-    await expect(nextMonths).toBeEnabled({ timeout: 20_000 });
-
-    const firstMonthBefore = await page
-      .getByRole('heading', { level: 3 })
-      .first()
-      .textContent();
-
+    const arrangement = page.getByRole('combobox', { name: 'Stay', exact: true });
     await arrangement.selectOption('bespoke-arrangement');
-    await expect(arrangement.locator('option:checked')).toHaveText('Request a bespoke stay');
-    await expect(page.getByText(/Minimum stay: 1 night\./)).toBeVisible();
-    await expect(page.locator('[data-calendar-picker]')).toBeHidden();
-    await expect(page.locator('#arrival')).toBeEditable();
-    await expect(page.locator('#departure')).toBeEditable();
-
+    await page.locator('[data-compact-date-trigger]').click();
+    await expect(page.locator('[data-compact-calendar-months] h3')).toHaveCount(2);
+    await expect(page.locator('[data-compact-calendar-availability]')).toContainText('Preferred dates only');
+    const firstMonthBefore = await page.locator('[data-compact-calendar-months] h3').first().textContent();
     await arrangement.selectOption('main-house');
-    await expect(arrangement.locator('option:checked')).toContainText('Olrig Bank');
-    await expect(page.getByText(/Minimum stay: 2 nights\./)).toBeVisible();
-    await expect(page.locator('[data-calendar-picker]')).toBeVisible();
-    await expect(
-      page.locator('button[aria-label$=", available"]:not([disabled])').first(),
-    ).toBeVisible({ timeout: 20_000 });
-
-    await nextMonths.click();
-    await expect
-      .poll(async () =>
-        page.getByRole('heading', { level: 3 }).first().textContent(),
-      )
-      .not.toBe(firstMonthBefore);
+    await expect(page.locator('[data-compact-calendar-months]')).toHaveAttribute('aria-busy', 'false', { timeout: 20_000 });
+    await expect(page.locator('button[aria-label$=", available"]:not([disabled])').first()).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Show next month' }).click();
+    await expect(page.locator('[data-compact-calendar-months] h3').first()).not.toHaveText(firstMonthBefore!);
   });
 
   test('missing Booker contact is rejected before a booking can be created', async ({

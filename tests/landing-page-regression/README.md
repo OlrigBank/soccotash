@@ -36,6 +36,13 @@ open and close Quick Check controls. The response-fixture tests in
 `quick-check.spec.ts` are skipped outside localhost; locally they intercept
 availability and pricing and block any attempt to create a booking request.
 
+`booking-page.spec.ts` adds local-only E11 coverage for shared two-month
+availability, departure boundaries, loading/retry, stale responses, inline
+continuation, pet details and changed prices. Submission responses and private
+continuation pages are intercepted fixtures: these checks do not create data.
+Real, non-notifying persistence has a separate `npm run test:booking-request`
+command documented in `tests/booking-regression/README.md`.
+
 Use `npm run test:public-experience-regression:headed` for an interactive run
 and `npm run show:public-experience-regression-report` to inspect the HTML
 report. The former landing-page command remains as a compatibility alias.

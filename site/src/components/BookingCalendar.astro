@@ -1,93 +1,25 @@
 ---
-import { getProperties } from '../lib/booking/config';
-const properties = getProperties();
+import CompactBookingPanel from './CompactBookingPanel.astro';
 ---
 <section class="booking-panel" data-booking-calendar>
-  <ol class="booking-progress" aria-label="Booking request progress" data-booking-progress>
-    <li class="is-current" data-progress-step="1"><span>1</span><strong>Choose</strong></li>
-    <li data-progress-step="2"><span>2</span><strong>Check</strong></li>
-    <li data-progress-step="3"><span>3</span><strong>Request</strong></li>
+  <ol class="booking-progress" aria-label="Booking request progress">
+    <li class="is-current" data-progress-step="1" aria-current="step"><span>1</span><strong>Check your stay</strong></li>
+    <li data-progress-step="2"><span>2</span><strong>Send your request</strong></li>
   </ol>
-  <form class="booking-form" data-booking-form>
-    <fieldset class="booking-step" data-booking-step="1">
-      <legend><span>Step 1</span> Choose your stay</legend>
-      <p class="booking-step-intro">Select an arrangement, dates and everyone who will be staying.</p>
-    <div class="booking-field booking-property-field">
-      <label for="property">Stay arrangement</label>
-      <select id="property" name="propertyId" required>
-        {properties.map((property) => (
-          <option
-            value={property.id}
-            data-minimum-nights={property.minimumNights}
-            data-maximum-guests={property.maximumGuests}
-            data-availability-note={property.availabilityNote || ''}
-            data-administrator-priced={property.administratorPriced ? 'yes' : 'no'}
-          >
-            {property.name}
-          </option>
-        ))}
-      </select>
-    </div>
-
-    <div class="booking-calendar-picker" data-calendar-picker>
-      <div class="booking-calendar-toolbar">
-        <button class="calendar-navigation" type="button" data-calendar-previous aria-label="Show previous months">←</button>
-        <strong>Availability calendar</strong>
-        <button class="calendar-navigation" type="button" data-calendar-next aria-label="Show next months">→</button>
-      </div>
-      <p class="booking-calendar-instruction">Choose an available arrival date, then choose the departure date.</p>
-      <p class="booking-calendar-message" role="status" aria-live="polite" data-calendar-message>
-        Loading current availability…
-      </p>
-      <div class="booking-calendar-months" data-calendar-months aria-label="Stay arrangement availability"></div>
-      <div class="booking-calendar-legend" aria-label="Calendar legend">
-        <span><i class="calendar-key calendar-key-available"></i>Available</span>
-        <span><i class="calendar-key calendar-key-unavailable"></i>Unavailable</span>
-        <span><i class="calendar-key calendar-key-selected"></i>Selected stay</span>
-      </div>
-    </div>
-
-    <div class="booking-field">
-      <label for="arrival">Arrival</label>
-      <input id="arrival" name="arrival" type="date" required />
-    </div>
-    <div class="booking-field">
-      <label for="departure">Departure</label>
-      <input id="departure" name="departure" type="date" required />
-    </div>
-    <p class="booking-date-alternative">The date fields mirror the calendar and also let you enter exact dates directly.</p>
-    <div class="booking-field"><label for="adults">Adults <small>Age 13 or over on arrival</small></label><input id="adults" name="adults" type="number" min="1" value="2" required /></div>
-    <div class="booking-field"><label for="children">Children <small>Ages 2–12 on arrival</small></label><input id="children" name="children" type="number" min="0" value="0" required /></div>
-    <div class="booking-field"><label for="infants">Infants <small>Under 2 on arrival</small></label><input id="infants" name="infants" type="number" min="0" value="0" required /></div>
-    <div class="booking-field">
-      <label for="pets">Pets</label>
-      <input id="pets" name="pets" type="number" min="0" value="0" required />
-    </div>
+  <CompactBookingPanel source="booking" requestPage={true} quickCheck={true} autoSelectProperty={true} heading="Check your stay" idPrefix="request-stay" />
+  <p class="booking-note">Check the provisional total, then choose Book to enter your details. Your request does not confirm a booking or take payment.</p>
+  <form class="booking-form" data-booking-form id="booking-request-details" tabindex="-1" aria-label="Send your request">
+    <fieldset class="booking-step booking-contact" data-booking-contact data-booking-step="2" hidden disabled>
+      <legend><span>Step 2</span> Send your request</legend>
+      <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
     <div class="booking-field booking-field-wide" data-pet-details hidden>
       <p><strong>Tell us about each pet</strong></p>
       <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
       <div data-pet-detail-rows></div>
     </div>
-    <p class="booking-rule" data-party-summary aria-live="polite">Your party includes 2 adults.</p>
-    <p class="booking-rule" data-booking-rule></p>
-    </fieldset>
-
-    <fieldset class="booking-step" data-booking-step="2">
-      <legend><span>Step 2</span> Check availability and price</legend>
-      <p class="booking-step-intro">We will check the latest calendar and calculate the current provisional price before asking for your contact details.</p>
-      <button class="button booking-check-action" type="button" data-check-availability>Check availability</button>
-      <p class="booking-status" role="status" aria-live="polite" data-booking-status>
-        Choose dates to check availability.
-      </p>
-      <section class="booking-quote" data-booking-quote hidden aria-live="polite"></section>
-    </fieldset>
-
-    <fieldset class="booking-step booking-contact" data-booking-contact data-booking-step="3" hidden>
-      <legend><span>Step 3</span> Send your request</legend>
-      <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
       <div class="booking-field">
         <label for="guest-name">Booker name</label>
-        <input id="guest-name" name="name" autocomplete="name" maxlength="120" required />
+        <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required />
       </div>
       <div class="booking-field">
         <label for="guest-email">Booker email</label>
@@ -111,60 +43,42 @@ const properties = getProperties();
       <div class="booking-submit-review" data-booking-submit-review hidden></div>
       <button class="button" type="submit" data-submit-booking>Request booking</button>
     </fieldset>
+    <p class="booking-status" data-booking-status role="status" aria-live="polite"></p>
+    <button class="button" type="button" data-review-stay hidden>Review your stay</button>
   </form>
-  <p class="booking-note" data-booking-availability-note>
-    Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.
-  </p>
 </section>
 <script>
-  type AvailabilityBlock = {
-    startsOn: string;
-    endsOn: string;
-    source: string;
-  };
-
+  import type { BookingPanelElement, BookingPanelState, PanelQuote } from '../lib/booking/booking-panel';
   const root = document.querySelector<HTMLElement>('[data-booking-calendar]');
+  const panel = root?.querySelector<BookingPanelElement>('[data-compact-booking-panel]');
   const form = root?.querySelector<HTMLFormElement>('[data-booking-form]');
+  const contact = root?.querySelector<HTMLFieldSetElement>('[data-booking-contact]');
   const status = root?.querySelector<HTMLElement>('[data-booking-status]');
-  const rule = root?.querySelector<HTMLElement>('[data-booking-rule]');
-  const contact = root?.querySelector<HTMLElement>('[data-booking-contact]');
-  const checkButton = root?.querySelector<HTMLButtonElement>('[data-check-availability]');
   const submitButton = root?.querySelector<HTMLButtonElement>('[data-submit-booking]');
   const submitReview = root?.querySelector<HTMLElement>('[data-booking-submit-review]');
-  const propertySelect = form?.querySelector<HTMLSelectElement>('[name="propertyId"]');
-  const arrival = form?.querySelector<HTMLInputElement>('[name="arrival"]');
-  const departure = form?.querySelector<HTMLInputElement>('[name="departure"]');
-  const adults = form?.querySelector<HTMLInputElement>('[name="adults"]');
-  const children = form?.querySelector<HTMLInputElement>('[name="children"]');
-  const infants = form?.querySelector<HTMLInputElement>('[name="infants"]');
-  const pets = form?.querySelector<HTMLInputElement>('[name="pets"]');
+  const reviewButton = root?.querySelector<HTMLButtonElement>('[data-review-stay]');
+  const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
+  const email = form?.querySelector<HTMLInputElement>('[name="email"]');
+  const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
   const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
-  const partySummary = root?.querySelector<HTMLElement>('[data-party-summary]');
-  const quotePanel = root?.querySelector<HTMLElement>('[data-booking-quote]');
-  const calendarMonths = root?.querySelector<HTMLElement>('[data-calendar-months]');
-  const calendarPicker = root?.querySelector<HTMLElement>('[data-calendar-picker]');
-  const calendarMessage = root?.querySelector<HTMLElement>('[data-calendar-message]');
-  const previousButton = root?.querySelector<HTMLButtonElement>('[data-calendar-previous]');
-  const nextButton = root?.querySelector<HTMLButtonElement>('[data-calendar-next]');
-  const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
-  const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
-  const bookingAvailabilityNote = root?.querySelector<HTMLElement>('[data-booking-availability-note]');
-  const progressItems = [...(root?.querySelectorAll<HTMLElement>('[data-progress-step]') ?? [])];
+  let reviewedState: BookingPanelState | null = null;
+  let submitting = false;
+  const money = (pence: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(pence / 100);
 
-  function setProgress(currentStep: number) {
-    for (const item of progressItems) {
-      const step = Number(item.dataset.progressStep);
-      item.classList.toggle('is-complete', step < currentStep);
-      item.classList.toggle('is-current', step === currentStep);
-      if (step === currentStep) item.setAttribute('aria-current', 'step');
+  function setProgress(step: number) {
+    root?.querySelectorAll<HTMLElement>('[data-progress-step]').forEach((item) => {
+      const current = Number(item.dataset.progressStep);
+      item.classList.toggle('is-current', current === step);
+      item.classList.toggle('is-complete', current < step);
+      if (current === step) item.setAttribute('aria-current', 'step');
       else item.removeAttribute('aria-current');
-    }
+    });
   }
 
   function renderPetDetails() {
     if (!petDetails || !petDetailRows) return;
-    const count = Math.max(0, Number(pets?.value || 0));
+    const count = Math.max(0, Number(panel?.bookingPanel?.getState().selection.pets || 0));
     petDetails.hidden = count === 0;
     const previous = [...petDetailRows.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value || 'dog', otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value || '', breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value || '', size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value || '', serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked || false }));
     petDetailRows.replaceChildren();
@@ -178,691 +92,149 @@ const properties = getProperties();
     }
   }
 
-  const MONTHS_SHOWN = 2;
-  const MAX_MONTH_OFFSET = 22;
-  const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  const dayFormatter = new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
+
+  function renderReview(state: BookingPanelState) {
+    if (!submitReview) return;
+    submitReview.replaceChildren();
+    const summary = document.createElement('p');
+    const { selection, quote } = state;
+    const date = (value: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+    const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
+    summary.textContent = `${stay} · ${date(selection.arrival)} – ${date(selection.departure)} · ${selection.adults} adults, ${selection.children} children, ${selection.infants} infants, ${selection.pets} pets`;
+    const total = document.createElement('strong');
+    total.textContent = quote?.pricingAvailable ? `Provisional total: ${money(Number(quote.guestTotalPence || 0))}`
+      : quote?.estimatedPricing ? `Estimated total: ${money(Number(quote.estimatedPricing.guestTotalPence || 0))}. Jenna will confirm the final price.`
+      : 'Jenna will confirm availability and the price.';
+    submitReview.append(summary, total);
+    if (quote?.lines?.length) {
+      const details = document.createElement('details');
+      const heading = document.createElement('summary'); heading.textContent = 'Price details';
+      const list = document.createElement('dl');
+      for (const line of quote.lines) {
+        const term = document.createElement('dt'); term.textContent = [line.label, line.detail].filter(Boolean).join(' — ');
+        const amount = document.createElement('dd'); amount.textContent = money(Number(line.amountPence || 0));
+        list.append(term, amount);
+      }
+      details.append(heading, list); submitReview.append(details);
+    }
+    submitReview.hidden = false;
+  }
+
+  function continueRequest(state: BookingPanelState) {
+    if (!contact || !form || !state.quote || submitting) return;
+    reviewedState = state;
+    renderPetDetails();
+    renderReview(state);
+    contact.hidden = false;
+    contact.disabled = false;
+    if (submitButton) submitButton.disabled = false;
+    if (status) status.textContent = '';
+    if (reviewButton) reviewButton.hidden = true;
+    setProgress(2);
+    form.focus({ preventScroll: true });
+    form.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  }
+  panel?.addEventListener('booking-panel-continue', (event) => continueRequest((event as CustomEvent<BookingPanelState>).detail));
+  panel?.addEventListener('booking-panel-invalidated', () => {
+    reviewedState = null;
+    if (submitButton) submitButton.disabled = true;
+    if (submitReview) submitReview.hidden = true;
+    if (contact && !contact.hidden && !submitting) {
+      if (status) status.textContent = 'Your stay has changed. Check it again and choose Book before sending your request.';
+      if (reviewButton) reviewButton.hidden = false;
+    }
+    setProgress(1);
   });
-
-  function dateToIso(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  function parseIso(value: string): Date {
-    return new Date(`${value}T00:00:00.000Z`);
-  }
-
-  function addDays(value: string, days: number): string {
-    const date = parseIso(value);
-    date.setUTCDate(date.getUTCDate() + days);
-    return date.toISOString().slice(0, 10);
-  }
-
-  function addMonths(date: Date, months: number): Date {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
-  }
-
-  function startOfMonth(value: string): Date {
-    const date = parseIso(value);
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-  }
-
-  const isoToday = dateToIso(new Date());
-  const firstAllowedMonth = startOfMonth(isoToday);
-  let monthCursor = firstAllowedMonth;
-  let visibleBlocks: AvailabilityBlock[] = [];
-  let selectionStart = '';
-  let selectionEnd = '';
-  let calendarLoading = true;
-  let calendarFailed = false;
-  let calendarRequest = 0;
-  let reviewedQuoteKey = '';
-  let reviewedQuote: Record<string, any> | null = null;
-
-  if (arrival) arrival.min = isoToday;
-  if (departure) departure.min = isoToday;
-
+  reviewButton?.addEventListener('click', () => {
+    panel?.querySelector<HTMLButtonElement>('[data-compact-booking-submit]')?.focus();
+    panel?.scrollIntoView({ block: 'center' });
+  });
   whatsappConsent?.addEventListener('change', () => {
     if (telephone) telephone.required = Boolean(whatsappConsent.checked);
   });
+  for (const input of [email, telephone]) input?.addEventListener('input', () => email?.setCustomValidity(''));
 
-  function selectedRules() {
-    const option = propertySelect?.selectedOptions[0];
-    return {
-      minimumNights: Number(option?.dataset.minimumNights || 1),
-      maximumGuests: Number(option?.dataset.maximumGuests || 1),
-    };
-  }
-
-  function isBespokeStay(): boolean {
-    return propertySelect?.value === 'bespoke-arrangement';
-  }
-
-  function applyPropertyRules() {
-    const { minimumNights } = selectedRules();
-    const bespokeStay = isBespokeStay();
-    if (departure) departure.min = arrival?.value ? addDays(arrival.value, minimumNights) : isoToday;
-    const availabilityNote = propertySelect?.selectedOptions[0]?.dataset.availabilityNote || '';
-    if (rule) {
-      rule.textContent = bespokeStay
-        ? `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Enter your preferred dates to start a conversation with Olrig Bank; current availability is not checked for this request.`
-        : `Minimum stay: ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Your party will be assessed against the published occupancy policy.${availabilityNote ? ` ${availabilityNote}` : ''}`;
-    }
-    if (calendarPicker) calendarPicker.hidden = bespokeStay;
-    if (checkButton) checkButton.textContent = bespokeStay ? 'Continue with request' : 'Check availability';
-    if (bookingAvailabilityNote) {
-      bookingAvailabilityNote.textContent = bespokeStay
-        ? 'A Bespoke stay request starts a private conversation using your preferred dates, guests and pets. It does not reserve or block those dates; Jenna will confirm the accommodation, availability and price with you.'
-        : 'Airbnb reservations and other blocked dates are shown as unavailable. After requesting a booking, you will be taken to a private booking page. Save that page address so you can return to it; email is optional.';
-    }
-    if (contact) contact.hidden = true;
-    clearReviewedQuote();
-    setProgress(1);
-  }
-
-  function updatePartySummary() {
-    if (!partySummary) return;
-    const parts = [
-      [Number(adults?.value || 0), 'adult'],
-      [Number(children?.value || 0), 'child'],
-      [Number(infants?.value || 0), 'infant'],
-    ].filter(([count]) => Number(count) > 0).map(([count, label]) => `${count} ${label}${Number(count) === 1 ? '' : label === 'child' ? 'ren' : 's'}`);
-    partySummary.textContent = `Your party includes ${parts.join(', ') || 'no occupants yet'}.`;
-  }
-
-  function rangesOverlap(start: string, end: string, block: AvailabilityBlock): boolean {
-    return block.startsOn < end && block.endsOn > start;
-  }
-
-  function isUnavailable(value: string): boolean {
-    return visibleBlocks.some((block) => block.startsOn <= value && value < block.endsOn);
-  }
-
-  function rangeIsUnavailable(start: string, end: string): boolean {
-    return visibleBlocks.some((block) => rangesOverlap(start, end, block));
-  }
-
-  function canUseAsDeparture(value: string): boolean {
-    if (!selectionStart || value <= selectionStart) return false;
-    const { minimumNights } = selectedRules();
-    if (value < addDays(selectionStart, minimumNights)) return false;
-    return !rangeIsUnavailable(selectionStart, value);
-  }
-
-  function setCalendarMessage(message: string) {
-    if (calendarMessage) calendarMessage.textContent = message;
-  }
-
-  function resetSelection() {
-    selectionStart = '';
-    selectionEnd = '';
-    if (arrival) arrival.value = '';
-    if (departure) {
-      departure.value = '';
-      departure.min = isoToday;
-    }
-    if (contact) contact.hidden = true;
-    clearReviewedQuote();
-    setProgress(1);
-    if (status) status.textContent = 'Choose dates to check availability.';
-  }
-
-  function createCalendarDay(value: string, dayNumber: number): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'calendar-day';
-    button.textContent = String(dayNumber);
-    button.dataset.date = value;
-
-    const date = parseIso(value);
-    const past = value < isoToday;
-    const unavailable = isUnavailable(value);
-    const departureOnly = unavailable && canUseAsDeparture(value);
-    const selectedStart = value === selectionStart;
-    const selectedEnd = value === selectionEnd;
-    const selectedRange = Boolean(selectionStart && selectionEnd && selectionStart <= value && value < selectionEnd);
-
-    if (past) button.classList.add('calendar-day-past');
-    if (unavailable) button.classList.add('calendar-day-unavailable');
-    if (departureOnly) button.classList.add('calendar-day-departure-only');
-    if (selectedRange) button.classList.add('calendar-day-in-range');
-    if (selectedStart) button.classList.add('calendar-day-start');
-    if (selectedEnd) button.classList.add('calendar-day-end');
-    if (value === isoToday) button.classList.add('calendar-day-today');
-
-    const availabilityLabel = past
-      ? 'past date'
-      : unavailable
-        ? departureOnly
-          ? 'unavailable for arrival, available as departure'
-          : 'unavailable'
-        : 'available';
-    button.setAttribute('aria-label', `${dayFormatter.format(date)}, ${availabilityLabel}`);
-    button.title = `${dayFormatter.format(date)} — ${availabilityLabel}`;
-    button.disabled = calendarLoading || calendarFailed || past || (unavailable && !departureOnly);
-
-    button.addEventListener('click', () => selectCalendarDate(value));
-    return button;
-  }
-
-  function renderMonth(month: Date): HTMLElement {
-    const panel = document.createElement('section');
-    panel.className = 'booking-calendar-month';
-
-    const heading = document.createElement('h2');
-    heading.textContent = monthFormatter.format(month);
-    panel.append(heading);
-
-    const weekdays = document.createElement('div');
-    weekdays.className = 'calendar-weekdays';
-    for (const label of WEEKDAY_LABELS) {
-      const item = document.createElement('span');
-      item.textContent = label;
-      weekdays.append(item);
-    }
-    panel.append(weekdays);
-
-    const days = document.createElement('div');
-    days.className = 'calendar-days';
-    const firstDayOffset = (month.getUTCDay() + 6) % 7;
-    for (let index = 0; index < firstDayOffset; index += 1) {
-      const spacer = document.createElement('span');
-      spacer.className = 'calendar-day-spacer';
-      spacer.setAttribute('aria-hidden', 'true');
-      days.append(spacer);
-    }
-
-    const daysInMonth = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const value = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day)).toISOString().slice(0, 10);
-      days.append(createCalendarDay(value, day));
-    }
-    panel.append(days);
-    return panel;
-  }
-
-  function renderCalendar() {
-    if (!calendarMonths) return;
-    calendarMonths.replaceChildren();
-    for (let index = 0; index < MONTHS_SHOWN; index += 1) {
-      calendarMonths.append(renderMonth(addMonths(monthCursor, index)));
-    }
-    const currentOffset = (monthCursor.getUTCFullYear() - firstAllowedMonth.getUTCFullYear()) * 12
-      + monthCursor.getUTCMonth() - firstAllowedMonth.getUTCMonth();
-    if (previousButton) previousButton.disabled = calendarLoading || currentOffset <= 0;
-    if (nextButton) nextButton.disabled = calendarLoading || currentOffset >= MAX_MONTH_OFFSET;
-  }
-
-  async function loadVisibleCalendar() {
-    if (!propertySelect) return;
-    const requestId = ++calendarRequest;
-    if (isBespokeStay()) {
-      visibleBlocks = [];
-      calendarLoading = false;
-      calendarFailed = false;
-      return;
-    }
-    calendarLoading = true;
-    calendarFailed = false;
-    setCalendarMessage('Loading current availability…');
-    renderCalendar();
-
-    const visibleFrom = monthCursor.toISOString().slice(0, 10);
-    const from = selectionStart && selectionStart < visibleFrom ? selectionStart : visibleFrom;
-    const to = addMonths(monthCursor, MONTHS_SHOWN).toISOString().slice(0, 10);
-    const params = new URLSearchParams({ property: propertySelect.value, from, to });
-
-    try {
-      const response = await fetch(`/api/availability/?${params}`);
-      const body = await readJson(response);
-      if (requestId !== calendarRequest) return;
-      if (!response.ok) throw new Error(body.error || 'Availability could not be loaded.');
-      visibleBlocks = Array.isArray(body.blocks) ? body.blocks : [];
-      calendarLoading = false;
-      setCalendarMessage(body.refreshWarning || 'Unavailable dates include current reservations and booking holds.');
-    } catch (error) {
-      if (requestId !== calendarRequest) return;
-      visibleBlocks = [];
-      calendarLoading = false;
-      calendarFailed = true;
-      setCalendarMessage(error instanceof Error
-        ? `${error.message} You can still enter dates below and use Check availability.`
-        : 'Availability could not be loaded. You can still enter dates below and use Check availability.');
-    }
-    renderCalendar();
-  }
-
-  function selectCalendarDate(value: string) {
-    if (calendarLoading || calendarFailed || value < isoToday) return;
-    const blocked = isUnavailable(value);
-
-    if (!selectionStart || selectionEnd || value <= selectionStart) {
-      if (blocked) return;
-      selectionStart = value;
-      selectionEnd = '';
-      if (arrival) arrival.value = value;
-      if (departure) {
-        departure.value = '';
-        departure.min = addDays(value, selectedRules().minimumNights);
-      }
-      if (contact) contact.hidden = true;
-      clearReviewedQuote();
-      setProgress(1);
-      if (status) status.textContent = 'Choose a departure date.';
-      setCalendarMessage(`Arrival selected: ${dayFormatter.format(parseIso(value))}. Now choose the departure date.`);
-      renderCalendar();
-      return;
-    }
-
-    const earliestDeparture = addDays(selectionStart, selectedRules().minimumNights);
-    if (value < earliestDeparture) {
-      const minimumNights = selectedRules().minimumNights;
-      setCalendarMessage(`The minimum stay is ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'}. Choose ${dayFormatter.format(parseIso(earliestDeparture))} or later.`);
-      return;
-    }
-    if (rangeIsUnavailable(selectionStart, value)) {
-      setCalendarMessage('That stay crosses an unavailable date. Choose a different departure date or start again.');
-      return;
-    }
-
-    selectionEnd = value;
-    if (departure) departure.value = value;
-    if (contact) contact.hidden = true;
-    clearReviewedQuote();
-    setProgress(1);
-    if (status) status.textContent = 'Dates selected. Use Check availability to confirm them.';
-    setCalendarMessage(`${dayFormatter.format(parseIso(selectionStart))} to ${dayFormatter.format(parseIso(value))} selected.`);
-    renderCalendar();
-  }
-
-  function monthIsVisible(value: string): boolean {
-    const date = parseIso(value);
-    const end = addMonths(monthCursor, MONTHS_SHOWN);
-    return date >= monthCursor && date < end;
-  }
-
-  async function syncSelectionFromInputs(changed: 'arrival' | 'departure') {
-    const start = arrival?.value || '';
-    const end = departure?.value || '';
-    selectionStart = start;
-    selectionEnd = start && end > start ? end : '';
-    applyPropertyRules();
-
-    const focusDate = changed === 'departure' && end ? end : start;
-    if (!isBespokeStay() && focusDate && !monthIsVisible(focusDate)) {
-      monthCursor = startOfMonth(focusDate);
-      if (monthCursor < firstAllowedMonth) monthCursor = firstAllowedMonth;
-      await loadVisibleCalendar();
-    } else if (!isBespokeStay()) {
-      renderCalendar();
-    }
-    if (contact) contact.hidden = true;
-    clearReviewedQuote();
-    setProgress(1);
-    if (status) status.textContent = start && end
-      ? isBespokeStay()
-        ? 'Preferred dates entered. Continue to add your contact details.'
-        : 'Dates entered. Use Check availability to confirm them.'
-      : isBespokeStay()
-        ? 'Enter your preferred arrival and departure dates.'
-        : 'Choose dates to check availability.';
-  }
-
-  propertySelect?.addEventListener('change', () => {
-    resetSelection();
-    applyPropertyRules();
-    monthCursor = firstAllowedMonth;
-    void loadVisibleCalendar();
-  });
-  arrival?.addEventListener('change', () => void syncSelectionFromInputs('arrival'));
-  departure?.addEventListener('change', () => void syncSelectionFromInputs('departure'));
-  for (const input of form?.querySelectorAll<HTMLInputElement>('[name="adults"], [name="children"], [name="infants"], [name="pets"]') ?? []) {
-    input.addEventListener('input', () => {
-      if (input.name === 'pets') renderPetDetails();
-      updatePartySummary();
-      if (contact) contact.hidden = true;
-      clearReviewedQuote();
-      setProgress(1);
-      if (status) status.textContent = 'Booking details changed. Check availability and price again.';
-    });
-  }
-  previousButton?.addEventListener('click', () => {
-    const previous = addMonths(monthCursor, -MONTHS_SHOWN);
-    monthCursor = previous < firstAllowedMonth ? firstAllowedMonth : previous;
-    void loadVisibleCalendar();
-  });
-  nextButton?.addEventListener('click', () => {
-    monthCursor = addMonths(monthCursor, MONTHS_SHOWN);
-    void loadVisibleCalendar();
-  });
-
-  function isValidTransferredDate(value: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    try {
-      return parseIso(value).toISOString().slice(0, 10) === value;
-    } catch {
-      return false;
-    }
-  }
-
-  function hydrateTransferredState(): boolean {
-    const params = new URLSearchParams(window.location.search);
-    const transferred = params.has('propertyId');
-    const requestedProperty = params.get('propertyId') || params.get('property');
-    const knownProperty = propertySelect && requestedProperty
-      ? Array.from(propertySelect.options).some((option) => option.value === requestedProperty)
-      : false;
-    if (propertySelect && requestedProperty && knownProperty) propertySelect.value = requestedProperty;
-
-    if (!transferred) return false;
-
-    const countInputs = { adults, children, infants, pets };
-    let validCounts = true;
-    for (const [name, input] of Object.entries(countInputs)) {
-      const raw = params.get(name);
-      const value = raw === null ? NaN : Number(raw);
-      const minimum = name === 'adults' ? 1 : 0;
-      const valid = Number.isInteger(value) && value >= minimum && value <= 99;
-      if (input && valid) input.value = String(value);
-      else validCounts = false;
-    }
-
-    const requestedArrival = params.get('arrival') || '';
-    const requestedDeparture = params.get('departure') || '';
-    const validDates = isValidTransferredDate(requestedArrival)
-      && isValidTransferredDate(requestedDeparture)
-      && requestedArrival >= isoToday
-      && requestedDeparture >= addDays(requestedArrival, selectedRules().minimumNights)
-      && requestedDeparture <= addDays(requestedArrival, 365);
-    if (arrival && departure && validDates) {
-      arrival.value = requestedArrival;
-      departure.value = requestedDeparture;
-      selectionStart = requestedArrival;
-      selectionEnd = requestedDeparture;
-      monthCursor = startOfMonth(requestedArrival);
-      if (monthCursor < firstAllowedMonth) monthCursor = firstAllowedMonth;
-    }
-
-    renderPetDetails();
-    return Boolean(knownProperty && validDates && validCounts);
-  }
-
-  const hasCompleteTransferredStay = hydrateTransferredState();
-  applyPropertyRules();
-  updatePartySummary();
-  void initialiseBookingForm();
-
-  async function initialiseBookingForm(): Promise<void> {
-    await loadVisibleCalendar();
-    if (!hasCompleteTransferredStay) return;
-    if (status) status.textContent = 'Your stay details were transferred. Rechecking current availability and price…';
-    await checkAvailability();
-  }
-
-  async function readJson(response: Response): Promise<Record<string, any>> {
-    try {
-      return await response.json();
-    } catch {
-      return {};
-    }
-  }
-
-  const quoteMoney = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
-
-  function escapeHtml(value: unknown): string {
-    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-    })[character] || character);
-  }
-
-  function money(pence: unknown): string {
-    return quoteMoney.format((Number(pence) || 0) / 100);
-  }
-
-  function pricingKey(data: FormData): string {
-    return [
-      String(data.get('propertyId') || ''),
-      String(data.get('arrival') || ''),
-      String(data.get('departure') || ''),
-      String(data.get('adults') || ''), String(data.get('children') || '0'), String(data.get('infants') || '0'),
-      String(data.get('pets') || '0'),
-    ].join('|');
-  }
-
-  function clearReviewedQuote(): void {
-    reviewedQuoteKey = '';
-    reviewedQuote = null;
-    if (quotePanel) {
-      quotePanel.hidden = true;
-      quotePanel.innerHTML = '';
-    }
-    if (submitReview) {
-      submitReview.hidden = true;
-      submitReview.innerHTML = '';
-    }
-  }
-
-  function quoteRows(body: Record<string, any>): string {
-    return Array.isArray(body.lines)
-      ? body.lines.filter((item) => item.category !== 'restriction').map((item) =>
-          `<tr><td><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></td><td>${money(item.amountPence)}</td></tr>`,
-        ).join('')
-      : '';
-  }
-
-  function renderSubmitReview(body: Record<string, any>): void {
-    if (!submitReview) return;
-    submitReview.hidden = false;
-    submitReview.innerHTML = body.pricingAvailable
-      ? `<span>Provisional cost to be recorded</span><strong>${money(body.guestTotalPence)}</strong><small>Requesting creates your private booking page. Save its address so you can return without relying on email.</small>`
-      : `<span>${body.administratorPriced ? 'Price to be agreed' : 'Price to be confirmed'}</span><strong>Booking request</strong><small>Requesting creates your private booking page. Jenna will add the confirmed offer there.</small>`;
-  }
-
-  function renderQuote(body: Record<string, any>): void {
-    if (!quotePanel) return;
-    quotePanel.hidden = false;
-    if (!body.pricingAvailable) {
-      const estimate = body.estimatedPricing && Number.isFinite(Number(body.estimatedPricing.guestTotalPence))
-        ? `<p><strong>Estimated published-price total: ${money(body.estimatedPricing.guestTotalPence)}</strong></p><p>This is an indication, not a confirmed quote. Jenna may adjust it when reviewing the arrangement.</p>`
-        : '';
-      quotePanel.innerHTML = `<div class="booking-quote-heading"><div><p class="eyebrow">${body.administratorPriced ? 'Bespoke pricing' : 'Pricing'}</p><h2>${body.administratorPriced ? 'Price to be agreed' : 'Price confirmation required'}</h2></div></div>${estimate}<p>${escapeHtml(body.message || 'Jenna will confirm the price for this request.')}</p>`;
-      renderSubmitReview(body);
-      return;
-    }
-    const standardGuests = Number(body.occupancyAssessment?.standardThresholds?.guests);
-    const occupancyGuidance = Number.isInteger(standardGuests)
-      ? `<p>Standard arrangement: up to ${standardGuests} guest${standardGuests === 1 ? '' : 's'} (adults and children). Your submitted party remains subject to review.</p>`
-      : '';
-    quotePanel.innerHTML = `
-      <div class="booking-quote-heading"><div><p class="eyebrow">Published direct price</p><h2>Provisional cost</h2></div><strong>${money(body.guestTotalPence)}</strong></div>
-      ${occupancyGuidance}
-      <table><tbody>${quoteRows(body)}<tr class="booking-quote-total"><th>Total for ${Number(body.nights) || 0} nights</th><th>${money(body.guestTotalPence)}</th></tr></tbody></table>
-      <p>This provisional amount will be recorded on your private booking page. The server recalculates it when you submit; the booking is not confirmed until an offer is published and you accept it.</p>`;
-    renderSubmitReview(body);
-  }
-
-
-  async function checkAvailability() {
-    if (!form || !status || !contact) return false;
-    const data = new FormData(form);
-    const propertyId = String(data.get('propertyId') || '');
-    const start = String(data.get('arrival') || '');
-    const end = String(data.get('departure') || '');
-    const { minimumNights } = selectedRules();
-    const earliestDeparture = start ? addDays(start, minimumNights) : '';
-
-    if (!start || !end || end < earliestDeparture) {
-      status.textContent = `Choose a departure date at least ${minimumNights} ${minimumNights === 1 ? 'night' : 'nights'} after arrival.`;
-      contact.hidden = true;
-      clearReviewedQuote();
-      setProgress(1);
-      return false;
-    }
-
-    const bespokeStay = propertyId === 'bespoke-arrangement';
-    status.textContent = bespokeStay ? 'Preparing your Bespoke stay request…' : 'Checking the latest calendar…';
-    setProgress(2);
-    window.olrigAnalytics?.track('availability_started', { property: propertyId });
-    contact.hidden = true;
-    clearReviewedQuote();
-    if (checkButton) checkButton.disabled = true;
-
-    try {
-      let availabilityBody: Record<string, any> = {};
-      if (!bespokeStay) {
-        const params = new URLSearchParams({
-          property: String(data.get('propertyId')),
-          from: start,
-          to: end,
-        });
-        const response = await fetch(`/api/availability/?${params}`);
-        availabilityBody = await readJson(response);
-        if (!response.ok) {
-          status.textContent = availabilityBody.error || 'Availability could not be checked.';
-          window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
-          return false;
-        }
-        if (Array.isArray(availabilityBody.blocks) && availabilityBody.blocks.length) {
-          status.textContent = 'Those dates are unavailable. Please choose different dates.';
-          window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'unavailable' });
-          clearReviewedQuote();
-          setProgress(1);
-          return false;
-        }
-      }
-      const quoteResponse = await fetch('/api/quote/', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          propertyId: data.get('propertyId'),
-          arrival: start,
-          departure: end,
-          adults: Number(data.get('adults')),
-          children: Number(data.get('children') || 0),
-          infants: Number(data.get('infants') || 0),
-          pets: Number(data.get('pets') || 0),
-        }),
-      });
-      const quoteBody = await readJson(quoteResponse);
-      if (!quoteResponse.ok) {
-        status.textContent = quoteBody.error || 'A price could not be calculated for this stay.';
-        window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'quote_error' });
-        clearReviewedQuote();
-        return false;
-      }
-      reviewedQuoteKey = pricingKey(data);
-      reviewedQuote = quoteBody;
-      renderQuote(quoteBody);
-      const administratorPriced = quoteBody.administratorPriced === true;
-      const nextStep = administratorPriced
-        ? 'Complete your details to submit your request.'
-        : 'Review the price and complete your details.';
-      status.textContent = bespokeStay
-        ? 'Your preferred dates have been recorded without an availability check. Complete your details to start the conversation.'
-        : availabilityBody.refreshWarning
-          ? `The dates appear available. ${availabilityBody.refreshWarning} ${nextStep}`
-          : `The dates currently appear available. ${nextStep}`;
-      contact.hidden = false;
-      setProgress(3);
-      window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'available' });
-      return true;
-    } catch {
-      status.textContent = 'Availability could not be checked. Please try again.';
-      window.olrigAnalytics?.track('availability_result', { property: propertyId, result: 'error' });
-      return false;
-    } finally {
-      if (checkButton) checkButton.disabled = false;
-    }
-  }
-
-  checkButton?.addEventListener('click', async () => {
-    const available = await checkAvailability();
-    if (available) quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!form || !status || !contact) return;
-
-    const currentData = new FormData(form);
-    const currentKey = pricingKey(currentData);
-    if (!reviewedQuote || reviewedQuoteKey !== currentKey) {
-      const available = await checkAvailability();
-      if (available) {
-        status.textContent = 'Please review the provisional cost, complete your details, then press Request booking again.';
-        quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    if (!form || !status || !contact || submitting) return;
+    const currentState = panel?.bookingPanel?.getState();
+    if (!reviewedState?.quote || !currentState?.quote || JSON.stringify(reviewedState) !== JSON.stringify(currentState)) {
+      status.textContent = 'Check your stay and choose Book before sending your request.';
+      if (reviewButton) reviewButton.hidden = false;
       return;
     }
+    if (email && !email.value.trim() && !telephone?.value.trim()) email.setCustomValidity('Provide an email address or a telephone number.');
     if (!form.reportValidity()) return;
-
-    const raw = Object.fromEntries(currentData.entries());
+    const data = new FormData(form);
+    const state = reviewedState;
+    const quote = state.quote!;
     const payload = {
-      ...raw,
-      adults: Number(raw.adults),
-      children: Number(raw.children || 0),
-      infants: Number(raw.infants || 0),
-      pets: Number(raw.pets || 0),
-      petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value, otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value, breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value, size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value, serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked })),
-      reviewedPricing: reviewedQuote?.pricingAvailable
-        ? {
-            pricingAvailable: true,
-            planId: reviewedQuote.plan?.id,
-            planVersion: reviewedQuote.plan?.version,
-            guestTotalPence: reviewedQuote.guestTotalPence,
-          }
-        : { pricingAvailable: false },
+      ...Object.fromEntries(data.entries()),
+      ...state.selection,
+      petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({
+        species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value,
+        otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value,
+        breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value,
+        size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value,
+        serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked,
+      })),
+      reviewedPricing: quote.pricingAvailable ? {
+        pricingAvailable: true, planId: quote.plan?.id, planVersion: quote.plan?.version, guestTotalPence: quote.guestTotalPence,
+      } : { pricingAvailable: false },
     };
+    submitting = true;
+    contact.disabled = true;
+    panel?.setAttribute('inert', '');
     status.textContent = 'Rechecking the price and creating your private booking page…';
-    if (submitButton) submitButton.disabled = true;
-    if (checkButton) checkButton.disabled = true;
-
     try {
       const response = await fetch('/api/provisional-bookings/', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
       });
-      const body = await readJson(response);
+      const body = await response.json();
       if (!response.ok) {
         if (response.status === 409 && body.quote && typeof body.quote === 'object') {
-          reviewedQuote = body.quote;
-          reviewedQuoteKey = currentKey;
-          renderQuote(body.quote);
-          contact.hidden = false;
-          setProgress(3);
-          status.textContent = body.error || 'The provisional cost changed. Review the updated calculation and submit again.';
-          quotePanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          panel?.bookingPanel?.setQuote(body.quote as PanelQuote);
+          reviewedState = panel?.bookingPanel?.getState() || null;
+          if (reviewedState) renderReview(reviewedState);
+          setProgress(2);
+          status.textContent = body.error || 'The provisional price changed. Review the updated total and submit again.';
+          submitReview?.scrollIntoView({ block: 'center' });
+          submitReview?.setAttribute('tabindex', '-1'); submitReview?.focus({ preventScroll: true });
         } else {
-          status.textContent = body.error || 'The request could not be saved.';
-          if (response.status === 409 || response.status === 422) clearReviewedQuote();
+          if (response.status === 409 || response.status === 422) {
+            panel?.bookingPanel?.invalidate();
+            if (reviewButton) reviewButton.hidden = false;
+          }
+          status.textContent = body.error || 'The request could not be saved. Please try again.';
         }
         return;
       }
       const managePath = typeof body.managePath === 'string' ? body.managePath : '';
       if (!/^\/booking\/manage\/[A-Za-z0-9_-]{43,128}\/$/.test(managePath)) {
-        status.textContent = 'The booking was saved, but its private page could not be opened. Please contact Olrig Bank and quote the reference shown by the server.';
+        status.textContent = 'The request was saved, but its private page could not be opened. Please contact Olrig Bank before making another request.';
+        reviewedState = null;
         return;
       }
-      window.olrigAnalytics?.track('booking_requested', {
-        property: String(raw.propertyId || ''),
-        pricing_available: reviewedQuote?.pricingAvailable === true,
-      });
+      window.olrigAnalytics?.track('booking_requested', { property: state.selection.propertyId, pricing_available: quote.pricingAvailable === true });
       window.location.assign(managePath);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {
-      if (submitButton) submitButton.disabled = false;
-      if (checkButton) checkButton.disabled = false;
+      submitting = false;
+      contact.disabled = false;
+      panel?.removeAttribute('inert');
+      if (submitButton) submitButton.disabled = !reviewedState;
     }
   });
-  renderPetDetails();
 </script>
+<style>
+  .booking-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .booking-field[hidden] { display: none; }
+  .booking-field :global(label.booking-consent) { display: flex; align-items: flex-start; gap: 0.75rem; font-weight: 400; }
+  .booking-field :global(.booking-consent input[type='checkbox']) { flex: 0 0 1.4rem; width: 1.4rem; min-height: 1.4rem; margin-top: 0.2rem; padding: 0; }
+  .booking-submit-review { display: block; }
+  .booking-submit-review :global(p) { margin-top: 0; }
+  #booking-request-details { scroll-margin-top: 1rem; }
+  #booking-request-details:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+  [data-review-stay][hidden] { display: none; }
+</style>

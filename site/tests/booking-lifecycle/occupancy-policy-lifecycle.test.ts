@@ -47,14 +47,14 @@ test('occupancy administration remains authenticated, same-origin and closed-rul
 
 test('public booking captures categories and snapshots policy assessment without a capacity clamp',async()=>{
   const [form,quote,booking,migration]=await Promise.all([
-    readFile(new URL('../../src/components/BookingCalendar.astro',import.meta.url),'utf8'),
+    readFile(new URL('../../src/components/CompactBookingPanel.astro',import.meta.url),'utf8'),
     readFile(new URL('../../src/pages/api/quote.ts',import.meta.url),'utf8'),
     readFile(new URL('../../src/pages/api/provisional-bookings.ts',import.meta.url),'utf8'),
     readFile(new URL('../../db/048_booking_occupancy_assessment.sql',import.meta.url),'utf8'),
   ]);
   for(const name of ['adults','children','infants'])assert.match(form,new RegExp(`name="${name}"`));
   assert.doesNotMatch(form,/name="guests"/);assert.doesNotMatch(form,/guests\.max/);
-  assert.match(form,/Age 13 or over on arrival/);assert.match(form,/Ages 2–12 on arrival/);assert.match(form,/Under 2 on arrival/);
+  assert.match(form,/Ages 13\+/);assert.match(form,/Ages 2–12/);assert.match(form,/Under 2/);
   assert.match(quote,/assessPublishedOccupancy/);assert.match(booking,/occupancyAssessment/);
   assert.match(migration,/occupancy_policy_version/);assert.match(migration,/occupancy_assessment_input/);assert.match(migration,/occupancy_assessment_outcome/);assert.match(migration,/occupancy_assessment_reasons/);
 });
