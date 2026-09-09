@@ -2,12 +2,19 @@
 
 ## Status
 
-Implemented on `agent/e11-f03-booker-accounts`; prepared for a PR into
-`development` and owner acceptance on Render Soccotash. Render deployment and
-real email/SMS delivery acceptance remain outstanding. See the
-[Render test checklist](../render-test-deployment.md).
-Part of [E11](epics/e11-f00-redesign-the-booking-page.md). The agreed rationale is
-[OTP login approach](../source-material/AI%20Chats/OTP%20login%20approach.md).
+Completed and closed with owner approval on 9 September 2026, alongside E11.
+Implemented on `agent/e11-f03-booker-accounts` and merged into `development`
+through [PR #149](https://github.com/OlrigBank/soccotash/pull/149), merge commit
+`c12890f`. All four PR checks and all three post-merge workflows passed.
+
+Part of [completed E11](../epics/completed/e11-f00-redesign-the-booking-page.md).
+The agreed rationale is
+[OTP login approach](../../source-material/AI%20Chats/OTP%20login%20approach.md).
+The owner planned Render Soccotash deployment after successful checks. Hosted
+deployment and real email/SMS delivery have not been independently verified in
+this closure; retain the [Render test checklist](../../render-test-deployment.md)
+as the operational handoff. Owner acceptance closes the feature with the
+verification limitations recorded below.
 
 ## Behaviour
 

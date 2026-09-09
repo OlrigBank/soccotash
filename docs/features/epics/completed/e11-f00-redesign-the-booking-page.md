@@ -2,21 +2,21 @@
 
 ## Status
 
-In progress. E11-F01 is accepted and closed as of 8 September 2026.
-The owner has pushed the implementation on `agent/e11-redesign-booking-page`
-and confirmed this feature/step is complete. E11-F02 is also accepted and closed as of
-8 September 2026 on `agent/e11-f02-booker-details-review`. E11-F03 is implemented and awaiting acceptance; see
-[Verify bookers and introduce private accounts](../e11-f03-verify-bookers-and-private-accounts.md).
-The epic remains open for further features.
+Completed and closed with owner approval on 9 September 2026. E11-F01 and
+E11-F02 were accepted and closed on 8 September; E11-F03 is accepted and closed
+by the owner's instruction to close this epic and its associated features.
+F01 and F02 are recorded below; F03 has a separate
+[completed feature record](../../completed/e11-f03-verify-bookers-and-private-accounts.md).
+No further features remain in E11.
 
 ## Epic summary
 
-Follow [E10 — Introduce one booking widget](e10-f00-introduce-one-booking-widget.md)
+Follow [E10 — Introduce one booking widget](../e10-f00-introduce-one-booking-widget.md)
 by bringing the shared booking panel into `/book/`. Simplify the request journey
 and remove duplicate stay selection, availability checking and pricing controls.
-The first feature is accepted and closed. F02 builds on it with booker-detail
-collection and an explicit review step. F03 adds contact verification and account access;
-subsequent features remain undefined.
+F01 delivered the shared panel and calendar. F02 added booker-detail collection
+and an explicit review step. F03 added contact verification and private account
+access. All three features are accepted and closed.
 
 ## Starting point
 
@@ -147,9 +147,9 @@ form controls.
 
 ### E11-F03 — Verify bookers and introduce private accounts
 
-**Status: implemented, awaiting owner acceptance.**
+**Status: accepted and closed — 9 September 2026.**
 
-See the [feature record](../e11-f03-verify-bookers-and-private-accounts.md) for the
+See the [feature record](../../completed/e11-f03-verify-bookers-and-private-accounts.md) for the
 agreed flow, migration, configuration, security boundaries and verification.
 Require email or SMS verification before review; link successful requests to
 accounts with opaque server-side sessions; provide header return access and
@@ -157,7 +157,8 @@ passwordless sign-in. Replace bearer-link authorisation throughout the private
 booking workflow while retaining its existing page design. Existing bookings
 become claimable through email-first contact verification.
 
-Features after F03 remain undefined. Candidates from the initial review include
+No further features are planned in this closed epic. Uncommitted ideas from the
+initial review include
 broader contact-form styling, copy refinement, footer contrast and further
 page-layout changes. F01 corrects display/accessibility issues required by the
 replacement and moved controls, without expanding into a general redesign.
@@ -282,7 +283,7 @@ creation was verified for the non-notifying Bespoke path. Standard price-change
 and conflict scenarios use intercepted responses. No production changes,
 customer contact, private-page redesign or administration acceptance run was
 performed. These limitations remain part of the accepted F01 record. F01 is
-closed; only the next feature definition is pending.
+closed. The subsequent F02 and F03 records complete this epic.
 
 ### E11-F02
 
@@ -363,13 +364,26 @@ It passed locally through both the CI regression configuration (with an explicit
 database URL) and the standalone local command. Product behaviour and F02
 acceptance are unchanged.
 
-### Next planning session
+### E11-F03 and epic closure
 
-Use the accepted F01 and F02 records above as the baseline for the next
-planning session. Agree later scope and acceptance criteria before implementation.
-F03 is defined in its feature record and is awaiting acceptance. The contact-form styling,
-copy, footer contrast and page-layout ideas above are candidates, not committed
-features. No further F01 or F02 implementation work is outstanding.
+Accepted and closed with owner approval on 9 September 2026. Implementation
+commit `a3fbb02` and documentation commit `4b2c90a` were merged through
+[PR #149](https://github.com/OlrigBank/soccotash/pull/149) into `development` as
+`c12890f`. All four PR checks passed. All three post-merge workflows also passed:
+booking access lifecycle, holiday-planner browser regression and public-experience
+browser regression. Detailed local browser, integration and Lighthouse evidence
+is retained in the F03 feature record.
+
+The owner planned Render Soccotash deployment after successful checks. Actual
+hosted deployment and real email/SMS delivery were not independently verified
+as part of this closure; the
+[Render test checklist](../../../render-test-deployment.md) remains the operational
+handoff. Closure records owner acceptance and does not claim those tests ran.
+
+No implementation work remains in F01, F02 or F03. Contact-form styling, copy,
+footer contrast and broader page-layout ideas are outside the accepted scope;
+any follow-up should be defined separately. Existing verification limitations
+remain recorded above and in F03.
 
 ## Verification plan
 
