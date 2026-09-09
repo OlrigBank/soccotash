@@ -3,7 +3,7 @@
 ## Status
 
 Implemented on `agent/e13-f02-reservation-entry` on 9 September 2026.
-Awaiting owner acceptance. Part of [E13](epics/e13-f00-redesign-private-booking-pages.md).
+Accepted by the owner’s instruction to proceed on 9 September 2026. Part of [E13](epics/e13-f00-redesign-private-booking-pages.md).
 F01 was accepted by the owner's instruction to continue. F03 remains planned.
 
 ## Delivered behaviour

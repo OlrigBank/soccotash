@@ -41,7 +41,7 @@ import {
 } from '../../../../lib/email/sender';
 import { copyPublishedExampleIntoBookingPlan, createBookingLinkedPlan, deleteGuestPlan, duplicateBookingPlanForGuest, getBookingLinkedPlanByBookingReference, listBookingPlanFamily, listPublishedExamplePlans, replaceGuestPlanCredential, resetGuestPlanPassword, revokeGuestPlanCredential } from '../../../../lib/planner/repository.ts';
 import { PlannerError } from '../../../../lib/planner/types.ts';
-import { getOccupancyDetails, occupancyDetailsFromForm, replaceOccupancyDetails } from '../../../../lib/booking/occupancy-details';
+import { getOccupancyDetails, petDetailsFromForm, replacePetDetails } from '../../../../lib/booking/occupancy-details';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store, private');
@@ -70,6 +70,7 @@ let responseResult: CustomerOfferResponseResult | null = null;
 let occupancyDetails = await getOccupancyDetails(offer.bookingReference);
 let occupancyNotice = '';
 let occupancyError = '';
+let submittedPetForm: FormData | undefined;
 let holidayPlan = await getBookingLinkedPlanByBookingReference(offer.bookingReference);
 let planFamily = holidayPlan ? await listBookingPlanFamily(offer.bookingReference) : [];
 let newGuestPlanLink = '';
@@ -81,12 +82,13 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
-  if (action === 'save-occupancy-details') {
+  if (action === 'save-pet-details' || action === 'save-occupancy-details') {
     try {
-      occupancyDetails = await replaceOccupancyDetails(offer.bookingReference, occupancyDetailsFromForm(form, offer), 'customer');
-      occupancyNotice = 'Occupant and pet details were saved.';
+      occupancyDetails = await replacePetDetails(offer.bookingReference, petDetailsFromForm(form, offer.pets));
+      occupancyNotice = 'Pet details were saved.';
     } catch (error) {
-      occupancyError = error instanceof Error && error.message === 'OCCUPANT_COUNT_MISMATCH' ? 'The named occupants exceed the booking party counts.' : 'Check the pet species and describe any “other” species.';
+      submittedPetForm = form;
+      occupancyError = 'Check the pet species and describe any “other” species. Leave Other species blank for a dog or cat.';
     }
   } else if (action === 'reset-guest-plan-password') {
     try{await resetGuestPlanPassword({bookingReference:offer.bookingReference,planId:String(form.get('planId')||''),actor:{type:'booker',bookingId:access.bookingId}});planFamily=await listBookingPlanFamily(offer.bookingReference)}
@@ -448,7 +450,7 @@ const stayDate = (value: string) => new Intl.DateTimeFormat('en-GB', {
     payments={payments}
     view={workspace}
   />}
-  {workspace === 'reservation' && <BookingOccupancyDetails details={occupancyDetails} counts={offer} notice={occupancyNotice} error={occupancyError} />}
+  {workspace === 'reservation' && <BookingOccupancyDetails details={occupancyDetails} counts={offer} notice={occupancyNotice} error={occupancyError} submittedPetForm={submittedPetForm} />}
   {workspace === 'holiday-planner' && <section id="holiday-planner" class="booking-panel booking-planner-card" aria-labelledby="holiday-planner-heading">
     <p class="eyebrow">Holiday Planner</p>
     <h2 id="holiday-planner-heading">Planning dashboard</h2>

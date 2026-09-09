@@ -20,9 +20,13 @@ export function occupancyDetailsFromForm(form: FormData, counts: { adults: numbe
       if (preferredName) occupants.push({ preferredName, category });
     }
   }
+  return { occupants, pets: petDetailsFromForm(form, counts.pets) };
+}
+
+export function petDetailsFromForm(form: FormData, count: number): OccupancyDetailsInput['pets'] {
   const pets: OccupancyDetailsInput['pets'] = [];
-  for (let index = 0; index < counts.pets; index += 1) pets.push({ species: form.get(`pet-species-${index}`), otherSpecies: form.get(`pet-other-${index}`), breed: form.get(`pet-breed-${index}`), size: form.get(`pet-size-${index}`), serviceAnimal: form.get(`pet-service-${index}`) });
-  return { occupants, pets };
+  for (let index = 0; index < count; index += 1) pets.push({ species: form.get(`pet-species-${index}`), otherSpecies: form.get(`pet-other-${index}`), breed: form.get(`pet-breed-${index}`), size: form.get(`pet-size-${index}`), serviceAnimal: form.get(`pet-service-${index}`) });
+  return pets;
 }
 
 const clean = (value: unknown, maximum: number) => String(value ?? '').trim().slice(0, maximum);
@@ -57,6 +61,15 @@ export async function getOccupancyDetails(bookingReference: string, database: pg
 }
 
 export async function replaceOccupancyDetails(bookingReference: string, input: OccupancyDetailsInput, actor: 'customer' | 'administrator', database: pg.Pool = getPool()): Promise<OccupancyDetails> {
+  return saveDetails(bookingReference, input, actor, true, database);
+}
+
+// Customer pet edits deliberately never delete/reinsert occupant records, including their IDs.
+export async function replacePetDetails(bookingReference: string, pets: OccupancyDetailsInput['pets'], database: pg.Pool = getPool()): Promise<OccupancyDetails> {
+  return saveDetails(bookingReference, { occupants: [], pets }, 'customer', false, database);
+}
+
+async function saveDetails(bookingReference: string, input: OccupancyDetailsInput, actor: 'customer' | 'administrator', replaceOccupants: boolean, database: pg.Pool): Promise<OccupancyDetails> {
   const client = await database.connect();
   try {
     await client.query('BEGIN');
@@ -64,11 +77,11 @@ export async function replaceOccupancyDetails(bookingReference: string, input: O
     if (!selected.rowCount) throw new Error('BOOKING_NOT_FOUND');
     const booking = selected.rows[0];
     const details = validateOccupancyDetails(input, { adults: Number(booking.adults), children: Number(booking.children), infants: Number(booking.infants), pets: Number(booking.pets) });
-    await client.query('DELETE FROM booking_occupants WHERE provisional_booking_id=$1', [booking.id]);
+    if (replaceOccupants) await client.query('DELETE FROM booking_occupants WHERE provisional_booking_id=$1', [booking.id]);
     await client.query('DELETE FROM booking_pets WHERE provisional_booking_id=$1', [booking.id]);
-    for (const [position, occupant] of details.occupants.entries()) await client.query(`INSERT INTO booking_occupants(provisional_booking_id,preferred_name,category,position) VALUES($1,$2,$3,$4)`, [booking.id, occupant.preferredName, occupant.category, position]);
+    if (replaceOccupants) for (const [position, occupant] of details.occupants.entries()) await client.query(`INSERT INTO booking_occupants(provisional_booking_id,preferred_name,category,position) VALUES($1,$2,$3,$4)`, [booking.id, occupant.preferredName, occupant.category, position]);
     for (const [position, pet] of details.pets.entries()) await client.query(`INSERT INTO booking_pets(provisional_booking_id,species,other_species,breed,size,service_animal,position) VALUES($1,$2,$3,$4,$5,$6,$7)`, [booking.id, pet.species, pet.otherSpecies, pet.breed, pet.size, pet.serviceAnimal, position]);
-    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,$2,'occupancy_details_updated',$3::jsonb)`, [booking.id, actor, JSON.stringify({ namedOccupants: details.occupants.length, pets: details.pets.length, serviceAnimals: details.pets.filter((pet) => pet.serviceAnimal).length })]);
+    await client.query(`INSERT INTO booking_activity(provisional_booking_id,actor,event_type,details) VALUES($1,$2,$3,$4::jsonb)`, [booking.id, actor, replaceOccupants ? 'occupancy_details_updated' : 'pet_details_updated', JSON.stringify({ ...(replaceOccupants ? { namedOccupants: details.occupants.length } : {}), pets: details.pets.length, serviceAnimals: details.pets.filter((pet) => pet.serviceAnimal).length })]);
     await client.query('COMMIT');
     return getOccupancyDetails(bookingReference, database);
   } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
