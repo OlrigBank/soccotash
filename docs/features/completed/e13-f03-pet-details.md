@@ -3,8 +3,10 @@
 ## Status
 
 Implemented on `agent/e13-f03-pet-details` on 9 September 2026.
-Awaiting owner acceptance. Part of [E13](epics/e13-f00-redesign-private-booking-pages.md).
+Accepted and closed with owner approval on 9 September 2026. Part of [E13](../epics/completed/e13-f00-redesign-private-booking-pages.md).
 F02 was accepted by the owner's instruction to proceed.
+
+Implementation commit: `f16686f`. E13 was accepted and closed on 9 September 2026.
 
 ## Delivered behaviour
 

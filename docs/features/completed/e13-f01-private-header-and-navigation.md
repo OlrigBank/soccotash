@@ -3,8 +3,10 @@
 ## Status
 
 Implemented on `agent/e13-f01-private-navigation` on 9 September 2026.
-Accepted by the owner’s instruction to continue on 9 September 2026. Part of [E13](epics/e13-f00-redesign-private-booking-pages.md).
-F02 and F03 remain planned and have not been implemented.
+Accepted by the owner’s instruction to continue on 9 September 2026. Part of [E13](../epics/completed/e13-f00-redesign-private-booking-pages.md).
+All three E13 features are now accepted and closed.
+
+Implementation commit: `1300d76`. E13 was accepted and closed on 9 September 2026.
 
 ## Delivered behaviour
 

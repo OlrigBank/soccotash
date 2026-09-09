@@ -2,13 +2,23 @@
 
 ## Status
 
-In progress. [E13-F01](../e13-f01-private-header-and-navigation.md) is accepted and closed.
-[E13-F02](../e13-f02-reservation-entry.md) is accepted and closed. [E13-F03](../e13-f03-pet-details.md) is implemented and awaiting owner acceptance.
-All three planned features are implemented; the epic remains open pending final acceptance.
+Completed and closed with owner approval on 9 September 2026. All three planned
+features are accepted and closed; no implementation work remains in this epic.
+
+- [E13-F01](../../completed/e13-f01-private-header-and-navigation.md): private header
+  and navigation, implementation commit `1300d76`.
+- [E13-F02](../../completed/e13-f02-reservation-entry.md): direct Reservation entry,
+  implementation commit `4663e09`.
+- [E13-F03](../../completed/e13-f03-pet-details.md): pet-only customer editing,
+  implementation commit `f16686f`.
+
+Feature records retain verification evidence and limitations, including the existing
+narrow-screen administration drawer overlap. Acceptance closes the epic without
+claiming a merge or deployment; neither has been performed as part of this work.
 
 ## Summary
 
-Continue [E11-F03](../completed/e11-f03-verify-bookers-and-private-accounts.md)
+Continue [E11-F03](../../completed/e11-f03-verify-bookers-and-private-accounts.md)
 by simplifying the private stay area around authenticated account access.
 E11 remains closed. Open Reservation immediately, remove the redundant individual
 booking overview and link-saving panel, and simplify navigation. Preserve existing

@@ -3,8 +3,10 @@
 ## Status
 
 Implemented on `agent/e13-f02-reservation-entry` on 9 September 2026.
-Accepted by the owner’s instruction to proceed on 9 September 2026. Part of [E13](epics/e13-f00-redesign-private-booking-pages.md).
-F01 was accepted by the owner's instruction to continue. F03 remains planned.
+Accepted by the owner’s instruction to proceed on 9 September 2026. Part of [E13](../epics/completed/e13-f00-redesign-private-booking-pages.md).
+F01 was accepted by the owner's instruction to continue. F03 is now accepted and closed alongside E13.
+
+Implementation commit: `4663e09`. E13 was accepted and closed on 9 September 2026.
 
 ## Delivered behaviour
 
