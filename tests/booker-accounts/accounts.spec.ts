@@ -39,13 +39,14 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     expect(session.httpOnly).toBe(true);expect(session.sameSite).toBe('Lax');expect(session.value.length).toBe(43);
     expect((await db.query('SELECT account_id FROM booker_sessions WHERE token_hash=$1',[createHash('sha256').update(session.value).digest('hex')])).rows[0].account_id).toBe(accountId);
     expect((await db.query('SELECT identifier FROM booker_identities WHERE account_id=$1',[accountId])).rows).toEqual([{identifier:email}]);
-    await page.reload();await expect(page.getByRole('button',{name:'Log out'})).toBeVisible();
+    await page.reload();await page.locator('summary[aria-label="Booking account"]').click();await expect(page.getByRole('button',{name:'Log out'})).toBeVisible();
+    await page.getByRole('link',{name:'Your bookings',exact:true}).click();await expect(page.locator('.booking-selector li')).toHaveCount(1);
     await page.goto('/');await page.getByRole('link',{name:'Your bookings',exact:true}).click();await expect(page).toHaveURL(privatePath);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
     await db.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,booker_account_id)
       VALUES('bespoke-arrangement','2099-11-19','2099-11-23',2,$1,$2,$3)`,[name,email,accountId]);
     await page.goto('/booking/');await expect(page.locator('.booking-selector li')).toHaveCount(2);
-    await page.getByRole('button',{name:'Log out'}).click();await expect(page.getByRole('form',{name:'Booker sign-in'})).toBeVisible();
+    await page.locator('summary[aria-label="Booking account"]').click();await page.getByRole('button',{name:'Log out'}).click();await expect(page.getByRole('form',{name:'Booker sign-in'})).toBeVisible();
     await page.goto(privatePath);await expect(page).toHaveURL(/\/booking\/\?returnTo=/);
     await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[createHash('sha256').update(`email:${email}`).digest('hex')]);
     await page.getByLabel('Email address',{exact:true}).fill(email);await page.getByLabel('Mobile number',{exact:true}).focus();await page.getByRole('heading',{name:'Your bookings',exact:true}).click();
@@ -117,4 +118,33 @@ test('an already verified mobile remains sufficient when an unverified email is 
   await expect(page.locator('[data-booker-verification]')).toHaveAttribute('data-verified','true');
   await expect(page.getByRole('combobox',{name:'Verification contact'})).toHaveValue('sms');
   expect(deliveries).toBe(0);
+});
+
+test('private navigation supports keyboard access, dismissal and public destinations', async ({page}) => {
+  await page.goto('/booking/');
+  await expect(page.locator('.booker-brand')).toHaveText('');
+  await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your bookings');
+  const skip = page.getByRole('link', {name:'Skip to main content'});
+  expect(await skip.evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(0);
+  await page.keyboard.press('Tab');
+  await expect(skip).toBeFocused();
+  expect(await skip.evaluate(element => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main')).toBeFocused();
+  const account = page.locator('summary[aria-label="Booking account"]');
+  const menu = page.locator('summary').filter({hasText:'Menu'});
+  await account.focus();await page.keyboard.press('Enter');
+  await expect(page.getByRole('link',{name:'Sign in',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Log out'})).toHaveCount(0);
+  await menu.click();
+  await expect(page.getByRole('link',{name:'Sign in',exact:true})).toBeHidden();
+  const navigation = page.getByRole('navigation',{name:'Public navigation'});
+  await expect(navigation.getByRole('link')).toHaveCount(7);
+  expect(await navigation.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')))).toEqual(['/', '/#guest-reviews', '/book/', '/listings/', '/guest-information/', '/local-guide/', '/contact/']);
+  expect(await navigation.evaluate(element => { const rect=element.getBoundingClientRect();return rect.left>=0 && rect.right<=document.documentElement.clientWidth; })).toBe(true);
+  await page.keyboard.press('Tab');await expect(navigation.getByRole('link',{name:'Home',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(navigation).toBeHidden();await expect(menu).toBeFocused();
+  await menu.click();await page.mouse.click(5,200);await expect(navigation).toBeHidden();
+  await menu.click();await navigation.getByRole('link',{name:'Contact',exact:true}).click();await expect(page).toHaveURL(/\/contact\/$/);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
 });

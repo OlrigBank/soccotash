@@ -50,7 +50,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     await page.getByRole('button', { name: 'Continue to review' }).click();
     await expect(page.locator('[data-booking-answers]')).toContainText('Autumn-Test');
     await page.getByRole('button', { name: 'Request booking' }).click();
-    await expect(page.getByRole('banner')).toContainText('Private stay area');
+    await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
     const saved = await database.query(`SELECT id, public_id, property_id, adults, children, infants, pets,
       guest_email, promo_code, whatsapp_consent_status FROM provisional_bookings WHERE guest_name=$1`, [name]);
     expect(saved.rows).toHaveLength(1);
@@ -64,7 +64,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     expect(deliveries.rows.length).toBeGreaterThan(0);
     expect(deliveries.rows.every(row => ['skipped', 'not_requested'].includes(row.status))).toBe(true);
     await page.reload();
-    await expect(page.getByRole('banner')).toContainText('Private stay area');
+    await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
     await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
     // Disposable administrator session; no real credentials or notifications.
     const admin = await database.query("INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'E11 disposable administrator','unusable-test-password') RETURNING id", [adminEmail]);

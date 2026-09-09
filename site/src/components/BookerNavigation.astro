@@ -1,0 +1,65 @@
+---
+interface Props { signedIn: boolean }
+const { signedIn } = Astro.props;
+---
+<div class="booker-navigation">
+  <details class="private-disclosure" data-private-disclosure>
+    <summary class="account-trigger" aria-label="Booking account" title="Booking account">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>
+    </summary>
+    <nav class="disclosure-panel" aria-label="Booking account">
+      <a href="/booking/?all=1">{signedIn ? 'Your bookings' : 'Sign in'}</a>
+      {signedIn && <form method="post" action="/api/booker/logout/"><button type="submit">Log out</button></form>}
+    </nav>
+  </details>
+  <details class="private-disclosure" data-private-disclosure>
+    <summary><span aria-hidden="true">☰</span> Menu</summary>
+    <nav class="disclosure-panel" aria-label="Public navigation">
+      <a href="/">Home</a>
+      <a href="/#guest-reviews">Guest reviews</a>
+      <a href="/book/">Request a stay</a>
+      <a href="/listings/">Ways to stay</a>
+      <a href="/guest-information/">Guest information</a>
+      <a href="/local-guide/">Local guide</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+  </details>
+</div>
+<script>
+  document.querySelectorAll<HTMLElement>('.booker-navigation').forEach(navigation => {
+    const disclosures = Array.from(navigation.querySelectorAll<HTMLDetailsElement>('[data-private-disclosure]'));
+    disclosures.forEach(disclosure => {
+      disclosure.addEventListener('toggle', () => {
+        if (disclosure.open) disclosures.forEach(other => { if (other !== disclosure) other.open = false; });
+      });
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      const open = disclosures.find(disclosure => disclosure.open);
+      if (open) { open.open = false; open.querySelector('summary')?.focus(); }
+    });
+    document.addEventListener('click', event => {
+      disclosures.forEach(disclosure => {
+        if (event.target instanceof Node && !disclosure.contains(event.target)) disclosure.open = false;
+      });
+    });
+    navigation.addEventListener('focusout', event => {
+      if (event.relatedTarget instanceof Node && !navigation.contains(event.relatedTarget)) {
+        disclosures.forEach(disclosure => { disclosure.open = false; });
+      }
+    });
+  });
+</script>
+<style>
+  .booker-navigation { position:relative;display:flex;align-items:center;gap:.75rem; }
+  .private-disclosure { position:static; }
+  summary { display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:0 .8rem;border:1px solid currentColor;border-radius:1.5rem;cursor:pointer;list-style:none;color:var(--accent-dark);font-weight:700; }
+  summary::-webkit-details-marker { display:none; }
+  .account-trigger { width:44px;padding:0; }
+  .disclosure-panel { position:absolute;right:0;top:calc(100% + .5rem);z-index:50;width:13rem;max-width:calc(100vw - 2rem);max-height:calc(100dvh - 12rem);overflow-y:auto;padding:.5rem;border:1px solid var(--line);border-radius:.75rem;background:var(--surface, #fffaf2);box-shadow:0 .5rem 1.5rem #0002; }
+  .disclosure-panel a, .disclosure-panel button { display:flex;align-items:center;min-height:44px;width:100%;box-sizing:border-box;padding:.6rem .75rem;border:0;border-radius:.35rem;background:transparent;color:var(--accent-dark);font:inherit;text-align:left;text-decoration:none;cursor:pointer; }
+  .disclosure-panel a:hover, .disclosure-panel button:hover { background:var(--soft-accent); }
+  form { margin:0; }
+  summary:focus-visible, a:focus-visible, button:focus-visible { outline:3px solid var(--accent-dark);outline-offset:2px; }
+  @media(max-width:600px) { .booker-navigation { margin-left:auto; } }
+</style>

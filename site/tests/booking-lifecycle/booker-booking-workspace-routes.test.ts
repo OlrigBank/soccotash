@@ -4,13 +4,11 @@ import test from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 
-test('the private Booker area is separate from public-site navigation', async () => {
+test('the private Booker area retains its layout with a public navigation disclosure', async () => {
   const layout = await readFile(new URL('src/layouts/BookerLayout.astro', root), 'utf8');
 
   assert.match(layout, /areaTitle = 'Your booking'/);
-  assert.match(layout, /Visit the public website/);
-  assert.match(layout, /href="\/" target="_blank" rel="noopener noreferrer"/);
-  assert.doesNotMatch(layout, /Request a stay|Listings|Guest information|Local guide|Explore Olrig Bank/);
+  assert.match(layout, /<BookerNavigation signedIn=\{signedIn\}/);
   assert.match(layout, /noindex,nofollow,noarchive/);
 });
 
@@ -27,7 +25,7 @@ test('the booking home exposes isolated Reservation, Messages and Holiday Planne
   }
   assert.match(route, /Booking workspace not found/);
   assert.match(route, /Astro\.rewrite\(target\)/);
-  assert.match(page, /Booking overview/);
+  assert.doesNotMatch(page, /Booking overview/);
   assert.match(page, /workspace === 'reservation'/);
   assert.match(page, /workspace === 'messages'/);
   assert.match(page, /workspace === 'holiday-planner'/);
@@ -51,18 +49,10 @@ test('Booker actions remain in their relevant workspace after submission', async
   assert.match(page, /\/reservation\/\?response=/);
 });
 
-test('the saved private link always targets the booking landing page', async () => {
-  const [page, component] = await Promise.all([
-    readFile(new URL('src/pages/booking/manage/[token]/index.astro', root), 'utf8'),
-    readFile(new URL('src/components/CustomerBookingView.astro', root), 'utf8'),
-  ]);
-
-  assert.match(page, /const bookingLandingUrl = new URL\(`\/booking\/manage\/\$\{token\}\/`, Astro\.url\)\.toString\(\)/);
-  assert.match(page, /!workspace && <section class="customer-booking-card customer-booking-access-card">/);
-  assert.match(page, /data-copy-booking-link=\{bookingLandingUrl\}/);
-  assert.match(page, /navigator\.clipboard\.writeText\(bookingUrl\)/);
-  assert.doesNotMatch(page, /navigator\.clipboard\.writeText\(window\.location\.href\)/);
-  assert.doesNotMatch(component, /customer-booking-access-card|data-copy-booking-link/);
+test('the booking root opens Reservation without a link-saving panel', async () => {
+  const page = await readFile(new URL('src/pages/booking/manage/[token]/index.astro', root), 'utf8');
+  assert.match(page, /searchParams.get\('workspace'\) \|\| 'reservation'/);
+  assert.doesNotMatch(page, /customer-booking-access-card|data-copy-booking-link|data-refresh-booking-page|Booking overview/);
 });
 
 test('private Holiday Planner pages use the Booker layout', async () => {

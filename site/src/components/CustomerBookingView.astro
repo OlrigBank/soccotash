@@ -129,7 +129,9 @@ const statusMessage = cancelled
               ? 'A newer offer replaced this one. Reservation details show the current offer when available.'
               : offer.customerStatus === 'cancelled'
                 ? 'This booking has been cancelled. The conversation remains available as a record.'
-                : 'Open Reservation details to review the price, terms and response options.';
+                : view === 'reservation'
+                  ? 'Review the price, terms and response options below.'
+                  : 'Open Reservation details to review the price, terms and response options.';
 
 function responseMessage(): string {
   const accepted = responseNotice === 'accepted' || responseNotice === 'confirmed' || responseNotice === 'payment-required';
