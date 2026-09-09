@@ -16,7 +16,7 @@ test('private planning pages share an explicit Olrig Bank shell', async () => {
   ]);
 
   assert.match(layout, /homeHref/);
-  assert.match(layout, /areaLabel/);
+  assert.match(layout, /Olrig Bank Kendal/);
   assert.match(layout, /areaTitle/);
   for (const page of [guest, participant, share, ai, proposal, participantPrint]) {
     assert.match(page, /BookerLayout/);

@@ -4,13 +4,11 @@ import test from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 
-test('the private Booker area is separate from public-site navigation', async () => {
+test('the private Booker area retains its layout with a public navigation disclosure', async () => {
   const layout = await readFile(new URL('src/layouts/BookerLayout.astro', root), 'utf8');
 
   assert.match(layout, /areaTitle = 'Your booking'/);
-  assert.match(layout, /Visit the public website/);
-  assert.match(layout, /href="\/" target="_blank" rel="noopener noreferrer"/);
-  assert.doesNotMatch(layout, /Request a stay|Listings|Guest information|Local guide|Explore Olrig Bank/);
+  assert.match(layout, /<BookerNavigation signedIn=\{signedIn\}/);
   assert.match(layout, /noindex,nofollow,noarchive/);
 });
 

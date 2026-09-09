@@ -7,8 +7,9 @@ const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.u
 test('the Booker header uses the public Olrig Bank identity within a private boundary', async () => {
   const layout = await source('src/layouts/BookerLayout.astro');
   assert.match(layout, /booker-brand__logo[\s\S]*olrig-bank-header-logo\.png/);
-  assert.match(layout, /areaLabel = 'Private stay area'/);
-  assert.match(layout, />Visit the public website/);
+  assert.doesNotMatch(layout, /<small>|<strong>/);
+  assert.match(layout, /Olrig Bank Kendal/);
+  assert.match(layout, /<BookerNavigation signedIn=\{signedIn\}/);
   assert.match(layout, /noindex,nofollow,noarchive/);
 });
 
