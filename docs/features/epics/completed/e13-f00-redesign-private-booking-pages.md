@@ -93,3 +93,12 @@ Preserve private response protections and absence of analytics. No migration or
 occupant-data deletion is intended. Broader reservation, messaging, planner,
 administration and public-page redesigns are outside this epic. Merging,
 deployment and production-data changes require owner approval.
+
+## Post-acceptance CI correction
+
+PR #151's planner regression still asserted the removed Private planning area
+header label. Updated that assertion to verify the logo-only link's accessible
+name and planner-home destination; editor-access assertions remain intact.
+All three planner regression tests passed locally against the rebuilt app with
+disposable fixtures. This changes test expectations only; product behaviour and
+epic acceptance are unchanged.

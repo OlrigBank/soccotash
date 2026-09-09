@@ -62,7 +62,10 @@ test.describe('local Docker Holiday Planner regression',()=>{
     await editorPage.goto(invitationUrl);
     await expect(editorPage.getByText(/editor access · revision/i)).toBeVisible();
     await expect(editorPage.getByText(/Your access: You can edit this plan/)).toBeVisible();
-    await expect(editorPage.getByRole('banner')).toContainText('Private planning area');
+    const plannerHome = editorPage.getByRole('banner').getByRole('link', {name:'Olrig Bank Kendal — Holiday Planner home', exact:true});
+    await expect(plannerHome).toBeVisible();
+    await expect(plannerHome).toHaveAttribute('href', new URL(invitationUrl).pathname);
+    await expect(plannerHome).toHaveText('');
     await editorPage.setViewportSize({width:390,height:844});
     expect(await editorPage.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
     await editorContext.close();
