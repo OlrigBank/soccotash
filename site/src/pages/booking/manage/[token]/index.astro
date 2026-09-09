@@ -77,7 +77,7 @@ let newGuestPlanId = '';
 const publishedExamplePlans = holidayPlan && holidayPlan.days.length === 0 ? await listPublishedExamplePlans() : [];
 
 if (Astro.request.method === 'POST') {
-  // The unguessable token in this URL is the authorisation credential for the Booker.
+  // Middleware and the shared resolver authorise this booking reference against the server session.
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
 
@@ -440,7 +440,7 @@ const bookingLandingUrl = new URL(`/booking/manage/${token}/`, Astro.url).toStri
       <p class="eyebrow">Your private booking page</p>
       <h2>Save this booking link</h2>
         <p>Bookmark this landing page or keep its address somewhere safe. Your Reservation, Messages and Holiday Planner are all available from here.</p>
-      <p class="customer-booking-security-note">Anyone with this link can view and respond to the booking, so do not share it publicly.</p>
+      <p class="customer-booking-security-note">Sign in with your verified contact to access this booking. Use the booker icon in the header to return, and log out when using a shared device.</p>
     </div>
     <div class="customer-booking-access-actions">
       <button class="customer-booking-submit" type="button" data-copy-booking-link={bookingLandingUrl}>Copy booking link</button>

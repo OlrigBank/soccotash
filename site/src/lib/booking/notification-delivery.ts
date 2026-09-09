@@ -252,7 +252,7 @@ export async function deliverBookingNotification(input: {
 async function genericFailureFallback(deliveryId: string): Promise<void> {
   const result = await getPool().query(
     `SELECT bne.id::text AS event_id, bne.source_key, bne.event_type,
-            pb.guest_email, pb.guest_name, pb.customer_access_token, pb.property_id
+            pb.guest_email, pb.guest_name, pb.public_id, pb.property_id
        FROM booking_notification_deliveries bnd
        JOIN booking_notification_events bne ON bne.id = bnd.notification_event_id
        JOIN provisional_bookings pb ON pb.id = bne.provisional_booking_id
@@ -265,7 +265,7 @@ async function genericFailureFallback(deliveryId: string): Promise<void> {
     return;
   }
   const base = (process.env.BOOKING_PUBLIC_URL || '').replace(/\/$/, '');
-  const manageUrl = `${base}/booking/manage/${row.customer_access_token}/`;
+  const manageUrl = `${base}/booking/manage/${row.public_id}/`;
   const propertyName = getProperty(row.property_id)?.name || 'Olrig Bank';
   const summary = whatsappEventSummaries[row.event_type as WhatsAppNotificationEvent];
   await deliverEmailFallback({ eventId: row.event_id, sourceKey: row.source_key, emailDelivery: async () => {

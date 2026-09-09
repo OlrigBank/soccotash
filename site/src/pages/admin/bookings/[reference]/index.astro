@@ -60,8 +60,8 @@ const whatsappConfiguration = getWhatsAppConfiguration();
 const whatsappNotificationAvailable = booking.whatsappConsentStatus === 'active' && whatsappConfiguration.configured;
 const configuredPublicOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
 const publicOrigin = configuredPublicOrigin || Astro.url.origin;
-const bookerManageUrl = booking.customerAccessToken
-  ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+const bookerManageUrl = booking.reference
+  ? new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString()
   : '';
 const isUnassignedBespoke = booking.propertyId === 'bespoke-arrangement';
 const canOffer = (booking.status === 'pending' || booking.status === 'offered') && !isUnassignedBespoke;
@@ -181,9 +181,9 @@ if (Astro.request.method === 'POST') {
       let notificationStatus: 'submitted' | 'sent' | 'failed' | 'skipped' = 'skipped';
       if (shouldNotify) {
         try {
-          if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
+          if (!booking.reference) throw new Error('The booking reference is missing.');
           const notificationBooking = booking;
-          const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
+          const manageUrl = new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString();
           const delivery = await deliverBookingNotification({
             booking: notificationBooking, propertyName, manageUrl, target: 'booker', eventType: 'booking_message_available',
             sourceKey: `administrator-message:${message.publicId}`,
@@ -241,8 +241,8 @@ if (Astro.request.method === 'POST') {
             ? 'The booking could not be found.'
             : 'The booking can no longer be cancelled from its current status.';
       } else {
-        const manageUrl = booking.customerAccessToken
-          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+        const manageUrl = booking.reference
+          ? new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString()
           : undefined;
         const notification = await deliverBookingLifecycleNotification({
           event: 'booking_cancelled',
@@ -329,9 +329,9 @@ if (Astro.request.method === 'POST') {
       if (!emailRequested) return Astro.redirect(`/admin/bookings/${reference}/reservation/?published=1&email=skipped`);
 
       try {
-        if (!booking.customerAccessToken) throw new Error('The Booker booking-page token is missing.');
+        if (!booking.reference) throw new Error('The booking reference is missing.');
         const notificationBooking = booking;
-        const manageUrl = new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString();
+        const manageUrl = new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString();
         const delivery = await deliverBookingNotification({
           booking: notificationBooking, propertyName, manageUrl, target: 'booker', eventType: 'booking_offer_available',
           sourceKey: `booking-offer:${attempt.publicId}`,
@@ -495,7 +495,7 @@ if (arrangementAssigned) {
       <h2 id="booking-workspaces-heading">Booking workspaces</h2>
       <div class="booking-workspace-list">
         <a href={`/admin/bookings/${booking.reference}/reservation/`}><span>Reservation</span><strong>{propertyName}</strong><small>{dateLabel(booking.arrival)} to {dateLabel(booking.departure)}</small></a>
-        <a href={`/admin/bookings/${booking.reference}/access/`}><span>Access</span><strong>Booker access</strong><small>Manage the private booking link</small></a>
+        <a href={`/admin/bookings/${booking.reference}/access/`}><span>Access</span><strong>Booker access</strong><small>Manage booker account access</small></a>
         <a href={`/admin/bookings/${booking.reference}/messages/`}><span>Messages</span><strong>Conversation with {booking.name}</strong><small>{messages.length} message{messages.length===1?'':'s'}</small></a>
         <a href={`/admin/bookings/${booking.reference}/planner/`}><span>Holiday Planner</span><strong>{holidayPlan?.title ?? 'Booking-linked plan'}</strong><small>{holidayPlan ? `${holidayPlan.days.length} planned day${holidayPlan.days.length===1?'':'s'}` : 'Available after confirmation'}</small></a>
         <a href={`/admin/bookings/${booking.reference}/history/`}><span>Administration</span><strong>Administration history</strong><small>Offers, payments, notifications and audit</small></a>

@@ -1,0 +1,25 @@
+---
+const { purpose = 'booking' } = Astro.props;
+---
+<section class="booker-verification booking-field-wide" data-booker-verification data-purpose={purpose} data-verified="false" aria-label="Verify your contact">
+  <p>We will send a code when you finish entering your contact details. Verify one contact to continue. If you provide both, we use email first.</p>
+  <label>Verification contact <select data-verification-channel aria-label="Verification contact"><option value="email">Email</option><option value="sms">Mobile number (SMS)</option></select></label>
+  <p data-verification-status role="status" aria-live="polite">Enter an email address or mobile number.</p>
+  <div data-code-entry hidden>
+    <label>Verification code <input data-verification-code type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" /></label>
+    <button class="button" type="button" data-verify-code>Verify code</button>
+  </div>
+  <button class="button button--secondary" type="button" data-send-code>Send verification code</button>
+</section>
+<style>
+  .booker-verification { border:1px solid #788771;border-radius:.75rem;padding:1rem;min-width:0; }
+  .booker-verification label { display:block;margin:.5rem 0; }
+  .booker-verification input,.booker-verification select { max-width:100%;min-height:44px; }
+  .booker-verification input { width:10rem;letter-spacing:.2em; }
+  .booker-verification button { margin:.35rem .35rem .35rem 0; }
+  .booker-verification p { overflow-wrap:anywhere; }
+</style>
+<script>
+  import { initialiseVerification } from '../lib/booker/verification-panel';
+  document.querySelectorAll<HTMLElement>('[data-booker-verification]').forEach(initialiseVerification);
+</script>

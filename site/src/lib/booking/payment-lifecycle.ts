@@ -1,4 +1,5 @@
-import crypto from 'node:crypto';
+import { currentBookerAccountId } from '../booker/context.ts';
+import { resolveBookingAccessCredential } from './booking-access.ts';
 import type { PoolClient } from 'pg';
 import { getPool } from './db.ts';
 import { insertBotBookingMessage } from './messaging.ts';
@@ -41,13 +42,7 @@ export type AdministratorPaymentDecisionResult =
   | 'transition_not_allowed'
   | 'not_found';
 
-function validAccessToken(token: string): boolean {
-  return /^[A-Za-z0-9_-]{43,128}$/.test(token);
-}
 
-function accessTokenHash(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
 
 function normalisePayment(row: Record<string, any>): BookingPayment {
   return {
@@ -129,16 +124,14 @@ function stageLabel(stage: PaymentStage): string {
 }
 
 export async function reportManualBankTransfer(token: string): Promise<ReportManualBankTransferResult> {
-  if (!validAccessToken(token)) return 'not_found';
-  const tokenHash = accessTokenHash(token);
+  if (!(await resolveBookingAccessCredential(token)).allowed) return 'not_found';
+  const accountId = currentBookerAccountId();
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const selected = await client.query(
       `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+         SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
        )
        SELECT pb.id, pb.status, pb.public_id::text AS booking_reference,
               pb.deposit_pence, pb.balance_due_pence,
@@ -153,7 +146,7 @@ export async function reportManualBankTransfer(token: string): Promise<ReportMan
             ORDER BY candidate.id DESC LIMIT 1
          ) bo ON TRUE
         FOR UPDATE OF pb`,
-      [token, tokenHash],
+      [token, accountId],
     );
     if (!selected.rowCount) {
       await client.query('ROLLBACK');

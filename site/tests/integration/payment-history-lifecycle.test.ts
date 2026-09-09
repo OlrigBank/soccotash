@@ -47,10 +47,10 @@ test('retains every payment attempt through deposit, balance, stale decisions an
     const {
       getBookingPaymentHistory,
       rejectReportedPayment,
-      reportManualBankTransfer,
+      reportManualBankTransfer: reportPayment,
       verifyReportedPayment,
     } = await import('../../src/lib/booking/payment-lifecycle.ts');
-    const { cancelBookingByBookerToken } = await import('../../src/lib/booking/cancellation-lifecycle.ts');
+    const { cancelBookingByBookerToken: cancelBooking } = await import('../../src/lib/booking/cancellation-lifecycle.ts');
     const { getPool } = await import('../../src/lib/booking/db.ts');
     applicationPool = getPool();
 
@@ -73,9 +73,14 @@ test('retains every payment attempt through deposit, balance, stale decisions an
       [token],
     );
     const booking = inserted.rows[0];
+    const { bookerContext } = await import('../../src/lib/booker/context.ts');
+    const accountId=(await applicationPool.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await applicationPool.query('UPDATE provisional_bookings SET booker_account_id=$2 WHERE id=$1',[booking.id,accountId]);
+    const reportManualBankTransfer=(reference:string)=>bookerContext.run({accountId},()=>reportPayment(reference));
+    const cancelBookingByBookerToken=(reference:string,reason:string)=>bookerContext.run({accountId},()=>cancelBooking(reference,reason));
 
-    assert.equal(await reportManualBankTransfer(token), 'payment_reported');
-    assert.equal(await reportManualBankTransfer(token), 'already_reported');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_reported');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'already_reported');
     let history = await getBookingPaymentHistory(booking.public_id);
     const rejectedDepositId = history[0].publicId;
     assert.deepEqual([history[0].stage, history[0].status, history[0].amountPence], ['deposit', 'reported', 23500]);
@@ -87,13 +92,13 @@ test('retains every payment attempt through deposit, balance, stale decisions an
     assert.equal(await verifyReportedPayment(booking.public_id, rejectedDepositId, adminId), 'transition_not_allowed');
     assert.equal((await applicationPool.query('SELECT status FROM provisional_bookings WHERE id = $1', [booking.id])).rows[0].status, 'payment_pending');
 
-    assert.equal(await reportManualBankTransfer(token), 'payment_reported');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_reported');
     history = await getBookingPaymentHistory(booking.public_id);
     const verifiedDepositId = history[0].publicId;
     assert.equal(await verifyReportedPayment(booking.public_id, verifiedDepositId, adminId), 'verified');
     assert.equal((await applicationPool.query('SELECT status FROM provisional_bookings WHERE id = $1', [booking.id])).rows[0].status, 'confirmed');
 
-    assert.equal(await reportManualBankTransfer(token), 'payment_reported');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_reported');
     assert.equal((await applicationPool.query('SELECT status FROM provisional_bookings WHERE id = $1', [booking.id])).rows[0].status, 'confirmed');
     history = await getBookingPaymentHistory(booking.public_id);
     const rejectedBalanceId = history[0].publicId;
@@ -104,11 +109,11 @@ test('retains every payment attempt through deposit, balance, stale decisions an
     );
     assert.equal((await applicationPool.query('SELECT status FROM provisional_bookings WHERE id = $1', [booking.id])).rows[0].status, 'confirmed');
 
-    assert.equal(await reportManualBankTransfer(token), 'payment_reported');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_reported');
     history = await getBookingPaymentHistory(booking.public_id);
     const verifiedBalanceId = history[0].publicId;
     assert.equal(await verifyReportedPayment(booking.public_id, verifiedBalanceId, adminId), 'verified');
-    assert.equal(await reportManualBankTransfer(token), 'payment_not_due');
+    assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_not_due');
 
     history = await getBookingPaymentHistory(booking.public_id);
     assert.deepEqual(
@@ -138,10 +143,11 @@ test('retains every payment attempt through deposit, balance, stale decisions an
        ) VALUES ($1, 'deposit', 25000, 'GBP', 'bank_transfer', 'verified', NOW(), NOW())`,
       [cancellable.rows[0].id],
     );
-    assert.equal(await reportManualBankTransfer(cancellationToken), 'payment_reported');
+    await applicationPool.query('UPDATE provisional_bookings SET booker_account_id=$2 WHERE id=$1',[cancellable.rows[0].id,accountId]);
+    assert.equal(await reportManualBankTransfer(cancellable.rows[0].public_id), 'payment_reported');
     const openBalance = (await getBookingPaymentHistory(cancellable.rows[0].public_id))[0];
     assert.equal(openBalance.status, 'reported');
-    assert.equal(await cancelBookingByBookerToken(cancellationToken, 'Acceptance test cancellation.'), 'cancelled');
+    assert.equal(await cancelBookingByBookerToken(cancellable.rows[0].public_id, 'Acceptance test cancellation.'), 'cancelled');
     const cancelledHistory = await getBookingPaymentHistory(cancellable.rows[0].public_id);
     assert.equal(cancelledHistory[0].status, 'cancelled');
     assert.ok(cancelledHistory[0].cancelledAt);

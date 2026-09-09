@@ -43,7 +43,8 @@
     "docker:isolated:sync": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm calendar-sync",
     "docker:isolated:report": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm booking-report",
     "docker:isolated:backup": "SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./backup-db.bash",
-    "docker:isolated:restore": "COMPOSE_FILE=compose.yaml:compose.isolated.yaml COMPOSE_ENV_FILES=.env.agent2 SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./restore-db.bash"
+    "docker:isolated:restore": "COMPOSE_FILE=compose.yaml:compose.isolated.yaml COMPOSE_ENV_FILES=.env.agent2 SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./restore-db.bash",
+    "test:booker-accounts": "node --env-file=.env node_modules/@playwright/test/cli.js test --config=playwright.booker-accounts.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

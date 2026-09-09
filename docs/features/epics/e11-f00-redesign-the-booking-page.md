@@ -5,8 +5,9 @@
 In progress. E11-F01 is accepted and closed as of 8 September 2026.
 The owner has pushed the implementation on `agent/e11-redesign-booking-page`
 and confirmed this feature/step is complete. E11-F02 is also accepted and closed as of
-8 September 2026 on `agent/e11-f02-booker-details-review`. The epic remains
-open for further planning; features after F02 remain undefined.
+8 September 2026 on `agent/e11-f02-booker-details-review`. E11-F03 is implemented and awaiting acceptance; see
+[Verify bookers and introduce private accounts](../e11-f03-verify-bookers-and-private-accounts.md).
+The epic remains open for further features.
 
 ## Epic summary
 
@@ -14,7 +15,8 @@ Follow [E10 — Introduce one booking widget](e10-f00-introduce-one-booking-widg
 by bringing the shared booking panel into `/book/`. Simplify the request journey
 and remove duplicate stay selection, availability checking and pricing controls.
 The first feature is accepted and closed. F02 builds on it with booker-detail
-collection and an explicit review step; subsequent features remain undefined.
+collection and an explicit review step. F03 adds contact verification and account access;
+subsequent features remain undefined.
 
 ## Starting point
 
@@ -143,7 +145,19 @@ UI patterns: **Booking step navigation**, **Stay summary with edit** and
 **Request review** are custom patterns. **Booker details form** uses native
 form controls.
 
-Features after F02 remain undefined. Candidates from the initial review include
+### E11-F03 — Verify bookers and introduce private accounts
+
+**Status: implemented, awaiting owner acceptance.**
+
+See the [feature record](../e11-f03-verify-bookers-and-private-accounts.md) for the
+agreed flow, migration, configuration, security boundaries and verification.
+Require email or SMS verification before review; link successful requests to
+accounts with opaque server-side sessions; provide header return access and
+passwordless sign-in. Replace bearer-link authorisation throughout the private
+booking workflow while retaining its existing page design. Existing bookings
+become claimable through email-first contact verification.
+
+Features after F03 remain undefined. Candidates from the initial review include
 broader contact-form styling, copy refinement, footer contrast and further
 page-layout changes. F01 corrects display/accessibility issues required by the
 replacement and moved controls, without expanding into a general redesign.
@@ -353,7 +367,7 @@ acceptance are unchanged.
 
 Use the accepted F01 and F02 records above as the baseline for the next
 planning session. Agree later scope and acceptance criteria before implementation.
-The contact-form styling,
+F03 is defined in its feature record and is awaiting acceptance. The contact-form styling,
 copy, footer contrast and page-layout ideas above are candidates, not committed
 features. No further F01 or F02 implementation work is outstanding.
 
@@ -381,5 +395,6 @@ features. No further F01 or F02 implementation work is outstanding.
 - Defining or implementing later features before F01 acceptance.
 - Private booking-page and administration redesigns.
 - Changing accommodation definitions, occupancy or pricing policy, availability
-  sources, database domain models, payment providers or communication channels.
+  sources or payment providers. F03 explicitly adds account identity storage and
+  SMS verification; other communication-channel changes remain outside scope.
 - Merging, deploying or changing production data without owner approval.

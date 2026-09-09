@@ -22,11 +22,17 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     database: process.env.POSTGRES_DB || 'soccotash',
   });
   await database.connect();
+  let accountId = '';
   try {
+    accountId = (await database.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await database.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('sms','+441632960123',$1)", [accountId]);
+    const bookerToken = randomBytes(32).toString('base64url');
+    await database.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 hour')", [createHash('sha256').update(bookerToken).digest('hex'),accountId]);
+    await page.context().addCookies([{ name: 'olrig_booker_session', value: bookerToken, url: origin, httpOnly: true, sameSite: 'Lax' }]);
     for (const promoCode of ['x'.repeat(81), { unexpected: 'object' }]) {
       const response = await page.request.post('/api/provisional-bookings/', {
         headers: { origin },
-        data: { propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
+        data: { submissionId: randomUUID(), propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
       });
       expect(response.status()).toBe(400);
       expect((await response.json()).error).toContain('promo code');
@@ -72,7 +78,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     for (const promoCode of [undefined, '   ']) {
       const response = await page.request.post('/api/provisional-bookings/', {
         headers: { origin },
-        data: { propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
+        data: { submissionId: randomUUID(), propertyId: 'bespoke-arrangement', arrival: '2099-10-19', departure: '2099-10-23', adults: 2, children: 0, infants: 0, pets: 0, name, telephone: '+441632960123', promoCode },
       });
       expect(response.status()).toBe(201);
     }
@@ -80,6 +86,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     expect(compatibility.rows).toEqual([{ promo_code: null }, { promo_code: null }]);
   } finally {
     await database.query('DELETE FROM provisional_bookings WHERE guest_name=$1', [name]);
+    if (accountId) { await database.query('DELETE FROM booker_identities WHERE account_id=$1',[accountId]); await database.query('DELETE FROM booker_accounts WHERE id=$1',[accountId]); }
     await database.query('DELETE FROM admin_users WHERE email=$1', [adminEmail]);
     await database.end();
   }

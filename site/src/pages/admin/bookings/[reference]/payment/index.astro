@@ -43,8 +43,8 @@ if (Astro.request.method === 'POST') {
     } else {
       const result = await verifyReportedPayment(reference, paymentReference, Astro.locals.adminUser!.id);
       if (result === 'verified') {
-        const manageUrl = booking.customerAccessToken
-          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+        const manageUrl = booking.reference
+          ? new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString()
           : undefined;
         const balancePayment = reportedPayment.stage === 'balance';
         const notification = await deliverBookingLifecycleNotification({
@@ -87,8 +87,8 @@ if (Astro.request.method === 'POST') {
     } else {
       const result = await rejectReportedPayment(reference, paymentReference, reason, Astro.locals.adminUser!.id);
       if (result === 'rejected') {
-        const manageUrl = booking.customerAccessToken
-          ? new URL(`/booking/manage/${booking.customerAccessToken}/`, publicOrigin).toString()
+        const manageUrl = booking.reference
+          ? new URL(`/booking/manage/${booking.reference}/`, publicOrigin).toString()
           : undefined;
         const balancePayment = reportedPayment.stage === 'balance';
         const notification = await deliverBookingLifecycleNotification({

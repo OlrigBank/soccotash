@@ -1,3 +1,6 @@
+import { accountForIdentity, claimBookings, storeSession, verifiedBookingIdentity, BookerError, type BookingAuthorisation } from '../booker/accounts.ts';
+import { currentBookerAccountId } from '../booker/context.ts';
+import { resolveBookingAccessCredential } from './booking-access.ts';
 import crypto from 'node:crypto';
 import { getAvailabilityProperties, getAvailabilityProperty, getProperties, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
 import { isIsoDate, nightsBetween } from './dates';
@@ -236,6 +239,7 @@ export async function isCalendarStale(propertyId: string, minutes = 30): Promise
 }
 
 export async function createProvisionalBooking(input: {
+  authorisation?: BookingAuthorisation;
   propertyId: string;
   arrival: string;
   departure: string;
@@ -253,7 +257,7 @@ export async function createProvisionalBooking(input: {
   message?: string;
   promoCode?: string;
   pricingQuote?: PublishedPricingQuote | null;
-}): Promise<{ reference: string; accessToken: string }> {
+}): Promise<{ reference: string; accessToken: string; sessionToken?: string; replayed?: boolean }> {
   const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
   const occupancyDetails = validateOccupancyDetails(input.occupancyDetails ?? { occupants: [], pets: [] }, { ...party, pets: input.pets });
   const compatibilityGuests = compatibilityGuestTotal(party);
@@ -267,6 +271,25 @@ export async function createProvisionalBooking(input: {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    let verified: Awaited<ReturnType<typeof verifiedBookingIdentity>> | null = null;
+    let accountId: string | null = null;
+    if (input.authorisation) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`submission:${input.authorisation.submissionId}`]);
+      const previous = await client.query(`SELECT pb.public_id::text AS reference,s.account_id,s.browser_hash,
+        s.created_at>NOW()-INTERVAL '30 minutes' AS recent FROM booker_submissions s
+        JOIN provisional_bookings pb ON pb.id=s.booking_id WHERE s.id=$1`, [input.authorisation.submissionId]);
+      if (previous.rowCount) {
+        const prior = previous.rows[0];
+        if (prior.browser_hash !== input.authorisation.browserHash || !prior.recent) throw new BookerError('This submission has already been used. Sign in to view your bookings.', 409);
+        const sessionToken = await storeSession(client, prior.account_id);
+        await client.query('COMMIT');
+        return { reference: prior.reference, accessToken: prior.reference, sessionToken, replayed: true };
+      }
+      verified = await verifiedBookingIdentity(client, input.authorisation);
+      accountId = await accountForIdentity(client, verified.identity);
+      await claimBookings(client, accountId, verified.identity);
+    }
+
     if (property.id !== 'bespoke-arrangement') {
       for (const availabilityProperty of availabilityProperties) {
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
@@ -348,8 +371,19 @@ export async function createProvisionalBooking(input: {
       audience: 'booker',
       sourceKey: `request-received:${result.rows[0].id}`,
     });
+    if (!input.authorisation) {
+      await client.query(`UPDATE provisional_bookings SET booker_claim_channel=CASE WHEN $2<>'' THEN 'email' WHEN $3::text IS NOT NULL THEN 'sms' END,
+        booker_claim_identifier=COALESCE(NULLIF(lower(trim($2)),''),$3) WHERE id=$1`, [result.rows[0].id,input.email,input.telephoneE164 || null]);
+    }
+    let sessionToken: string | undefined;
+    if (input.authorisation && accountId && verified) {
+      await client.query('UPDATE provisional_bookings SET booker_account_id=$2 WHERE id=$1', [result.rows[0].id, accountId]);
+      if (verified.grantId) await client.query('UPDATE booker_verification_grants SET consumed_at=NOW() WHERE id=$1', [verified.grantId]);
+      await client.query('INSERT INTO booker_submissions(id,browser_hash,booking_id,account_id) VALUES($1,$2,$3,$4)', [input.authorisation.submissionId,input.authorisation.browserHash,result.rows[0].id,accountId]);
+      sessionToken = await storeSession(client, accountId);
+    }
     await client.query('COMMIT');
-    return { reference: result.rows[0].reference, accessToken };
+    return { reference: result.rows[0].reference, accessToken: result.rows[0].reference, sessionToken };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -489,7 +523,7 @@ export async function respondToBespokeDateSuggestion(
   decision: 'accept' | 'change' | 'keep_original',
   changedDates?: { arrival: string; departure: string },
 ): Promise<'accepted' | 'changed' | 'original_retained' | 'invalid_dates' | 'no_suggestion' | 'not_bespoke' | 'not_found'> {
-  if (!validAccessToken(token)) return 'not_found';
+  if (!(await resolveBookingAccessCredential(token)).allowed) return 'not_found';
   if (decision === 'change' && (
     !changedDates
     || !isIsoDate(changedDates.arrival)
@@ -497,22 +531,20 @@ export async function respondToBespokeDateSuggestion(
     || changedDates.departure <= changedDates.arrival
     || nightsBetween(changedDates.arrival, changedDates.departure) > 365
   )) return 'invalid_dates';
-  const tokenHash = accessTokenHash(token);
+  const accountId = currentBookerAccountId();
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const selected = await client.query(
       `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+         SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
        )
        SELECT pb.id::text, pb.property_id, pb.status,
               pb.original_arrival::text, pb.original_departure::text,
               pb.bespoke_suggested_arrival::text, pb.bespoke_suggested_departure::text
          FROM provisional_bookings pb JOIN resolved r ON r.id = pb.id
         FOR UPDATE`,
-      [token, tokenHash],
+      [token, accountId],
     );
     if (!selected.rowCount) { await client.query('ROLLBACK'); return 'not_found'; }
     const booking = selected.rows[0];
@@ -878,9 +910,6 @@ function accessTokenHash(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function validAccessToken(token: string): boolean {
-  return /^[A-Za-z0-9_-]{43,128}$/.test(token);
-}
 
 export async function createBookingOfferAttempt(input: {
   reference: string;
@@ -1261,16 +1290,14 @@ const customerBookingSelect = `
     ) allocation_snapshot ON TRUE`;
 
 export async function getCustomerBookingPage(token: string, recordView = true): Promise<CustomerBookingOffer | null> {
-  if (!validAccessToken(token)) return null;
+  if (!(await resolveBookingAccessCredential(token)).allowed) return null;
   await expireElapsedBookingOffers();
-  const tokenHash = accessTokenHash(token);
+  const accountId = currentBookerAccountId();
 
   if (recordView) {
     await getPool().query(
       `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+         SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
        ), first_view AS (
          UPDATE provisional_bookings pb
             SET customer_first_viewed_at = NOW()
@@ -1280,13 +1307,11 @@ export async function getCustomerBookingPage(token: string, recordView = true): 
        )
        INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
        SELECT id, 'customer', 'booking_page_first_viewed' FROM first_view`,
-      [token, tokenHash],
+      [token, accountId],
     );
     await getPool().query(
       `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+         SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
        ), current_offer AS (
          SELECT bo.id
            FROM booking_offers bo
@@ -1305,21 +1330,15 @@ export async function getCustomerBookingPage(token: string, recordView = true): 
          (provisional_booking_id, booking_offer_id, actor, event_type)
        SELECT provisional_booking_id, id, 'customer', 'offer_viewed'
          FROM first_offer_view`,
-      [token, tokenHash],
+      [token, accountId],
     );
   }
 
   const resolved = await getPool().query(
-    `SELECT pb.public_id::text AS reference
-       FROM provisional_bookings pb
-      WHERE pb.customer_access_token = $1 AND pb.deletion_requested_at IS NULL
-     UNION
-     SELECT pb.public_id::text AS reference
-       FROM booking_offers bo
-      JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-      WHERE bo.access_token_hash = $2 AND pb.deletion_requested_at IS NULL
+    `SELECT pb.public_id::text AS reference FROM provisional_bookings pb
+      WHERE pb.public_id::text=$1 AND pb.booker_account_id=$2::uuid AND pb.deletion_requested_at IS NULL
      LIMIT 1`,
-    [token, tokenHash],
+    [token, accountId],
   );
   if (!resolved.rowCount) return null;
 
@@ -1357,16 +1376,14 @@ export async function respondToCustomerBookingOffer(
   token: string,
   response: 'accept' | 'decline',
 ): Promise<CustomerOfferResponseResult> {
-  if (!validAccessToken(token)) return 'not_found';
-  const tokenHash = accessTokenHash(token);
+  if (!(await resolveBookingAccessCredential(token)).allowed) return 'not_found';
+  const accountId = currentBookerAccountId();
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const selected = await client.query(
       `WITH resolved AS (
-         SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-         UNION
-         SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+         SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
        )
        SELECT bo.id, bo.provisional_booking_id, bo.customer_status,
               bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
@@ -1393,7 +1410,7 @@ export async function respondToCustomerBookingOffer(
             LIMIT 1
          )
         FOR UPDATE OF bo, pb`,
-      [token, tokenHash],
+      [token, accountId],
     );
     if (!selected.rowCount) {
       await client.query('ROLLBACK');

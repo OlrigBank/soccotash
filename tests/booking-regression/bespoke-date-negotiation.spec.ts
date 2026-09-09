@@ -1,3 +1,4 @@
+import { signInFixtureBooker, deleteFixtureBooker } from '../support/booker-session';
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
 import crypto from 'node:crypto';
@@ -31,6 +32,7 @@ async function cleanRegressionData() {
         [EMAIL],
       );
       await client.query(`DELETE FROM provisional_bookings WHERE guest_email = $1`, [EMAIL]);
+    await deleteFixtureBooker(client,EMAIL);
       await client.query(`DELETE FROM booking_blocks WHERE external_uid LIKE $1`, [`${BLOCK_UID_PREFIX}:%`]);
       await client.query(`DELETE FROM pricing_plans WHERE name = $1`, [PRICING_PLAN_NAME]);
       await client.query(`DELETE FROM admin_users WHERE email = $1`, [ADMIN_EMAIL]);
@@ -43,9 +45,10 @@ async function cleanRegressionData() {
 }
 
 test.describe('bespoke blocked-date negotiation', () => {
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page, baseURL }) => {
     await cleanRegressionData();
     await withDatabase(async (client) => {
+      await signInFixtureBooker(page,client,EMAIL,baseURL!);
       await client.query(`INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'Playwright occupancy administrator',$2) ON CONFLICT(email) DO UPDATE SET password_hash=EXCLUDED.password_hash,active=TRUE,updated_at=NOW()`,[ADMIN_EMAIL,await passwordHash(ADMIN_PASSWORD)]);
       previousPublishedPricingPlanIds=(await client.query(`UPDATE pricing_plans SET status='archived' WHERE property_id='main-house' AND status='published' RETURNING id::text`)).rows.map(row=>row.id);
       const plan = await client.query(

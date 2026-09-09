@@ -1,3 +1,5 @@
+import { browserToken, hashToken, sessionAccount, setSession, resumeSubmission, BookerError } from '../../lib/booker/accounts.ts';
+import { validBookingReference } from '../../lib/booker/context.ts';
 import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../lib/admin/auth';
 import { getProperty } from '../../lib/booking/config';
@@ -19,7 +21,7 @@ function cleanText(value: unknown, maximumLength: number): string {
   return String(value || '').trim().slice(0, maximumLength);
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies, url }) => {
   try {
     if (!isSameOrigin(request)) return Response.json({ error: 'Cross-origin request rejected.' }, { status: 403 });
     if (!request.headers.get('content-type')?.includes('application/json')) {
@@ -27,6 +29,13 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const input = await request.json();
+    if (validBookingReference(String(input.submissionId || ''))) {
+      const previous = await resumeSubmission(input.submissionId, hashToken(browserToken(cookies, url)));
+      if (previous) {
+        setSession(cookies, previous.sessionToken, url);
+        return Response.json({ reference: previous.reference, status: 'pending', managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
+      }
+    }
     const property = getProperty(String(input.propertyId || ''));
     if (!property) return Response.json({ error: 'Unknown property.' }, { status: 400 });
 
@@ -132,7 +141,10 @@ export const POST: APIRoute = async ({ request }) => {
       return Response.json({ error: restrictions || 'This stay does not meet the published booking rules.' }, { status: 422 });
     }
 
+    if (!validBookingReference(String(input.submissionId || ''))) return Response.json({ error: 'A submission identifier is required.' }, { status: 400 });
     const booking = await createProvisionalBooking({
+      authorisation: { browserHash: hashToken(browserToken(cookies, url)), accountId: await sessionAccount(cookies),
+        email, mobile: whatsappConsent.telephoneE164, submissionId: input.submissionId },
       propertyId: property.id,
       arrival,
       departure,
@@ -151,10 +163,11 @@ export const POST: APIRoute = async ({ request }) => {
       promoCode,
       pricingQuote,
     });
-    const saved = await getProvisionalBookingRequest(booking.reference);
+    if (booking.sessionToken) setSession(cookies, booking.sessionToken, url);
+    const saved = booking.replayed ? null : await getProvisionalBookingRequest(booking.reference);
     if (saved) {
       const origin = (process.env.BOOKING_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '');
-      const manageUrl = `${origin}/booking/manage/${booking.accessToken}/`;
+      const manageUrl = `${origin}/booking/manage/${booking.reference}/`;
       try {
         await deliverBookingNotification({
           booking: saved,
@@ -180,7 +193,7 @@ export const POST: APIRoute = async ({ request }) => {
     return Response.json({
       reference: booking.reference,
       status: 'pending',
-      managePath: `/booking/manage/${booking.accessToken}/`,
+      managePath: `/booking/manage/${booking.reference}/`,
       pricingAvailable: Boolean(pricingQuote),
       currency: pricingQuote?.result.currency,
       guestTotalPence: pricingQuote?.result.guestTotalPence,
@@ -189,6 +202,7 @@ export const POST: APIRoute = async ({ request }) => {
       occupancyOutcome: occupancyAssessment.result.outcome,
     }, { status: 201 });
   } catch (error) {
+    if (error instanceof BookerError) return Response.json({ error: error.message, verificationRequired: error.status === 403 }, { status: error.status });
     if (error instanceof Error && ['INVALID_PARTY_COMPOSITION', 'INVALID_OCCUPANCY_INPUT'].includes((error as Error & { code?: string }).code || error.message)) {
       return Response.json({ error: 'Please enter at least one adult and non-negative whole-number party counts.' }, { status: 400 });
     }
