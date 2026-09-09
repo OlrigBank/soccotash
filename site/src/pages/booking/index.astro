@@ -1,0 +1,33 @@
+---
+import BookerLayout from '../../layouts/BookerLayout.astro';
+import BookerVerification from '../../components/BookerVerification.astro';
+import { sessionAccount } from '../../lib/booker/accounts.ts';
+import { getPool } from '../../lib/booking/db.ts';
+import { resolveBookingAccessCredential } from '../../lib/booking/booking-access.ts';
+import { getProperties } from '../../lib/booking/config.ts';
+export const prerender = false;
+const accountId = await sessionAccount(Astro.cookies);
+const bookings = accountId ? (await getPool().query(`SELECT public_id::text AS reference,property_id,arrival::text,departure::text,status FROM provisional_bookings WHERE booker_account_id=$1 AND deletion_requested_at IS NULL ORDER BY arrival DESC`, [accountId])).rows : [];
+const accessible = [];
+for (const booking of bookings) if ((await resolveBookingAccessCredential(booking.reference)).allowed) accessible.push(booking);
+if (accessible.length === 1 && !Astro.url.searchParams.has('all')) return Astro.redirect(`/booking/manage/${accessible[0].reference}/`);
+const date = (value: string) => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(value));
+---
+<BookerLayout title="Your bookings" homeHref="/booking/" homeLabel="Your bookings" analytics={false}>
+  <section class="account-page">
+    <h1>Your bookings</h1>
+    {accountId ? <>
+      {accessible.length ? <ul class="booking-selector">{accessible.map(booking => <li><a href={`/booking/manage/${booking.reference}/`}><strong>{getProperties().find(property=>property.id===booking.property_id)?.name ?? 'Your stay'}</strong><span>{date(booking.arrival)} – {date(booking.departure)}</span><span>{booking.status}</span></a></li>)}</ul> : <p>There are no accessible bookings linked to this account.</p>}
+      <p><a href="/book/">Request another stay</a></p>
+    </> : <>
+      {Astro.url.searchParams.has('signedOut') && <p role="status">You have been logged out on this device.</p>}
+      <p>Sign in using the contact you verified when booking. No password is needed.</p>
+      <form aria-label="Booker sign-in">
+        <label>Email address <input name="email" type="email" autocomplete="email" maxlength="254" /></label>
+        <label>Mobile number <input name="telephone" type="tel" autocomplete="tel" maxlength="80" /></label>
+        <BookerVerification purpose="login" />
+      </form>
+    </>}
+  </section>
+</BookerLayout>
+<style>.account-page{max-width:42rem;margin:auto;padding:1.25rem}.account-page label{display:block;margin:1rem 0}.account-page input{display:block;width:100%;box-sizing:border-box;min-height:44px}.booking-selector{padding:0;list-style:none}.booking-selector a{display:grid;gap:.5rem;padding:1rem;border:1px solid #788771;border-radius:.75rem;margin:1rem 0}.account-page a:focus-visible{outline:3px solid currentColor;outline-offset:3px}</style>

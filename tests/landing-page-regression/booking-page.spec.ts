@@ -7,6 +7,8 @@ const blocks = [{ startsOn: '2026-10-24', endsOn: '2026-10-30' }];
 
 test.beforeEach(async ({ page, baseURL }) => {
   test.skip(!['localhost', '127.0.0.1'].includes(new URL(baseURL!).hostname), 'Local-only response fixtures');
+  await page.route('**/api/booker/session/**', route => route.fulfill({ json: { signedIn: true, identities: [{ channel: 'sms', identifier: '+441632960123' }, { channel: 'email', identifier: 'fixture@example.test' }], grants: [] } }));
+  await page.route('**/api/booker/request-code/**', route => route.fulfill({ status: 503, json: { error: 'No delivery from this presentation fixture.' } }));
   await page.clock.install({ time: new Date('2026-09-08T12:00:00Z') });
   await page.route('**/api/availability/**', route => {
     const params = new URL(route.request().url()).searchParams;
@@ -46,11 +48,9 @@ test('incoming stay is freshly checked and continues inline to validated request
   await continueToDetails(page);
   await expect(page).toHaveURL(url);
   await expect(page.locator('[data-pet-details]')).toBeHidden();
-  await page.getByRole('button', { name: 'Continue to review' }).click();
-  await expect(page.getByLabel('Booker name')).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
   await page.getByLabel('Booker name').fill('Disposable browser fixture');
-  await page.getByRole('button', { name: 'Continue to review' }).click();
-  await expect(page.getByLabel('Booker email')).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
   await page.getByLabel('Mobile number').fill('01632 960123');
   await page.getByRole('button', { name: 'Continue to review' }).click();
   const request = page.waitForRequest('**/api/provisional-bookings/**');
@@ -153,7 +153,7 @@ test('changed quote needs another explicit submission and safe continuation uses
   await page.getByLabel('Mobile number').fill('01632 960123');
   await page.getByRole('button', { name: 'Continue to review' }).click();
   let submissions = 0;
-  const privatePath = `/booking/manage/${'fixture'.repeat(7)}/`;
+  const privatePath = '/booking/manage/11111111-1111-4111-8111-111111111111/';
   await page.route('**/api/provisional-bookings/**', route => {
     submissions++;
     if (submissions === 1) return route.fulfill({ status: 409, json: { error: 'Price changed. Review the new total.', quote: { ...quote, guestTotalPence: 180000, plan: { id: 'fixture', version: 2 } } } });

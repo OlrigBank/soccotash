@@ -1,4 +1,7 @@
 ---
+import BookerAccountEntry from '../components/BookerAccountEntry.astro';
+import { sessionAccount } from '../lib/booker/accounts.ts';
+const signedIn = Boolean(await sessionAccount(Astro.cookies));
 import Analytics from '../components/Analytics.astro';
 import '../styles/global.css';
 import '../styles/green-theme.css';
@@ -7,7 +10,7 @@ const {
   title = 'Your booking',
   description = 'Your private booking page.',
   robots = 'noindex,nofollow,noarchive',
-  analytics = true,
+  analytics = false,
   showHeader = true,
   homeHref = Astro.url.pathname.match(/^\/booking\/manage\/[^/]+/)?.[0] + '/',
   homeLabel = 'Your booking home',
@@ -38,7 +41,11 @@ const currentYear = new Date().getFullYear();
             <img class="booker-brand__logo" src="/media/images/listings/olrig-bank-header-logo.png" alt="" width="1536" height="1024" />
             <span><small>{areaLabel}</small><strong>{areaTitle}</strong></span>
           </a>
+          <div class="booker-account-actions">
+          <BookerAccountEntry />
+          {signedIn && <form method="post" action="/api/booker/logout/"><button type="submit" class="button">Log out</button></form>}
           <a class="booker-public-link" href="/" target="_blank" rel="noopener noreferrer">Visit the public website <span aria-hidden="true">↗</span></a>
+          </div>
         </div>
       </header>
       <main id="main-content" tabindex="-1"><slot /></main>
@@ -46,3 +53,10 @@ const currentYear = new Date().getFullYear();
     </div>
   </body>
 </html>
+
+<style>
+  .booker-account-actions { display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:.75rem; }
+  .booker-account-actions form { margin:0; }
+  .booker-account-actions :global(.booker-public-link) { min-height:44px;display:inline-flex;align-items:center; }
+  @media(max-width:600px) { .booker-account-actions { justify-content:flex-start;gap:.5rem; } }
+</style>

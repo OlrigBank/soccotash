@@ -1,4 +1,5 @@
-import crypto from 'node:crypto';
+import { currentBookerAccountId } from '../booker/context.ts';
+import { resolveBookingAccessCredential } from './booking-access.ts';
 import type { PoolClient } from 'pg';
 import { getPool } from './db.ts';
 
@@ -40,9 +41,6 @@ function normaliseMessage(row: MessageRow, viewer: BookingMessageViewer): Bookin
   };
 }
 
-function accessTokenHash(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
 
 export function validBookingAccessToken(token: string): boolean {
   return /^[A-Za-z0-9_-]{43,128}$/.test(token);
@@ -101,27 +99,23 @@ export async function getBookingMessagesByToken(
   viewer: BookingMessageViewer,
   options: { afterId?: string | null; markRead?: boolean } = {},
 ): Promise<BookingMessage[]> {
-  if (!validBookingAccessToken(token)) return [];
+  if (!(await resolveBookingAccessCredential(token)).allowed) return [];
   const afterId = cleanAfterId(options.afterId);
-  const tokenHash = accessTokenHash(token);
+  const accountId = currentBookerAccountId();
   const result = await getPool().query(
     `WITH resolved AS (
-       SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-       UNION
-       SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
      )
      ${messageSelect}
      JOIN resolved r ON r.id = bm.provisional_booking_id
      WHERE bm.id > $3::bigint
      ORDER BY bm.id`,
-    [token, tokenHash, afterId],
+    [token, accountId, afterId],
   );
   const booking = await getPool().query(
-    `SELECT id::text FROM provisional_bookings WHERE customer_access_token = $1
-     UNION
-     SELECT provisional_booking_id::text FROM booking_offers WHERE access_token_hash = $2
+    `SELECT id::text FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
      LIMIT 1`,
-    [token, tokenHash],
+    [token, accountId],
   );
   if (options.markRead !== false && booking.rowCount) {
     await markReadByBookingId(String(booking.rows[0].id), viewer);
@@ -172,13 +166,11 @@ export async function createBookerBookingMessage(input: {
   notificationRequested: boolean;
   notificationRecipient?: string | null;
 }): Promise<BookingMessage> {
-  if (!validBookingAccessToken(input.token)) throw new Error('BOOKING_NOT_FOUND');
-  const tokenHash = accessTokenHash(input.token);
+  if (!(await resolveBookingAccessCredential(input.token)).allowed) throw new Error('BOOKING_NOT_FOUND');
+  const accountId = currentBookerAccountId();
   const result = await getPool().query(
     `WITH resolved AS (
-       SELECT id FROM provisional_bookings WHERE customer_access_token = $1
-       UNION
-       SELECT provisional_booking_id FROM booking_offers WHERE access_token_hash = $2
+       SELECT id FROM provisional_bookings WHERE public_id::text = $1 AND booker_account_id = $2::uuid
      )
      INSERT INTO booking_messages (
        provisional_booking_id, sender_type, sender_name, message_type, body,
@@ -196,7 +188,7 @@ export async function createBookerBookingMessage(input: {
                notification_error AS "notificationError", created_at AS "createdAt"`,
     [
       input.token,
-      tokenHash,
+      accountId,
       input.body,
       input.notificationRequested,
       input.notificationRecipient || null,

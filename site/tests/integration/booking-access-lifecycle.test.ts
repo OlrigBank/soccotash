@@ -21,7 +21,7 @@ function databaseSsl(): { rejectUnauthorized: false } | undefined {
   return process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined;
 }
 
-test('rotates, revokes and restores private Booker access', async () => {
+test('requires account ownership and preserves booking access revocation', async () => {
   assert.ok(
     databaseUrl,
     'Set TEST_DATABASE_URL or DATABASE_URL to run the PostgreSQL integration test.',
@@ -56,7 +56,6 @@ test('rotates, revokes and restores private Booker access', async () => {
     const {
       resolveBookingAccessCredential,
       revokeBookingAccessCredential,
-      rotateBookingAccessCredential,
     } = await import('../../src/lib/booking/booking-access.ts');
     const { getPool } = await import('../../src/lib/booking/db.ts');
     applicationPool = getPool();
@@ -87,68 +86,19 @@ test('rotates, revokes and restores private Booker access', async () => {
       [booking.id, offerTokenHash],
     );
 
-    const originalAccess = await resolveBookingAccessCredential(originalToken, { recordUse: true });
-    assert.equal(originalAccess.allowed, true, 'the original private link must grant access');
-    if (originalAccess.allowed) {
-      assert.equal(originalAccess.reference, booking.public_id);
-      assert.equal(originalAccess.source, 'booking');
-    }
-
-    const firstRotation = await rotateBookingAccessCredential({
-      reference: booking.public_id,
-      adminUserId: 'integration-test-admin',
-      reason: 'First lifecycle rotation',
+    const { bookerContext } = await import('../../src/lib/booker/context.ts');
+    const accountId = (await applicationPool.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await applicationPool.query('UPDATE provisional_bookings SET booker_account_id=$2 WHERE id=$1',[booking.id,accountId]);
+    assert.equal((await resolveBookingAccessCredential(originalToken)).allowed,false);
+    assert.equal((await resolveBookingAccessCredential(offerToken)).allowed,false);
+    assert.equal((await resolveBookingAccessCredential(booking.public_id)).allowed,false);
+    await bookerContext.run({accountId},async()=>{
+      assert.equal((await resolveBookingAccessCredential(booking.public_id,{recordUse:true})).allowed,true);
+      await revokeBookingAccessCredential({reference:booking.public_id,adminUserId:'integration-test-admin',reason:'Lifecycle revocation'});
+      assert.deepEqual(await resolveBookingAccessCredential(booking.public_id),{allowed:false,reason:'revoked'});
+      await applicationPool!.query('UPDATE provisional_bookings SET customer_access_token_revoked_at=NULL WHERE id=$1',[booking.id]);
+      assert.equal((await resolveBookingAccessCredential(booking.public_id)).allowed,true);
     });
-    assert.ok(firstRotation, 'the first rotation must return a replacement credential');
-    assert.notEqual(firstRotation.token, originalToken);
-
-    const rejectedOriginal = await resolveBookingAccessCredential(originalToken, { recordDenied: true });
-    assert.deepEqual(rejectedOriginal, {
-      allowed: false,
-      reason: 'revoked',
-      reference: booking.public_id,
-    });
-    assert.deepEqual(await resolveBookingAccessCredential(offerToken, { recordDenied: true }), {
-      allowed: false,
-      reason: 'not_found',
-    });
-
-    const firstReplacementAccess = await resolveBookingAccessCredential(firstRotation.token, {
-      recordUse: true,
-    });
-    assert.equal(firstReplacementAccess.allowed, true, 'the first replacement link must grant access');
-
-    assert.equal(
-      await revokeBookingAccessCredential({
-        reference: booking.public_id,
-        adminUserId: 'integration-test-admin',
-        reason: 'Lifecycle revocation',
-      }),
-      true,
-    );
-
-    const rejectedReplacement = await resolveBookingAccessCredential(firstRotation.token, {
-      recordDenied: true,
-    });
-    assert.deepEqual(rejectedReplacement, {
-      allowed: false,
-      reason: 'revoked',
-      reference: booking.public_id,
-    });
-
-    const secondRotation = await rotateBookingAccessCredential({
-      reference: booking.public_id,
-      adminUserId: 'integration-test-admin',
-      reason: 'Restore lifecycle access',
-    });
-    assert.ok(secondRotation, 'the second rotation must restore an active credential');
-    assert.notEqual(secondRotation.token, firstRotation.token);
-
-    const restoredAccess = await resolveBookingAccessCredential(secondRotation.token, {
-      recordUse: true,
-    });
-    assert.equal(restoredAccess.allowed, true, 'the second replacement link must restore access');
-
     const preservedBooking = await applicationPool.query(
       `SELECT public_id::text, arrival::text, departure::text, guest_name, status
          FROM provisional_bookings
@@ -175,23 +125,12 @@ test('rotates, revokes and restores private Booker access', async () => {
         ORDER BY id`,
       [booking.id],
     );
-    assert.deepEqual(
-      activity.rows.map((row) => row.event_type),
-      [
-        'booking_access_rotated',
-        'booking_access_denied',
-        'booking_access_revoked',
-        'booking_access_denied',
-        'booking_access_rotated',
-      ],
-    );
+    assert.deepEqual(activity.rows.map(row=>row.event_type),['booking_access_revoked']);
 
     const activityJson = JSON.stringify(activity.rows);
     for (const credential of [
       originalToken,
       offerToken,
-      firstRotation.token,
-      secondRotation.token,
     ]) {
       assert.equal(
         activityJson.includes(credential),

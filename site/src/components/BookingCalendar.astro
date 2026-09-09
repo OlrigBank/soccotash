@@ -1,4 +1,5 @@
 ---
+import BookerVerification from './BookerVerification.astro';
 import CompactBookingPanel from './CompactBookingPanel.astro';
 ---
 <section class="booking-panel" data-booking-calendar>
@@ -25,6 +26,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         <label for="guest-name">Booker name</label>
         <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required />
       </div>
+      <p class="booking-field-wide">We will send a verification code when you finish entering your contact details.</p>
       <div class="booking-field">
         <label for="guest-email">Booker email</label>
         <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
@@ -33,6 +35,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         <label for="guest-telephone">Mobile number</label>
         <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" aria-describedby="whatsapp-consent-help" />
       </div>
+      <BookerVerification />
       <div class="booking-field booking-field-wide">
         <label class="booking-consent" for="whatsapp-consent">
           <input id="whatsapp-consent" name="whatsappConsent" type="checkbox" value="yes" />
@@ -82,6 +85,9 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
   const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
+  const isVerified = () => root?.querySelector<HTMLElement>('[data-booker-verification]')?.dataset.verified === 'true';
+  const submissionId = crypto.randomUUID();
+  root?.addEventListener('booker-verification-change', () => { updateCheck(); if (!isVerified() && activeStep === 3) setProgress(2); });
   let reviewedState: BookingPanelState | null = null;
   let submitting = false;
   let activeStep = 1;
@@ -184,7 +190,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         ? `Provisional total: ${money(Number(state.quote.guestTotalPence || 0))}`
         : 'Jenna will confirm availability and the final price.' : 'Check your stay before continuing to review.');
     if (retryStay) retryStay.hidden = !check.error || check.checking;
-    if (continueReview) continueReview.disabled = !state.quote || check.checking;
+    if (continueReview) continueReview.disabled = !state.quote || check.checking || !isVerified();
     if (!initialEntryHandled && check.initialContinuation) {
       initialEntryHandled = true;
       if (contact) contact.disabled = false;
@@ -257,7 +263,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   }
   continueReview?.addEventListener('click', () => {
     const state = panel?.bookingPanel?.getState();
-    if (submitting || !state?.quote || !validateDetails()) return;
+    if (submitting || !state?.quote || !isVerified() || !validateDetails()) return;
     reviewedState = state;
     renderReview(state); renderAnswers();
     if (submitButton) submitButton.disabled = false;
@@ -282,11 +288,13 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       return;
     }
     if (email && !email.value.trim() && !telephone?.value.trim()) email.setCustomValidity('Provide an email address or a telephone number.');
+    if (!isVerified()) { setProgress(2); status.textContent = 'Verify your contact before submitting.'; return; }
     if (!form.checkValidity()) { setProgress(2); validateDetails(); return; }
     const data = new FormData(form);
     const state = reviewedState;
     const quote = state.quote!;
     const payload = {
+      submissionId,
       ...Object.fromEntries(data.entries()),
       ...state.selection,
       petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({
@@ -313,6 +321,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       });
       const body = await response.json();
       if (!response.ok) {
+        if (body.verificationRequired) { root?.querySelector('[data-booker-verification]')?.dispatchEvent(new Event('booker-verification-required')); setProgress(2); status.textContent = body.error; return; }
         if (response.status === 409 && body.quote && typeof body.quote === 'object') {
           panel?.bookingPanel?.setQuote(body.quote as PanelQuote);
           reviewedState = panel?.bookingPanel?.getState() || null;
@@ -333,7 +342,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         return;
       }
       const managePath = typeof body.managePath === 'string' ? body.managePath : '';
-      if (!/^\/booking\/manage\/[A-Za-z0-9_-]{43,128}\/$/.test(managePath)) {
+      if (!/^\/booking\/manage\/[0-9a-f-]{36}\/$/.test(managePath)) {
         status.textContent = 'The request was saved, but its private page could not be opened. Please contact Olrig Bank before making another request.';
         reviewedState = null;
         return;

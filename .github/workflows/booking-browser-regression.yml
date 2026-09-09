@@ -60,6 +60,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Record controlled booking regression
         run: npm run test:booking-regression
+      - name: Verify booker account journeys without external delivery
+        run: npx playwright test --config=playwright.booker-accounts.config.ts
       - name: Upload regression playback
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6

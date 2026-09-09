@@ -10,6 +10,7 @@ export type OutgoingEmail = {
   html: string;
   replyTo?: string;
   bcc?: string[];
+  suppressDefaultBcc?: boolean;
 };
 
 export type EmailSendResult = {
@@ -232,7 +233,7 @@ async function sendWithSmtp(input: OutgoingEmail, configuration: EmailConfigurat
   const rejectUnauthorized = String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false';
   const username = String(process.env.SMTP_USER || '').trim();
   const password = String(process.env.SMTP_PASSWORD || '');
-  const recipients = [...new Set([input.to, ...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)]
+  const recipients = [...new Set([input.to, ...(input.bcc || []), ...(input.suppressDefaultBcc ? [] : splitAddresses(process.env.BOOKING_EMAIL_BCC))]
     .map((recipient) => envelopeAddress(recipient).toLowerCase()))];
   const { raw, messageId } = createMimeMessage(input, configuration.from, configuration.replyTo);
 
@@ -273,7 +274,7 @@ async function sendWithSmtp(input: OutgoingEmail, configuration: EmailConfigurat
 async function sendWithResend(input: OutgoingEmail, configuration: EmailConfiguration): Promise<EmailSendResult> {
   const toAddress = envelopeAddress(input.to).toLowerCase();
   const seen = new Set<string>([toAddress]);
-  const bcc = [...(input.bcc || []), ...splitAddresses(process.env.BOOKING_EMAIL_BCC)].filter((recipient) => {
+  const bcc = [...(input.bcc || []), ...(input.suppressDefaultBcc ? [] : splitAddresses(process.env.BOOKING_EMAIL_BCC))].filter((recipient) => {
     const address = envelopeAddress(recipient).toLowerCase();
     if (!address || seen.has(address)) return false;
     seen.add(address);
