@@ -88,7 +88,7 @@ test.describe('bespoke blocked-date negotiation', () => {
   await page.getByRole('button', { name: 'Request booking' }).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
     const bookerUrl = page.url();
-    await expect(page.getByRole('banner')).toContainText('Private stay area');
+    await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
     await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);

@@ -3,7 +3,8 @@
 ## Status
 
 In progress. [E13-F01](../e13-f01-private-header-and-navigation.md) is accepted and closed.
-F02 is in progress; F03 remains planned and requires F02 acceptance.
+[E13-F02](../e13-f02-reservation-entry.md) is implemented and awaiting owner
+acceptance. F03 remains planned and requires F02 acceptance.
 
 ## Summary
 
