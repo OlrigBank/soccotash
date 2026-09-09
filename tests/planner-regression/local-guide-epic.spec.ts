@@ -1,3 +1,4 @@
+import { signInFixtureBooker, deleteFixtureBooker } from '../support/booker-session';
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
 import type { Client as PgClient } from 'pg';
@@ -6,7 +7,7 @@ import { hashPassword } from '../../site/src/lib/admin/password.ts';
 const {Client}=pg;
 const EMAIL='playwright-local-guide-regression@example.test';
 const BOOKER='Local Guide Regression Booker';
-const TOKEN='localGuideRegressionToken012345678901234567';
+let TOKEN='';
 const ADMIN_EMAIL='playwright-local-guide-admin@example.test';
 const ADMIN_PASSWORD='playwright-local-guide-password';
 const TITLE='Playwright Riverside Recommendation';
@@ -37,6 +38,7 @@ async function cleanFixture(){await withDatabase(async client=>{
   await client.query('BEGIN');try{
     await client.query(`DELETE FROM holiday_plans WHERE booking_id IN(SELECT id FROM provisional_bookings WHERE guest_email=$1)`,[EMAIL]);
     await client.query(`DELETE FROM provisional_bookings WHERE guest_email=$1`,[EMAIL]);
+    await deleteFixtureBooker(client,EMAIL);
     await removeGuideFixture(client);
     await client.query(`DELETE FROM admin_sessions WHERE admin_user_id IN(SELECT id FROM admin_users WHERE email=$1)`,[ADMIN_EMAIL]);
     await client.query(`DELETE FROM admin_users WHERE email=$1`,[ADMIN_EMAIL]);
@@ -98,12 +100,13 @@ test.describe('Local Guide database migration epic',()=>{
     }finally{await removeAllPlacesPlanFixture(fixturePlanId)}
   });
 
-  test('moves a consented contribution through editorial publication while retaining its planner reference',async({browser,page,request})=>{
+  test('moves a consented contribution through editorial publication while retaining its planner reference',async({browser,page,request,baseURL})=>{
     await cleanFixture();const passwordHash=await hashPassword(ADMIN_PASSWORD);
     await withDatabase(async client=>{
       await client.query(`INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'Playwright Local Guide Admin',$2)`,[ADMIN_EMAIL,passwordHash]);
-      await client.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,status,customer_access_token)
-        VALUES('olrig-bank','2099-10-10','2099-10-14',2,$1,$2,'confirmed',$3)`,[BOOKER,EMAIL,TOKEN]);
+      await client.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,status)
+        VALUES('olrig-bank','2099-10-10','2099-10-14',2,$1,$2,'confirmed')`,[BOOKER,EMAIL]);
+      TOKEN=(await signInFixtureBooker(page,client,EMAIL,baseURL!))!;
     });
 
     await page.goto(`/booking/manage/${TOKEN}/`);await page.getByRole('link',{name:/Holiday Planner/}).click();

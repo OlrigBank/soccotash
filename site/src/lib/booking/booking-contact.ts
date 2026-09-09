@@ -111,6 +111,8 @@ export async function updateProvisionalBookingContact(input: {
     const updated = await client.query(
       `UPDATE provisional_bookings SET
          guest_email = $2, guest_telephone = $3, guest_telephone_e164 = $4,
+         booker_claim_channel = CASE WHEN booker_account_id IS NULL THEN CASE WHEN $2<>'' THEN 'email' WHEN $4::text IS NOT NULL THEN 'sms' END ELSE booker_claim_channel END,
+         booker_claim_identifier = CASE WHEN booker_account_id IS NULL THEN COALESCE(NULLIF($2,''),$4) ELSE booker_claim_identifier END,
          whatsapp_consent_status = CASE WHEN $5 THEN 'withdrawn' ELSE whatsapp_consent_status END,
          whatsapp_consent_withdrawn_at = CASE WHEN $5 THEN NOW() ELSE whatsapp_consent_withdrawn_at END,
          whatsapp_consent_number_e164 = CASE WHEN $5 THEN NULL ELSE whatsapp_consent_number_e164 END

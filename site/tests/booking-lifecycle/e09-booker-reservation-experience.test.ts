@@ -7,8 +7,9 @@ const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.u
 test('the Booker header uses the public Olrig Bank identity within a private boundary', async () => {
   const layout = await source('src/layouts/BookerLayout.astro');
   assert.match(layout, /booker-brand__logo[\s\S]*olrig-bank-header-logo\.png/);
-  assert.match(layout, /areaLabel = 'Private stay area'/);
-  assert.match(layout, />Visit the public website/);
+  assert.doesNotMatch(layout, /<small>|<strong>/);
+  assert.match(layout, /Olrig Bank Kendal/);
+  assert.match(layout, /<BookerNavigation signedIn=\{signedIn\}/);
   assert.match(layout, /noindex,nofollow,noarchive/);
 });
 
@@ -16,12 +17,12 @@ test('reservation workspaces keep visible current-state navigation', async () =>
   const page = await source('src/pages/booking/manage/[token]/index.astro');
   assert.match(page, /<h1>\{propertyName\}<\/h1>/);
   assert.match(page, /For \{offer\.guestName\}/);
-  assert.match(page, /Booking overview/);
+  assert.doesNotMatch(page, /Booking overview/);
   for (const workspace of ['reservation', 'messages', 'holiday-planner']) {
     assert.ok(page.includes(`aria-current={workspace === '${workspace}' ? 'page' : undefined}`));
   }
   assert.match(page, />Messages<\/span>/);
-  assert.match(page, /Your Reservation, Messages and Holiday Planner/);
+  assert.match(page, /<p class="eyebrow">Your booking/);
   assert.doesNotMatch(page, /reservation, chat and Holiday Planner/);
   assert.doesNotMatch(page, /\{!workspace && <nav/);
 });

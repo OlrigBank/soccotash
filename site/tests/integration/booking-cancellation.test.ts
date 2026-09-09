@@ -265,15 +265,20 @@ test('cancels an active booking while preserving its record and reason', async (
     );
     const bookerReason = 'Our travel plans have changed.';
     assert.equal(await cancelBookingByBookerToken('invalid-token', bookerReason), 'not_found');
-    assert.equal(await cancelBookingByBookerToken(bookerToken, '   '), 'reason_required');
+    const { bookerContext } = await import('../../src/lib/booker/context.ts');
+    const accountId=(await applicationPool.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await applicationPool.query('UPDATE provisional_bookings SET booker_account_id=$2 WHERE id=$1',[bookerCancellation.rows[0].id,accountId]);
+    await bookerContext.run({accountId}, async()=>{
+    assert.equal(await cancelBookingByBookerToken(bookerCancellation.rows[0].public_id, '   '), 'reason_required');
     assert.equal(
-      await cancelBookingByBookerToken(bookerToken, bookerReason),
+      await cancelBookingByBookerToken(bookerCancellation.rows[0].public_id, bookerReason),
       'cancelled',
     );
     assert.equal(
-      await cancelBookingByBookerToken(bookerToken, 'A repeated cancellation must fail.'),
+      await cancelBookingByBookerToken(bookerCancellation.rows[0].public_id, 'A repeated cancellation must fail.'),
       'transition_not_allowed',
     );
+    });
     const bookerEvidence = await applicationPool.query(
       `SELECT pb.status, ba.actor, ba.event_type, ba.details, bm.sender_type, bm.body
          FROM provisional_bookings pb

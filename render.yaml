@@ -36,6 +36,17 @@ services:
           name: olrigbankweb
           envVarKey: RENDER_EXTERNAL_URL
 
+      # Booker verification. Existing services need these values set in the Dashboard;
+      # sync:false prompts only during initial Blueprint creation.
+      - key: BOOKER_VERIFICATION_SECRET
+        generateValue: true
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+
       # Customer booking-offer emails are sent through the Resend HTTPS API.
       # This is a fixed, non-secret setting and can safely remain in render.yaml.
       - key: EMAIL_PROVIDER
@@ -62,7 +73,7 @@ services:
       - key: BOOKING_PUBLIC_URL
         value: https://olrig-bank.com
 
-      # Private Booker links remain valid through this many days after departure.
+      # Booker account access to each booking remains available through this many days after departure.
       - key: BOOKING_ACCESS_EXPIRY_DAYS_AFTER_DEPARTURE
         value: "90"
 

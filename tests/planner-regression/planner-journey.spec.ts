@@ -1,3 +1,4 @@
+import { signInFixtureBooker, deleteFixtureBooker } from '../support/booker-session';
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
 import type { Client as PgClient } from 'pg';
@@ -5,7 +6,7 @@ import type { Client as PgClient } from 'pg';
 const {Client}=pg;
 const EMAIL='playwright-planner-regression@example.test';
 const BOOKER='Playwright Planner Booker';
-const TOKEN='plannerRegressionToken012345678901234567890';
+let TOKEN='';
 
 async function withDatabase<T>(run:(client:PgClient)=>Promise<T>):Promise<T>{
   const client=new Client({connectionString:process.env.DATABASE_URL});await client.connect();
@@ -16,14 +17,16 @@ async function cleanFixture(){await withDatabase(async client=>{
   await client.query('BEGIN');try{
     await client.query(`DELETE FROM holiday_plans WHERE booking_id IN(SELECT id FROM provisional_bookings WHERE guest_email=$1)`,[EMAIL]);
     await client.query(`DELETE FROM provisional_bookings WHERE guest_email=$1`,[EMAIL]);
+    await deleteFixtureBooker(client,EMAIL);
     await client.query('COMMIT');
   }catch(error){await client.query('ROLLBACK');throw error}
 })}
 
 test.describe('local Docker Holiday Planner regression',()=>{
-  test.beforeEach(async()=>{await cleanFixture();await withDatabase(async client=>{
-    await client.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,status,customer_access_token)
-      VALUES('olrig-bank','2099-09-10','2099-09-14',2,$1,$2,'confirmed',$3)`,[BOOKER,EMAIL,TOKEN]);
+  test.beforeEach(async({page,baseURL})=>{await cleanFixture();await withDatabase(async client=>{
+    await client.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,status)
+      VALUES('olrig-bank','2099-09-10','2099-09-14',2,$1,$2,'confirmed')`,[BOOKER,EMAIL]);
+    TOKEN=(await signInFixtureBooker(page,client,EMAIL,baseURL!))!;
   })});
   test.afterEach(async()=>{await cleanFixture()});
 
@@ -59,7 +62,10 @@ test.describe('local Docker Holiday Planner regression',()=>{
     await editorPage.goto(invitationUrl);
     await expect(editorPage.getByText(/editor access · revision/i)).toBeVisible();
     await expect(editorPage.getByText(/Your access: You can edit this plan/)).toBeVisible();
-    await expect(editorPage.getByRole('banner')).toContainText('Private planning area');
+    const plannerHome = editorPage.getByRole('banner').getByRole('link', {name:'Olrig Bank Kendal — Holiday Planner home', exact:true});
+    await expect(plannerHome).toBeVisible();
+    await expect(plannerHome).toHaveAttribute('href', new URL(invitationUrl).pathname);
+    await expect(plannerHome).toHaveText('');
     await editorPage.setViewportSize({width:390,height:844});
     expect(await editorPage.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
     await editorContext.close();

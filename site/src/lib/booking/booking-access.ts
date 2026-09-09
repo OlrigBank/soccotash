@@ -1,3 +1,4 @@
+import { currentBookerAccountId, validBookingReference } from '../booker/context.ts';
 import crypto from 'node:crypto';
 import { getPool } from './db.ts';
 import {
@@ -36,78 +37,18 @@ export async function resolveBookingAccessCredential(
   token: string,
   options: { recordUse?: boolean; recordDenied?: boolean } = {},
 ): Promise<BookingAccessResolution> {
-  if (!validBookingAccessCredential(token)) return { allowed: false, reason: 'invalid' };
-
-  const hash = tokenHash(token);
-  const result = await getPool().query(
-    `WITH candidate AS (
-       SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
-              pb.departure::text, pb.customer_access_token_revoked_at AS revoked_at,
-              'booking'::text AS source, NULL::text AS offer_id, 1 AS priority
-         FROM provisional_bookings pb
-        WHERE pb.customer_access_token = $1 AND pb.deletion_requested_at IS NULL
-       UNION ALL
-       SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
-              pb.departure::text, COALESCE(pb.customer_access_token_revoked_at, NOW()) AS revoked_at,
-              'previous_booking'::text AS source, NULL::text AS offer_id, 2 AS priority
-         FROM provisional_bookings pb
-        WHERE pb.customer_access_revoked_token_hash = $2 AND pb.deletion_requested_at IS NULL
-       UNION ALL
-       SELECT pb.id::text AS booking_id, pb.public_id::text AS reference,
-              pb.departure::text, bo.token_revoked_at AS revoked_at,
-              'offer'::text AS source, bo.id::text AS offer_id, 3 AS priority
-         FROM booking_offers bo
-         JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-        WHERE bo.access_token_hash = $2 AND pb.deletion_requested_at IS NULL
-     )
-     SELECT * FROM candidate ORDER BY priority LIMIT 1`,
-    [token, hash],
-  );
-
+  const accountId = currentBookerAccountId();
+  if (!accountId || !validBookingReference(token)) return { allowed: false, reason: 'invalid' };
+  const result = await getPool().query(`SELECT id::text,public_id::text AS reference,departure::text,
+    customer_access_token_revoked_at FROM provisional_bookings
+    WHERE public_id=$1::uuid AND booker_account_id=$2 AND deletion_requested_at IS NULL`, [token, accountId]);
   if (!result.rowCount) return { allowed: false, reason: 'not_found' };
-
   const row = result.rows[0];
-  const expiryDays = getBookingAccessExpiryDays();
-  const state = row.source === 'previous_booking'
-    ? 'revoked'
-    : bookingAccessState({
-        departure: row.departure,
-        revokedAt: row.revoked_at,
-        expiryDays,
-      });
-
-  if (state !== 'active') {
-    if (options.recordDenied) {
-      await getPool().query(
-        `INSERT INTO booking_activity (provisional_booking_id, booking_offer_id, actor, event_type, details)
-         VALUES ($1, $2, 'system', 'booking_access_denied', $3::jsonb)`,
-        [
-          row.booking_id,
-          row.offer_id,
-          JSON.stringify({ reason: state, source: row.source, expiryDays }),
-        ],
-      );
-    }
-    return { allowed: false, reason: state, reference: row.reference };
-  }
-
-  if (options.recordUse) {
-    await getPool().query(
-      `UPDATE provisional_bookings
-          SET customer_access_last_used_at = NOW()
-        WHERE id = $1`,
-      [row.booking_id],
-    );
-  }
-
-  return {
-    allowed: true,
-    bookingId: row.booking_id,
-    reference: row.reference,
-    source: row.source as 'booking' | 'offer',
-    offerId: row.offer_id,
-    expiresOn: bookingAccessExpiresOn(row.departure, expiryDays),
-  };
+  const state = bookingAccessState({ departure: row.departure, revokedAt: row.customer_access_token_revoked_at });
+  if (state !== 'active') return { allowed: false, reason: state };
+  if (options.recordUse) await getPool().query('UPDATE provisional_bookings SET customer_access_last_used_at=NOW() WHERE id=$1', [row.id]);
+  return { allowed: true, bookingId: row.id, reference: row.reference, source: 'booking', offerId: null,
+    expiresOn: bookingAccessExpiresOn(row.departure) };
 }
 
 export type BookingAccessAdminState = {
