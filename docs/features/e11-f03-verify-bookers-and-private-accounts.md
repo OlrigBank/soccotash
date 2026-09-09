@@ -2,7 +2,10 @@
 
 ## Status
 
-Implemented on `agent/e11-f03-booker-accounts`; awaiting owner acceptance.
+Implemented on `agent/e11-f03-booker-accounts`; prepared for a PR into
+`development` and owner acceptance on Render Soccotash. Render deployment and
+real email/SMS delivery acceptance remain outstanding. See the
+[Render test checklist](../render-test-deployment.md).
 Part of [E11](epics/e11-f00-redesign-the-booking-page.md). The agreed rationale is
 [OTP login approach](../source-material/AI%20Chats/OTP%20login%20approach.md).
 
