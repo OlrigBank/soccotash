@@ -19,7 +19,7 @@ an authorised manual deployment.
 ## E11-F03 contact verification setup
 
 The feature is recorded in
-[E11-F03](features/e11-f03-verify-bookers-and-private-accounts.md).
+[E11-F03](features/completed/e11-f03-verify-bookers-and-private-accounts.md).
 Before the authorised test deployment, configure the existing service's environment:
 
 | Setting | Test requirement |
