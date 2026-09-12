@@ -10,7 +10,7 @@ test('compact booking panel uses authoritative availability and quote APIs', asy
   assert.match(component, /fetch\('\/api\/quote\/'/);
   assert.doesNotMatch(component, /nightlyPrice|pricePerNight|calculatePrice/);
   assert.match(component, /These dates currently appear available/);
-  assert.match(component, /provisional total/);
+  assert.match(component, /· total/);
   assert.match(component, /data-compact-quick-stay/);
   assert.match(component, /data-compact-quick-total/);
   assert.match(component, /prepopulateFromQuery/);

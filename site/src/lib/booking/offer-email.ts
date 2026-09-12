@@ -27,7 +27,7 @@ function formatDate(value: string): string {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
-export function defaultOfferSubject(booking: ProvisionalBookingRequest, propertyName: string): string {
+export function defaultOfferSubject(booking: Pick<ProvisionalBookingRequest, 'arrival' | 'departure'>, propertyName: string): string {
   return `${propertyName} booking offer – ${formatDate(booking.arrival)} to ${formatDate(booking.departure)}`;
 }
 

@@ -17,7 +17,7 @@ properties:
     name: Olrig Bank++ (max 12 guests)
     listingSlug: event
     availabilityPropertyId: main-house
-    availabilityNote: Availability is based on the Olrig Bank calendar. Jenna will confirm that the additional two-bedroom accommodation is also available.
+    availabilityNote: Availability is based on the Olrig Bank calendar. Additional accommodation availability requires review.
     minimumNights: 2
     maximumGuests: 12
     enabled: true
@@ -28,7 +28,7 @@ properties:
     availabilityPropertyIds:
       - main-house
       - cottage
-    availabilityNote: The dates must be available across Olrig Bank. Your request does not reserve them; Jenna will agree the accommodation and price with you.
+    availabilityNote: The dates must be available across Olrig Bank. Your request does not reserve them; Accommodation and price require review.
     minimumNights: 1
     maximumGuests: 12
     enabled: true

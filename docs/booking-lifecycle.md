@@ -43,6 +43,7 @@ This document presents the executable rules used to decide whether a booking lif
 
 | From | Action | Actor | To | Calendar effect | Requirements | Activity event |
 |---|---|---|---|---|---|---|
+| `pending` | `publish_offer` | System | `offered` | Retain | Offer Payload | `booking_offer_published` |
 | `pending` | `publish_offer` | Administrator | `offered` | Retain | Offer Payload | `booking_offer_published` |
 | `offered` | `replace_offer` | Administrator | `offered` | Retain | Offer Payload | `booking_offer_replaced` |
 | `declined` | `replace_offer` | Administrator | `offered` | Block | Offer Payload | `booking_offer_reopened` |

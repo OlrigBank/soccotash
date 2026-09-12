@@ -27,10 +27,10 @@ test('Bespoke is rendered as an enquiry before JavaScript and bypasses live chec
   assert.match(component, /fixedBespoke \? 'Begin an enquiry' : 'Check a stay'/);
   assert.match(component, /fixedBespoke \? 'Start a bespoke request' : submitLabel/);
   assert.match(component, /data-compact-booking-bespoke hidden=\{!fixedBespoke\}/);
-  assert.match(component, /This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price/);
+  assert.match(component, /This does not reserve or block the dates. Accommodation, availability and price require review/);
 
   const bespokeBranch = component.match(/if \(isBespoke\(\)\) \{([\s\S]*?)\n\s*return;\n\s*\}/)?.[1] ?? '';
-  assert.match(bespokeBranch, /Jenna will confirm the accommodation, availability and price/);
+  assert.match(bespokeBranch, /Accommodation, availability and price require review/);
   assert.match(bespokeBranch, /continueLink\('Start a bespoke request'\)/);
   assert.doesNotMatch(bespokeBranch, /fetch\(|appear available|guestTotalPence|pricingAvailable: true/);
 });

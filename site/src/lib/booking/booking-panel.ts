@@ -9,6 +9,8 @@ export type StaySelection = {
 };
 
 export type PanelQuote = {
+  automaticOffer?: boolean;
+  reviewReason?: string | null;
   pricingAvailable?: boolean;
   administratorPriced?: boolean;
   hostDecisionRequired?: boolean;
