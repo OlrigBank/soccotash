@@ -110,11 +110,27 @@ attempt: the page displayed **Contact verified. You can continue.**, the SMS
 booking grant was present, and the challenge was consumed. **Continue to review**
 became enabled and opened the review step. No OTP is retained in this record.
 
-The clearly labelled development test request is prepared but not submitted.
-Booking submission can notify configured administrators, so that notification
-scope must be confirmed before submission. Subsequent SMS sign-in and mobile
-management remain outstanding; contact verification alone does not create an
-account or establish those acceptance results.
+The owner subsequently approved submission and its administrator notifications.
+The labelled test request was submitted successfully and opened its private
+booking page with an authenticated SMS account. After logout, requesting that
+private URL correctly redirected to sign-in, preserving the continuation target.
+
+An explicitly requested SMS sign-in code was delivered through the hosted
+development service. The owner supplied the code, which succeeded on the first
+attempt and restored access to the same test booking. The session endpoint
+confirmed signed-in status and an SMS identity; the login challenge was delivered
+and consumed with one attempt. No OTP is retained in this record.
+
+The disposable request for 23–27 November 2026 was cancelled through its booker
+workflow with an explicit test-cleanup reason. The application confirmed
+cancellation and reported its notification sent. The test SMS account remains
+available. Its Sign-in details page correctly explains that a verified email
+is required to change SMS access and offers no removal of the sole identity.
+Chrome DevTools reported no console errors or warnings on that page.
+
+Hosted booking verification, submission, logout protection and subsequent SMS
+sign-in now have live evidence. Email-backed mobile management and production
+acceptance remain outstanding.
 
 ## First authorised live development attempt
 
