@@ -9,7 +9,7 @@ Implemented locally on `agent/e14-sms-verification`; live acceptance remains ope
 The existing booking/sign-in endpoints retain their contracts. SMS requires an
 explicit Send SMS code action; contact blur and channel selection do not send a
 text. Email keeps its existing behaviour. Server-side phone metadata validates
-UK mobile eligibility, including rejection of overseas, landline and Crown
+UK and Dutch mobile eligibility, including rejection of other countries, landline and Crown
 Dependency destinations, without changing ordinary booking contact storage.
 
 `BOOKER_SMS_ENABLED=true` plus complete credentials is required for sending and

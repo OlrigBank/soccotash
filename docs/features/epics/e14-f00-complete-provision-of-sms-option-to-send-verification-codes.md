@@ -11,8 +11,7 @@ remains open. See the feature records below for evidence and release gates.
 ## Outcome
 
 Complete the existing Twilio Verify integration so bookers can receive six-digit
-SMS codes to verify booking requests and sign in. Support UK mobile numbers
-initially, alongside existing email verification.
+SMS codes to verify booking requests and sign in. Support UK and Dutch mobile numbers, alongside existing email verification.
 
 Allow email-backed accounts to add, replace and remove a verified SMS sign-in
 number. Completion requires controlled live delivery evidence on both Render
@@ -40,7 +39,7 @@ it does not replace the account model or infer ownership from booking contacts.
 - Reuse the existing Twilio trial account and guide the owner through creating
   separate development and production Verify services.
 - Configure the Olrig Bank service name, six-digit codes, ten-minute validity,
-  UK geographic permissions and fraud protection.
+  UK and Netherlands geographic permissions and fraud protection.
 - Supply credentials through the existing `TWILIO_ACCOUNT_SID`,
   `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SERVICE_SID` settings. Keep secrets out
   of source, browser responses and verification evidence.
@@ -57,7 +56,8 @@ subject to the release gates below.
 
 - Retain Twilio Verify for SMS code generation and approval, using the existing
   request-code and verify-code endpoints.
-- Accept UK mobile input in domestic or international format, normalise it
+- Accept UK mobile input in domestic or international format and Dutch mobile
+  input with +31 or 0031, normalise it
   consistently, and reject unsupported destinations before contacting Twilio.
   Restrict SMS eligibility without restricting ordinary booking contact details.
 - Require an explicit **Send SMS code** action. Selecting SMS, editing a number
@@ -186,7 +186,7 @@ exposing credentials.
 - Email remains preferred when both booking contacts are supplied.
 - SMS is an alternative passwordless sign-in method, not mandatory two-factor
   authentication.
-- Account merging, international SMS, marketing, booking notification texts and
+- Account merging, SMS to countries other than the UK and Netherlands, marketing, booking notification texts and
   WhatsApp changes are excluded.
 - Mobile management is limited to email-backed accounts; an SMS-only account
   must not be allowed to remove its sole sign-in identity.
@@ -203,3 +203,13 @@ exposing credentials.
 - [E14-F02 — Reliable SMS verification](../e14-f02-reliable-sms-verification.md)
 - [E14-F03 — Manage SMS account access](../e14-f03-manage-sms-account-access.md)
 - [E14-F04 — Verification and release](../e14-f04-sms-verification-and-release.md)
+
+## Scope extension — UK and Netherlands
+
+The owner approved Dutch mobile support to complete live replacement testing.
+UK local-format input remains supported; Dutch input requires +31 or 0031.
+Both countries require valid mobile numbers. Landlines, Crown Dependencies and
+other countries remain unsupported. Enable UK and Netherlands Verify geographic
+permissions with fraud protection; disable other destinations. This supersedes
+the earlier UK-only release gate. Re-run account browser coverage with a Dutch
+replacement number before deploying the extension.

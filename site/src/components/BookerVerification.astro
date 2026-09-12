@@ -2,7 +2,7 @@
 const { purpose = 'booking' } = Astro.props;
 ---
 <section class="booker-verification booking-field-wide" data-booker-verification data-purpose={purpose} data-verified="false" aria-label="Verify your contact">
-  <p>We will send a code when you finish entering your contact details. Verify one contact to continue. If you provide both, we use email first.</p>
+  <p>Verify one contact to continue. If you provide both, we use email first. For SMS, use a UK mobile number or a Dutch number beginning +31, then select Send SMS code.</p>
   <label>Verification contact <select data-verification-channel aria-label="Verification contact"><option value="email">Email</option><option value="sms">Mobile number (SMS)</option></select></label>
   <p data-verification-status role="status" aria-live="polite">Enter an email address or mobile number.</p>
   <div data-code-entry hidden>

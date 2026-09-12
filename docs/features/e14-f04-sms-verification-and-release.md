@@ -6,8 +6,8 @@ Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verificatio
 
 Local verification complete on 12 September 2026. Live development and production
 acceptance remain pending. A live development-service SMS was delivered and approved after the owner verified
-the trial recipient; see the evidence below. No deployment or production-data
-changes were performed. The epic must remain open.
+the trial recipient; see the evidence below. The approved development deployment
+is now live. Production remains unchanged. The epic must remain open.
 
 ## Local evidence
 
@@ -74,6 +74,78 @@ preflight. The connector does not expose service environment values, so this
 does not yet verify the development service's actual database connection.
 No Render settings, deployment or hosted data were changed.
 
+## Approved Render development deployment — 12 September 2026
+
+The owner confirmed the development database connection and approved merging
+PR #153, configuring Twilio and deploying `soccotash`. PR #153 merged as
+`65b5eebfac32b654934f7f46935765db71b396d9`; all five PR CI checks passed.
+The development environment update merged the three Twilio settings and
+`BOOKER_SMS_ENABLED=true` into existing settings without replacing other keys.
+Render automatically started deployment `dep-daii9v9594qs738slaj0` on that update;
+no duplicate deployment was triggered. Render reports this revision live.
+
+Read-only verification confirmed migration `061_booker_sms_management.sql` on
+the development database. `/api/health/` returned HTTP 200 with application and
+database status `ok`. Chrome DevTools confirmed the signed-out account route
+redirects to sign-in preserving `/booking/account/` as the continuation target.
+The sign-in response is private/no-store, no-referrer and noindex. No document
+overflow appeared at actual viewport widths 390, 768 and 1440; the phone check
+used device emulation because native window resizing clamps narrow widths.
+No browser warnings/errors or Render error-level logs were found after release.
+
+No additional SMS was sent during deployment verification. Hosted delivery and
+authenticated account journeys still need controlled owner-approved tests.
+Production configuration and deployment were not changed.
+
+## Hosted booking-contact SMS proof — 12 September 2026
+
+After the owner authorised the hosted test, Chrome DevTools exercised `/book/`
+on the deployed development revision `65b5eebfac32b654934f7f46935765db71b396d9`.
+The owner-controlled number was entered and SMS selected; the explicit
+**Send SMS code** action requested delivery. The application reported the code
+sent, and the development challenge record confirmed `delivered=true`.
+
+The owner received the code. Entering it in the hosted UI succeeded on the first
+attempt: the page displayed **Contact verified. You can continue.**, the SMS
+booking grant was present, and the challenge was consumed. **Continue to review**
+became enabled and opened the review step. No OTP is retained in this record.
+
+The owner subsequently approved submission and its administrator notifications.
+The labelled test request was submitted successfully and opened its private
+booking page with an authenticated SMS account. After logout, requesting that
+private URL correctly redirected to sign-in, preserving the continuation target.
+
+An explicitly requested SMS sign-in code was delivered through the hosted
+development service. The owner supplied the code, which succeeded on the first
+attempt and restored access to the same test booking. The session endpoint
+confirmed signed-in status and an SMS identity; the login challenge was delivered
+and consumed with one attempt. No OTP is retained in this record.
+
+The disposable request for 23–27 November 2026 was cancelled through its booker
+workflow with an explicit test-cleanup reason. The application confirmed
+cancellation and reported its notification sent. The test SMS account remains
+available. Its Sign-in details page correctly explains that a verified email
+is required to change SMS access and offers no removal of the sole identity.
+Chrome DevTools reported no console errors or warnings on that page.
+
+Hosted booking verification, submission, logout protection and subsequent SMS
+sign-in now have live evidence. Email-backed mobile management and production
+acceptance remain outstanding.
+
+## Production release preparation — 12 September 2026
+
+A read-only production database preflight found migration 060 and no accounts
+with multiple SMS identities. Comparing `development` with `main` found only
+E14 implementation changes awaiting promotion; the production-only commits were
+earlier release merges with no additional file changes. Draft release PR #154
+prepares this promotion. No production settings or deployment were changed.
+
+Twilio now reports an active Full account. Hosted email-backed mobile-management
+acceptance needs an owner-controlled email and another mobile number: the first
+test number is already the sole identity of the SMS-only development account.
+Do not bypass that identity protection or attach an unverified email to complete
+the live acceptance checks.
+
 ## First authorised live development attempt
 
 The owner confirmed Standard Fraud Guard protection on both services and supplied
@@ -97,3 +169,23 @@ This proves real SMS delivery and provider approval through the application
 adapter using the development service. It is not a hosted Render account-journey
 test. Render development deployment/journeys and the production smoke check
 remain outstanding. Public SMS remains disabled.
+
+## UK and Netherlands scope extension — local evidence
+
+The owner approved Dutch mobile support. Provider eligibility tests pass for +31
+and 0031 mobile input, rejecting Dutch landlines, ambiguous Dutch local input and
+unsupported countries. UK local-format support is retained. Astro check reports
+zero errors/warnings (two existing hints); the production build passes.
+
+All 28 account browser tests passed at 320, 390, 768 and 1440 widths. The mobile
+management journey now replaces a UK number with a Dutch number, signs in using
+the Dutch identity, then removes it. All provider traffic uses the non-forwarding
+local fixture transport. Shared verification and account guidance explain +31.
+The existing custom Contact verification panel and Sign-in details panel retain
+native form controls; no new UI pattern was introduced.
+
+Chrome DevTools inspected the rebuilt account guidance at 390, 768 and 1440
+widths without document overflow. A Dutch landline returned the expected HTTP
+400 and moved visible focus to the validation message; no script errors were
+observed. Lighthouse snapshot scored 100 in all reported categories, excluding
+performance (`/tmp/e14-nl-lighthouse/`). Live Dutch delivery remains pending.

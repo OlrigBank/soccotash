@@ -3,10 +3,12 @@ import { registerHooks } from 'node:module';
 import test from 'node:test';
 registerHooks({resolve(specifier,context,next){try{return next(specifier,context);}catch(error){if(!specifier.startsWith('.')||/\.[a-z0-9]+$/i.test(specifier))throw error;return next(`${specifier}.ts`,context);}}});
 const {normaliseSmsNumber,smsAvailable,sendSms,checkSms,SmsProviderError} = await import('../../src/lib/booker/sms.ts');
-test('UK SMS number eligibility excludes landlines, overseas and Crown Dependency numbers',()=>{
+test('UK and Dutch SMS eligibility excludes landlines, other countries and Crown Dependencies',()=>{
   assert.equal(normaliseSmsNumber('07400 123456'),'+447400123456');
   assert.equal(normaliseSmsNumber('0044 7400 123456'),'+447400123456');
-  for(const value of ['+33123456789','020 7946 0000','+447700900123','+447911123456','garbage']) assert.throws(()=>normaliseSmsNumber(value));
+  assert.equal(normaliseSmsNumber('+31 6 12345678'),'+31612345678');
+  assert.equal(normaliseSmsNumber('0031 6 12345678'),'+31612345678');
+  for(const value of ['0612345678','+31201234567','+33612345678','+33123456789','020 7946 0000','+447700900123','+447911123456','garbage']) assert.throws(()=>normaliseSmsNumber(value));
 });
 test('Twilio provider handles configuration, original expiry, leading zero and safe errors',async()=>{
   const oldFetch=globalThis.fetch;const old={...process.env};let calls=0;

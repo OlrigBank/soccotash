@@ -14,7 +14,7 @@ try {
   const configuration = await response.json() as { code_length?: number };
   if (configuration.code_length !== 6) throw new Error('Configure the Verify service for six-digit codes.');
   console.log('Twilio Verify credentials and six-digit service configuration validated. No SMS sent.');
-  console.log('Before enabling SMS, confirm default ten-minute validity, UK-only geographic permissions, fraud protection and trial recipient restrictions in Twilio Console.');
+  console.log('Before enabling SMS, confirm default ten-minute validity, UK and Netherlands geographic permissions (all other destinations disabled), fraud protection and trial recipient restrictions in Twilio Console.');
 } catch (error) {
   console.error(error instanceof Error && error.message.startsWith('Configure') ? error.message
     : error instanceof Error && error.message.startsWith('Twilio configuration') ? error.message
