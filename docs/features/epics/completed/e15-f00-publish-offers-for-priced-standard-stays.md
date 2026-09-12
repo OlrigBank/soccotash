@@ -2,8 +2,13 @@
 
 ## Status
 
-Implemented on `agent/e15-direct-standard-offers`. Local E15 verification is complete;
-merge, hosted development acceptance and production deployment remain outstanding.
+Completed and closed with owner approval on 12 September 2026. Implementation
+commit `6328ac7` and local verification are complete on
+`agent/e15-direct-standard-offers`; no implementation work remains in this epic.
+
+Closure records acceptance of the implementation. Merge, hosted development
+acceptance and production deployment remain release follow-up steps; closure does
+not claim they have already happened.
 
 ## Outcome and agreed decisions
 
@@ -22,7 +27,7 @@ expiry and no additional bespoke terms. Existing pending requests are not
 backfilled or automatically offered.
 
 This implements the immediate-offer option recorded in
-[Future Feature — Direct Standard Booking](../completed/future-direct-standard-booking.md).
+[Future Feature — Direct Standard Booking](../../completed/future-direct-standard-booking.md).
 
 ## Customer experience and UI patterns
 
