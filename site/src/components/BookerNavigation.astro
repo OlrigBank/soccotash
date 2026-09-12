@@ -9,6 +9,7 @@ const { signedIn } = Astro.props;
     </summary>
     <nav class="disclosure-panel" aria-label="Booking account">
       <a href="/booking/?all=1">{signedIn ? 'Your bookings' : 'Sign in'}</a>
+      {signedIn && <a href="/booking/account/">Sign-in details</a>}
       {signedIn && <form method="post" action="/api/booker/logout/"><button type="submit">Log out</button></form>}
     </nav>
   </details>
