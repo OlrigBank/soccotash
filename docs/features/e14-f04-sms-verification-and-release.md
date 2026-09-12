@@ -4,10 +4,10 @@ Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verificatio
 
 ## Status
 
-Local verification complete on 12 September 2026. Live development and production
-acceptance remain pending. A live development-service SMS was delivered and approved after the owner verified
-the trial recipient; see the evidence below. The approved development deployment
-is now live. Production remains unchanged. The epic must remain open.
+Local and hosted development acceptance are complete, including UK booking/sign-in
+and Dutch mobile adding, sign-in, removal and UK-to-Dutch replacement. Production
+code is deployed with public SMS disabled. Production SMS acceptance and Twilio
+Primary Compliance Profile approval remain outstanding. The epic remains open.
 
 ## Local evidence
 
@@ -246,3 +246,19 @@ replacement and controlled production SMS verification remain outstanding.
 The UK number is currently linked to the owner's email-backed development account;
 replacement was deferred by the five-email-codes-per-hour limit. Its old cancelled
 disposable booking was preserved when the owner released the former SMS identity.
+
+## Hosted UK-to-Dutch replacement acceptance
+
+After the email rate limit cleared, the owner signed in to the email-backed
+account and started replacement of the verified UK mobile with the Dutch mobile.
+Fresh email verification passed. Before SMS approval, the session still exposed
+the UK identity, confirming that pending replacement preserved the old method.
+The hosted SMS request then succeeded and the owner supplied its code.
+
+The account returned `updated=1` with the Dutch identity, no UK identity and the
+original email identity preserved. Read-only database verification confirmed one
+active account session, zero usable old-UK challenges and zero usable old-UK
+verification grants. This completes the remaining hosted development replacement
+check. No codes or full contact details are retained here. The development account
+is left with email and Dutch SMS access. Production SMS remains disabled pending
+provider readiness and its controlled live acceptance check.

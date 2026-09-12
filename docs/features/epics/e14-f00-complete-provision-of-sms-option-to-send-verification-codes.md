@@ -3,10 +3,10 @@
 ## Status
 
 Implementation and local verification are complete on `agent/e14-sms-verification`.
-Separate Twilio Verify services are provisioned, and an authorised development
-SMS was delivered and approved through the application adapter. Hosted Render
-development journeys and production acceptance remain outstanding; the epic
-remains open. See the feature records below for evidence and release gates.
+Separate Twilio Verify services are provisioned. Hosted development booking,
+sign-in and mobile-management journeys have passed with owner-controlled UK and
+Dutch numbers. Production code is deployed with SMS disabled; production SMS
+acceptance and provider readiness remain outstanding. The epic remains open.
 
 ## Outcome
 
