@@ -222,3 +222,27 @@ the UK number to be released from its disposable SMS-only test account before it
 can join this email-backed account; do not bypass the cross-account identity
 constraint. Automated UK-to-Dutch replacement already passes. Production
 acceptance and approved Primary Compliance Profile readiness remain outstanding.
+
+## Authorised production deployment — 12 September 2026
+
+The owner requested production deployment. PR #154 had already been merged;
+PR #156 promoted the Dutch-support follow-up after its checks passed. Production
+`olrigbankweb` now runs `129e420ad0d769e59a4701aa4f29001bc9ecb707`, deployment
+`dep-daijq49594qs73923ibg`, reported live by Render. The environment update set
+`BOOKER_SMS_ENABLED=false` and selected the separate production Verify service,
+merging those values into the existing environment without replacing other keys.
+
+Production migration 061 is applied. On `https://olrig-bank.com`, health returned
+HTTP 200 with application/database status `ok`. The signed-out account route
+redirected to sign-in preserving the continuation target. Responses retained
+private/no-store, no-referrer and noindex headers. Chrome DevTools checked actual
+390, 768 and 1440 widths without document overflow or initial console errors.
+A controlled disabled-SMS request returned the expected HTTP 503/email fallback;
+no production SMS was sent. Render error-level logs were empty after deployment.
+
+This is a successful code deployment with public SMS disabled, not completed
+production SMS acceptance. Primary Compliance Profile approval, live development
+replacement and controlled production SMS verification remain outstanding.
+The UK number is currently linked to the owner's email-backed development account;
+replacement was deferred by the five-email-codes-per-hour limit. Its old cancelled
+disposable booking was preserved when the owner released the former SMS identity.
