@@ -1,4 +1,5 @@
 // Standalone so this check also works in the runtime image, which omits src/lib.
+export {};
 try {
   const account = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
