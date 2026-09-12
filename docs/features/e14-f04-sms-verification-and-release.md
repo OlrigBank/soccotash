@@ -97,6 +97,25 @@ No additional SMS was sent during deployment verification. Hosted delivery and
 authenticated account journeys still need controlled owner-approved tests.
 Production configuration and deployment were not changed.
 
+## Hosted booking-contact SMS proof — 12 September 2026
+
+After the owner authorised the hosted test, Chrome DevTools exercised `/book/`
+on the deployed development revision `65b5eebfac32b654934f7f46935765db71b396d9`.
+The owner-controlled number was entered and SMS selected; the explicit
+**Send SMS code** action requested delivery. The application reported the code
+sent, and the development challenge record confirmed `delivered=true`.
+
+The owner received the code. Entering it in the hosted UI succeeded on the first
+attempt: the page displayed **Contact verified. You can continue.**, the SMS
+booking grant was present, and the challenge was consumed. **Continue to review**
+became enabled and opened the review step. No OTP is retained in this record.
+
+The clearly labelled development test request is prepared but not submitted.
+Booking submission can notify configured administrators, so that notification
+scope must be confirmed before submission. Subsequent SMS sign-in and mobile
+management remain outstanding; contact verification alone does not create an
+account or establish those acceptance results.
+
 ## First authorised live development attempt
 
 The owner confirmed Standard Fraud Guard protection on both services and supplied
