@@ -55,7 +55,12 @@ test('direct offers are atomic, preserve review exceptions and retain the existi
       assert.equal(offer.validUntil, new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
       const activity = (await db!.query("SELECT actor FROM booking_activity WHERE booking_offer_id=$1 AND event_type='offer_published'", [offer.id])).rows;
       assert.deepEqual(activity, [{ actor: 'system' }]);
-      const messages = (await db!.query('SELECT body FROM booking_messages WHERE provisional_booking_id=$1', [saved!.id])).rows;
+      const messages = (await db!.query<{ body: string }>(
+        'SELECT body FROM booking_messages WHERE provisional_booking_id=(SELECT id FROM provisional_bookings WHERE public_id=$1)',
+        [booking.reference],
+      )).rows;
+      assert.ok(messages.some(row => row.body.includes('Your offer is ready to review.')));
+      assert.ok(messages.some(row => row.body.includes('A booking offer has been published.')));
       assert.ok(messages.every(row => !row.body.includes('Jenna will review')));
       await repository.markBookingOfferFailed(offer.id, new Error('Disposable delivery failure'));
       assert.equal((await repository.getProvisionalBookingRequest(booking.reference))?.status, 'offered');
