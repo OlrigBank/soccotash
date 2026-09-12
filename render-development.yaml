@@ -47,6 +47,8 @@ services:
       # sync:false prompts only during initial Blueprint creation.
       - key: BOOKER_VERIFICATION_SECRET
         generateValue: true
+      - key: BOOKER_SMS_ENABLED
+        sync: false
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN

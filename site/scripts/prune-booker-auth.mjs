@@ -4,7 +4,7 @@ const client = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: 
 await client.connect();
 try {
   await client.query('BEGIN');
-  for (const table of ['booker_challenges', 'booker_verification_grants', 'booker_sessions']) {
+  for (const table of ['booker_mobile_operations', 'booker_challenges', 'booker_verification_grants', 'booker_sessions']) {
     await client.query(`DELETE FROM ${table} WHERE expires_at < NOW() - INTERVAL '24 hours'`);
   }
   await client.query("DELETE FROM booker_verification_requests WHERE created_at < NOW() - INTERVAL '24 hours'");

@@ -1,0 +1,50 @@
+name: Booker account browser regression
+
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  booker-accounts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: soccotash
+          POSTGRES_PASSWORD: local-booker-fixture
+          POSTGRES_DB: booker_regression
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U soccotash -d booker_regression"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://soccotash:local-booker-fixture@127.0.0.1:5432/booker_regression
+      DATABASE_SSL: "false"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install browser test dependencies
+        run: npm ci
+      - name: Install application dependencies
+        run: npm --prefix site ci
+      - name: Migrate disposable database
+        run: npm --prefix site run db:migrate
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify account journeys with local email and SMS fixtures
+        run: node node_modules/@playwright/test/cli.js test --config=playwright.booker-accounts.config.ts

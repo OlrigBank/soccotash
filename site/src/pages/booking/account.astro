@@ -1,0 +1,57 @@
+---
+import BookerLayout from '../../layouts/BookerLayout.astro';
+import { sessionAccount } from '../../lib/booker/accounts.ts';
+import { smsAvailable } from '../../lib/booker/sms.ts';
+import { getPool } from '../../lib/booking/db.ts';
+const accountId = await sessionAccount(Astro.cookies);
+if (!accountId) return Astro.redirect('/booking/?returnTo=%2Fbooking%2Faccount%2F',303);
+const identities = (await getPool().query('SELECT channel,identifier FROM booker_identities WHERE account_id=$1 ORDER BY channel,identifier',[accountId])).rows;
+const email = identities.find(i=>i.channel==='email');
+const mobile = identities.find(i=>i.channel==='sms');
+const available = smsAvailable();
+---
+<BookerLayout title="Sign-in details" homeHref="/booking/" homeLabel="Your bookings">
+  <section class="sign-in-details">
+    <p class="eyebrow">Your booking account</p>
+    <h1>Sign-in details</h1>
+    <p>Use a code sent to a verified contact to sign in to your bookings.</p>
+    <dl>{identities.map(identity=><div><dt>{identity.channel==='email' ? 'Verified email' : 'Verified mobile'}</dt><dd>{identity.identifier}</dd></div>)}</dl>
+    {Astro.url.searchParams.has('updated') && <p role="status">Your SMS sign-in details have been updated.</p>}
+    {!email ? <p>A verified email address is required to change SMS sign-in. Your current mobile number remains your sign-in contact.</p> : <>
+      <h2>{mobile ? 'Manage SMS sign-in' : 'Add SMS sign-in'}</h2>
+      <p>First, verify your email again. Adding or replacing a number also requires an SMS code. Your booking contact details stay the same.</p>
+      {!available && <p>SMS sending is temporarily unavailable. You can still sign in by email{mobile ? ' or remove your linked mobile number' : ''}.</p>}
+      <form data-mobile-management aria-label="Manage SMS sign-in">
+        <fieldset data-change-fields>
+          <legend>Mobile number change</legend>
+          {mobile ? <label>Action<select name="action"><option value="replace" disabled={!available}>Replace mobile number</option><option value="remove" selected={!available}>Remove SMS sign-in</option></select></label> : <input type="hidden" name="action" value="add" />}
+          <label data-number-field hidden={!available}>UK mobile number<input name="mobile" type="tel" autocomplete="tel" maxlength="80" aria-describedby="mobile-help" /></label>
+          <p id="mobile-help" data-number-help hidden={!available}>Enter your UK mobile number, with or without +44. We will only send a text when you select Send SMS code.</p>
+          <button type="submit" disabled={!available && !mobile}>Send email code</button>
+        </fieldset>
+        <section data-code-step hidden aria-label="Verify the change">
+          <h3 data-step-title>Check your email</h3>
+          <p data-step-help>Enter the six-digit code sent to your verified email address.</p>
+          <label data-code-label>Verification code<input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" /></label>
+          <div class="actions"><button type="button" data-check>Verify code</button><button type="button" data-send>Resend email code</button><button type="button" data-restart>Start again</button></div>
+        </section>
+        <p data-status role="status" aria-live="polite" tabindex="-1"></p>
+      </form>
+    </>}
+    <p><a href="/booking/?all=1">Back to your bookings</a></p>
+  </section>
+</BookerLayout>
+<script>
+  import { initialiseMobileManagement } from '../../lib/booker/mobile-management-panel';
+  document.querySelectorAll<HTMLFormElement>('[data-mobile-management]').forEach(initialiseMobileManagement);
+</script>
+<style>
+  [hidden]{display:none !important}
+  .sign-in-details{max-width:42rem;margin:auto;padding:clamp(1rem,4vw,2rem);overflow-wrap:anywhere}
+  h1{margin-top:.25rem} .eyebrow{font-size:.85rem;text-transform:uppercase;letter-spacing:.08em}
+  dl{padding:1rem;background:var(--surface,#fffaf2);border:1px solid var(--line);border-radius:.75rem}dl div+div{margin-top:1rem}dt{font-weight:700}dd{margin:.25rem 0 0}
+  fieldset{padding:1rem;border:1px solid var(--line);border-radius:.75rem;min-width:0}legend{padding:0 .25rem}
+  label{display:block;margin:.75rem 0}input,select{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:44px;padding:.6rem;font:inherit;border:1px solid var(--accent-dark);border-radius:.3rem;background:#fffaf2;color:var(--text)}
+  button{min-height:44px;padding:.6rem .9rem;font:inherit;border:1px solid var(--accent-dark);border-radius:.4rem;background:var(--accent-dark);color:#fffaf2;cursor:pointer}button:disabled{opacity:.65;cursor:default}
+  .actions{display:flex;flex-wrap:wrap;gap:.6rem}a{color:var(--accent-dark)}:is(a,button,input,select):focus-visible{outline:3px solid var(--accent-dark);outline-offset:3px}
+</style>
