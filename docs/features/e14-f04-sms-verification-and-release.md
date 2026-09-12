@@ -189,3 +189,24 @@ widths without document overflow. A Dutch landline returned the expected HTTP
 400 and moved visible focus to the validation message; no script errors were
 observed. Lighthouse snapshot scored 100 in all reported categories, excluding
 performance (`/tmp/e14-nl-lighthouse/`). Live Dutch delivery remains pending.
+
+## Hosted Dutch mobile linking — 12 September 2026
+
+PR #155 merged as `841abb898d9bcb1447211c60ea9909d4b42a2614` and was deployed
+to development. All five checks passed after correcting randomly generated
+Dutch fixture numbers to use a valid mobile range.
+
+Hosted Dutch sends initially failed with Twilio 21608. The owner obtained the
+exact code from a controlled Render Shell diagnostic. Twilio documents this as
+an unverified-recipient restriction on trial accounts or upgraded accounts
+without an approved Primary Compliance Profile. An active Full account alone
+therefore does not establish public messaging readiness. Reapplying the working
+local development credentials and restarting did not resolve this restriction;
+the earlier local diagnostic success did not establish hosted acceptance.
+
+After the owner added the Dutch number as a verified recipient, a fresh hosted
+mobile-add operation passed email verification, sent its SMS successfully and
+accepted the owner-supplied SMS code. The account page returned `updated=1`;
+the session confirmed both the original email identity and the Dutch SMS identity.
+No codes or full contact details are retained in this record. Hosted Dutch
+sign-in, removal/replacement and production acceptance remain separate checks.
