@@ -132,6 +132,20 @@ Hosted booking verification, submission, logout protection and subsequent SMS
 sign-in now have live evidence. Email-backed mobile management and production
 acceptance remain outstanding.
 
+## Production release preparation — 12 September 2026
+
+A read-only production database preflight found migration 060 and no accounts
+with multiple SMS identities. Comparing `development` with `main` found only
+E14 implementation changes awaiting promotion; the production-only commits were
+earlier release merges with no additional file changes. Draft release PR #154
+prepares this promotion. No production settings or deployment were changed.
+
+Twilio now reports an active Full account. Hosted email-backed mobile-management
+acceptance needs an owner-controlled email and another mobile number: the first
+test number is already the sole identity of the SMS-only development account.
+Do not bypass that identity protection or attach an unverified email to complete
+the live acceptance checks.
+
 ## First authorised live development attempt
 
 The owner confirmed Standard Fraud Guard protection on both services and supplied

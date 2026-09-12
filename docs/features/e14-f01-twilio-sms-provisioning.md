@@ -106,3 +106,12 @@ The owner subsequently confirmed Standard Fraud Guard protection on both service
 and completed verification of the authorised trial recipient. UK permission was
 configured with owner participation; disabling all non-UK destinations still
 requires explicit confirmation before public activation.
+
+## Release readiness update — 12 September 2026
+
+An authenticated read-only account check now reports `type=Full` and
+`status=active`; the earlier trial-account restriction is no longer the recorded
+account status. This does not independently confirm every Console onboarding,
+geographic-permission or usage-alert setting. UK-only permissions still require
+confirmation. Development Render configuration and hosted SMS booking/sign-in
+proof are recorded in E14-F04; production configuration remains pending.
