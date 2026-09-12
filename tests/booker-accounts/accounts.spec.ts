@@ -154,7 +154,8 @@ test('private navigation supports keyboard access, dismissal and public destinat
 test('email-backed account adds, replaces and removes SMS sign-in through real verification endpoints',async({page,context,request,baseURL})=>{
   const db=new pg.Client(process.env.DATABASE_URL ? {connectionString:process.env.DATABASE_URL} : {host:'127.0.0.1',port:5433,user:process.env.POSTGRES_USER||'soccotash',password:process.env.POSTGRES_PASSWORD,database:process.env.POSTGRES_DB||'soccotash'});
   await db.connect();const email=`e14-${randomUUID()}@example.test`;
-  const mobiles=['+447400'+String(Math.floor(Math.random()*1000000)).padStart(6,'0'),'+316'+String(Math.floor(Math.random()*100000000)).padStart(8,'0')];
+  // Use valid mobile ranges; arbitrary Dutch 06 prefixes include unallocated ranges.
+  const mobiles=['+447400'+String(Math.floor(Math.random()*1000000)).padStart(6,'0'),'+3161'+String(Math.floor(Math.random()*10000000)).padStart(7,'0')];
   let accountId='';const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
   try {
