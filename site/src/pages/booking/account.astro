@@ -25,8 +25,8 @@ const available = smsAvailable();
         <fieldset data-change-fields>
           <legend>Mobile number change</legend>
           {mobile ? <label>Action<select name="action"><option value="replace" disabled={!available}>Replace mobile number</option><option value="remove" selected={!available}>Remove SMS sign-in</option></select></label> : <input type="hidden" name="action" value="add" />}
-          <label data-number-field hidden={!available}>UK mobile number<input name="mobile" type="tel" autocomplete="tel" maxlength="80" aria-describedby="mobile-help" /></label>
-          <p id="mobile-help" data-number-help hidden={!available}>Enter your UK mobile number, with or without +44. We will only send a text when you select Send SMS code.</p>
+          <label data-number-field hidden={!available}>Mobile number<input name="mobile" type="tel" autocomplete="tel" maxlength="80" aria-describedby="mobile-help" /></label>
+          <p id="mobile-help" data-number-help hidden={!available}>UK numbers can use +44 or their local format. Use +31 for Dutch numbers. We will only send a text when you select Send SMS code.</p>
           <button type="submit" disabled={!available && !mobile}>Send email code</button>
         </fieldset>
         <section data-code-step hidden aria-label="Verify the change">

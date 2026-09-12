@@ -14,7 +14,7 @@ and read back with six-digit codes and the do-not-share warning enabled. A contr
 
 Use the existing account; do not create another account. Create separate Verify
 services for development and production in Twilio Console, with the friendly name
-**Olrig Bank**, six-digit codes, default ten-minute validity, UK-only geographic
+**Olrig Bank**, six-digit codes, default ten-minute validity, UK and Netherlands geographic
 permissions and fraud protection enabled. Do not configure a longer token lifetime:
 application expiry is deliberately capped at ten minutes from provider creation.
 
@@ -115,3 +115,11 @@ account status. This does not independently confirm every Console onboarding,
 geographic-permission or usage-alert setting. UK-only permissions still require
 confirmation. Development Render configuration and hosted SMS booking/sign-in
 proof are recorded in E14-F04; production configuration remains pending.
+
+## Approved Dutch mobile extension
+
+The owner expanded E14 to UK and Dutch mobiles. The previous UK-only permission
+requirement is superseded: enable the UK and Netherlands in Verify Geo Permissions
+with fraud protection, and disable other destinations. Dutch numbers require
++31 or 0031; UK local-format input retains its existing behaviour. Live Dutch
+delivery and replacement acceptance are still pending.

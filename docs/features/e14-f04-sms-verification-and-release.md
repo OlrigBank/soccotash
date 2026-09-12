@@ -169,3 +169,23 @@ This proves real SMS delivery and provider approval through the application
 adapter using the development service. It is not a hosted Render account-journey
 test. Render development deployment/journeys and the production smoke check
 remain outstanding. Public SMS remains disabled.
+
+## UK and Netherlands scope extension — local evidence
+
+The owner approved Dutch mobile support. Provider eligibility tests pass for +31
+and 0031 mobile input, rejecting Dutch landlines, ambiguous Dutch local input and
+unsupported countries. UK local-format support is retained. Astro check reports
+zero errors/warnings (two existing hints); the production build passes.
+
+All 28 account browser tests passed at 320, 390, 768 and 1440 widths. The mobile
+management journey now replaces a UK number with a Dutch number, signs in using
+the Dutch identity, then removes it. All provider traffic uses the non-forwarding
+local fixture transport. Shared verification and account guidance explain +31.
+The existing custom Contact verification panel and Sign-in details panel retain
+native form controls; no new UI pattern was introduced.
+
+Chrome DevTools inspected the rebuilt account guidance at 390, 768 and 1440
+widths without document overflow. A Dutch landline returned the expected HTTP
+400 and moved visible focus to the validation message; no script errors were
+observed. Lighthouse snapshot scored 100 in all reported categories, excluding
+performance (`/tmp/e14-nl-lighthouse/`). Live Dutch delivery remains pending.

@@ -2,10 +2,10 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
 import { BookerError } from './accounts.ts';
 
 export function normaliseSmsNumber(value: string): string {
-  if (value.length > 80 || !/^[+\d\s().-]+$/.test(value)) throw new BookerError('Enter a valid UK mobile number.');
+  if (value.length > 80 || !/^[+\d\s().-]+$/.test(value)) throw new BookerError('Enter a valid UK or Dutch mobile number. Use +31 for the Netherlands.');
   const number = parsePhoneNumberFromString(value.trim().replace(/^00/, '+'), 'GB');
-  if (!number?.isValid() || number.country !== 'GB' || number.getType() !== 'MOBILE')
-    throw new BookerError('SMS verification is available for UK mobile numbers only. Use email instead.');
+  if (!number?.isValid() || !['GB', 'NL'].includes(number.country || '') || number.getType() !== 'MOBILE')
+    throw new BookerError('SMS verification is available for UK and Dutch mobile numbers only. Use +31 for the Netherlands, or use email instead.');
   return number.number;
 }
 export function smsAvailable(): boolean {

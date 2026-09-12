@@ -154,7 +154,7 @@ test('private navigation supports keyboard access, dismissal and public destinat
 test('email-backed account adds, replaces and removes SMS sign-in through real verification endpoints',async({page,context,request,baseURL})=>{
   const db=new pg.Client(process.env.DATABASE_URL ? {connectionString:process.env.DATABASE_URL} : {host:'127.0.0.1',port:5433,user:process.env.POSTGRES_USER||'soccotash',password:process.env.POSTGRES_PASSWORD,database:process.env.POSTGRES_DB||'soccotash'});
   await db.connect();const email=`e14-${randomUUID()}@example.test`;
-  const mobiles=['+447400'+String(Math.floor(Math.random()*1000000)).padStart(6,'0'),'+447401'+String(Math.floor(Math.random()*1000000)).padStart(6,'0')];
+  const mobiles=['+447400'+String(Math.floor(Math.random()*1000000)).padStart(6,'0'),'+316'+String(Math.floor(Math.random()*100000000)).padStart(8,'0')];
   let accountId='';const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
   try {
@@ -171,7 +171,7 @@ test('email-backed account adds, replaces and removes SMS sign-in through real v
     for(const [index,mobile] of mobiles.entries()) {
       if(index)await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[hash(`email:${email}`)]);
       let smsRequests=0;const listener=(r:any)=>{if(r.url().endsWith('/api/booker/mobile/') && r.postDataJSON()?.step==='send')smsRequests++;};page.on('request',listener);
-      await page.getByLabel('UK mobile number',{exact:true}).fill(mobile);
+      await page.getByLabel('Mobile number',{exact:true}).fill(mobile);
       await page.getByRole('button',{name:'Send email code',exact:true}).click();
       await expect(page.locator('[data-status]')).toContainText('email code has been sent');
       await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(email));await page.getByRole('button',{name:'Verify code',exact:true}).click();
@@ -195,7 +195,7 @@ test('email-backed account adds, replaces and removes SMS sign-in through real v
     await expect(page.locator('[data-code-entry]')).toBeVisible();await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(mobiles[1]));await page.getByRole('button',{name:'Verify code',exact:true}).click();
     await expect(page.getByText('There are no accessible bookings linked to this account.')).toBeVisible();
     await page.goto('/booking/account/');await page.getByRole('combobox',{name:'Action',exact:true}).selectOption('remove');
-    await expect(page.getByLabel('UK mobile number',{exact:true})).toBeHidden();
+    await expect(page.getByLabel('Mobile number',{exact:true})).toBeHidden();
     await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[hash(`email:${email}`)]);
     await page.getByRole('button',{name:'Send email code',exact:true}).click();await expect(page.locator('[data-status]')).toContainText('email code has been sent');
     await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(email));await page.getByRole('button',{name:'Verify code',exact:true}).click();
