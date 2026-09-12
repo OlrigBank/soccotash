@@ -121,7 +121,7 @@ test('E11-F03 verification, accounts and private ownership', async t => {
       await assert.rejects(()=>requestCode({identity:accounts.normaliseIdentity('email','another@example.test'),purpose:'booking',browserHash,ip:'limited-ip'},provider),error=>error instanceof accounts.BookerError&&error.status===429);
     });
     await t.test('expiry, attempt cap, resend throttle and delivery failure fail closed',async()=>{
-      const contact=accounts.normaliseIdentity('sms','+447700900555');
+      const contact=accounts.normaliseIdentity('sms','+447400123555');
       const issued=await request(contact);
       await assert.rejects(()=>request(contact),error=>error instanceof accounts.BookerError&&error.status===429);
       for(let i=0;i<5;i++) await assert.rejects(()=>checkCode({id:issued.challengeId,code:'wrong',browserHash,purpose:'booking'},provider));
@@ -130,7 +130,7 @@ test('E11-F03 verification, accounts and private ownership', async t => {
       await db.query("UPDATE booker_challenges SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1",[expiry.challengeId]);
       await assert.rejects(()=>checkCode({id:expiry.challengeId,code:sent.get('expired@example.test')!,browserHash,purpose:'booking'},provider));
       await assert.rejects(()=>requestCode({identity:accounts.normaliseIdentity('email','failure@example.test'),purpose:'booking',browserHash,ip:'failure'}, {...provider,send:async()=>{throw new Error('delivery failure');}}));
-      const sms=accounts.normaliseIdentity('sms','+447700900556');const success=await request(sms);
+      const sms=accounts.normaliseIdentity('sms','+447400123556');const success=await request(sms);
       assert.equal((await checkCode({id:success.challengeId,code:sent.get(sms.identifier)!,browserHash,purpose:'booking'},provider)).verified,true);
     });
     await t.test('expired sessions are rejected and grants roll back with failed creation',async()=>{
@@ -139,9 +139,95 @@ test('E11-F03 verification, accounts and private ownership', async t => {
       await db.query("UPDATE booker_sessions SET expires_at=NOW()-INTERVAL '1 second' WHERE token_hash=$1",[accounts.hashToken(sessionToken)]);
       assert.equal(await accounts.sessionAccount(cookies),null);
       const count=(await db.query('SELECT COUNT(*)::int AS n FROM booker_accounts')).rows[0].n;
-      await assert.rejects(()=>createProvisionalBooking({...input,name:null as unknown as string,email:'',telephoneE164:'+447700900556',authorisation:{...input.authorisation,email:'',mobile:'+447700900556',submissionId:crypto.randomUUID()}}));
-      assert.equal((await db.query("SELECT COUNT(*)::int AS n FROM booker_verification_grants WHERE identifier='+447700900556' AND consumed_at IS NULL")).rows[0].n,1);
+      await assert.rejects(()=>createProvisionalBooking({...input,name:null as unknown as string,email:'',telephoneE164:'+447400123556',authorisation:{...input.authorisation,email:'',mobile:'+447400123556',submissionId:crypto.randomUUID()}}));
+      assert.equal((await db.query("SELECT COUNT(*)::int AS n FROM booker_verification_grants WHERE identifier='+447400123556' AND consumed_at IS NULL")).rows[0].n,1);
       assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM booker_accounts')).rows[0].n,count);
+    });
+    await t.test('E14 mobile management binds email and SMS proofs, preserves ownership and revokes replaced access',async()=>{
+      const {beginMobileChange} = await import('../../src/lib/booker/mobile-management.ts');
+      const owner=(await db.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+      const ownerEmail='mobile-owner@example.test';
+      await db.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('email',$1,$2)",[ownerEmail,owner]);
+      const token=accounts.randomToken();
+      await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 hour')",[accounts.hashToken(token),owner]);
+      let context={accountId:owner,sessionHash:accounts.hashToken(token),browserHash:accounts.hashToken('management-browser')};
+      const mobile='+447400123457',replacement='+447400123458';
+      const sendStep=async(operationId:string,purpose:'account-email'|'account-sms',identifier:string)=>{
+        await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[accounts.hashToken(`${purpose==='account-email'?'email':'sms'}:${identifier}`)]);
+        return requestCode({identity:{channel:purpose==='account-email'?'email':'sms',identifier},purpose,browserHash:context.browserHash,ip:crypto.randomUUID(),operationId,management:context},provider);
+      };
+      const verifyStep=(operationId:string,purpose:'account-email'|'account-sms',id:string,identifier:string)=>checkCode({id,code:sent.get(identifier)!,browserHash:context.browserHash,purpose,operationId,management:context},provider);
+      const {operationId}=await beginMobileChange(context,'add',mobile);
+      await assert.rejects(()=>sendStep(operationId,'account-sms',mobile));
+      const emailChallenge=await sendStep(operationId,'account-email',ownerEmail);
+      await assert.rejects(()=>checkCode({id:emailChallenge.challengeId,code:sent.get(ownerEmail)!,browserHash:context.browserHash,purpose:'account-email',operationId,management:{...context,sessionHash:'wrong'}},provider));
+      assert.equal((await verifyStep(operationId,'account-email',emailChallenge.challengeId,ownerEmail)).nextStep,'sms');
+      const smsChallenge=await sendStep(operationId,'account-sms',mobile);
+      const results=await Promise.allSettled([1,2].map(()=>verifyStep(operationId,'account-sms',smsChallenge.challengeId,mobile)));
+      assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+      assert.equal((await db.query("SELECT account_id FROM booker_identities WHERE channel='sms' AND identifier=$1",[mobile])).rows[0].account_id,owner);
+      assert.equal((await db.query('SELECT booker_account_id FROM provisional_bookings WHERE public_id=$1',[reference])).rows[0].booker_account_id,accountId);
+      const expiredOperation=(await beginMobileChange(context,'replace',replacement)).operationId;
+      const pending=await sendStep(expiredOperation,'account-email',ownerEmail);
+      await db.query("UPDATE booker_mobile_operations SET expires_at=NOW()-INTERVAL '1 second' WHERE account_id=$1",[owner]);
+      await assert.rejects(()=>verifyStep(expiredOperation,'account-email',pending.challengeId,ownerEmail));
+      const replacementOperation=(await beginMobileChange(context,'replace',replacement)).operationId;
+      const email2=await sendStep(replacementOperation,'account-email',ownerEmail);await verifyStep(replacementOperation,'account-email',email2.challengeId,ownerEmail);
+      const sms2=await sendStep(replacementOperation,'account-sms',replacement);
+      // A login issued to the previous number must no longer work after replacement.
+      await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[accounts.hashToken(`sms:${mobile}`)]);
+      const oldLogin=await request(accounts.normaliseIdentity('sms',mobile),'old-login-browser','login');
+      const replaced=await verifyStep(replacementOperation,'account-sms',sms2.challengeId,replacement);
+      assert.ok(replaced.sessionToken);assert.equal((await db.query('SELECT 1 FROM booker_sessions WHERE token_hash=$1',[context.sessionHash])).rowCount,0);
+      assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM booker_sessions WHERE account_id=$1',[owner])).rows[0].n,1);
+      await assert.rejects(()=>checkCode({id:oldLogin.challengeId,code:sent.get(mobile)!,browserHash:'old-login-browser',purpose:'login'},provider));
+      context={...context,sessionHash:accounts.hashToken(replaced.sessionToken!)};
+      const remove=(await beginMobileChange(context,'remove',null)).operationId;
+      const email3=await sendStep(remove,'account-email',ownerEmail);const removed=await verifyStep(remove,'account-email',email3.challengeId,ownerEmail);
+      assert.ok(removed.sessionToken);assert.equal((await db.query("SELECT 1 FROM booker_identities WHERE account_id=$1 AND channel='sms'",[owner])).rowCount,0);
+      assert.equal((await db.query("SELECT 1 FROM booker_identities WHERE account_id=$1 AND channel='email'",[owner])).rowCount,1);
+    });
+    await t.test('E14 SMS booking verification creates ownership and supports subsequent SMS sign-in',async()=>{
+      const mobile='+447400123463',smsBrowser='sms-booking-browser';
+      const contact=accounts.normaliseIdentity('sms',mobile);
+      const issued=await request(contact,smsBrowser);
+      await checkCode({id:issued.challengeId,code:sent.get(mobile)!,browserHash:smsBrowser,purpose:'booking'},provider);
+      const saved=await createProvisionalBooking({...input,email:'',telephone:mobile,telephoneE164:mobile,authorisation:{...input.authorisation,browserHash:smsBrowser,email:'',mobile,submissionId:crypto.randomUUID()}});
+      assert.ok(saved.sessionToken);
+      const owner=(await db.query('SELECT booker_account_id FROM provisional_bookings WHERE public_id=$1',[saved.reference])).rows[0].booker_account_id;
+      assert.equal((await db.query("SELECT account_id FROM booker_identities WHERE channel='sms' AND identifier=$1",[mobile])).rows[0].account_id,owner);
+      await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[accounts.hashToken(`sms:${mobile}`)]);
+      const login=await request(contact,'sms-return-browser','login');
+      const signedIn=await checkCode({id:login.challengeId,code:sent.get(mobile)!,browserHash:'sms-return-browser',purpose:'login'},provider);
+      assert.equal((await db.query('SELECT account_id FROM booker_sessions WHERE token_hash=$1',[accounts.hashToken(signedIn.sessionToken!)])).rows[0].account_id,owner);
+    });
+    await t.test('E14 concurrent sends and provider expiry remain bounded',async()=>{
+      const identity={channel:'sms' as const,identifier:'+447400123461'};
+      const results=await Promise.allSettled([1,2].map(index=>requestCode({identity,purpose:'booking',browserHash:`parallel-${index}`,ip:`parallel-${index}`},provider)));
+      assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+      const expiresAt=Date.now()+120000;
+      const issued=await requestCode({identity:{channel:'sms',identifier:'+447400123462'},purpose:'booking',browserHash:'provider-expiry',ip:'provider-expiry'},{...provider,send:async()=>({id:'provider-fixture',expiresAt})});
+      assert.ok(issued.expiresIn<=120);
+      assert.equal(new Date((await db.query('SELECT expires_at FROM booker_challenges WHERE id=$1',[issued.challengeId])).rows[0].expires_at).getTime(),expiresAt);
+      await assert.rejects(()=>requestCode({identity:{channel:'sms',identifier:'+33123456789'},purpose:'booking',browserHash:'foreign',ip:'foreign'},provider));
+    });
+    await t.test('E14 conflicting mobile identities and SMS-only changes fail without losing identities',async()=>{
+      const {beginMobileChange}=await import('../../src/lib/booker/mobile-management.ts');
+      const owner=(await db.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+      const other=(await db.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+      await db.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('email','conflict@example.test',$1),('sms','+447400123459',$2)",[owner,other]);
+      const token=accounts.randomToken();await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 hour')",[accounts.hashToken(token),owner]);
+      const smsOnlyToken=accounts.randomToken();
+      await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 hour')",[accounts.hashToken(smsOnlyToken),other]);
+      await assert.rejects(()=>beginMobileChange({accountId:other,sessionHash:accounts.hashToken(smsOnlyToken),browserHash:'sms-only'},'remove',null));
+      const context={accountId:owner,sessionHash:accounts.hashToken(token),browserHash:'conflict'};
+      const {operationId}=await beginMobileChange(context,'add','+447400123459');
+      const email=await requestCode({identity:{channel:'email',identifier:'conflict@example.test'},purpose:'account-email',browserHash:context.browserHash,ip:'conflict-email',operationId,management:context},provider);
+      await checkCode({id:email.challengeId,code:sent.get('conflict@example.test')!,purpose:'account-email',browserHash:context.browserHash,operationId,management:context},provider);
+      const sms=await requestCode({identity:{channel:'sms',identifier:'+447400123459'},purpose:'account-sms',browserHash:context.browserHash,ip:'conflict-sms',operationId,management:context},provider);
+      await assert.rejects(()=>checkCode({id:sms.challengeId,code:sent.get('+447400123459')!,purpose:'account-sms',browserHash:context.browserHash,operationId,management:context},provider),error=>error instanceof accounts.BookerError&&error.status===409);
+      assert.equal((await db.query("SELECT account_id FROM booker_identities WHERE identifier='+447400123459'")).rows[0].account_id,other);
+      assert.equal((await db.query('SELECT 1 FROM booker_sessions WHERE token_hash=$1',[context.sessionHash])).rowCount,1);
     });
   } finally { if(application)await application.end();await control.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await control.end(); }
 });

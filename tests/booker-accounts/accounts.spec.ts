@@ -89,6 +89,8 @@ test('SMS selection, failed delivery, stale response and expired verification re
   await page.route('**/api/booker/request-code/**',async route=>{await gate;await route.fulfill({json:{challengeId:randomUUID(),retryAfter:0,message:'Your code has been sent.'}});});
   await page.goto('/booking/');await page.getByLabel('Mobile number',{exact:true}).fill('+447700900333');
   await page.getByRole('heading',{name:'Your bookings',exact:true}).click();
+  await expect(page.locator('[data-code-entry]')).toBeHidden();
+  await page.getByRole('button',{name:'Send SMS code',exact:true}).click();
   await expect(page.locator('[data-verification-status]')).toHaveText('Sending your code…');
   await page.getByLabel('Email address',{exact:true}).fill('changed@example.test');release();
   await expect(page.locator('[data-code-entry]')).toBeHidden();
@@ -147,4 +149,62 @@ test('private navigation supports keyboard access, dismissal and public destinat
   await menu.click();await page.mouse.click(5,200);await expect(navigation).toBeHidden();
   await menu.click();await navigation.getByRole('link',{name:'Contact',exact:true}).click();await expect(page).toHaveURL(/\/contact\/$/);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
+});
+
+test('email-backed account adds, replaces and removes SMS sign-in through real verification endpoints',async({page,context,request,baseURL})=>{
+  const db=new pg.Client(process.env.DATABASE_URL ? {connectionString:process.env.DATABASE_URL} : {host:'127.0.0.1',port:5433,user:process.env.POSTGRES_USER||'soccotash',password:process.env.POSTGRES_PASSWORD,database:process.env.POSTGRES_DB||'soccotash'});
+  await db.connect();const email=`e14-${randomUUID()}@example.test`;
+  const mobiles=['+447400'+String(Math.floor(Math.random()*1000000)).padStart(6,'0'),'+447401'+String(Math.floor(Math.random()*1000000)).padStart(6,'0')];
+  let accountId='';const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+  try {
+    accountId=(await db.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+    await db.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('email',$1,$2)",[email,accountId]);
+    const token=randomBytes(32).toString('base64url');
+    await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '1 hour')",[hash(token),accountId]);
+    await context.addCookies([{name:'olrig_booker_session',value:token,url:baseURL!,httpOnly:true,sameSite:'Lax'}]);
+    await page.goto('/booking/');await expect(page.getByText('There are no accessible bookings linked to this account.')).toBeVisible();
+    await page.locator('summary[aria-label="Booking account"]').click();await page.getByRole('link',{name:'Sign-in details',exact:true}).click();
+    const codeFor=async(recipient:string)=>{
+      let code='';await expect.poll(async()=>{code=(await(await request.get(`http://127.0.0.1:1027/?recipient=${encodeURIComponent(recipient)}`)).json()).code;return Boolean(code);}).toBe(true);return code;
+    };
+    for(const [index,mobile] of mobiles.entries()) {
+      if(index)await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[hash(`email:${email}`)]);
+      let smsRequests=0;const listener=(r:any)=>{if(r.url().endsWith('/api/booker/mobile/') && r.postDataJSON()?.step==='send')smsRequests++;};page.on('request',listener);
+      await page.getByLabel('UK mobile number',{exact:true}).fill(mobile);
+      await page.getByRole('button',{name:'Send email code',exact:true}).click();
+      await expect(page.locator('[data-status]')).toContainText('email code has been sent');
+      await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(email));await page.getByRole('button',{name:'Verify code',exact:true}).click();
+      await expect(page.locator('[data-status]')).toContainText('Email verified');expect(smsRequests).toBe(0);
+      await expect(page.getByRole('button',{name:'Send SMS code',exact:true})).toBeFocused();
+      await page.getByRole('button',{name:'Send SMS code',exact:true}).click();
+      await expect(page.locator('[data-status]')).toContainText('SMS code has been sent');
+      await page.getByLabel('Verification code',{exact:true}).fill('abc');await page.getByRole('button',{name:'Verify code',exact:true}).click();
+      await expect(page.locator('[data-status]')).toContainText('six-digit');
+      await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(mobile));await page.getByLabel('Verification code',{exact:true}).press('Enter');
+      await expect(page).toHaveURL(/\/booking\/account\/\?updated=1/);await expect(page.getByText(mobile,{exact:true})).toBeVisible();
+      page.off('request',listener);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
+    }
+    expect((await db.query('SELECT COUNT(*)::int AS n FROM booker_sessions WHERE account_id=$1',[accountId])).rows[0].n).toBe(1);
+    // Prove the replacement number signs in before removing it.
+    await page.locator('summary[aria-label="Booking account"]').click();await page.getByRole('button',{name:'Log out'}).click();
+    await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[hash(`sms:${mobiles[1]}`)]);
+    await page.getByLabel('Mobile number',{exact:true}).fill(mobiles[1]);await page.getByRole('heading',{name:'Your bookings',exact:true}).click();
+    await expect(page.locator('[data-code-entry]')).toBeHidden();await page.getByRole('button',{name:'Send SMS code',exact:true}).click();
+    await expect(page.locator('[data-code-entry]')).toBeVisible();await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(mobiles[1]));await page.getByRole('button',{name:'Verify code',exact:true}).click();
+    await expect(page.getByText('There are no accessible bookings linked to this account.')).toBeVisible();
+    await page.goto('/booking/account/');await page.getByRole('combobox',{name:'Action',exact:true}).selectOption('remove');
+    await expect(page.getByLabel('UK mobile number',{exact:true})).toBeHidden();
+    await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[hash(`email:${email}`)]);
+    await page.getByRole('button',{name:'Send email code',exact:true}).click();await expect(page.locator('[data-status]')).toContainText('email code has been sent');
+    await page.getByLabel('Verification code',{exact:true}).fill(await codeFor(email));await page.getByRole('button',{name:'Verify code',exact:true}).click();
+    await expect(page).toHaveURL(/updated=1/);await expect(page.getByText('Verified mobile',{exact:true})).toHaveCount(0);
+    expect((await db.query("SELECT channel FROM booker_identities WHERE account_id=$1",[accountId])).rows).toEqual([{channel:'email'}]);expect(errors).toEqual([]);
+    expect((await page.request.post('/api/booker/mobile/',{headers:{origin:'https://foreign.example'},data:{step:'start',action:'remove'}})).status()).toBe(403);
+  }finally{
+    if(accountId){await db.query('DELETE FROM booker_identities WHERE account_id=$1',[accountId]);await db.query('DELETE FROM booker_accounts WHERE id=$1',[accountId]);}
+    for(const identifier of [email,...mobiles]){await db.query('DELETE FROM booker_challenges WHERE identifier=$1',[identifier]);await db.query('DELETE FROM booker_verification_requests WHERE destination_hash=$1',[hash(`${identifier===email?'email':'sms'}:${identifier}`)]);}
+    await db.end();
+  }
 });

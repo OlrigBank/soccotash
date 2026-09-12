@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import { checkSms, sendSms, normaliseSmsNumber, requireSms } from './sms.ts';
+import { lockOperation, completeMobileChange, type ManagementContext } from './mobile-management.ts';
+export type VerificationPurpose = 'booking' | 'login' | 'account-email' | 'account-sms';
 import { getPool } from '../booking/db.ts';
 import { sendEmail } from '../email/sender.ts';
 import { accountForIdentity, BookerError, claimBookings, hashToken, storeSession, type Identity } from './accounts.ts';
@@ -11,42 +14,43 @@ function secret(): string {
 export function codeDigest(id: string, code: string): string {
   return crypto.createHmac('sha256', secret()).update(`${id}:${code}`).digest('hex');
 }
-async function twilio(path: string, values: Record<string, string>) {
-  const account = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const service = process.env.TWILIO_VERIFY_SERVICE_SID;
-  if (!account || !token || !/^VA[0-9a-f]{32}$/i.test(service || '')) throw new Error('SMS configuration unavailable');
-  const response = await fetch(`https://verify.twilio.com/v2/Services/${service}/${path}`, {
-    method: 'POST', headers: { authorization: `Basic ${Buffer.from(`${account}:${token}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(values), signal: AbortSignal.timeout(15000),
-  });
-  if (!response.ok) throw new Error('SMS verification unavailable');
-  return response.json() as Promise<{ sid: string; status: string }>;
-}
 export type VerificationDelivery = {
-  send(identity: Identity, code: string): Promise<string | null>;
+  send(identity: Identity, code: string): Promise<string | { id: string; expiresAt: number } | null>;
   check(providerId: string, code: string): Promise<boolean>;
 };
 const delivery: VerificationDelivery = {
   async send(identity, code) {
-    if (identity.channel === 'sms') return (await twilio('Verifications', { To: identity.identifier, Channel: 'sms' })).sid;
+    if (identity.channel === 'sms') return sendSms(identity.identifier);
     await sendEmail({ to: identity.identifier, suppressDefaultBcc: true, subject: 'Your Olrig Bank verification code',
       text: `Your Olrig Bank verification code is ${code}. It expires in 10 minutes. If you did not request it, you can ignore this email.`,
       html: `<p>Your Olrig Bank verification code is <strong>${code}</strong>.</p><p>It expires in 10 minutes. If you did not request it, you can ignore this email.</p>` });
     return null;
   },
-  async check(providerId, code) { return (await twilio('VerificationCheck', { VerificationSid: providerId, Code: code })).status === 'approved'; },
+  check: checkSms,
 };
-export async function requestCode(input: { identity: Identity; purpose: 'booking' | 'login'; browserHash: string; ip: string }, provider = delivery) {
+export async function requestCode(input: { identity: Identity; purpose: VerificationPurpose; browserHash: string; ip: string; operationId?: string; management?: ManagementContext }, provider = delivery) {
   secret();
+  if (input.identity.channel === 'sms') {
+    input.identity = { channel: 'sms', identifier: normaliseSmsNumber(input.identity.identifier) };
+    if (provider === delivery) requireSms();
+  }
   const client = await getPool().connect();
   const destinationHash = hashToken(`${input.identity.channel}:${input.identity.identifier}`);
   const ipHash = hashToken(input.ip);
   const code = crypto.randomInt(0, 1000000).toString().padStart(6, '0');
   let id = '';
   let known = true;
+  let expiresIn = 600;
   try {
     await client.query('BEGIN');
+    if (input.purpose.startsWith('account-')) {
+      if (!input.operationId || !input.management) throw new BookerError('Sign in to manage SMS access.',401);
+      const op = await lockOperation(client,input.operationId,input.management);
+      const emailStep = input.purpose === 'account-email';
+      if ((emailStep && op.email_verified_at) || (!emailStep && (!op.email_verified_at || op.action==='remove'))
+        || input.identity.channel !== (emailStep ? 'email' : 'sms')
+        || input.identity.identifier !== (emailStep ? op.email_identifier : op.identifier)) throw new BookerError('Start this verification step again.',403);
+    }
     // Sorted locks serialise both dimensions across every application instance.
     for (const key of [`destination:${destinationHash}`, `ip:${ipHash}`].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [key]);
     const counts = await client.query(`SELECT
@@ -63,28 +67,41 @@ export async function requestCode(input: { identity: Identity; purpose: 'booking
       known = Boolean(match.rowCount);
     }
     await client.query('UPDATE booker_challenges SET consumed_at=NOW() WHERE browser_hash=$1 AND purpose=$2 AND consumed_at IS NULL', [input.browserHash, input.purpose]);
-    const created = await client.query('INSERT INTO booker_challenges(browser_hash,channel,identifier,purpose) VALUES($1,$2,$3,$4) RETURNING id', [input.browserHash, input.identity.channel, input.identity.identifier, input.purpose]);
+    const created = await client.query('INSERT INTO booker_challenges(browser_hash,channel,identifier,purpose,operation_id) VALUES($1,$2,$3,$4,$5) RETURNING id', [input.browserHash, input.identity.channel, input.identity.identifier, input.purpose,input.operationId || null]);
     id = created.rows[0].id;
     await client.query('UPDATE booker_challenges SET code_hash=$2 WHERE id=$1', [id, codeDigest(id, code)]);
     await client.query('COMMIT');
   } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   try {
     if (known) {
-      const providerId = await provider.send(input.identity, code);
-      await getPool().query('UPDATE booker_challenges SET delivered=TRUE,provider_id=$2 WHERE id=$1 AND consumed_at IS NULL', [id, providerId]);
+      const result = await provider.send(input.identity, code);
+      const providerId = typeof result === 'object' && result ? result.id : result;
+      const expiresAt = typeof result === 'object' && result ? new Date(result.expiresAt) : null;
+      const updated = await getPool().query('UPDATE booker_challenges SET delivered=TRUE,provider_id=$2,expires_at=LEAST(expires_at,COALESCE($3::timestamptz,expires_at)) WHERE id=$1 AND consumed_at IS NULL RETURNING EXTRACT(EPOCH FROM expires_at-NOW()) AS remaining', [id, providerId,expiresAt]);
+      expiresIn = Math.max(0,Math.floor(Number(updated.rows[0]?.remaining || 0)));
     }
-  } catch {
+  } catch (error) {
     await getPool().query('UPDATE booker_challenges SET consumed_at=NOW() WHERE id=$1', [id]);
-    if (input.purpose === 'booking') throw new BookerError('The code could not be sent. Check your contact details and try again shortly.', 503, 60);
+    if (input.purpose !== 'login' && error instanceof BookerError) throw error;
+    if (input.purpose !== 'login') throw new BookerError('The code could not be sent. Check your contact details and try again shortly.', 503, 60);
   }
-  return { challengeId: id, retryAfter: 60, expiresIn: 600, message: input.purpose === 'login' ? 'If that contact is on file, we have sent a code.' : 'Your code has been sent.' };
+  return { challengeId: id, retryAfter: 60, expiresIn: input.purpose === 'login' ? 600 : expiresIn, message: input.purpose === 'login' ? 'If that contact is on file, we have sent a code.' : 'Your code has been sent.' };
 }
-export async function checkCode(input: { id: string; code: string; browserHash: string; purpose: 'booking' | 'login' }, provider = delivery) {
+export async function checkCode(input: { id: string; code: string; browserHash: string; purpose: VerificationPurpose; operationId?: string; management?: ManagementContext }, provider = delivery) {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    const operation = input.purpose.startsWith('account-') && input.operationId && input.management
+      ? await lockOperation(client,input.operationId,input.management) : null;
+    if (input.purpose.startsWith('account-') && !operation) throw new BookerError('Sign in to manage SMS access.',401);
+    if (operation && ((input.purpose==='account-email' && operation.email_verified_at) || (input.purpose==='account-sms' && !operation.email_verified_at)))
+      throw new BookerError('Start this verification step again.',403);
+    if (!operation) {
+      const contact = (await client.query('SELECT channel,identifier FROM booker_challenges WHERE id=$1 AND browser_hash=$2',[input.id,input.browserHash])).rows[0];
+      if (contact) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`booker:${contact.channel}:${contact.identifier}`]);
+    }
     const selected = await client.query(`SELECT * FROM booker_challenges WHERE id=$1 AND browser_hash=$2 AND purpose=$3
-      AND consumed_at IS NULL AND expires_at>NOW() AND attempts<5 FOR UPDATE`, [input.id, input.browserHash, input.purpose]);
+      AND consumed_at IS NULL AND expires_at>NOW() AND attempts<5 AND operation_id IS NOT DISTINCT FROM $4::uuid FOR UPDATE`, [input.id, input.browserHash, input.purpose,input.operationId || null]);
     const challenge = selected.rows[0];
     if (!challenge) throw new BookerError('The code is invalid or has expired. Request another code.');
     await client.query('UPDATE booker_challenges SET attempts=attempts+1 WHERE id=$1', [input.id]);
@@ -93,7 +110,7 @@ export async function checkCode(input: { id: string; code: string; browserHash: 
       if (challenge.channel === 'email') valid = crypto.timingSafeEqual(Buffer.from(codeDigest(input.id, input.code), 'hex'), Buffer.from(challenge.code_hash, 'hex'));
       else {
         try { valid = await provider.check(challenge.provider_id, input.code); }
-        catch { await client.query('COMMIT'); throw new BookerError('Verification is temporarily unavailable. Please try again.', 503); }
+        catch (error) { await client.query('COMMIT'); if (error instanceof BookerError) throw error; throw new BookerError('Verification is temporarily unavailable. Please try again.', 503); }
       }
     }
     if (!valid) {
@@ -102,7 +119,12 @@ export async function checkCode(input: { id: string; code: string; browserHash: 
     }
     await client.query('UPDATE booker_challenges SET consumed_at=NOW() WHERE id=$1', [input.id]);
     let sessionToken: string | null = null;
-    if (input.purpose === 'booking') {
+    if (operation) {
+      if (input.purpose === 'account-email') {
+        await client.query('UPDATE booker_mobile_operations SET email_verified_at=NOW() WHERE id=$1',[operation.id]);
+        if (operation.action === 'remove') sessionToken = await completeMobileChange(client,operation);
+      } else sessionToken = await completeMobileChange(client,operation);
+    } else if (input.purpose === 'booking') {
       await client.query('UPDATE booker_verification_grants SET consumed_at=NOW() WHERE browser_hash=$1 AND consumed_at IS NULL', [input.browserHash]);
       await client.query('INSERT INTO booker_verification_grants(browser_hash,channel,identifier) VALUES($1,$2,$3)', [input.browserHash, challenge.channel, challenge.identifier]);
     } else {
@@ -112,6 +134,6 @@ export async function checkCode(input: { id: string; code: string; browserHash: 
       sessionToken = await storeSession(client, accountId);
     }
     await client.query('COMMIT');
-    return { sessionToken, verified: true, expiresIn: input.purpose === 'booking' ? 1800 : 30 * 86400 };
+    return { sessionToken, verified: true, nextStep: operation && input.purpose==='account-email' && operation.action!=='remove' ? 'sms' : 'complete', expiresIn: input.purpose === 'booking' ? 1800 : 30 * 86400 };
   } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
 }

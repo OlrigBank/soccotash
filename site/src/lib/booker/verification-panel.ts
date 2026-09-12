@@ -52,7 +52,7 @@ export function initialiseVerification(root: HTMLElement) {
     }
     else if (verifiedKey && expires <= Date.now()) { verifiedKey = ''; status.textContent = 'Verification has expired. Request a new code.'; }
     send.disabled = pending || verified || Date.now() < retryAt || !valid(value);
-    send.textContent = Date.now() < retryAt ? `Resend in ${Math.ceil((retryAt - Date.now()) / 1000)} seconds` : challengeId ? 'Resend verification code' : 'Send verification code';
+    send.textContent = Date.now() < retryAt ? `Resend in ${Math.ceil((retryAt - Date.now()) / 1000)} seconds` : challengeId ? (value.channel === 'sms' ? 'Resend SMS code' : 'Resend verification code') : (value.channel === 'sms' ? 'Send SMS code' : 'Send verification code');
     verify.disabled = pending || !challengeId;
   }
   async function post(action: string, payload: Record<string, unknown>) {
@@ -65,7 +65,7 @@ export function initialiseVerification(root: HTMLElement) {
   async function sendCode(automatic = false) {
     refresh();
     const value = contact(), selected = key(value);
-    if (pending || send.disabled || (automatic && attemptedKey === selected)) return;
+    if (pending || send.disabled || (automatic && (value.channel === 'sms' || attemptedKey === selected))) return;
     const currentRevision = revision;
     attemptedKey = selected; pending = true; status.textContent = 'Sending your code…'; refresh();
     try {
@@ -75,7 +75,7 @@ export function initialiseVerification(root: HTMLElement) {
       if (currentRevision !== revision) return;
       challengeId = body.challengeId; challengeKey = selected; code.value = ''; entry.hidden = false;
       const masked = value.channel === 'email' ? value.identifier.replace(/^(.).*(@.*)$/, '$1•••$2') : `•••${value.identifier.slice(-4)}`;
-      status.textContent = `${body.message} ${purpose === 'booking' ? `Check ${masked}. ` : ''}The code expires in 10 minutes.`;
+      status.textContent = `${body.message} ${purpose === 'booking' ? `Check ${masked}. ` : ''}${value.channel === 'sms' ? 'A resent code may be the same and expire sooner.' : 'The code expires in 10 minutes.'}`;
     } catch (error) { if (currentRevision === revision) status.textContent = error instanceof Error ? error.message : 'The code could not be sent. Try again.'; }
     finally { pending = false; refresh(); }
   }
@@ -90,7 +90,7 @@ export function initialiseVerification(root: HTMLElement) {
       verifiedKey = challengeKey; expires = Date.now() + body.expiresIn * 1000;
       if (purpose === 'login') {
         const returnTo = new URL(location.href).searchParams.get('returnTo');
-        location.assign(returnTo && /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo) ? returnTo : '/booking/');
+        location.assign(returnTo && (returnTo === '/booking/account/' || /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo)) ? returnTo : '/booking/');
       }
     } catch (error) { if (currentRevision === revision) status.textContent = error instanceof Error ? error.message : 'Verification failed. Try again.'; }
     finally { pending = false; refresh(); }
