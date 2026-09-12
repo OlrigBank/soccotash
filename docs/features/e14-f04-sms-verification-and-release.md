@@ -6,8 +6,8 @@ Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verificatio
 
 Local verification complete on 12 September 2026. Live development and production
 acceptance remain pending. A live development-service SMS was delivered and approved after the owner verified
-the trial recipient; see the evidence below. No deployment or production-data
-changes were performed. The epic must remain open.
+the trial recipient; see the evidence below. The approved development deployment
+is now live. Production remains unchanged. The epic must remain open.
 
 ## Local evidence
 
@@ -73,6 +73,29 @@ accounts with multiple SMS identities, satisfying migration 061's uniqueness
 preflight. The connector does not expose service environment values, so this
 does not yet verify the development service's actual database connection.
 No Render settings, deployment or hosted data were changed.
+
+## Approved Render development deployment — 12 September 2026
+
+The owner confirmed the development database connection and approved merging
+PR #153, configuring Twilio and deploying `soccotash`. PR #153 merged as
+`65b5eebfac32b654934f7f46935765db71b396d9`; all five PR CI checks passed.
+The development environment update merged the three Twilio settings and
+`BOOKER_SMS_ENABLED=true` into existing settings without replacing other keys.
+Render automatically started deployment `dep-daii9v9594qs738slaj0` on that update;
+no duplicate deployment was triggered. Render reports this revision live.
+
+Read-only verification confirmed migration `061_booker_sms_management.sql` on
+the development database. `/api/health/` returned HTTP 200 with application and
+database status `ok`. Chrome DevTools confirmed the signed-out account route
+redirects to sign-in preserving `/booking/account/` as the continuation target.
+The sign-in response is private/no-store, no-referrer and noindex. No document
+overflow appeared at actual viewport widths 390, 768 and 1440; the phone check
+used device emulation because native window resizing clamps narrow widths.
+No browser warnings/errors or Render error-level logs were found after release.
+
+No additional SMS was sent during deployment verification. Hosted delivery and
+authenticated account journeys still need controlled owner-approved tests.
+Production configuration and deployment were not changed.
 
 ## First authorised live development attempt
 
