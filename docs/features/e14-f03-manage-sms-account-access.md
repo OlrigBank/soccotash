@@ -4,7 +4,9 @@ Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verificatio
 
 ## Status and behaviour
 
-Implemented locally on `agent/e14-sms-verification`; live acceptance remains open.
+Implemented and verified locally and on hosted development, including adding,
+Dutch SMS sign-in, removal and UK-to-Dutch replacement. Production SMS acceptance
+remains open; see E14-F04 for the release evidence.
 
 The shared booking-account menu links to `/booking/account/`, including for
 accounts with no accessible bookings. Email-backed accounts can add, replace or

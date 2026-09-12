@@ -4,10 +4,10 @@ Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verificatio
 
 ## Status
 
-Local verification complete on 12 September 2026. Live development and production
-acceptance remain pending. A live development-service SMS was delivered and approved after the owner verified
-the trial recipient; see the evidence below. The approved development deployment
-is now live. Production remains unchanged. The epic must remain open.
+Local and hosted development acceptance are complete, including UK booking/sign-in
+and Dutch mobile adding, sign-in, removal and UK-to-Dutch replacement. Production
+code is deployed with public SMS disabled. Production SMS acceptance and Twilio
+Primary Compliance Profile approval remain outstanding. The epic remains open.
 
 ## Local evidence
 
@@ -189,3 +189,76 @@ widths without document overflow. A Dutch landline returned the expected HTTP
 400 and moved visible focus to the validation message; no script errors were
 observed. Lighthouse snapshot scored 100 in all reported categories, excluding
 performance (`/tmp/e14-nl-lighthouse/`). Live Dutch delivery remains pending.
+
+## Hosted Dutch mobile linking — 12 September 2026
+
+PR #155 merged as `841abb898d9bcb1447211c60ea9909d4b42a2614` and was deployed
+to development. All five checks passed after correcting randomly generated
+Dutch fixture numbers to use a valid mobile range.
+
+Hosted Dutch sends initially failed with Twilio 21608. The owner obtained the
+exact code from a controlled Render Shell diagnostic. Twilio documents this as
+an unverified-recipient restriction on trial accounts or upgraded accounts
+without an approved Primary Compliance Profile. An active Full account alone
+therefore does not establish public messaging readiness. Reapplying the working
+local development credentials and restarting did not resolve this restriction;
+the earlier local diagnostic success did not establish hosted acceptance.
+
+After the owner added the Dutch number as a verified recipient, a fresh hosted
+mobile-add operation passed email verification, sent its SMS successfully and
+accepted the owner-supplied SMS code. The account page returned `updated=1`;
+the session confirmed both the original email identity and the Dutch SMS identity.
+No codes or full contact details are retained in this record.
+
+The owner then completed hosted Dutch SMS sign-in after logout. The resulting
+session belonged to the same email-backed account and retained both identities.
+A fresh email code authorised removal of the Dutch SMS identity. The account
+page again returned `updated=1`, retaining email and signed-in status. A read-only
+database check confirmed one active session, zero SMS identities on that account
+and zero usable outstanding Dutch SMS challenges. The account is left email-only.
+
+Hosted add, Dutch sign-in and removal now pass. Live replacement still requires
+the UK number to be released from its disposable SMS-only test account before it
+can join this email-backed account; do not bypass the cross-account identity
+constraint. Automated UK-to-Dutch replacement already passes. Production
+acceptance and approved Primary Compliance Profile readiness remain outstanding.
+
+## Authorised production deployment — 12 September 2026
+
+The owner requested production deployment. PR #154 had already been merged;
+PR #156 promoted the Dutch-support follow-up after its checks passed. Production
+`olrigbankweb` now runs `129e420ad0d769e59a4701aa4f29001bc9ecb707`, deployment
+`dep-daijq49594qs73923ibg`, reported live by Render. The environment update set
+`BOOKER_SMS_ENABLED=false` and selected the separate production Verify service,
+merging those values into the existing environment without replacing other keys.
+
+Production migration 061 is applied. On `https://olrig-bank.com`, health returned
+HTTP 200 with application/database status `ok`. The signed-out account route
+redirected to sign-in preserving the continuation target. Responses retained
+private/no-store, no-referrer and noindex headers. Chrome DevTools checked actual
+390, 768 and 1440 widths without document overflow or initial console errors.
+A controlled disabled-SMS request returned the expected HTTP 503/email fallback;
+no production SMS was sent. Render error-level logs were empty after deployment.
+
+This is a successful code deployment with public SMS disabled, not completed
+production SMS acceptance. Primary Compliance Profile approval, live development
+replacement and controlled production SMS verification remain outstanding.
+The UK number is currently linked to the owner's email-backed development account;
+replacement was deferred by the five-email-codes-per-hour limit. Its old cancelled
+disposable booking was preserved when the owner released the former SMS identity.
+
+## Hosted UK-to-Dutch replacement acceptance
+
+After the email rate limit cleared, the owner signed in to the email-backed
+account and started replacement of the verified UK mobile with the Dutch mobile.
+Fresh email verification passed. Before SMS approval, the session still exposed
+the UK identity, confirming that pending replacement preserved the old method.
+The hosted SMS request then succeeded and the owner supplied its code.
+
+The account returned `updated=1` with the Dutch identity, no UK identity and the
+original email identity preserved. Read-only database verification confirmed one
+active account session, zero usable old-UK challenges and zero usable old-UK
+verification grants. This completes the remaining hosted development replacement
+check. No codes or full contact details are retained here. The development account
+is left with email and Dutch SMS access. Production SMS remains disabled pending
+provider readiness and its controlled live acceptance check.
