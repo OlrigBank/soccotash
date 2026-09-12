@@ -208,5 +208,17 @@ After the owner added the Dutch number as a verified recipient, a fresh hosted
 mobile-add operation passed email verification, sent its SMS successfully and
 accepted the owner-supplied SMS code. The account page returned `updated=1`;
 the session confirmed both the original email identity and the Dutch SMS identity.
-No codes or full contact details are retained in this record. Hosted Dutch
-sign-in, removal/replacement and production acceptance remain separate checks.
+No codes or full contact details are retained in this record.
+
+The owner then completed hosted Dutch SMS sign-in after logout. The resulting
+session belonged to the same email-backed account and retained both identities.
+A fresh email code authorised removal of the Dutch SMS identity. The account
+page again returned `updated=1`, retaining email and signed-in status. A read-only
+database check confirmed one active session, zero SMS identities on that account
+and zero usable outstanding Dutch SMS challenges. The account is left email-only.
+
+Hosted add, Dutch sign-in and removal now pass. Live replacement still requires
+the UK number to be released from its disposable SMS-only test account before it
+can join this email-backed account; do not bypass the cross-account identity
+constraint. Automated UK-to-Dutch replacement already passes. Production
+acceptance and approved Primary Compliance Profile readiness remain outstanding.
