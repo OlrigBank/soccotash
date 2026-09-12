@@ -60,6 +60,20 @@ used. Synthetic mobile numbers in tests must never be used as live recipients.
 
 No feature or epic closure should imply that these live checks have already passed.
 
+## Render preflight — 12 September 2026
+
+The owner confirmed the Render workspace. Read-only inspection confirmed that
+`soccotash` tracks `development` and `olrigbankweb` tracks `main`, with automatic
+deployment disabled on both. The development service currently runs revision
+`3594ff4b5b7a4b21a9459e192f65820c97ab155e`.
+
+The separate `soccotash-development-bookings` database is available. A read-only
+query confirmed migration 060 is the latest applied migration and found no
+accounts with multiple SMS identities, satisfying migration 061's uniqueness
+preflight. The connector does not expose service environment values, so this
+does not yet verify the development service's actual database connection.
+No Render settings, deployment or hosted data were changed.
+
 ## First authorised live development attempt
 
 The owner confirmed Standard Fraud Guard protection on both services and supplied

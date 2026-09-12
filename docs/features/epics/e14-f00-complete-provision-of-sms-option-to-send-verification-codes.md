@@ -2,10 +2,11 @@
 
 ## Status
 
-Implementation in progress on `agent/e14-sms-verification`. The agreed scope was
-recorded on 12 September 2026. The owner subsequently confirmed an existing
-Twilio free-trial account. Verify service configuration and live delivery
-verification remain outstanding.
+Implementation and local verification are complete on `agent/e14-sms-verification`.
+Separate Twilio Verify services are provisioned, and an authorised development
+SMS was delivered and approved through the application adapter. Hosted Render
+development journeys and production acceptance remain outstanding; the epic
+remains open. See the feature records below for evidence and release gates.
 
 ## Outcome
 
