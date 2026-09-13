@@ -1,12 +1,16 @@
 # E14-F03 — Manage SMS account access
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status and behaviour
 
+Completed and closed with owner approval on 13 September 2026.
+
 Implemented and verified locally and on hosted development, including adding,
-Dutch SMS sign-in, removal and UK-to-Dutch replacement. Production SMS acceptance
-remains open; see E14-F04 for the release evidence.
+Dutch SMS sign-in, removal and UK-to-Dutch replacement. Production acceptance
+passed on 13 September 2026: fresh email approval, Dutch mobile linking and
+subsequent SMS sign-in preserved the original email-backed account. See E14-F04
+for the release evidence and the API-only production verification limitation.
 
 The shared booking-account menu links to `/booking/account/`, including for
 accounts with no accessible bookings. Email-backed accounts can add, replace or

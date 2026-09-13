@@ -2,11 +2,17 @@
 
 ## Status
 
+Completed and closed with owner approval on 13 September 2026. All four features
+are accepted and closed; no implementation or acceptance work remains.
+
 Implementation and local verification are complete on `agent/e14-sms-verification`.
 Separate Twilio Verify services are provisioned. Hosted development booking,
 sign-in and mobile-management journeys have passed with owner-controlled UK and
-Dutch numbers. Production code is deployed with SMS disabled; production SMS
-acceptance and provider readiness remain outstanding. The epic remains open.
+Dutch numbers. The owner supplied evidence of approved Twilio Primary Compliance
+Profile status on 13 September 2026. Production SMS is enabled and controlled
+Dutch mobile linking and fresh SMS sign-in passed, preserving the original email
+account. Implementation and acceptance are complete.
+See E14-F04 for the API-only production smoke evidence and browser limitation.
 
 ## Outcome
 
@@ -19,7 +25,7 @@ development and production.
 
 ## Existing foundation
 
-[E11-F03 — Verify bookers and introduce private accounts](../completed/e11-f03-verify-bookers-and-private-accounts.md)
+[E11-F03 — Verify bookers and introduce private accounts](../../completed/e11-f03-verify-bookers-and-private-accounts.md)
 introduced email/SMS verification, private accounts, browser-bound challenges,
 verification grants and sessions. Its closure explicitly retained the limitation
 that real SMS delivery and hosted configuration had not been verified.
@@ -199,10 +205,10 @@ exposing credentials.
 
 ## Implementation records
 
-- [E14-F01 — Twilio SMS provisioning](../e14-f01-twilio-sms-provisioning.md)
-- [E14-F02 — Reliable SMS verification](../e14-f02-reliable-sms-verification.md)
-- [E14-F03 — Manage SMS account access](../e14-f03-manage-sms-account-access.md)
-- [E14-F04 — Verification and release](../e14-f04-sms-verification-and-release.md)
+- [E14-F01 — Twilio SMS provisioning](../../completed/e14-f01-twilio-sms-provisioning.md)
+- [E14-F02 — Reliable SMS verification](../../completed/e14-f02-reliable-sms-verification.md)
+- [E14-F03 — Manage SMS account access](../../completed/e14-f03-manage-sms-account-access.md)
+- [E14-F04 — Verification and release](../../completed/e14-f04-sms-verification-and-release.md)
 
 ## Scope extension — UK and Netherlands
 
