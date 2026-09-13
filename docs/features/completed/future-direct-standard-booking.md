@@ -32,3 +32,11 @@ without weakening availability, pricing, payment, contact or occupancy safety.
 - Notifications, cancellation wording, monitoring and rollback controls.
 
 This is intentionally separate from the completed occupancy epic.
+
+## E15 decision
+
+[E15 — Publish offers for priced standard stays](../epics/completed/e15-f00-publish-offers-for-priced-standard-stays.md)
+implements an immediate published offer for priced standard Olrig Bank and Cottage
+requests. Acceptance, payment and confirmation remain separate. Promo codes,
+Olrig Bank++, bespoke and host-decision requests retain review. See E15 for the
+agreed conditions, implementation and verification evidence.

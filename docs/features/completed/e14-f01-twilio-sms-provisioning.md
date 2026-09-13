@@ -1,14 +1,16 @@
 # E14-F01 — Twilio SMS provisioning
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status
 
-Implementation in progress on `agent/e14-sms-verification`. The owner confirmed
-an existing Twilio free-trial account on 12 September 2026. Credentials were supplied through the ignored local `.env` and authenticated
-successfully. Separate development and production Verify services have been created
-and read back with six-digit codes and the do-not-share warning enabled. A controlled development-service SMS has now been delivered and approved; see
-[E14-F04](e14-f04-sms-verification-and-release.md).
+Completed and closed with owner approval on 13 September 2026.
+
+Separate development and production Verify services are configured. The owner
+supplied evidence of approved Primary Compliance Profile status; production SMS
+activation, Dutch mobile linking and fresh SMS sign-in passed on 13 September
+2026. See [E14-F04](e14-f04-sms-verification-and-release.md) for the complete
+acceptance evidence and production browser limitation.
 
 ## Configuration
 

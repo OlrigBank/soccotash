@@ -1,10 +1,14 @@
 # E14-F02 — Reliable SMS booking verification and sign-in
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status and behaviour
 
-Implemented locally on `agent/e14-sms-verification`; live acceptance remains open.
+Completed and closed with owner approval on 13 September 2026.
+
+Implemented and verified locally and on hosted development. The controlled
+production SMS verification and fresh sign-in checks passed on 13 September 2026;
+see E14-F04 for evidence and the API-only production verification limitation.
 
 The existing booking/sign-in endpoints retain their contracts. SMS requires an
 explicit Send SMS code action; contact blur and channel selection do not send a

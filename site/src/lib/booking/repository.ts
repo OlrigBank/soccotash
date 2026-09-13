@@ -2,6 +2,9 @@ import { accountForIdentity, claimBookings, storeSession, verifiedBookingIdentit
 import { currentBookerAccountId } from '../booker/context.ts';
 import { resolveBookingAccessCredential } from './booking-access.ts';
 import crypto from 'node:crypto';
+import type { PoolClient } from 'pg';
+import { directOfferDecision } from './direct-offer.ts';
+import { defaultOfferSubject } from './offer-email';
 import { getAvailabilityProperties, getAvailabilityProperty, getProperties, getPropertiesSharingAnyAvailability, getPropertiesSharingAvailability, getProperty } from './config';
 import { isIsoDate, nightsBetween } from './dates';
 import { getPool } from './db';
@@ -257,6 +260,8 @@ export async function createProvisionalBooking(input: {
   message?: string;
   promoCode?: string;
   pricingQuote?: PublishedPricingQuote | null;
+  /** Set only after the submitting customer has reviewed the current quote. */
+  publishDirectOffer?: boolean;
 }): Promise<{ reference: string; accessToken: string; sessionToken?: string; replayed?: boolean }> {
   const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
   const occupancyDetails = validateOccupancyDetails(input.occupancyDetails ?? { occupants: [], pets: [] }, { ...party, pets: input.pets });
@@ -363,9 +368,10 @@ export async function createProvisionalBooking(input: {
         [result.rows[0].id, input.name, input.message.trim(), `request-message:${result.rows[0].id}`],
       );
     }
+    const automaticOffer = input.publishDirectOffer === true && directOfferDecision({ ...input, administratorPriced: property.administratorPriced, occupancyOutcome: input.occupancyAssessment?.result.outcome }).automaticOffer;
     await insertBotBookingMessage(client, {
       bookingId: result.rows[0].id,
-      body: input.propertyId === 'bespoke-arrangement'
+      body: automaticOffer ? 'Your booking request has been received. Your offer is ready to review.' : input.propertyId === 'bespoke-arrangement'
         ? 'Your bespoke stay request has been received. Jenna will review the dates and discuss the accommodation and price with you here.'
         : 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
       audience: 'booker',
@@ -381,6 +387,18 @@ export async function createProvisionalBooking(input: {
       if (verified.grantId) await client.query('UPDATE booker_verification_grants SET consumed_at=NOW() WHERE id=$1', [verified.grantId]);
       await client.query('INSERT INTO booker_submissions(id,browser_hash,booking_id,account_id) VALUES($1,$2,$3,$4)', [input.authorisation.submissionId,input.authorisation.browserHash,result.rows[0].id,accountId]);
       sessionToken = await storeSession(client, accountId);
+    }
+    if (automaticOffer && input.pricingQuote) {
+      const quote = input.pricingQuote;
+      const offer = await client.query(`INSERT INTO booking_offers
+        (provisional_booking_id,currency,line_items,total_pence,offer_message,terms,valid_until,recipient_email,subject,delivery_status)
+        VALUES($1,$2,$3::jsonb,$4,$5,NULL,$6::date,$7,$8,'pending') RETURNING id::text`, [
+        result.rows[0].id, quote.result.currency, JSON.stringify(customerPricingLinesFromUnknown(quote.result)),
+        quote.result.guestTotalPence, `Thank you for your booking request for ${property.name}. We are pleased to make the following offer.`,
+        new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), input.email,
+        defaultOfferSubject(input, property.name),
+      ]);
+      await publishBookingOfferInTransaction(client, { offerId: offer.rows[0].id, reference: result.rows[0].reference }, 'system');
     }
     await client.query('COMMIT');
     return { reference: result.rows[0].reference, accessToken: result.rows[0].reference, sessionToken };
@@ -960,82 +978,81 @@ export async function createBookingOfferAttempt(input: {
   }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
 }
 
-export async function publishBookingOffer(input: {
-  offerId: string;
-  reference: string;
-}): Promise<void> {
+async function publishBookingOfferInTransaction(client: PoolClient, input: { offerId: string; reference: string }, actor: 'system' | 'administrator'): Promise<void> {
+  const selected = await client.query(
+    `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
+            COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
+            pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164,
+            pb.arrival::text,pb.departure::text,pb.originated_as_bespoke
+       FROM booking_offers bo
+       JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
+       LEFT JOIN admin_users au ON au.id = bo.admin_user_id
+      WHERE bo.id = $1 AND pb.public_id = $2::uuid
+      FOR UPDATE OF bo, pb`,
+    [input.offerId, input.reference],
+  );
+  if (!selected.rowCount) throw new Error('BOOKING_OFFER_NOT_FOUND');
+  const row = selected.rows[0];
+  const bookingId = row.provisional_booking_id;
+  if (!['pending', 'offered'].includes(row.booking_status)) {
+    throw new Error('BOOKING_CANNOT_BE_OFFERED');
+  }
+  if (!String(row.guest_email || '').trim() && !String(row.guest_telephone_e164 || '').trim()) {
+    throw new Error('BOOKER_CONTACT_REQUIRED');
+  }
+  const allocation=(await client.query(`SELECT id FROM booking_offer_allocations WHERE booking_offer_id=$1`,[input.offerId])).rowCount;
+  if(row.originated_as_bespoke&&!allocation)throw new Error('ALLOCATION_REQUIRED');
+  if(allocation)await assertAllocationAvailable(client,input.offerId,row.arrival,row.departure,String(bookingId));
+
+  await client.query(
+    `UPDATE booking_offers
+        SET customer_status = 'superseded', token_revoked_at = COALESCE(token_revoked_at, NOW())
+      WHERE provisional_booking_id = $1 AND id <> $2 AND customer_status = 'active'`,
+    [bookingId, input.offerId],
+  );
+  await client.query(
+    `UPDATE booking_offers
+        SET published_at = NOW(), customer_status = 'active'
+      WHERE id = $1`,
+    [input.offerId],
+  );
+  await client.query(
+    `UPDATE provisional_bookings SET status = 'offered'
+      WHERE id = $1 AND status IN ('pending', 'offered')`,
+    [bookingId],
+  );
+  await client.query(
+    `INSERT INTO booking_activity
+       (provisional_booking_id, booking_offer_id, actor, event_type)
+     VALUES ($1, $2, $3, 'offer_published')`,
+    [bookingId, input.offerId, actor],
+  );
+  if (actor === 'administrator') await insertAdministratorOfferMessage(client, {
+    bookingId,
+    offerId: input.offerId,
+    adminUserId: row.admin_user_id,
+    adminDisplayName: row.admin_display_name,
+    body: String(row.offer_message || ''),
+  });
+  await insertBotBookingMessage(client, {
+    bookingId,
+    offerId: input.offerId,
+    body: 'A booking offer has been published. Open Reservation details to review the price, terms and response options.',
+    audience: 'booker',
+    sourceKey: `offer-published:${input.offerId}`,
+  });
+}
+
+export async function publishBookingOffer(input: { offerId: string; reference: string }): Promise<void> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    const selected = await client.query(
-      `SELECT bo.provisional_booking_id, bo.offer_message, bo.admin_user_id,
-              COALESCE(NULLIF(au.display_name, ''), 'Jenna') AS admin_display_name,
-              pb.status AS booking_status, pb.guest_email, pb.guest_telephone_e164,
-              pb.arrival::text,pb.departure::text,pb.originated_as_bespoke
-         FROM booking_offers bo
-         JOIN provisional_bookings pb ON pb.id = bo.provisional_booking_id
-         LEFT JOIN admin_users au ON au.id = bo.admin_user_id
-        WHERE bo.id = $1 AND pb.public_id = $2::uuid
-        FOR UPDATE OF bo, pb`,
-      [input.offerId, input.reference],
-    );
-    if (!selected.rowCount) throw new Error('BOOKING_OFFER_NOT_FOUND');
-    const row = selected.rows[0];
-    const bookingId = row.provisional_booking_id;
-    if (!['pending', 'offered'].includes(row.booking_status)) {
-      throw new Error('BOOKING_CANNOT_BE_OFFERED');
-    }
-    if (!String(row.guest_email || '').trim() && !String(row.guest_telephone_e164 || '').trim()) {
-      throw new Error('BOOKER_CONTACT_REQUIRED');
-    }
-    const allocation=(await client.query(`SELECT id FROM booking_offer_allocations WHERE booking_offer_id=$1`,[input.offerId])).rowCount;
-    if(row.originated_as_bespoke&&!allocation)throw new Error('ALLOCATION_REQUIRED');
-    if(allocation)await assertAllocationAvailable(client,input.offerId,row.arrival,row.departure,String(bookingId));
-
-    await client.query(
-      `UPDATE booking_offers
-          SET customer_status = 'superseded', token_revoked_at = COALESCE(token_revoked_at, NOW())
-        WHERE provisional_booking_id = $1 AND id <> $2 AND customer_status = 'active'`,
-      [bookingId, input.offerId],
-    );
-    await client.query(
-      `UPDATE booking_offers
-          SET published_at = NOW(), customer_status = 'active'
-        WHERE id = $1`,
-      [input.offerId],
-    );
-    await client.query(
-      `UPDATE provisional_bookings SET status = 'offered'
-        WHERE id = $1 AND status IN ('pending', 'offered')`,
-      [bookingId],
-    );
-    await client.query(
-      `INSERT INTO booking_activity
-         (provisional_booking_id, booking_offer_id, actor, event_type)
-       VALUES ($1, $2, 'administrator', 'offer_published')`,
-      [bookingId, input.offerId],
-    );
-    await insertAdministratorOfferMessage(client, {
-      bookingId,
-      offerId: input.offerId,
-      adminUserId: row.admin_user_id,
-      adminDisplayName: row.admin_display_name,
-      body: String(row.offer_message || ''),
-    });
-    await insertBotBookingMessage(client, {
-      bookingId,
-      offerId: input.offerId,
-      body: 'A booking offer has been published. Open Reservation details to review the price, terms and response options.',
-      audience: 'booker',
-      sourceKey: `offer-published:${input.offerId}`,
-    });
+    await publishBookingOfferInTransaction(client, input, 'administrator');
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }
 
 export async function markBookingOfferSent(input: {

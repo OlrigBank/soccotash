@@ -157,6 +157,7 @@ const rule = (value: BookingTransitionRule): BookingTransitionRule => Object.fre
 });
 
 export const BOOKING_TRANSITION_RULES: readonly BookingTransitionRule[] = Object.freeze([
+  rule({ id: 'pending.publish_offer.system', from: 'pending', action: 'publish_offer', actor: 'system', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'], activityEvent: 'booking_offer_published', botMessageTargets: ['booker'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'pending.publish_offer.administrator', from: 'pending', action: 'publish_offer', actor: 'administrator', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'], activityEvent: 'booking_offer_published', botMessageTargets: ['booker'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'offered.replace_offer.administrator', from: 'offered', action: 'replace_offer', actor: 'administrator', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'], activityEvent: 'booking_offer_replaced', botMessageTargets: ['booker'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'declined.replace_offer.administrator', from: 'declined', action: 'replace_offer', actor: 'administrator', to: 'offered', calendarEffect: 'block', requirements: ['offer_payload'], activityEvent: 'booking_offer_reopened', botMessageTargets: ['booker'], emailNotificationTargets: ['booker'] }),

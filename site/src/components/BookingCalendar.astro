@@ -10,7 +10,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   </ol>
   <div data-stay-editor>
   <CompactBookingPanel source="booking" requestPage={true} quickCheck={true} autoSelectProperty={true} heading="Check your stay" idPrefix="request-stay" />
-  <p class="booking-note">Check the provisional total, then choose Book to enter your details. Your request does not confirm a booking or take payment.</p>
+  <p class="booking-note">Check the total, then choose Book to enter your details. Your request does not confirm a booking or take payment.</p>
   </div>
   <section class="booking-stay-summary" data-stay-summary hidden aria-label="Your stay">
     <p data-stay-summary-text></p>
@@ -51,7 +51,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       <div class="booking-field booking-field-wide">
         <label for="guest-promo-code">Promo code (optional)</label>
         <input id="guest-promo-code" name="promoCode" maxlength="80" aria-describedby="promo-code-help" />
-        <p id="promo-code-help" class="booking-note">Jenna will review your code. No discount has been applied to this total.</p>
+        <p id="promo-code-help" class="booking-note">Promo code requires review. No discount has been applied to this total.</p>
       </div>
       <div class="booking-field booking-field-wide">
         <label for="guest-message">Message to Olrig Bank (optional)</label>
@@ -153,10 +153,15 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
     summary.textContent = `${stay} · ${dateLabel(selection.arrival)} – ${dateLabel(selection.departure)} · ${partyLabel(selection)}`;
     const total = document.createElement('strong');
-    total.textContent = quote?.pricingAvailable ? `Provisional total: ${money(Number(quote.guestTotalPence || 0))}`
-      : quote?.estimatedPricing ? `Estimated total: ${money(Number(quote.estimatedPricing.guestTotalPence || 0))}. Jenna will confirm the final price.`
-      : 'Jenna will confirm availability and the price.';
+    total.textContent = quote?.pricingAvailable ? `Total: ${money(Number(quote.guestTotalPence || 0))}`
+      : quote?.estimatedPricing ? `Estimated total: ${money(Number(quote.estimatedPricing.guestTotalPence || 0))}. This request requires review before an offer can be made.`
+      : 'Price to be agreed. This request requires review before an offer can be made.';
     submitReview.append(summary, total);
+    const nextStep = document.createElement('p');
+    const promoCode = String(new FormData(form!).get('promoCode') || '').trim();
+    nextStep.textContent = promoCode ? 'Promo code requires review. No discount has been applied to this total.'
+      : quote?.reviewReason || (quote?.automaticOffer ? 'Send your request to receive an offer at this total. You can then accept or decline it.' : 'This request requires review before an offer can be made.');
+    submitReview.append(nextStep);
     if (quote?.lines?.length) {
       const details = document.createElement('details');
       const heading = document.createElement('summary'); heading.textContent = 'Price details';
@@ -183,12 +188,12 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     if (staySummaryText) {
       const selection = state.selection;
       const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
-      staySummaryText.textContent = `${stay} · ${dateLabel(selection.arrival)} – ${dateLabel(selection.departure)} · ${partyLabel(selection)}`;
+      staySummaryText.textContent = `${stay} · ${dateLabel(selection.arrival)} – ${dateLabel(selection.departure)} · ${partyLabel(selection)} · ${state.quote?.pricingAvailable ? `Total: ${money(Number(state.quote.guestTotalPence || 0))}` : state.quote?.estimatedPricing ? `Estimated total: ${money(Number(state.quote.estimatedPricing.guestTotalPence || 0))}` : 'Price to be agreed'}`;
     }
     if (checkStatus) checkStatus.textContent = check.checking ? 'Checking the latest availability and price…'
       : check.error || (state.quote ? state.quote.pricingAvailable
-        ? `Provisional total: ${money(Number(state.quote.guestTotalPence || 0))}`
-        : 'Jenna will confirm availability and the final price.' : 'Check your stay before continuing to review.');
+        ? `Total: ${money(Number(state.quote.guestTotalPence || 0))}. ${state.quote.reviewReason || 'Send your request to receive an offer at this total.'}`
+        : 'This request requires review before an offer can be made.' : 'Check your stay before continuing to review.');
     if (retryStay) retryStay.hidden = !check.error || check.checking;
     if (continueReview) continueReview.disabled = !state.quote || check.checking || !isVerified();
     if (!initialEntryHandled && check.initialContinuation) {
@@ -258,7 +263,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       add(`Pet ${index + 1}`, [value('[data-pet-species]') === 'other' ? value('[data-pet-other]') : value('[data-pet-species]'), value('[data-pet-breed]'), value('[data-pet-size]'), row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked ? 'Service animal' : ''].filter(Boolean).join(' · '));
     }
     const promoCode = String(data.get('promoCode') || '').trim();
-    add('Promo code', promoCode ? `${promoCode} — Jenna will review your code. No discount has been applied to this total.` : 'Not supplied');
+    add('Promo code', promoCode ? `${promoCode} — Promo code requires review. No discount has been applied to this total.` : 'Not supplied');
     add('Message to Olrig Bank', String(data.get('message') || '').trim() || 'Not supplied');
   }
   continueReview?.addEventListener('click', () => {

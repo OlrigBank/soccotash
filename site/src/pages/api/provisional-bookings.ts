@@ -1,10 +1,12 @@
+import { sendBookingOfferEmail } from '../../lib/booking/offer-email';
+import { directOfferDecision } from '../../lib/booking/direct-offer.ts';
 import { browserToken, hashToken, sessionAccount, setSession, resumeSubmission, BookerError } from '../../lib/booker/accounts.ts';
 import { validBookingReference } from '../../lib/booker/context.ts';
 import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../lib/admin/auth';
 import { getProperty } from '../../lib/booking/config';
 import { isIsoDate, nightsBetween } from '../../lib/booking/dates';
-import { createProvisionalBooking, getProvisionalBookingRequest } from '../../lib/booking/repository';
+import { createProvisionalBooking, getProvisionalBookingRequest, getBookingOffers, markBookingOfferSent, markBookingOfferFailed } from '../../lib/booking/repository';
 import { deliverBookingNotification } from '../../lib/booking/notification-delivery';
 import { WHATSAPP_CONSENT_VERSION, validateWhatsAppConsent } from '../../lib/booking/whatsapp-phone';
 import { bookerContactSubmissionError, validateBookerContact } from '../../lib/booking/booking-contact';
@@ -33,7 +35,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       const previous = await resumeSubmission(input.submissionId, hashToken(browserToken(cookies, url)));
       if (previous) {
         setSession(cookies, previous.sessionToken, url);
-        return Response.json({ reference: previous.reference, status: 'pending', managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
+        return Response.json({ reference: previous.reference, status: (await getProvisionalBookingRequest(previous.reference))?.status, managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
       }
     }
     const property = getProperty(String(input.propertyId || ''));
@@ -106,20 +108,20 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     const reviewedPricing = input.reviewedPricing && typeof input.reviewedPricing === 'object'
       ? input.reviewedPricing as Record<string, unknown>
       : null;
-    if (reviewedPricing) {
-      const reviewedAvailable = reviewedPricing.pricingAvailable === true;
+    if (reviewedPricing || pricingQuote) {
+      const reviewedAvailable = reviewedPricing?.pricingAvailable === true;
       const currentAvailable = Boolean(pricingQuote);
       const quoteChanged = reviewedAvailable !== currentAvailable || (pricingQuote && (
-        String(reviewedPricing.planId ?? '') !== String(pricingQuote.plan.id) ||
-        Number(reviewedPricing.planVersion) !== pricingQuote.plan.version ||
-        Number(reviewedPricing.guestTotalPence) !== pricingQuote.result.guestTotalPence
+        String(reviewedPricing?.planId ?? '') !== String(pricingQuote.plan.id) ||
+        Number(reviewedPricing?.planVersion) !== pricingQuote.plan.version ||
+        Number(reviewedPricing?.guestTotalPence) !== pricingQuote.result.guestTotalPence
       ));
       if (quoteChanged) {
         return Response.json({
           error: pricingQuote
             ? 'The published provisional cost changed before submission. Review the updated calculation and submit again.'
             : 'The published price is no longer available. Review the updated enquiry details and submit again.',
-          quote: pricingQuote ? publicQuotePayload(pricingQuote) : {
+          quote: pricingQuote ? { ...publicQuotePayload(pricingQuote), ...directOfferDecision({ propertyId: property.id, administratorPriced: property.administratorPriced, occupancyOutcome: occupancyAssessment.result.outcome, promoCode, pricingQuote }) } : {
             pricingAvailable: false,
             administratorPriced: property.administratorPriced === true || occupancyAssessment.result.outcome !== 'standard',
             eligible: true,
@@ -127,8 +129,8 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
             message: occupancyAssessment.result.outcome !== 'standard'
               ? occupancyAssessment.result.reasons.map((reason) => reason.message).join(' ')
               : property.administratorPriced
-              ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
-              : 'Jenna will confirm the price for this provisional request.',
+              ? 'Price to be agreed. This request requires review before an offer can be made.'
+              : 'Price to be agreed. This request requires review before an offer can be made.',
           },
         }, { status: 409, headers: { 'cache-control': 'no-store' } });
       }
@@ -162,14 +164,29 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       message,
       promoCode,
       pricingQuote,
+      publishDirectOffer: directOfferDecision({ propertyId: property.id, administratorPriced: property.administratorPriced, occupancyOutcome: occupancyAssessment.result.outcome, promoCode, pricingQuote }).automaticOffer,
     });
     if (booking.sessionToken) setSession(cookies, booking.sessionToken, url);
-    const saved = booking.replayed ? null : await getProvisionalBookingRequest(booking.reference);
-    if (saved) {
+    const saved = await getProvisionalBookingRequest(booking.reference);
+    if (saved && !booking.replayed) {
       const origin = (process.env.BOOKING_PUBLIC_URL || new URL(request.url).origin).replace(/\/$/, '');
       const manageUrl = `${origin}/booking/manage/${booking.reference}/`;
+      const offer = saved.status === 'offered' ? (await getBookingOffers(saved.reference)).find(item => item.customerStatus === 'active') : undefined;
       try {
-        await deliverBookingNotification({
+        if (offer) {
+          const delivery = await deliverBookingNotification({
+            booking: saved, eventType: 'booking_offer_available', sourceKey: `booking-offer:${offer.publicId}`,
+            target: 'booker', propertyName: property.name, manageUrl,
+            emailDelivery: saved.email ? async () => ({ ...await sendBookingOfferEmail({
+              booking: saved, propertyName: property.name, currency: offer.currency, lineItems: offer.lineItems,
+              totalPence: offer.totalPence, offerMessage: offer.offerMessage || '', terms: offer.terms || '',
+              validUntil: offer.validUntil, subject: offer.subject, manageUrl,
+            }), recipient: saved.email }) : undefined,
+          });
+          if (delivery.status === 'sent' || delivery.status === 'submitted') {
+            await markBookingOfferSent({ offerId: offer.id, reference: saved.reference });
+          } else await markBookingOfferFailed(offer.id, new Error('Offer notification was not delivered.'));
+        } else await deliverBookingNotification({
           booking: saved,
           eventType: 'booking_request_received',
           sourceKey: `booking-request-received:${saved.reference}`,
@@ -187,12 +204,13 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
           } : undefined,
         });
       } catch {
+        if (offer) await markBookingOfferFailed(offer.id, new Error('Offer notification failed.')).catch(() => {});
         console.error('Booking notification could not be recorded after request creation.');
       }
     }
     return Response.json({
       reference: booking.reference,
-      status: 'pending',
+      status: saved?.status,
       managePath: `/booking/manage/${booking.reference}/`,
       pricingAvailable: Boolean(pricingQuote),
       currency: pricingQuote?.result.currency,

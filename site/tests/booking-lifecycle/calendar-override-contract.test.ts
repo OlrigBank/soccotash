@@ -51,7 +51,7 @@ test('Bespoke requests start a conversation without consulting availability', as
 
   assert.match(component, /if \(!hasCalendarStay\(\)\)/);
   assert.match(component, /else if \(!isBespoke\(\)\)/);
-  assert.match(component, /Preferred dates only. Jenna will confirm availability/);
+  assert.match(component, /Preferred dates only. Availability requires review/);
   assert.match(quoteRoute, /propertyId !== 'bespoke-arrangement' && \(await getBlocks/);
   assert.match(repository, /if \(property\.id !== 'bespoke-arrangement'\) \{/);
 });

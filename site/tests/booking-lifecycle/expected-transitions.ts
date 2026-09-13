@@ -32,6 +32,7 @@ const remove = (from: BookingStatus): ExpectedTransition => ({
  * Change this table first; the tests must fail until lifecycle.ts is changed to match.
  */
 export const EXPECTED_ALLOWED_TRANSITIONS: readonly ExpectedTransition[] = Object.freeze([
+  { from: 'pending', action: 'publish_offer', actor: 'system', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'] },
   { from: 'pending', action: 'publish_offer', actor: 'administrator', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'] },
   { from: 'offered', action: 'replace_offer', actor: 'administrator', to: 'offered', calendarEffect: 'retain', requirements: ['offer_payload'] },
   { from: 'declined', action: 'replace_offer', actor: 'administrator', to: 'offered', calendarEffect: 'block', requirements: ['offer_payload'] },

@@ -1,13 +1,16 @@
 # E14-F04 — SMS verification and release
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status
 
-Local verification complete on 12 September 2026. Live development and production
-acceptance remain pending. A live development-service SMS was delivered and approved after the owner verified
-the trial recipient; see the evidence below. The approved development deployment
-is now live. Production remains unchanged. The epic must remain open.
+Completed and closed with owner approval on 13 September 2026.
+
+Local and hosted development acceptance are complete, including UK booking/sign-in
+and Dutch mobile adding, sign-in, removal and UK-to-Dutch replacement. Production
+SMS is enabled, the owner supplied evidence of Twilio Primary Compliance Profile
+approval, and the controlled production smoke check passed on 13 September 2026.
+The implementation and acceptance work is complete; the epic is closed.
 
 ## Local evidence
 
@@ -47,7 +50,7 @@ used. Synthetic mobile numbers in tests must never be used as live recipients.
 ## Remaining release gates
 
 1. Separate Verify services and local credentials are now provisioned; see
-   [E14-F01](e14-f01-twilio-sms-provisioning.md). Render configuration remains pending.
+   [E14-F01](e14-f01-twilio-sms-provisioning.md). Both Render environments are configured; see the dated release evidence below.
 2. Run the read-only configuration check and confirm geographic/fraud settings.
 3. Obtain explicit permission for the test recipients and messages; verify trial
    recipients in Twilio Console with owner participation.
@@ -189,3 +192,109 @@ widths without document overflow. A Dutch landline returned the expected HTTP
 400 and moved visible focus to the validation message; no script errors were
 observed. Lighthouse snapshot scored 100 in all reported categories, excluding
 performance (`/tmp/e14-nl-lighthouse/`). Live Dutch delivery remains pending.
+
+## Hosted Dutch mobile linking — 12 September 2026
+
+PR #155 merged as `841abb898d9bcb1447211c60ea9909d4b42a2614` and was deployed
+to development. All five checks passed after correcting randomly generated
+Dutch fixture numbers to use a valid mobile range.
+
+Hosted Dutch sends initially failed with Twilio 21608. The owner obtained the
+exact code from a controlled Render Shell diagnostic. Twilio documents this as
+an unverified-recipient restriction on trial accounts or upgraded accounts
+without an approved Primary Compliance Profile. An active Full account alone
+therefore does not establish public messaging readiness. Reapplying the working
+local development credentials and restarting did not resolve this restriction;
+the earlier local diagnostic success did not establish hosted acceptance.
+
+After the owner added the Dutch number as a verified recipient, a fresh hosted
+mobile-add operation passed email verification, sent its SMS successfully and
+accepted the owner-supplied SMS code. The account page returned `updated=1`;
+the session confirmed both the original email identity and the Dutch SMS identity.
+No codes or full contact details are retained in this record.
+
+The owner then completed hosted Dutch SMS sign-in after logout. The resulting
+session belonged to the same email-backed account and retained both identities.
+A fresh email code authorised removal of the Dutch SMS identity. The account
+page again returned `updated=1`, retaining email and signed-in status. A read-only
+database check confirmed one active session, zero SMS identities on that account
+and zero usable outstanding Dutch SMS challenges. The account is left email-only.
+
+Hosted add, Dutch sign-in and removal now pass. Live replacement still requires
+the UK number to be released from its disposable SMS-only test account before it
+can join this email-backed account; do not bypass the cross-account identity
+constraint. Automated UK-to-Dutch replacement already passes. Production
+acceptance and approved Primary Compliance Profile readiness remain outstanding.
+
+## Authorised production deployment — 12 September 2026
+
+The owner requested production deployment. PR #154 had already been merged;
+PR #156 promoted the Dutch-support follow-up after its checks passed. Production
+`olrigbankweb` now runs `129e420ad0d769e59a4701aa4f29001bc9ecb707`, deployment
+`dep-daijq49594qs73923ibg`, reported live by Render. The environment update set
+`BOOKER_SMS_ENABLED=false` and selected the separate production Verify service,
+merging those values into the existing environment without replacing other keys.
+
+Production migration 061 is applied. On `https://olrig-bank.com`, health returned
+HTTP 200 with application/database status `ok`. The signed-out account route
+redirected to sign-in preserving the continuation target. Responses retained
+private/no-store, no-referrer and noindex headers. Chrome DevTools checked actual
+390, 768 and 1440 widths without document overflow or initial console errors.
+A controlled disabled-SMS request returned the expected HTTP 503/email fallback;
+no production SMS was sent. Render error-level logs were empty after deployment.
+
+This is a successful code deployment with public SMS disabled, not completed
+production SMS acceptance. Primary Compliance Profile approval, live development
+replacement and controlled production SMS verification remain outstanding.
+The UK number is currently linked to the owner's email-backed development account;
+replacement was deferred by the five-email-codes-per-hour limit. Its old cancelled
+disposable booking was preserved when the owner released the former SMS identity.
+
+## Hosted UK-to-Dutch replacement acceptance
+
+After the email rate limit cleared, the owner signed in to the email-backed
+account and started replacement of the verified UK mobile with the Dutch mobile.
+Fresh email verification passed. Before SMS approval, the session still exposed
+the UK identity, confirming that pending replacement preserved the old method.
+The hosted SMS request then succeeded and the owner supplied its code.
+
+The account returned `updated=1` with the Dutch identity, no UK identity and the
+original email identity preserved. Read-only database verification confirmed one
+active account session, zero usable old-UK challenges and zero usable old-UK
+verification grants. This completes the remaining hosted development replacement
+check. No codes or full contact details are retained here. The development account
+is left with email and Dutch SMS access. Production SMS remains disabled pending
+provider readiness and its controlled live acceptance check.
+
+
+## Production SMS activation and acceptance — 13 September 2026
+
+The owner supplied a Twilio Console screenshot showing the individual Primary
+Compliance Profile as Approved, then authorised continuation of production SMS
+activation and controlled verification. A non-sending check validated the separate
+production Verify service credentials and its six-digit configuration.
+
+Only `BOOKER_SMS_ENABLED=true` was merged into the existing production environment.
+Render deployed the existing production revision
+`129e420ad0d769e59a4701aa4f29001bc9ecb707` as
+`dep-dajdehp5efls738gkp40`, live at 17:03:43 UTC. This did not promote E15 or change
+other environment variables. The application and database health endpoint passed.
+
+Using the owner's existing production email-backed account, the normal application
+APIs completed email sign-in, a separate fresh email approval for adding a mobile,
+Twilio SMS delivery and code approval for the Dutch mobile. A fresh signed-out
+session then requested and verified another SMS sign-in code. Account access
+returned HTTP 200 with `Cache-Control: private, no-store`.
+
+Read-only database checks confirmed that the Dutch mobile belongs to the original
+email account and that the account has exactly one SMS identity. Email access is
+preserved. No bookings were created, cancelled or changed during this smoke test.
+Recent production error-level logs were empty after verification. No codes, session
+tokens or full contact details are retained in this record.
+
+The local disk was full during the test, preventing browser-tool startup; acceptance
+therefore exercised the live production APIs rather than an interactive browser.
+Existing local and hosted-development browser evidence remains applicable, but a
+new production browser walkthrough is not claimed. Production scope was the
+limited smoke check: Dutch mobile addition and fresh SMS sign-in, not a repeat of
+all development replacement/removal and UK booking scenarios.

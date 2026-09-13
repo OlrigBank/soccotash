@@ -211,7 +211,7 @@ if (propertyId && !fixedProperty) {
       </div>
     ) : null}
     <p class="compact-booking-panel__bespoke" data-compact-booking-bespoke hidden={!fixedBespoke}>
-      Tell us your preferred dates and party. This does not reserve or block the dates; Jenna will confirm the accommodation, availability and price.
+      Tell us your preferred dates and party. This does not reserve or block the dates. Accommodation, availability and price require review.
     </p>
     <p id={`${idPrefix}-status`} class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
     {autoSelectProperty ? null : <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>}
@@ -348,7 +348,7 @@ if (propertyId && !fixedProperty) {
       if (!hasCalendarStay()) {
         calendarLoading = false;
         calendarAvailability.textContent = property.value === 'bespoke-arrangement'
-          ? 'Preferred dates only. Jenna will confirm availability.'
+          ? 'Preferred dates only. Availability requires review.'
           : 'Choose a stay to see its unavailable dates.';
         renderCalendar();
         return;
@@ -793,7 +793,7 @@ if (propertyId && !fixedProperty) {
       result.hidden = true;
     };
     const renderHostPriced = (body: QuoteResponse) => {
-      status.textContent = 'Jenna will confirm availability and the final price. Continue with your request.';
+      status.textContent = 'This request requires review before an offer can be made. Continue with your request.';
       if (quickTotal && body.estimatedPricing) {
         renderSuggestedResult(
           Number(body.estimatedPricing.guestTotalPence || 0),
@@ -820,7 +820,7 @@ if (propertyId && !fixedProperty) {
     const renderQuote = (body: QuoteResponse) => {
       if (quickTotal) {
         renderSuggestedResult(Number(body.guestTotalPence || 0), body.currency || 'GBP');
-        const guidance = [...(body.restrictions || []), ...(body.warnings || [])];
+        const guidance = [body.reviewReason || '', ...(body.restrictions || []), ...(body.warnings || [])].filter(Boolean);
         if (guidance.length) status.textContent = guidance.join(' ');
         return;
       }
@@ -837,10 +837,11 @@ if (propertyId && !fixedProperty) {
 
       if (!suggestedStay) {
         const nights = document.createElement('p');
-        nights.textContent = `${Number(body.nights || 0)} ${Number(body.nights) === 1 ? 'night' : 'nights'} · provisional total`;
+        nights.textContent = `${Number(body.nights || 0)} ${Number(body.nights) === 1 ? 'night' : 'nights'} · total`;
         result.append(nights);
       }
 
+      if (body.reviewReason) { const note = document.createElement('p'); note.textContent = body.reviewReason; result.append(note); }
       if (body.lines?.length && !suggestedStay) {
         const details = document.createElement('details');
         const summary = document.createElement('summary');
@@ -857,7 +858,7 @@ if (propertyId && !fixedProperty) {
         result.append(details);
       }
 
-      const guidance = [...(body.restrictions || []), ...(body.warnings || [])];
+      const guidance = [body.reviewReason || '', ...(body.restrictions || []), ...(body.warnings || [])].filter(Boolean);
       if (guidance.length) {
         const list = document.createElement('ul');
         for (const message of guidance) {
@@ -1051,7 +1052,7 @@ if (propertyId && !fixedProperty) {
         window.olrigAnalytics?.track('compact_booking_started', safeAnalytics);
         if (isBespoke()) {
           checkedQuote = { pricingAvailable: false, administratorPriced: true };
-          status.textContent = 'Jenna will confirm the accommodation, availability and price. Your dates are not reserved.';
+          status.textContent = 'Accommodation, availability and price require review. Your dates are not reserved.';
           result.append(continueLink('Start a bespoke request'));
           result.hidden = false;
           window.olrigAnalytics?.track('compact_booking_result', { ...safeAnalytics, result: 'bespoke' });

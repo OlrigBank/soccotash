@@ -1,3 +1,4 @@
+import { directOfferDecision } from '../../lib/booking/direct-offer.ts';
 import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../lib/admin/auth';
 import { getProperty } from '../../lib/booking/config';
@@ -63,11 +64,13 @@ export const POST: APIRoute = async ({ request }) => {
     const requiresHostAgreement = occupancyAssessment.result.outcome !== 'standard';
     const publishedQuote = property.administratorPriced ? null : await getPublishedPricingQuote(input);
     const quote = requiresHostAgreement ? null : publishedQuote;
+    const decision = directOfferDecision({ propertyId, administratorPriced: property.administratorPriced, occupancyOutcome: occupancyAssessment.result.outcome, promoCode: String(raw.promoCode || ''), pricingQuote: quote });
     if (!quote) {
       const estimatedPricing = requiresHostAgreement && publishedQuote?.result.eligible
         ? publicQuotePayload(publishedQuote)
         : null;
       return Response.json({
+        ...decision,
         pricingAvailable: false,
         administratorPriced: property.administratorPriced === true,
         hostDecisionRequired: requiresHostAgreement,
@@ -77,13 +80,14 @@ export const POST: APIRoute = async ({ request }) => {
         message: requiresHostAgreement
           ? occupancyAssessment.result.reasons.map((reason) => reason.message).join(' ')
           : property.administratorPriced
-          ? 'Price to be agreed. Jenna will confirm it when preparing your offer.'
-          : 'No published online price is available for this listing. Jenna will confirm the price with the provisional request.',
+          ? 'Price to be agreed. This request requires review before an offer can be made.'
+          : 'No published online price is available for this listing. This request requires review before an offer can be made.',
       }, { headers: { 'cache-control': 'no-store' } });
     }
     const payload = publicQuotePayload(quote);
     return Response.json({
       ...payload,
+      ...decision,
       occupancyAssessment: { ...occupancyAssessment.result, standardThresholds: occupancyAssessment.standardThresholds },
       error: quote.result.eligible ? undefined : (payload.restrictions.join(' ') || 'This stay does not meet the published booking rules.'),
     }, {
