@@ -1,8 +1,10 @@
 # E14-F03 — Manage SMS account access
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status and behaviour
+
+Completed and closed with owner approval on 13 September 2026.
 
 Implemented and verified locally and on hosted development, including adding,
 Dutch SMS sign-in, removal and UK-to-Dutch replacement. Production acceptance

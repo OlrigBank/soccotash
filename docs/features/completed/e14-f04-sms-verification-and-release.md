@@ -1,14 +1,16 @@
 # E14-F04 — SMS verification and release
 
-Part of [E14](epics/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
+Part of [E14](../epics/completed/e14-f00-complete-provision-of-sms-option-to-send-verification-codes.md).
 
 ## Status
+
+Completed and closed with owner approval on 13 September 2026.
 
 Local and hosted development acceptance are complete, including UK booking/sign-in
 and Dutch mobile adding, sign-in, removal and UK-to-Dutch replacement. Production
 SMS is enabled, the owner supplied evidence of Twilio Primary Compliance Profile
 approval, and the controlled production smoke check passed on 13 September 2026.
-The implementation and acceptance work is complete; the epic is ready for closure.
+The implementation and acceptance work is complete; the epic is closed.
 
 ## Local evidence
 
@@ -48,7 +50,7 @@ used. Synthetic mobile numbers in tests must never be used as live recipients.
 ## Remaining release gates
 
 1. Separate Verify services and local credentials are now provisioned; see
-   [E14-F01](e14-f01-twilio-sms-provisioning.md). Render configuration remains pending.
+   [E14-F01](e14-f01-twilio-sms-provisioning.md). Both Render environments are configured; see the dated release evidence below.
 2. Run the read-only configuration check and confirm geographic/fraud settings.
 3. Obtain explicit permission for the test recipients and messages; verify trial
    recipients in Twilio Console with owner participation.
