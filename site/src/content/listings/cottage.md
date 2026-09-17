@@ -1,5 +1,5 @@
 ---
-title: Cottage at Olrig Bank (max 4 guests)
+title: Cottage at Olrig Bank
 slug: cottage
 summary: A self-contained cottage-style part of Olrig Bank with its own entrance
   and access to the shared garden.

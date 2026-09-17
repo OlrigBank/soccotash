@@ -275,7 +275,7 @@ test('review includes all answers and editing preserves them without applying a 
   await page.getByLabel('Booker name').fill('Review fixture');
   await page.getByLabel('Booker email').fill('fixture@example.test');
   await page.getByLabel('Mobile number').fill('+441632960123');
-  await page.locator('#whatsapp-consent').check();
+  await expect(page.locator('[name="whatsappConsent"]')).toHaveCount(0);
   await page.locator('[data-pet-breed]').fill('Labrador');
   await page.getByLabel('Promo code (optional)').fill('  AutumnCase  ');
   await page.getByLabel('Message to Olrig Bank (optional)').fill('Review fixture message');
@@ -283,7 +283,7 @@ test('review includes all answers and editing preserves them without applying a 
   await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.locator('[data-booking-answers]')).toContainText('AutumnCase');
   await expect(page.locator('[data-booking-answers]')).toContainText('Labrador');
-  await expect(page.locator('[data-booking-answers]')).toContainText('Consent given');
+  await expect(page.locator('[data-booking-answers]')).not.toContainText('WhatsApp');
   await expect(page.locator('[data-booking-submit-review]')).toContainText('£1,730.00');
   await page.getByRole('button', { name: 'Edit details' }).click();
   await expect(page.getByLabel('Promo code (optional)')).toHaveValue('  AutumnCase  ');
@@ -294,7 +294,9 @@ test('review includes all answers and editing preserves them without applying a 
   await page.getByRole('button', { name: 'Continue to review' }).click();
   const request = page.waitForRequest('**/api/provisional-bookings/**');
   await page.getByRole('button', { name: 'Request booking' }).click();
-  expect((await request).postDataJSON()).toMatchObject({ promoCode: '  AutumnCase  ', message: 'Review fixture message', reviewedPricing: { guestTotalPence: 173000 } });
+  const payload = (await request).postDataJSON();
+  expect(payload).toMatchObject({ promoCode: '  AutumnCase  ', message: 'Review fixture message', reviewedPricing: { guestTotalPence: 173000 } });
+  expect(payload).not.toHaveProperty('whatsappConsent');
 });
 
 test('submission conflict opens stay correction and retains booker details', async ({ page }) => {
@@ -307,4 +309,61 @@ test('submission conflict opens stay correction and retains booker details', asy
   await expect(page.locator('[data-progress-step="1"]')).toHaveAttribute('aria-current', 'step');
   await expect(page.locator('[data-booking-status]')).toContainText('no longer available');
   await expect(page.getByLabel('Booker name')).toHaveValue('Conflict fixture');
+});
+
+test('verified contact becomes a completed card and changing it requires verification again', async ({ page }) => {
+  let deliveries = 0;
+  await page.route('**/api/booker/request-code/**', route => { deliveries++; return route.fulfill({ status: 503, json: { error: 'Verification is temporarily unavailable. Please try again later.' } }); });
+  await page.goto(url); await continueToDetails(page);
+  await expect(page.locator('[data-verification-complete]')).toBeHidden();
+  await page.getByLabel('Booker name').fill('Disposable browser fixture');
+  await page.getByLabel('Booker email').fill('fixture@example.test');
+  await expect(page.getByRole('heading', { name: 'Email verified', exact: true })).toBeVisible();
+  await expect(page.locator('[data-verified-contact]')).toHaveText('fixture@example.test');
+  await expect(page.locator('[data-verification-instructions]')).toBeHidden();
+  await expect(page.locator('[data-send-code]')).toBeHidden();
+  await expect(page.locator('[data-verification-next]')).toBeVisible();
+  await noOverflow(page);
+  await page.getByRole('button', { name: 'Change contact' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Booker email')).toBeFocused();
+  await page.getByLabel('Booker email').fill('changed@example.test');
+  await expect(page.locator('[data-verification-complete]')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Send verification code', exact: true }).click();
+  await expect(page.locator('[data-verification-status]')).toContainText('temporarily unavailable');
+  expect(deliveries).toBe(1);
+  await page.getByLabel('Booker email').fill('fixture@example.test');
+  await page.getByRole('button', { name: 'Continue to review' }).click();
+  await expect(page.locator('[data-booking-review]')).toBeVisible();
+  expect(deliveries).toBe(1);
+});
+
+test('new code verification hides obsolete controls and expiry restores the verification flow', async ({ page }) => {
+  await page.route('**/api/booker/session/**', route => route.fulfill({ json: { identities: [], grants: [] } }));
+  await page.route('**/api/booker/request-code/**', route => route.fulfill({ json: { challengeId: 'fixture', message: 'Code sent.' } }));
+  let attempts = 0;
+  await page.route('**/api/booker/verify-code/**', route => {
+    attempts++;
+    return route.fulfill(attempts === 1 ? { status: 400, json: { error: 'The code is invalid.' } } : { json: { expiresIn: 60 } });
+  });
+  await page.goto(url); await continueToDetails(page);
+  await page.getByLabel('Booker name').fill('Disposable browser fixture');
+  await page.getByLabel('Booker email').fill('new@example.test');
+  await page.getByRole('button', { name: 'Send verification code', exact: true }).click();
+  await expect(page.locator('[data-code-entry]')).toBeVisible();
+  await page.getByLabel('Verification code', { exact: true }).fill('123456');
+  await page.getByRole('button', { name: 'Verify code', exact: true }).click();
+  await expect(page.locator('[data-verification-status]')).toContainText('invalid');
+  await page.getByRole('button', { name: 'Verify code', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Email verified', exact: true })).toBeVisible();
+  await expect(page.locator('[data-code-entry]')).toBeHidden();
+  await expect(page.locator('[data-send-code]')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeFocused();
+  await noOverflow(page);
+  await page.clock.fastForward(61_000);
+  await expect(page.locator('[data-verification-complete]')).toBeHidden();
+  await expect(page.locator('[data-verification-status]')).toContainText('expired');
+  await expect(page.locator('[data-send-code]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
 });

@@ -2,6 +2,47 @@ import { test, expect } from '@playwright/test';
 import pg from 'pg';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 
+test('configured email verifies on entry without sending a code', async ({ page, context, request }) => {
+  const email = 'automatic@example.test';
+  const db = new pg.Client(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : { host: '127.0.0.1', port: 5433, user: process.env.POSTGRES_USER || 'soccotash', password: process.env.POSTGRES_PASSWORD, database: process.env.POSTGRES_DB || 'soccotash' });
+  await db.connect();
+  const before = (await (await request.get('http://127.0.0.1:1027/')).json()).count;
+  const errors: string[] = [];
+  const responses: number[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('response', response => { if (response.url().includes('/api/booker/request-code/')) responses.push(response.status()); });
+  try {
+    await page.goto('/book/?propertyId=bespoke-arrangement&arrival=2099-10-19&departure=2099-10-23&adults=2&children=0&infants=0&pets=0');
+    await page.getByRole('link', { name: 'Start a bespoke request' }).click();
+    await expect(page.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
+    await page.getByLabel('Booker name').fill('Automatic verification fixture');
+    await page.getByLabel('Booker email').fill('AUTOMATIC@EXAMPLE.TEST');
+    await page.getByLabel('Mobile number', { exact: true }).focus();
+    await page.getByLabel('Message to Olrig Bank (optional)').focus();
+    await expect(page.getByRole('heading', { name: 'Email verified', exact: true })).toBeVisible();
+    await expect(page.locator('[data-code-entry]')).toBeHidden();
+    await expect(page.locator('[data-verified-contact]')).toHaveText(email);
+    await expect(page.locator('[data-booker-verification]')).toHaveAttribute('data-verified', 'true');
+    await expect(page.getByRole('button', { name: 'Continue to review' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Continue to review' }).click();
+    await expect(page.locator('[data-booking-review]')).toBeVisible();
+    await context.clearCookies();
+    await page.goto('/booking/');
+    await page.getByLabel('Email address', { exact: true }).fill(email);
+    await page.getByRole('heading', { name: 'Your bookings', exact: true }).click();
+    await expect(page.getByText('There are no accessible bookings linked to this account.')).toBeVisible();
+    expect((await (await request.get('http://127.0.0.1:1027/')).json()).count).toBe(before);
+    expect(responses).toEqual([200, 200]);
+    expect(errors).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  } finally {
+    const owned = await db.query('DELETE FROM booker_identities WHERE identifier=$1 RETURNING account_id', [email]);
+    if (owned.rowCount) await db.query('DELETE FROM booker_accounts WHERE id=$1', [owned.rows[0].account_id]);
+    await db.query('DELETE FROM booker_verification_grants WHERE identifier=$1', [email]);
+    await db.end();
+  }
+});
+
 test('verify, submit, return, select bookings and log out', async ({ page, context, request, baseURL }) => {
   const email = `e11-${randomUUID()}@example.test`, name = `E11 account ${randomUUID()}`;
   const db = new pg.Client(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : { host:'127.0.0.1',port:5433,user:process.env.POSTGRES_USER || 'soccotash',password:process.env.POSTGRES_PASSWORD,database:process.env.POSTGRES_DB || 'soccotash' });
@@ -33,7 +74,9 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     await page.getByRole('button',{name:'Request booking',exact:true}).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[0-9a-f-]{36}\/$/);
     const privatePath=new URL(page.url()).pathname;
-    const booking=(await db.query('SELECT id,public_id::text,booker_account_id FROM provisional_bookings WHERE guest_name=$1',[name])).rows[0];
+    const booking=(await db.query('SELECT id,public_id::text,customer_reference,booker_account_id FROM provisional_bookings WHERE guest_name=$1',[name])).rows[0];
+    expect(booking.customer_reference).toMatch(/^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
+    await expect(page.getByText('Reference', { exact: true }).locator('..').locator('code')).toHaveText(booking.customer_reference);
     accountId=booking.booker_account_id;expect(accountId).toBeTruthy();
     const session=(await context.cookies()).find(cookie=>cookie.name==='olrig_booker_session')!;
     expect(session.httpOnly).toBe(true);expect(session.sameSite).toBe('Lax');expect(session.value.length).toBe(43);
@@ -46,6 +89,7 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     await db.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,booker_account_id)
       VALUES('bespoke-arrangement','2099-11-19','2099-11-23',2,$1,$2,$3)`,[name,email,accountId]);
     await page.goto('/booking/');await expect(page.locator('.booking-selector li')).toHaveCount(2);
+    await expect(page.locator('.booking-selector')).toContainText(booking.customer_reference);
     await page.locator('summary[aria-label="Booking account"]').click();await page.getByRole('button',{name:'Log out'}).click();await expect(page.getByRole('form',{name:'Booker sign-in'})).toBeVisible();
     await page.goto(privatePath);await expect(page).toHaveURL(/\/booking\/\?returnTo=/);
     await db.query("UPDATE booker_verification_requests SET created_at=NOW()-INTERVAL '2 minutes' WHERE destination_hash=$1",[createHash('sha256').update(`email:${email}`).digest('hex')]);
@@ -118,7 +162,9 @@ test('an already verified mobile remains sufficient when an unverified email is 
   await page.getByLabel('Booker email').fill('unverified@example.test');
   await page.getByLabel('Message to Olrig Bank (optional)').focus();
   await expect(page.locator('[data-booker-verification]')).toHaveAttribute('data-verified','true');
-  await expect(page.getByRole('combobox',{name:'Verification contact'})).toHaveValue('sms');
+  await expect(page.getByRole('heading',{name:'Mobile number verified'})).toBeVisible();
+  await expect(page.locator('[data-verified-contact]')).toHaveText('+447700900222');
+  await expect(page.locator('[data-verification-instructions]')).toBeHidden();
   expect(deliveries).toBe(0);
 });
 

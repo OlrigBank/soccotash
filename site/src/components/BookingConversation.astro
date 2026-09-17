@@ -37,7 +37,8 @@ const {
   showReservationButton = true,
 } = Astro.props;
 
-const lastMessageId = messages.at(-1)?.id || '0';
+const visibleMessages = messages.filter((message) => message.senderType !== 'bot');
+const lastMessageId = visibleMessages.at(-1)?.id || '0';
 const isSelf = (message: BookingMessage) => message.senderType === viewer;
 const notificationText = (message: BookingMessage) => {
   if (message.notificationStatus === 'sent') return 'Email notification sent';
@@ -74,14 +75,14 @@ const notificationText = (message: BookingMessage) => {
   </div>
 
   <div class="booking-message-list" data-booking-message-list aria-live="polite" aria-relevant="additions">
-    {!messages.length && <div class="booking-message-empty" data-message-empty>
+    {!visibleMessages.length && <div class="booking-message-empty" data-message-empty>
       <strong>No messages yet</strong>
       <p>Use the composer below to start the booking conversation.</p>
     </div>}
-    {messages.map((message) => <article
+    {visibleMessages.map((message) => <article
       class:list={[
         'booking-message',
-        message.senderType === 'bot' ? 'is-bot' : isSelf(message) ? 'is-self' : 'is-other',
+        isSelf(message) ? 'is-self' : 'is-other',
         message.unreadForViewer && 'is-new',
       ]}
       data-message-id={message.id}
@@ -153,12 +154,13 @@ const notificationText = (message: BookingMessage) => {
     };
 
     const appendMessage = (message: MessagePayload) => {
+      if (message.senderType === 'bot') return;
       if (list.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`)) return;
       list.querySelector('[data-message-empty]')?.remove();
       const shouldScroll = atBottom();
       const article = document.createElement('article');
       const self = message.senderType === viewer;
-      article.className = `booking-message ${message.senderType === 'bot' ? 'is-bot' : self ? 'is-self' : 'is-other'} is-new`;
+      article.className = `booking-message ${self ? 'is-self' : 'is-other'} is-new`;
       article.dataset.messageId = message.id;
 
       const meta = document.createElement('div');

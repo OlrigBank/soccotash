@@ -1,50 +1,18 @@
 ---
-import { render, type CollectionEntry } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   space: CollectionEntry<'spaces'>;
   displayTitle?: string;
-  displaySummary?: string;
 }
 
-const { space, displayTitle = space.data.title, displaySummary = space.data.summary } = Astro.props;
-const { Content } = await render(space);
+const { space, displayTitle = space.data.title } = Astro.props;
 const primaryImage = space.data.image || space.data.gallery?.[0];
-
-function pluralFact(value: string | undefined, singular: string, plural: string) {
-  if (!value) return null;
-  const parsed = Number.parseInt(value, 10);
-  return `${value} ${parsed === 1 ? singular : plural}`;
-}
-
-function spaceTypeLabel(value: string | undefined) {
-  if (!value) return null;
-  if (value.toLowerCase() === 'wc') return 'WC';
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-const facts = [
-  spaceTypeLabel(space.data.spaceType),
-  space.data.sleeps ? `Sleeps ${space.data.sleeps}` : null,
-  pluralFact(space.data.beds, 'bed', 'beds'),
-  pluralFact(space.data.bathrooms, 'bathroom', 'bathrooms'),
-  space.data.ensuite ? 'Ensuite' : null,
-].filter(Boolean);
 ---
 
 <article class="space-card">
   {primaryImage ? <img src={primaryImage} alt={displayTitle} loading="lazy" /> : null}
   <div class="space-card-content">
     <h3>{displayTitle}</h3>
-    {displaySummary ? <p>{displaySummary}</p> : null}
-    {facts.length ? <p class="space-facts">{facts.join(' · ')}</p> : null}
-    {space.data.features.length ? (
-      <ul class="space-features">
-        {space.data.features.map((feature) => <li>{feature}</li>)}
-      </ul>
-    ) : null}
-    <div class="space-body">
-      <Content />
-    </div>
   </div>
 </article>

@@ -14,7 +14,7 @@ test('compact booking panel uses authoritative availability and quote APIs', asy
   assert.match(component, /data-compact-quick-stay/);
   assert.match(component, /data-compact-quick-total/);
   assert.match(component, /prepopulateFromQuery/);
-  assert.match(component, /recommendation\.dataset\.name = selected\.name\.replace/);
+  assert.match(component, /recommendation\.dataset\.name = selected\.name;/);
   assert.match(component, /recommendation\.dataset\.slug = selected\.listingSlug/);
   assert.match(component, /quickTotalValue\.textContent = money\(guestTotalPence, currency\)/);
   assert.match(component, /submit\.textContent = 'Book'/);

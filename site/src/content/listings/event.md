@@ -1,5 +1,5 @@
 ---
-title: Olrig Bank++ (max 12 guests)
+title: Olrig Bank++
 slug: event
 summary: Make an immediate booking for groups or family gatherings of up to 12
   adults, with six bedrooms, three bathrooms and one separate WC.

@@ -21,7 +21,7 @@ test('the request journey embeds one shared panel and three stages', async () =>
   assert.match(component, /aria-label="Booking request progress"/);
   assert.match(component, /<CompactBookingPanel[^>]*requestPage=\{true\}/);
   assert.match(component, /Check your stay/);
-  assert.match(component, /Collect Booker detail/);
+  assert.match(component, /Your details/);
   assert.match(component, /Review and send request/);
   assert.doesNotMatch(component, /data-check-availability|data-calendar-months|data-booking-step="3"/);
   assert.match(component, /booking-panel-continue/);

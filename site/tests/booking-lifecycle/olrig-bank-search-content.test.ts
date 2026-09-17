@@ -70,7 +70,7 @@ test('Olrig Bank and Olrig Bank++ present numbered bedrooms and floor-specific b
   assert.match(route, /'house-bathroom-1': 'Upstairs Bathroom 1'/);
   assert.match(route, /'cottage-bathroom-1': 'Upstairs Bathroom 2'/);
   assert.match(route, /'house-bathroom-2': 'Downstairs Bathroom 1'/);
-  assert.match(route, /displayTitle=\{presentation\.title\}/);
+  assert.match(route, /displayTitle=\{roomPresentation\(space\)\}/);
   assert.match(space, /displayTitle = space\.data\.title/);
   assert.match(space, /<h3>\{displayTitle\}<\/h3>/);
 });

@@ -6,7 +6,7 @@ summary: For stays, events or group arrangements outside our standard options,
 image: /media/images/listings/olrig-bank-house-bespoke.jpeg
 featured: false
 ---
-Not every stay fits neatly into Olrig Bank (max 8 guests), Olrig Bank++ (max 12 guests) or Cottage at Olrig Bank (max 4 guests). If
+Not every stay fits neatly into Olrig Bank, Olrig Bank++ or Cottage at Olrig Bank. If
 your plans fall outside the standard ways to stay, get in touch directly — Jenna
 is happy to discuss whether a bespoke arrangement can be made.
 

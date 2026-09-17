@@ -34,12 +34,12 @@ test('E11-F03 verification, accounts and private ownership', async t => {
       }
     } finally { await migration.end(); }
     const accounts = await import('../../src/lib/booker/accounts.ts');
-    const { requestCode, checkCode } = await import('../../src/lib/booker/verification.ts');
+    const { requestCode, checkCode, automaticallyVerifyEmail } = await import('../../src/lib/booker/verification.ts');
     const { bookerContext } = await import('../../src/lib/booker/context.ts');
     const { getPool } = await import('../../src/lib/booking/db.ts');
     const { resolveBookingAccessCredential, revokeBookingAccessCredential } = await import('../../src/lib/booking/booking-access.ts');
-    const { createProvisionalBooking, getCustomerBookingPage } = await import('../../src/lib/booking/repository.ts');
-    const { getBookingMessagesByToken } = await import('../../src/lib/booking/messaging.ts');
+    const { createProvisionalBooking, getCustomerBookingPage, getProvisionalBookingRequest, getProvisionalBookingRequests } = await import('../../src/lib/booking/repository.ts');
+    const { getBookingMessagesByToken, getBookingMessagesByReference } = await import('../../src/lib/booking/messaging.ts');
     application = getPool(); const db = application;
     const sent = new Map<string,string>();
     const provider = { async send(identity: {identifier:string}, code:string) { sent.set(identity.identifier,code); return identity.identifier; }, async check(id:string, code:string) { return sent.get(id) === code; } };
@@ -52,9 +52,35 @@ test('E11-F03 verification, accounts and private ownership', async t => {
       assert.throws(()=>accounts.normaliseIdentity('email','a'.repeat(255)+'@example.test'));
     });
     await t.test('migration chooses email without pre-verifying or creating accounts', async () => {
-      const row=(await db.query('SELECT booker_claim_channel,booker_claim_identifier,booker_account_id FROM provisional_bookings WHERE public_id=$1',[migratedReference])).rows[0];
-      assert.deepEqual(row,{booker_claim_channel:'email',booker_claim_identifier:'claim@example.test',booker_account_id:null});
+      const row=(await db.query('SELECT booker_claim_channel,booker_claim_identifier,booker_account_id,customer_reference FROM provisional_bookings WHERE public_id=$1',[migratedReference])).rows[0];
+      assert.match(row.customer_reference, /^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
+      assert.deepEqual({channel:row.booker_claim_channel,identifier:row.booker_claim_identifier,accountId:row.booker_account_id},{channel:'email',identifier:'claim@example.test',accountId:null});
       assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM booker_accounts')).rows[0].n,0);
+    });
+    await t.test('configured email receives a booking grant and a sign-in session without delivery', async () => {
+      const previous = process.env.BOOKER_AUTO_VERIFIED_EMAIL;
+      process.env.BOOKER_AUTO_VERIFIED_EMAIL = ' Automatic@Example.test ';
+      const contact = accounts.normaliseIdentity('email', 'AUTOMATIC@example.test');
+      const other = accounts.normaliseIdentity('email', 'someone@example.test');
+      try {
+        assert.equal(await automaticallyVerifyEmail({ identity: other, purpose: 'booking', browserHash }), null);
+        assert.equal(await automaticallyVerifyEmail({ identity: accounts.normaliseIdentity('sms', '+447700900123'), purpose: 'booking', browserHash }), null);
+        const booking = await automaticallyVerifyEmail({ identity: contact, purpose: 'booking', browserHash });
+        assert.equal(booking?.verified, true);
+        assert.equal(booking?.expiresIn, 1800);
+        assert.equal((await accounts.verifiedBookingIdentity(db as any, { browserHash, accountId: null, email: contact.identifier, mobile: null, submissionId: crypto.randomUUID() })).identity.identifier, contact.identifier);
+        await assert.rejects(() => accounts.verifiedBookingIdentity(db as any, { browserHash: 'another-browser', accountId: null, email: contact.identifier, mobile: null, submissionId: crypto.randomUUID() }));
+        const login = await automaticallyVerifyEmail({ identity: contact, purpose: 'login', browserHash });
+        assert.ok(login?.sessionToken);
+        assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM booker_sessions WHERE token_hash=$1', [accounts.hashToken(login!.sessionToken!)])).rows[0].n, 1);
+        assert.equal(sent.has(contact.identifier), false);
+      } finally {
+        const owned = await db.query("DELETE FROM booker_identities WHERE channel='email' AND identifier='automatic@example.test' RETURNING account_id");
+        if (owned.rowCount) await db.query('DELETE FROM booker_accounts WHERE id=$1', [owned.rows[0].account_id]);
+        await db.query("DELETE FROM booker_verification_grants WHERE identifier='automatic@example.test'");
+        if (previous === undefined) delete process.env.BOOKER_AUTO_VERIFIED_EMAIL;
+        else process.env.BOOKER_AUTO_VERIFIED_EMAIL = previous;
+      }
     });
     let challenge: Awaited<ReturnType<typeof request>>;
     await t.test('wrong browser/purpose fail; failed guesses persist; a code is single-use', async () => {
@@ -86,6 +112,22 @@ test('E11-F03 verification, accounts and private ownership', async t => {
     await t.test('session identity permits repeat booking; unverified secondary contact does not',async()=>{
       await createProvisionalBooking({...input,authorisation:{...input.authorisation,accountId,submissionId:crypto.randomUUID()}});
       await assert.rejects(()=>createProvisionalBooking({...input,email:'',authorisation:{...input.authorisation,email:'',accountId,submissionId:crypto.randomUUID()}}));
+    });
+    await t.test('conversation queries hide bot notices while retaining their records and human unread counts',async()=>{
+      const bookingId=(await db.query('SELECT id FROM provisional_bookings WHERE public_id=$1',[reference])).rows[0].id;
+      assert.deepEqual(await bookerContext.run({accountId},()=>getBookingMessagesByToken(reference,'booker',{markRead:false})),[]);
+      const administrator=(await db.query(`INSERT INTO booking_messages(provisional_booking_id,sender_type,sender_name,message_type,body,booker_read_at,admin_read_at)
+        VALUES($1,'administrator','Jenna','message','Human administrator message',NULL,NOW()) RETURNING id::text`,[bookingId])).rows[0];
+      await db.query(`INSERT INTO booking_messages(provisional_booking_id,sender_type,sender_name,message_type,body,booker_read_at,admin_read_at)
+        VALUES($1,'bot','Olrig Bot','system','Recorded booking status',NULL,NULL)`,[bookingId]);
+      await db.query(`INSERT INTO booking_messages(provisional_booking_id,sender_type,sender_name,message_type,body,booker_read_at,admin_read_at)
+        VALUES($1,'booker','Disposable account fixture','message','Human Booker reply',NOW(),NULL)`,[bookingId]);
+      const forBooker=await bookerContext.run({accountId},()=>getBookingMessagesByToken(reference,'booker',{markRead:false}));
+      assert.deepEqual(forBooker.map(message=>message.senderType),['administrator','booker']);
+      assert.deepEqual((await getBookingMessagesByReference(reference,'administrator',{afterId:administrator.id,markRead:false})).map(message=>message.body),['Human Booker reply']);
+      assert.ok((await db.query("SELECT COUNT(*)::int AS n FROM booking_messages WHERE provisional_booking_id=$1 AND sender_type='bot'",[bookingId])).rows[0].n>=2);
+      assert.equal((await getProvisionalBookingRequest(reference))?.unreadMessageCount,1);
+      assert.equal((await getProvisionalBookingRequests(100,true)).find(booking=>booking.reference===reference)?.unreadMessageCount,1);
     });
     await t.test('private pages and messages require matching account and honour revocation',async()=>{
       assert.equal((await resolveBookingAccessCredential(reference)).allowed,false);

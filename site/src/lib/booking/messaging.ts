@@ -80,7 +80,7 @@ export async function getBookingMessagesByReference(
   const result = await getPool().query(
     `${messageSelect}
       JOIN provisional_bookings pb ON pb.id = bm.provisional_booking_id
-     WHERE pb.public_id = $1::uuid AND bm.id > $2::bigint
+     WHERE pb.public_id = $1::uuid AND bm.id > $2::bigint AND bm.sender_type <> 'bot'
      ORDER BY bm.id`,
     [reference, afterId],
   );
@@ -108,7 +108,7 @@ export async function getBookingMessagesByToken(
      )
      ${messageSelect}
      JOIN resolved r ON r.id = bm.provisional_booking_id
-     WHERE bm.id > $3::bigint
+     WHERE bm.id > $3::bigint AND bm.sender_type <> 'bot'
      ORDER BY bm.id`,
     [token, accountId, afterId],
   );
