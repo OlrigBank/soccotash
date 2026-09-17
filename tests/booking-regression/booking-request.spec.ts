@@ -43,7 +43,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     await page.getByLabel('Booker name').fill(name);
     await page.getByLabel('Mobile number').fill('+441632960123');
     await expect(page.getByLabel('Booker email')).toHaveValue('');
-    await expect(page.locator('#whatsapp-consent')).not.toBeChecked();
+    await expect(page.locator('#whatsapp-consent')).toHaveCount(0);
     await page.locator('[data-pet-species]').selectOption('cat');
     await page.locator('[data-pet-breed]').fill('Disposable pet fixture');
     await page.getByLabel('Promo code (optional)').fill('  Autumn-Test  ');

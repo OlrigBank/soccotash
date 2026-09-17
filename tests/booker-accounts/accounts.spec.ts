@@ -162,7 +162,9 @@ test('an already verified mobile remains sufficient when an unverified email is 
   await page.getByLabel('Booker email').fill('unverified@example.test');
   await page.getByLabel('Message to Olrig Bank (optional)').focus();
   await expect(page.locator('[data-booker-verification]')).toHaveAttribute('data-verified','true');
-  await expect(page.getByRole('combobox',{name:'Verification contact'})).toHaveValue('sms');
+  await expect(page.getByRole('heading',{name:'Mobile number verified'})).toBeVisible();
+  await expect(page.locator('[data-verified-contact]')).toHaveText('+447700900222');
+  await expect(page.locator('[data-verification-instructions]')).toBeHidden();
   expect(deliveries).toBe(0);
 });
 
