@@ -118,7 +118,7 @@ test.describe('bespoke blocked-date negotiation', () => {
 
     await adminPage.goto(`/admin/bookings/${reference}/reservation/`);
     await adminPage.getByRole('link', { name: 'Review requested dates in calendar' }).click();
-    for (const property of ['Olrig Bank (max 8 guests)', 'Cottage at Olrig Bank (max 4 guests)']) {
+    for (const property of ['Olrig Bank', 'Cottage at Olrig Bank']) {
       const reason = adminPage.getByLabel(`Reason for allowing bespoke stays at ${property} on ${ARRIVAL}`);
       await reason.fill('Automated regression: honour the requested blocked night');
       adminPage.once('dialog', (dialog) => dialog.accept());
@@ -127,7 +127,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     }
 
     await adminPage.getByRole('link', { name: 'Return to booking without changes' }).click();
-    await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank (max 8 guests)' });
+    await adminPage.getByLabel('Agreed stay arrangement').selectOption({ label: 'Olrig Bank' });
     await adminPage.getByRole('button', { name: 'Assign arrangement' }).click();
     await adminPage.getByRole('link', { name: /Reservation/ }).click();
     await adminPage.getByLabel('Amount (£)').fill('100.00');

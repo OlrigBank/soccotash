@@ -69,7 +69,7 @@ export async function sendBookingOfferEmail(input: {
     '',
     'This is an offer rather than a confirmed booking. If you accept it, your pricing plan determines the initial payment amount and deadline. For the first live-booking phase, payment is by manual bank transfer and confirmation follows after Olrig Bank verifies receipt. Email copies are optional.',
     '',
-    `Booking request reference: ${input.booking.reference}`,
+    `Booking request reference: ${input.booking.customerReference}`,
     '',
     'Olrig Bank',
   ].filter(Boolean).join('\n');
@@ -102,7 +102,7 @@ export async function sendBookingOfferEmail(input: {
       <p style="margin:26px 0;text-align:center;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#ffffff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Open your booking page</a></p>
       <p>This is an offer rather than a confirmed booking. If you accept it, your pricing plan determines the initial payment amount and deadline. For the first live-booking phase, payment is by manual bank transfer and confirmation follows after Olrig Bank verifies receipt. Email copies are optional.</p>
       <p style="color:#65706b;font-size:13px;">This secure link is the continuing page for your booking. Save it and do not forward it.</p>
-      <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.reference)}</p>
+      <p style="color:#65706b;font-size:13px;">Booking request reference: ${escapeHtml(input.booking.customerReference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
     </div>
   </div>
@@ -152,7 +152,7 @@ export async function sendCustomerOfferResponseEmail(input: {
     linkInstruction,
     input.manageUrl,
     '',
-    `Booking reference: ${input.offer.bookingReference}`,
+    `Booking reference: ${input.offer.customerReference}`,
     '',
     'Olrig Bank',
   ].join('\n');
@@ -164,7 +164,7 @@ export async function sendCustomerOfferResponseEmail(input: {
     <p>${escapeHtml(nextStep)}</p>
     <p style="margin:26px 0;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#fff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">${escapeHtml(linkLabel)}</a></p>
     <p style="color:#65706b;font-size:13px;">This secure link is unique to your booking. Please do not forward it.</p>
-    <p style="color:#65706b;font-size:13px;">Booking reference: ${escapeHtml(input.offer.bookingReference)}</p>
+    <p style="color:#65706b;font-size:13px;">Booking reference: ${escapeHtml(input.offer.customerReference)}</p>
     <p style="margin-bottom:0;">Olrig Bank</p>
   </div></div></body></html>`;
   return sendEmail({ to: input.offer.guestEmail, subject, text, html });
@@ -194,7 +194,7 @@ export async function sendManagementOfferResponseEmail(input: {
     `${accepted ? 'Accepted offer total' : 'Offer total'}: ${formatCurrency(input.offer.totalPence, input.offer.currency)}`,
     `Booker email: ${input.offer.guestEmail || 'Not supplied'}`,
     `Booker telephone: ${input.offer.guestTelephone || 'None supplied'}`,
-    `Booking request reference: ${input.offer.bookingReference}`,
+    `Booking request reference: ${input.offer.customerReference}`,
     '',
     `Administrator review: ${input.adminUrl}`,
   ].join('\n');
@@ -203,7 +203,7 @@ export async function sendManagementOfferResponseEmail(input: {
     <p><strong>${escapeHtml(input.offer.guestName)}</strong> ${accepted ? `has accepted the offer and the booking is awaiting the required ${escapeHtml(paymentLabel)} by manual bank transfer.` : 'has declined the booking offer.'}</p>
     <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.offer.arrival))} to ${escapeHtml(formatDate(input.offer.departure))}<br>${formatPartyComposition(input.offer, ' · ')}<br>${accepted ? 'Accepted offer total' : 'Offer total'}: ${escapeHtml(formatCurrency(input.offer.totalPence, input.offer.currency))}</p>
     <p>Booker email: ${escapeHtml(input.offer.guestEmail || 'Not supplied')}<br>Booker telephone: ${escapeHtml(input.offer.guestTelephone || 'None supplied')}</p>
-    <p>Booking request reference: ${escapeHtml(input.offer.bookingReference)}</p>
+    <p>Booking request reference: ${escapeHtml(input.offer.customerReference)}</p>
   </body></html>`;
   return sendEmail({
     to: recipients[0],

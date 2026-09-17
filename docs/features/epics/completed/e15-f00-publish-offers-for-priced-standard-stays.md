@@ -3,12 +3,10 @@
 ## Status
 
 Completed and closed with owner approval on 12 September 2026. Implementation
-commit `6328ac7` and local verification are complete on
-`agent/e15-direct-standard-offers`; no implementation work remains in this epic.
-
-Closure records acceptance of the implementation. Merge, hosted development
-acceptance and production deployment remain release follow-up steps; closure does
-not claim they have already happened.
+commit `6328ac7` and local verification were completed on
+`agent/e15-direct-standard-offers`. The implementation was merged in PR #157.
+No E15 implementation work remains. Hosted development acceptance and production
+deployment are separate release steps and are not claimed by this closure.
 
 ## Outcome and agreed decisions
 
@@ -96,10 +94,44 @@ This implements the immediate-offer option recorded in
   credentials. No customer was contacted; real notification delivery and hosted
   deployment are not claimed as verified.
 
+## Follow-up work recorded on 17 September 2026
+
+The following work was completed after E15 closed on
+`fix/booking-contact-verification`. It refines the same booking journey and its
+public presentation; it does not change which requests qualify for an immediate
+offer.
+
+- The verified contact step now shows a clear completed card, moves focus to the
+  next action, and restores code entry if the contact changes or verification
+  expires. The optional WhatsApp consent control was removed from the request
+  form. See [booking contact verification redesign](../../completed/booking-contact-verification-redesign.md).
+- Optional `BOOKER_AUTO_VERIFIED_EMAIL` automatically verifies one configured
+  email when entered for booking or sign-in. It is intended for a disposable test
+  address and remains unset by default. Ordinary email verification still uses
+  a generated six-digit code; no fixed dummy code was introduced.
+- Customers now see a unique `OB-XXXXXXXX` booking reference using only
+  unambiguous consonants and digits. The existing UUID remains the internal
+  reference. See [customer booking references](../../completed/customer-booking-references.md).
+- Olrig Bot notices remain in booking messages and activity records but no
+  longer appear in Booker or administrator conversations or unread counts. See
+  [human-only booking conversation](../../completed/hide-bot-conversation-notices.md).
+- Customer-facing stay names no longer include bracketed maximum guest counts;
+  the separate capacity data and validation remain. See
+  [plain stay names](../../completed/plain-stay-names.md).
+- Listing cards under “Inside this stay” now show only each image and heading
+  caption. Room details remain in their content files. See
+  [Inside this stay heading captions](../../completed/inside-stay-heading-captions.md).
+
+The linked records contain local build, test, Playwright, Chrome DevTools and
+Lighthouse evidence. They do not claim production deployment or live customer
+notification delivery. This epic remains closed; the follow-up branch is being
+proposed separately for merge into `development`.
+
 ## Release and recovery
 
-Review and merge the task branch, then verify eligible and retained-review paths
-on hosted development before requesting production deployment approval. Observe
+For the follow-up branch, review and merge its pull request, then verify eligible
+and retained-review paths on hosted development before requesting production
+deployment approval. Observe
 system offer-publication activity and notification failures after release.
 Reverting the E15 code restores review for new requests; already-published offers
 continue through the existing lifecycle. Never delete or reset them as rollback.

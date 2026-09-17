@@ -8,6 +8,7 @@ import type { ProvisionalBookingRequest } from '../../src/lib/booking/repository
 
 const booking: ProvisionalBookingRequest = {
   reference: '11111111-2222-4333-8444-555555555555',
+  customerReference: 'OB-23456789',
   customerAccessToken: 'customer-token',
   propertyId: 'olrig-bank',
   arrival: '2026-10-01',
@@ -148,6 +149,8 @@ test('sends payment and cancellation emails to the declared administrator and Bo
       assert.equal(Object.hasOwn(payload, 'bcc'), false);
     }
     assert.match(String(payloads[1].subject), /booking is confirmed/);
+    assert.match(String(payloads[1].text), /Booking reference: OB-23456789/);
+    assert.doesNotMatch(String(payloads[1].text), /11111111-2222-4333-8444-555555555555/);
     assert.match(String(payloads[2].text), /transfer reference did not match/);
     assert.match(String(payloads[3].text), /property is unexpectedly unavailable/);
     assert.deepEqual(payloads[4].to, ['admin-one@example.com']);

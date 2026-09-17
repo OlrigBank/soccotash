@@ -226,7 +226,7 @@ export async function queryProvisionalBookingRequestRows(
   deletionScope: 'active' | 'marked' | 'all' = 'active',
 ): Promise<Record<string, any>[]> {
   const result = await database.query(
-    `SELECT pb.public_id::text AS reference, pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
+    `SELECT pb.public_id::text AS reference, pb.customer_reference AS "customerReference", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.guests, pb.adults, pb.children, pb.infants, pb.pets,
             pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",
             pb.occupancy_assessment_reasons AS "occupancyAssessmentReasons",
@@ -242,7 +242,7 @@ export async function queryProvisionalBookingRequestRows(
             payment_summary."currentPaymentStatus", payment_summary."depositVerified",
             payment_summary."balanceVerified", payment_summary."fullPaymentVerified",
             (SELECT COUNT(*)::int FROM booking_messages bm
-              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
+              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL AND bm.sender_type <> 'bot') AS "unreadMessageCount"
        FROM provisional_bookings pb
        LEFT JOIN LATERAL (
          SELECT total_pence, currency, sent_at

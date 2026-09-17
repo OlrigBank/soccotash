@@ -35,7 +35,7 @@ export async function sendBookerMessageEmail(input: {
     'Reply in the private booking conversation:',
     input.manageUrl,
     '',
-    `Booking reference: ${input.booking.reference}`,
+    `Booking reference: ${input.booking.customerReference}`,
     '',
     'Olrig Bank',
   ].join('\n');
@@ -48,7 +48,7 @@ export async function sendBookerMessageEmail(input: {
       <p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}</p>
       <p style="margin:26px 0;"><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;background:#9b5b36;color:#fff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:999px;">Open booking conversation</a></p>
       <p style="color:#65706b;font-size:13px;">This secure link is unique to your booking. Please do not forward it.</p>
-      <p style="color:#65706b;font-size:13px;">Booking reference: ${escapeHtml(input.booking.reference)}</p>
+      <p style="color:#65706b;font-size:13px;">Booking reference: ${escapeHtml(input.booking.customerReference)}</p>
       <p style="margin-bottom:0;">Olrig Bank</p>
     </div></div></body></html>`;
   return sendEmail({ to: input.booking.email, subject, text, html });

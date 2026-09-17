@@ -47,9 +47,14 @@ for (const width of [390, 768, 1440]) {
       await expect(page.locator('body')).toContainText(total.replace('Total: ', ''));
       await expect(page.locator('body')).not.toContainText('while Jenna and the team review');
       const replay = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: request.postDataJSON() });
-      expect(replay.status()).toBe(201); expect((await replay.json()).status).toBe('offered');
-      const saved = (await db.query('SELECT id,status FROM provisional_bookings WHERE guest_name=$1', [name])).rows;
+      expect(replay.status()).toBe(201);
+      const replayed = await replay.json();
+      expect(replayed.status).toBe('offered');
+      const saved = (await db.query('SELECT id,status,customer_reference FROM provisional_bookings WHERE guest_name=$1', [name])).rows;
       expect(saved).toHaveLength(1); expect(saved[0].status).toBe('offered');
+      expect(saved[0].customer_reference).toMatch(/^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
+      expect(replayed.customerReference).toBe(saved[0].customer_reference);
+      await expect(page.getByText('Reference', { exact: true }).locator('..').locator('code')).toHaveText(saved[0].customer_reference);
       expect((await db.query('SELECT count(*)::int AS count FROM booking_offers WHERE provisional_booking_id=$1', [saved[0].id])).rows[0].count).toBe(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(errors).toEqual([]);
@@ -59,6 +64,9 @@ for (const width of [390, 768, 1440]) {
       expect(changed.status()).toBe(409); expect((await changed.json()).quote.guestTotalPence).toBeGreaterThan(1);
       const missingReview = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...stale, reviewedPricing: null } });
       expect(missingReview.status()).toBe(409);
+      await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
+      await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
+      await expect(page.locator('body')).toContainText(`booking reference ${saved[0].customer_reference}`);
       await db.query('DELETE FROM provisional_bookings WHERE guest_name=$1', [name]);
       const promo = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...request.postDataJSON(), submissionId: randomUUID(), promoCode: 'TEST' } });
       expect(promo.status()).toBe(201); const pending = await promo.json(); expect(pending.status).toBe('pending');

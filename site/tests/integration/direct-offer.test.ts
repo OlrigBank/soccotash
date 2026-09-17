@@ -48,6 +48,9 @@ test('direct offers are atomic, preserve review exceptions and retain the existi
       const booking = await repository.createProvisionalBooking(input);
       const saved = await repository.getProvisionalBookingRequest(booking.reference);
       assert.equal(saved?.status, 'offered');
+      assert.match(saved!.customerReference, /^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
+      assert.notEqual(saved!.customerReference, booking.reference);
+      assert.equal((await repository.getCustomerBookingPageByReference(booking.reference))?.customerReference, saved!.customerReference);
       const [offer] = await repository.getBookingOffers(booking.reference);
       assert.equal(offer.totalPence, pricingQuote.result.guestTotalPence);
       assert.equal(offer.lineItems.reduce((sum, line) => sum + line.amountPence, 0), offer.totalPence);

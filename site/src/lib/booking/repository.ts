@@ -649,6 +649,7 @@ export type BookingOffer = {
 export type ProvisionalBookingRequest = {
   internalId?: string;
   reference: string;
+  customerReference: string;
   customerAccessToken?: string;
   propertyId: string;
   arrival: string;
@@ -759,7 +760,7 @@ export async function getProvisionalBookingRequests(
 export async function getProvisionalBookingRequest(reference: string): Promise<ProvisionalBookingRequest | null> {
   await expireElapsedBookingOffers();
   const result = await getPool().query(
-    `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference,
+    `SELECT pb.id::text AS "internalId", pb.public_id::text AS reference, pb.customer_reference AS "customerReference",
             pb.customer_access_token AS "customerAccessToken", pb.property_id AS "propertyId", pb.arrival::text, pb.departure::text,
             pb.original_arrival::text AS "originalArrival", pb.original_departure::text AS "originalDeparture",
             pb.bespoke_suggested_arrival::text AS "bespokeSuggestedArrival",
@@ -793,7 +794,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             latest_offer.currency AS "latestOfferCurrency",
             latest_offer.sent_at AS "latestOfferSentAt",
             (SELECT COUNT(*)::int FROM booking_messages bm
-              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL) AS "unreadMessageCount"
+              WHERE bm.provisional_booking_id = pb.id AND bm.admin_read_at IS NULL AND bm.sender_type <> 'bot') AS "unreadMessageCount"
        FROM provisional_bookings pb
        LEFT JOIN pricing_plans pp ON pp.id = pb.pricing_plan_id
        LEFT JOIN admin_users deletion_admin ON deletion_admin.id=pb.deletion_requested_by_admin_user_id
@@ -1140,6 +1141,7 @@ export type CustomerBookingOffer = {
   offerId: string | null;
   offerReference: string | null;
   bookingReference: string;
+  customerReference: string;
   propertyId: string;
   arrival: string;
   departure: string;
@@ -1202,6 +1204,7 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     offerId: row.offerId == null ? null : String(row.offerId),
     offerReference: row.offerReference == null ? null : String(row.offerReference),
     bookingReference: String(row.bookingReference),
+    customerReference: String(row.customerReference),
     propertyId: row.propertyId,
     arrival: row.arrival,
     departure: row.departure,
@@ -1255,7 +1258,7 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
 
 const customerBookingSelect = `
   SELECT bo.id::text AS "offerId", bo.public_id::text AS "offerReference",
-         pb.public_id::text AS "bookingReference", pb.property_id AS "propertyId",
+         pb.public_id::text AS "bookingReference", pb.customer_reference AS "customerReference", pb.property_id AS "propertyId",
          pb.arrival::text, pb.departure::text, pb.guests,
          pb.adults, pb.children, pb.infants, pb.pets,
          pb.occupancy_assessment_outcome AS "occupancyAssessmentOutcome",

@@ -25,6 +25,7 @@ Before the authorised test deployment, configure the existing service's environm
 | Setting | Test requirement |
 | --- | --- |
 | `BOOKER_VERIFICATION_SECRET` | A separate, stable, randomly generated secret of at least 32 characters. Keep it in Render's environment settings. |
+| `BOOKER_AUTO_VERIFIED_EMAIL` | Optional single disposable address for local or test use. Entering it grants booking verification and signs in to its Booker account without a code. Leave unset for normal verification. Anyone who knows the address can access its bookings. |
 | `EMAIL_PROVIDER` | `resend`, as declared in the test Blueprint. |
 | `RESEND_API_KEY` | A working key for the configured sender. |
 | `BOOKING_EMAIL_FROM` | A sender permitted by the email provider. |

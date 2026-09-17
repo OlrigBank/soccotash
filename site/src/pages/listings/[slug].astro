@@ -56,13 +56,7 @@ const roomTitles: Record<string, Record<string, string>> = {
 };
 const roomPresentation = (space: CollectionEntry<'spaces'>) => {
   const title = roomTitles[entry.data.slug ?? entry.id]?.[space.data.slug];
-  if (!title) return {};
-  return {
-    title,
-    summary: entry.data.slug === 'event' && space.data.spaceGroup === 'cottage'
-      ? `${title} at Olrig Bank++.`
-      : space.data.summary,
-  };
+  return title;
 };
 const productionSite = Astro.site ?? new URL('https://olrig-bank.com');
 const listingImages = [
@@ -138,8 +132,7 @@ const structuredData = vacationRentalStructuredData({
       </div>
       <div class="space-grid">
         {selectedSpaces.map((space) => {
-          const presentation = roomPresentation(space);
-          return <Space space={space} displayTitle={presentation.title} displaySummary={presentation.summary} />;
+          return <Space space={space} displayTitle={roomPresentation(space)} />;
         })}
       </div>
     </section>
