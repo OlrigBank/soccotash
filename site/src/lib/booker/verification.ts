@@ -18,6 +18,27 @@ export type VerificationDelivery = {
   send(identity: Identity, code: string): Promise<string | { id: string; expiresAt: number } | null>;
   check(providerId: string, code: string): Promise<boolean>;
 };
+export async function automaticallyVerifyEmail(input: { identity: Identity; purpose: 'booking' | 'login'; browserHash: string }) {
+  const configured = process.env.BOOKER_AUTO_VERIFIED_EMAIL?.trim().toLowerCase();
+  if (!configured || input.identity.channel !== 'email' || input.identity.identifier !== configured) return null;
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booker:email:${configured}`]);
+    await client.query('UPDATE booker_challenges SET consumed_at=NOW() WHERE browser_hash=$1 AND purpose=$2 AND consumed_at IS NULL', [input.browserHash, input.purpose]);
+    let sessionToken: string | null = null;
+    if (input.purpose === 'booking') {
+      await client.query('UPDATE booker_verification_grants SET consumed_at=NOW() WHERE browser_hash=$1 AND consumed_at IS NULL', [input.browserHash]);
+      await client.query("INSERT INTO booker_verification_grants(browser_hash,channel,identifier) VALUES($1,'email',$2)", [input.browserHash, configured]);
+    } else {
+      const accountId = await accountForIdentity(client, input.identity);
+      await claimBookings(client, accountId, input.identity);
+      sessionToken = await storeSession(client, accountId);
+    }
+    await client.query('COMMIT');
+    return { verified: true, expiresIn: input.purpose === 'booking' ? 1800 : 30 * 86400, sessionToken };
+  } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+}
 const delivery: VerificationDelivery = {
   async send(identity, code) {
     if (identity.channel === 'sms') return sendSms(identity.identifier);

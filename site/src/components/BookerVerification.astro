@@ -2,9 +2,19 @@
 const { purpose = 'booking' } = Astro.props;
 ---
 <section class="booker-verification booking-field-wide" data-booker-verification data-purpose={purpose} data-verified="false" aria-label="Verify your contact">
-  <p>Verify one contact to continue. If you provide both, we use email first. For SMS, use a UK mobile number or a Dutch number beginning +31, then select Send SMS code.</p>
-  <label>Verification contact <select data-verification-channel aria-label="Verification contact"><option value="email">Email</option><option value="sms">Mobile number (SMS)</option></select></label>
+  <div data-verification-instructions>
+    <h2>Verify your contact</h2>
+    <p>{purpose === 'booking' ? 'We only need to verify one contact. If your email is already verified on this device, you can continue without another code.' : 'We will send a code to your email address or mobile number to sign you in.'}</p>
+    <label>Send a code by <select data-verification-channel aria-label="Verification contact"><option value="email">Email</option><option value="sms">Mobile number (SMS)</option></select></label>
+    <p class="verification-help">For email, a code is sent when you finish entering your contact details. For SMS, use a UK mobile number or a Dutch number beginning +31, then select Send SMS code.</p>
+  </div>
+  <div class="verification-complete" data-verification-complete hidden>
+    <span class="verification-tick" aria-hidden="true">✓</span>
+    <div><h2 data-verified-heading>Email verified</h2><p data-verified-contact></p></div>
+  </div>
   <p data-verification-status role="status" aria-live="polite">Enter an email address or mobile number.</p>
+  <p data-verification-next hidden>Complete the remaining details below, then choose Continue to review.</p>
+  <button class="button button--secondary" type="button" data-change-contact hidden>Change contact</button>
   <div data-code-entry hidden>
     <label>Verification code <input data-verification-code type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" /></label>
     <button class="button" type="button" data-verify-code>Verify code</button>
@@ -13,6 +23,14 @@ const { purpose = 'booking' } = Astro.props;
 </section>
 <style>
   .booker-verification { border:1px solid #788771;border-radius:.75rem;padding:1rem;min-width:0; }
+  .booker-verification [hidden] { display:none !important; }
+  .booker-verification[data-verified="true"] { background:#edf3e9;border-color:#49664d; }
+  .booker-verification h2 { margin:0;font-size:1.1rem; }
+  .verification-complete { display:flex;align-items:flex-start;gap:.75rem; }
+  .verification-complete p { margin:.25rem 0 0; }
+  .verification-tick { display:grid;place-items:center;flex:0 0 1.75rem;height:1.75rem;border-radius:50%;background:#49664d;color:white;font-weight:bold; }
+  .verification-help { font-size:.95rem; }
+  .booker-verification :is(button,input,select):focus-visible { outline:3px solid #294c37;outline-offset:3px; }
   .booker-verification label { display:block;margin:.5rem 0; }
   .booker-verification input,.booker-verification select { max-width:100%;min-height:44px; }
   .booker-verification input { width:10rem;letter-spacing:.2em; }

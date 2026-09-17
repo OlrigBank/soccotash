@@ -3,7 +3,7 @@ import { isSameBookerOrigin } from '../../../lib/booker/origin.ts';
 import { getPool } from '../../../lib/booking/db.ts';
 import { BookerError, BROWSER_COOKIE, SESSION_COOKIE, browserToken, hashToken, normaliseIdentity, sessionAccount, setSession } from '../../../lib/booker/accounts.ts';
 import { validBookingReference } from '../../../lib/booker/context.ts';
-import { requestCode, checkCode } from '../../../lib/booker/verification.ts';
+import { requestCode, checkCode, automaticallyVerifyEmail } from '../../../lib/booker/verification.ts';
 export const prerender = false;
 const headers = { 'cache-control': 'private, no-store', 'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow' };
 export const GET: APIRoute = async ({ params, cookies, url }) => {
@@ -34,7 +34,13 @@ export const POST: APIRoute = async ({ params, request, cookies, url, clientAddr
     if (purpose !== 'booking' && purpose !== 'login') throw new BookerError('Invalid verification purpose.');
     const browserHash = hashToken(browserToken(cookies, url));
     if (params.action === 'request-code') {
-      const result = await requestCode({ identity: normaliseIdentity(body.channel, body.identifier), purpose, browserHash, ip: clientAddress });
+      const identity = normaliseIdentity(body.channel, body.identifier);
+      const automatic = await automaticallyVerifyEmail({ identity, purpose, browserHash });
+      if (automatic) {
+        if (automatic.sessionToken) setSession(cookies, automatic.sessionToken, url);
+        return Response.json({ verified: true, expiresIn: automatic.expiresIn }, { headers });
+      }
+      const result = await requestCode({ identity, purpose, browserHash, ip: clientAddress });
       return Response.json(result, { headers });
     }
     if (params.action === 'verify-code') {

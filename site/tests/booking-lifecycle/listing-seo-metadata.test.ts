@@ -37,14 +37,14 @@ test('public listing facts and labels follow the agreed accommodation model', as
   const combinedData = listingData(combined);
   const cottageData = listingData(cottage);
 
-  assert.equal(olrigBankData.title, 'Olrig Bank (max 8 guests)');
+  assert.equal(olrigBankData.title, 'Olrig Bank');
   assert.equal(olrigBankData.slug, 'olrig-bank');
   assert.equal(olrigBankData.sleeps, 'Sleeps 8 adults');
   assert.equal(olrigBankData.bedrooms, '4 bedrooms');
   assert.equal(olrigBankData.bathrooms, '2 bathrooms');
   assert.doesNotMatch(olrigBank, /Main House/);
 
-  assert.equal(combinedData.title, 'Olrig Bank++ (max 12 guests)');
+  assert.equal(combinedData.title, 'Olrig Bank++');
   assert.equal(combinedData.sleeps, 'Sleeps 12 adults');
   assert.equal(combinedData.bedrooms, '6 bedrooms');
   assert.equal(combinedData.bathrooms, '3 bathrooms & 1 WC');
@@ -52,14 +52,14 @@ test('public listing facts and labels follow the agreed accommodation model', as
   assert.doesNotMatch(combinedDescription, /\bCottage\b|\bcottage\b/);
   assert.match(combined, /Olrig Bank\+\+ sleeps 12 adults in six bedrooms/);
 
-  assert.equal(cottageData.title, 'Cottage at Olrig Bank (max 4 guests)');
+  assert.equal(cottageData.title, 'Cottage at Olrig Bank');
   assert.equal(cottageData.bedrooms, '2 bedrooms');
   assert.equal(cottageData.bathrooms, '1 bathroom plus a separate WC');
 });
 
 test('listing fact validation accepts Pages CMS YAML formatting', () => {
   const data = listingData(`---
-title: Olrig Bank++ (max 12 guests)
+title: Olrig Bank++
 sleeps: Sleeps 12 adults
 bedrooms: 6 bedrooms
 bathrooms: 3 bathrooms & 1 WC
@@ -67,7 +67,7 @@ bathrooms: 3 bathrooms & 1 WC
 Description.
 `);
   assert.deepEqual(data, {
-    title: 'Olrig Bank++ (max 12 guests)',
+    title: 'Olrig Bank++',
     sleeps: 'Sleeps 12 adults',
     bedrooms: '6 bedrooms',
     bathrooms: '3 bathrooms & 1 WC',

@@ -7,7 +7,7 @@ The private booking page and the administrator booking page now use a shared, co
 - **Booker** is the contact who made and manages the booking. The word **guest** remains in use for party size and the people staying.
 - A manually composed administrator message uses the logged-in administrator's display name.
 - **Jenna** is the default display name when an administrator is created without an explicit name.
-- **Olrig Bot** records friendly booking-status and optional-email notices. Technical events remain in the separate booking activity log.
+- **Olrig Bot** records booking-status and optional-email notices in the booking message record. These notices are hidden from both sides of the conversation; technical events remain in the separate booking activity log.
 
 Messages are immutable. They cannot be edited or deleted independently of the booking record.
 
@@ -44,7 +44,7 @@ The recipient type is taken from the canonical lifecycle rule. Delivery success,
 
 ## Unread messages
 
-Each message stores separate Booker and administrator read timestamps. Opening or polling a conversation marks messages read for that viewer. The administrator bookings list shows the count of unread conversation items and offers an **Open messages** action.
+Each message stores separate Booker and administrator read timestamps. Opening or polling a conversation marks messages read for that viewer. The administrator bookings list counts only unread human messages and offers an **Open messages** action.
 
 ## Existing booking history
 

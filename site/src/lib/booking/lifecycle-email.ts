@@ -116,12 +116,12 @@ function bookingSummary(input: BookingLifecycleEmailInput): string[] {
   return [
     input.propertyName,
     `${formatDate(input.booking.arrival)} to ${formatDate(input.booking.departure)}`,
-    `Booking reference: ${input.booking.reference}`,
+    `Booking reference: ${input.booking.customerReference}`,
   ];
 }
 
 function bookingSummaryHtml(input: BookingLifecycleEmailInput): string {
-  return `<p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}<br>Booking reference: ${escapeHtml(input.booking.reference)}</p>`;
+  return `<p><strong>${escapeHtml(input.propertyName)}</strong><br>${escapeHtml(formatDate(input.booking.arrival))} to ${escapeHtml(formatDate(input.booking.departure))}<br>Booking reference: ${escapeHtml(input.booking.customerReference)}</p>`;
 }
 
 function bookerEmail(

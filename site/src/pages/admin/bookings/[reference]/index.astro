@@ -538,12 +538,12 @@ if (arrangementAssigned) {
   {workspace==='messages' && <section class="admin-panel booking-messages-page">
     <div>
       <h2>Conversation with {booking.name}</h2>
-      <p class="admin-panel-intro">Messages are sent as {Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.</p>
+      <p class="admin-panel-intro">Messages are sent as {Astro.locals.adminUser!.displayName || 'Jenna'}.</p>
       <BookingConversation
         messages={messages}
         viewer="administrator"
         heading={`Conversation with ${booking.name}`}
-        intro={`Messages are sent as ${Astro.locals.adminUser!.displayName || 'Jenna'}. Olrig Bot adds booking-status notices automatically.`}
+        intro={`Messages are sent as ${Astro.locals.adminUser!.displayName || 'Jenna'}.`}
         pollingUrl={`/api/admin/bookings/${reference}/messages`}
         bookingStatus={booking.status}
         reservationVersion={reservationVersion}
@@ -573,7 +573,8 @@ if (arrangementAssigned) {
       <section class="booking-drawer-section">
         <p class="eyebrow">Stay details</p>
         <dl class="booking-detail-list">
-          <div><dt>Reference</dt><dd><code>{booking.reference}</code></dd></div>
+          <div><dt>Customer reference</dt><dd><code>{booking.customerReference}</code></dd></div>
+          <div><dt>Internal reference</dt><dd><code>{booking.reference}</code></dd></div>
           <div><dt>Booker</dt><dd><strong>{booking.name}</strong></dd></div>
           <div><dt>Contact number</dt><dd>{booking.telephone ? <a href={`tel:${booking.telephone}`}>{booking.telephone}</a> : <span class="muted">None supplied</span>}</dd></div>
           <div><dt>WhatsApp</dt><dd><span class={`status-badge status-${booking.whatsappConsentStatus}`}>{booking.whatsappConsentStatus.replaceAll('_', ' ')}</span></dd></div>

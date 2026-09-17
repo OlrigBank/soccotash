@@ -47,7 +47,7 @@ const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit 
           const paymentDecisionRequired = initialReported || balanceReported;
           const actionHref = paymentDecisionRequired ? `/admin/bookings/${request.reference}/payment/` : `/admin/bookings/${request.reference}/`;
           return <tr class:list={[request.unreadMessageCount > 0 && 'has-unread-messages']} data-booking-href={actionHref}>
-            <td><a class="booking-entry-primary-link" href={actionHref} aria-label={`Open booking for ${request.name}`}><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure}</small></a></td>
+            <td><a class="booking-entry-primary-link" href={actionHref} aria-label={`Open booking ${request.customerReference} for ${request.name}`}><strong>{propertyNames.get(request.propertyId) ?? request.propertyId}</strong><small>{request.arrival} – {request.departure} · {request.customerReference}</small></a></td>
             <td><strong>{request.name}</strong>{request.unreadMessageCount > 0 && <span class="booking-unread-badge">{request.unreadMessageCount} new</span>}{(request.email || request.telephone) && <small>{request.email && <a href={`mailto:${request.email}`}>{request.email}</a>}{request.email && request.telephone ? ' · ' : ''}{request.telephone || ''}</small>}</td>
             <td><span class={`status-badge status-${request.status}`}>{statusLabel(request.status)}</span></td>
           </tr>;

@@ -5,7 +5,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
 <section class="booking-panel" data-booking-calendar>
   <ol class="booking-progress" aria-label="Booking request progress">
     <li class="is-current" data-progress-step="1" aria-current="step"><span>1</span><strong>Check your stay</strong></li>
-    <li data-progress-step="2"><span>2</span><strong>Collect Booker detail</strong></li>
+    <li data-progress-step="2"><span>2</span><strong>Your details</strong></li>
     <li data-progress-step="3"><span>3</span><strong>Review and send request</strong></li>
   </ol>
   <div data-stay-editor>
@@ -20,29 +20,21 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   </section>
   <form class="booking-form" data-booking-form id="booking-request-details" tabindex="-1" aria-label="Booking request">
     <fieldset class="booking-step booking-contact" data-booking-contact data-booking-step="2" hidden disabled>
-      <legend><span>Step 2</span> Collect Booker detail</legend>
+      <legend><span>Step 2</span> Your details</legend>
       <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
       <div class="booking-field">
         <label for="guest-name">Booker name</label>
         <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required />
       </div>
-      <p class="booking-field-wide">We will send a verification code when you finish entering your contact details.</p>
       <div class="booking-field">
         <label for="guest-email">Booker email</label>
         <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
       </div>
       <div class="booking-field">
         <label for="guest-telephone">Mobile number</label>
-        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" aria-describedby="whatsapp-consent-help" />
+        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" />
       </div>
       <BookerVerification />
-      <div class="booking-field booking-field-wide">
-        <label class="booking-consent" for="whatsapp-consent">
-          <input id="whatsapp-consent" name="whatsappConsent" type="checkbox" value="yes" />
-          <span>Yes, Olrig Bank may send transactional WhatsApp messages about this booking and its payments. I can withdraw consent at any time. Email or my private booking page will remain available.</span>
-        </label>
-        <p id="whatsapp-consent-help" class="booking-note">Provide at least an email address or a telephone number. WhatsApp remains optional; if selected, enter a telephone number with its country code (for example, +44).</p>
-      </div>
     <div class="booking-field booking-field-wide" data-pet-details hidden>
       <p><strong>Tell us about each pet</strong></p>
       <p class="booking-note">Species is required. Breed and size are optional. Identify a service animal separately below.</p>
@@ -82,7 +74,6 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   const reviewButton = root?.querySelector<HTMLButtonElement>('[data-review-stay]');
   const telephone = form?.querySelector<HTMLInputElement>('[name="telephone"]');
   const email = form?.querySelector<HTMLInputElement>('[name="email"]');
-  const whatsappConsent = form?.querySelector<HTMLInputElement>('[name="whatsappConsent"]');
   const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
   const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
   const isVerified = () => root?.querySelector<HTMLElement>('[data-booker-verification]')?.dataset.verified === 'true';
@@ -257,7 +248,6 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     add('Booker name', String(data.get('name') || ''));
     add('Booker email', String(data.get('email') || 'Not supplied'));
     add('Mobile number', String(data.get('telephone') || 'Not supplied'));
-    add('WhatsApp messages', whatsappConsent?.checked ? 'Consent given' : 'Not requested');
     for (const [index, row] of [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].entries()) {
       const value = (selector: string) => row.querySelector<HTMLInputElement | HTMLSelectElement>(selector)?.value || '';
       add(`Pet ${index + 1}`, [value('[data-pet-species]') === 'other' ? value('[data-pet-other]') : value('[data-pet-species]'), value('[data-pet-breed]'), value('[data-pet-size]'), row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked ? 'Service animal' : ''].filter(Boolean).join(' · '));
@@ -277,9 +267,6 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   });
   // Component scripts may initialise in either order.
   updateCheck();
-  whatsappConsent?.addEventListener('change', () => {
-    if (telephone) telephone.required = Boolean(whatsappConsent.checked);
-  });
   for (const input of [email, telephone]) input?.addEventListener('input', () => email?.setCustomValidity(''));
 
   form?.addEventListener('submit', async (event) => {

@@ -170,16 +170,16 @@ if (propertyId && !fixedProperty) {
             <><label for={`${idPrefix}-stay`}>Stay</label>
             <select id={`${idPrefix}-stay`} name="propertyId" aria-label="Stay">
               <option value="">Find a suitable stay</option>
-              {properties.map((stay) => <option value={stay.id}>{stay.name.replace(/\s+\(max \d+ guests\)$/i, '')}</option>)}
+              {properties.map((stay) => <option value={stay.id}>{stay.name}</option>)}
             </select></>
           ) : (<>
           <input type="hidden" name="propertyId" value={fixedProperty?.id || ''} />
           <details data-compact-stay-menu>
-            <summary><span>Stay</span><strong data-compact-stay-name>{fixedProperty?.name.replace(/\s+\(max \d+ guests\)$/i, '') || 'Find a suitable stay'}</strong></summary>
+            <summary><span>Stay</span><strong data-compact-stay-name>{fixedProperty?.name || 'Find a suitable stay'}</strong></summary>
             <ul class="compact-stay-options" aria-label="Choose a stay">
               {properties.map((stay) => (
                 <li><a href={`/listings/${stay.listingSlug}/`} data-compact-stay-link={stay.id}>
-                  {stay.name.replace(/\s+\(max \d+ guests\)$/i, '')}
+                  {stay.name}
                 </a></li>
               ))}
             </ul>
@@ -698,7 +698,7 @@ if (propertyId && !fixedProperty) {
     const isBespoke = () => property.value === 'bespoke-arrangement';
     const updateStayLinks = () => {
       const selected = configured.find((stay) => stay.id === property.value);
-      if (stayName) stayName.textContent = selected?.name.replace(/\s+\(max \d+ guests\)$/i, '') || 'Find a suitable stay';
+      if (stayName) stayName.textContent = selected?.name || 'Find a suitable stay';
       panel.querySelectorAll<HTMLAnchorElement>('[data-compact-stay-link]').forEach((link) => {
         const stay = configured.find((item) => item.id === link.dataset.compactStayLink);
         if (!stay) return;
@@ -719,7 +719,7 @@ if (propertyId && !fixedProperty) {
       if (exceeded && stay) {
         summary?.setAttribute('aria-invalid', 'true');
         summary?.setAttribute('aria-describedby', status.id);
-        status.textContent = `${stay.name.replace(/\s+\(max \d+ guests\)$/i, '')} allows a maximum of ${stay.maximumGuests} guests, including infants. Reduce your party or choose another stay.`;
+        status.textContent = `${stay.name} allows a maximum of ${stay.maximumGuests} guests, including infants. Reduce your party or choose another stay.`;
         checkedHref = '';
         if (quickTotal) quickTotal.hidden = true;
         submit.textContent = 'Check';
@@ -1027,7 +1027,7 @@ if (propertyId && !fixedProperty) {
           property.dataset.minimumNights = String(selected.minimumNights);
           if (panel.classList.contains('compact-booking-panel--calendar-open')) void loadCalendar();
           if (recommendation) {
-            recommendation.dataset.name = selected.name.replace(/\s+\(max \d+ guests\)$/i, '');
+            recommendation.dataset.name = selected.name;
             recommendation.dataset.slug = selected.listingSlug;
             recommendation.hidden = false;
           }

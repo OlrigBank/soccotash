@@ -412,26 +412,8 @@ main {
 }
 
 .space-card-content h3 {
-  margin-top: 0;
-  line-height: 1.2;
-}
-
-.space-card-content p {
-  color: var(--muted);
-}
-
-.space-facts {
-  font-size: 0.92rem;
-}
-
-.space-features {
   margin: 0;
-  padding-left: 1.1rem;
-  color: var(--muted);
-}
-
-.space-body:empty {
-  display: none;
+  line-height: 1.2;
 }
 
 .button-group {
@@ -3003,15 +2985,6 @@ a.admin-calendar-event:focus-visible {
   background: #eaf3ee;
 }
 .booking-message.is-other { align-self: flex-start; }
-.booking-message.is-bot {
-  align-self: center;
-  max-width: min(92%, 46rem);
-  border-color: #cbd6df;
-  border-radius: 0.8rem;
-  background: #edf3f7;
-  color: #294c61;
-  text-align: center;
-}
 .booking-message.is-new { animation: booking-message-new 1.3s ease-out; }
 @keyframes booking-message-new {
   from { box-shadow: 0 0 0 4px rgba(155, 91, 54, 0.2); }
@@ -3026,8 +2999,6 @@ a.admin-calendar-event:focus-visible {
   font-size: 0.78rem;
 }
 .booking-message__meta time { margin-left: auto; color: var(--muted); font-size: 0.72rem; }
-.booking-message.is-bot .booking-message__meta { justify-content: center; }
-.booking-message.is-bot .booking-message__meta time { margin-left: 0; }
 .booking-message__new {
   padding: 0.1rem 0.4rem;
   border-radius: 999px;

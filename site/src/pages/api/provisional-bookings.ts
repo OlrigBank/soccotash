@@ -35,7 +35,8 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       const previous = await resumeSubmission(input.submissionId, hashToken(browserToken(cookies, url)));
       if (previous) {
         setSession(cookies, previous.sessionToken, url);
-        return Response.json({ reference: previous.reference, status: (await getProvisionalBookingRequest(previous.reference))?.status, managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
+        const saved = await getProvisionalBookingRequest(previous.reference);
+        return Response.json({ reference: previous.reference, customerReference: saved?.customerReference, status: saved?.status, managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
       }
     }
     const property = getProperty(String(input.propertyId || ''));
@@ -197,8 +198,8 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
             const sent = await sendEmail({
               to: saved.email,
               subject: `Your ${property.name} booking request`,
-              text: `Dear ${saved.name},\n\nYour booking request has been received. Updates will appear on your private booking page:\n${manageUrl}\n\nOlrig Bank`,
-              html: `<p>Dear ${saved.name.replace(/[&<>]/g, '')},</p><p>Your booking request has been received.</p><p><a href="${manageUrl}">Open your private booking page</a></p><p>Olrig Bank</p>`,
+              text: `Dear ${saved.name},\n\nYour booking request has been received. Your reference is ${saved.customerReference}. Updates will appear on your private booking page:\n${manageUrl}\n\nOlrig Bank`,
+              html: `<p>Dear ${saved.name.replace(/[&<>]/g, '')},</p><p>Your booking request has been received. Your reference is ${saved.customerReference}.</p><p><a href="${manageUrl}">Open your private booking page</a></p><p>Olrig Bank</p>`,
             });
             return { ...sent, recipient: saved.email };
           } : undefined,
@@ -210,6 +211,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     }
     return Response.json({
       reference: booking.reference,
+      customerReference: saved?.customerReference,
       status: saved?.status,
       managePath: `/booking/manage/${booking.reference}/`,
       pricingAvailable: Boolean(pricingQuote),

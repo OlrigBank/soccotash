@@ -9,6 +9,12 @@ export function initialiseVerification(root: HTMLElement) {
   const entry = root.querySelector<HTMLElement>('[data-code-entry]')!;
   const send = root.querySelector<HTMLButtonElement>('[data-send-code]')!;
   const verify = root.querySelector<HTMLButtonElement>('[data-verify-code]')!;
+  const instructions = root.querySelector<HTMLElement>('[data-verification-instructions]')!;
+  const complete = root.querySelector<HTMLElement>('[data-verification-complete]')!;
+  const verifiedHeading = root.querySelector<HTMLElement>('[data-verified-heading]')!;
+  const verifiedContact = root.querySelector<HTMLElement>('[data-verified-contact]')!;
+  const nextHint = root.querySelector<HTMLElement>('[data-verification-next]')!;
+  const changeContact = root.querySelector<HTMLButtonElement>('[data-change-contact]')!;
   const purpose = root.dataset.purpose || 'booking';
   let identities: Contact[] = [], grants: Contact[] = [];
   let challengeId = '', challengeKey = '', verifiedKey = '', attemptedKey = '';
@@ -37,17 +43,27 @@ export function initialiseVerification(root: HTMLElement) {
     root.dataset.verified = String(value);
     if (changed) root.dispatchEvent(new CustomEvent('booker-verification-change', { bubbles: true }));
   }
+  function focusContinuation() {
+    const next = form.querySelector<HTMLButtonElement>('[data-continue-review]:not(:disabled)');
+    if (next) next.focus(); else { status.tabIndex = -1; status.focus(); }
+  }
   function refresh() {
     const value = contact(), selected = key(value);
     const trusted = purpose === 'booking' && [...identities, ...grants.filter(item => Date.parse(item.expires_at || '') > Date.now())].some(item => key(item) === selected);
     const verified = trusted || (verifiedKey === selected && expires > Date.now());
     setVerified(verified);
+    instructions.hidden = verified;
+    complete.hidden = !verified;
+    nextHint.hidden = !verified || purpose !== 'booking';
+    changeContact.hidden = !verified;
+    send.hidden = verified;
     if (verified) {
-      const moveFocus = entry.contains(document.activeElement);
-      status.textContent = 'Contact verified. You can continue.'; entry.hidden = true;
+      const moveFocus = entry.contains(document.activeElement) || document.activeElement === send || document.activeElement === channel;
+      verifiedHeading.textContent = value.channel === 'email' ? 'Email verified' : 'Mobile number verified';
+      verifiedContact.textContent = value.identifier;
+      status.textContent = 'Contact verified. No further code is needed.'; entry.hidden = true;
       if (moveFocus) {
-        const next = form.querySelector<HTMLButtonElement>('[data-continue-review]:not(:disabled)');
-        if (next) next.focus(); else { status.tabIndex = -1; status.focus(); }
+        focusContinuation();
       }
     }
     else if (verifiedKey && expires <= Date.now()) { verifiedKey = ''; status.textContent = 'Verification has expired. Request a new code.'; }
@@ -73,6 +89,14 @@ export function initialiseVerification(root: HTMLElement) {
       if (currentRevision !== revision || root.dataset.verified === 'true') return;
       const body = await post('request-code', value);
       if (currentRevision !== revision) return;
+      if (body.verified) {
+        verifiedKey = selected; expires = Date.now() + body.expiresIn * 1000;
+        if (purpose === 'login') {
+          const returnTo = new URL(location.href).searchParams.get('returnTo');
+          location.assign(returnTo && (returnTo === '/booking/account/' || /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo)) ? returnTo : '/booking/');
+        }
+        return;
+      }
       challengeId = body.challengeId; challengeKey = selected; code.value = ''; entry.hidden = false;
       const masked = value.channel === 'email' ? value.identifier.replace(/^(.).*(@.*)$/, '$1•••$2') : `•••${value.identifier.slice(-4)}`;
       status.textContent = `${body.message} ${purpose === 'booking' ? `Check ${masked}. ` : ''}${value.channel === 'sms' ? 'A resent code may be the same and expire sooner.' : 'The code expires in 10 minutes.'}`;
@@ -83,6 +107,7 @@ export function initialiseVerification(root: HTMLElement) {
     if (pending || !challengeId || key(contact()) !== challengeKey) return;
     if (!/^\d{6}$/.test(code.value)) { status.textContent = 'Enter the six-digit code.'; code.focus(); return; }
     const currentRevision = revision;
+    const moveFocus = entry.contains(document.activeElement);
     pending = true; refresh();
     try {
       const body = await post('verify-code', { challengeId, code: code.value });
@@ -93,7 +118,10 @@ export function initialiseVerification(root: HTMLElement) {
         location.assign(returnTo && (returnTo === '/booking/account/' || /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo)) ? returnTo : '/booking/');
       }
     } catch (error) { if (currentRevision === revision) status.textContent = error instanceof Error ? error.message : 'Verification failed. Try again.'; }
-    finally { pending = false; refresh(); }
+    finally {
+      pending = false; refresh();
+      if (moveFocus && currentRevision === revision && root.dataset.verified === 'true') focusContinuation();
+    }
   }
   function edited() {
     const selected = key(contact());
@@ -112,6 +140,10 @@ export function initialiseVerification(root: HTMLElement) {
   root.addEventListener('booker-verification-required', () => { identities = []; grants = []; verifiedKey = ''; attemptedKey = ''; expires = 0; status.textContent = 'Verification has expired. Request a new code.'; refresh(); });
   channel.addEventListener('change', () => { chosen = true; edited(); void sendCode(true); });
   send.addEventListener('click', () => void sendCode());
+  changeContact.addEventListener('click', () => {
+    const input = contact().channel === 'email' ? email : mobile;
+    input.focus(); input.select();
+  });
   verify.addEventListener('click', () => void verifyCode());
   code.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void verifyCode(); } });
   if (purpose === 'login') form.addEventListener('submit', event => { event.preventDefault(); void (challengeId ? verifyCode() : sendCode()); });
