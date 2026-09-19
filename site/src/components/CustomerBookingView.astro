@@ -283,7 +283,7 @@ const conversationError = messageError || responseError;
         </tbody></table></div> : <p>No payment has been reported yet.</p>}
       </section>}
 
-      {(offer.terms || offer.paymentTermsSnapshot) && <section class="booking-drawer-section customer-booking-terms" aria-labelledby="customer-terms-heading">
+      {(offer.terms || offer.paymentTermsSnapshot || isActive) && <section class="booking-drawer-section customer-booking-terms" aria-labelledby="customer-terms-heading">
         <p class="eyebrow">Terms for this booking</p>
         <h3 id="customer-terms-heading">Booking and cancellation terms</h3>
         {offer.terms && <p>{offer.terms}</p>}
