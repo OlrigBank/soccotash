@@ -2504,6 +2504,41 @@ main {
   margin-top: 1.5rem;
 }
 
+.customer-booking-terms p {
+  white-space: pre-line;
+}
+
+.customer-booking-terms details {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.customer-booking-terms summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.customer-booking-terms table {
+  width: 100%;
+  margin-top: 0.8rem;
+  border-collapse: collapse;
+}
+
+.customer-booking-terms th,
+.customer-booking-terms td {
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.customer-booking-refund {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
 .customer-booking-response {
   display: flex;
   align-items: center;

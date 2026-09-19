@@ -6,6 +6,7 @@ import type { BookingPayment } from '../lib/booking/payment-lifecycle';
 import { getCancellationDisplayState, hasAcceptedOfferEvidence } from '../lib/booking/cancellation-display';
 import { listAllowedBookingTransitions } from '../lib/booking/lifecycle';
 import { formatPartyComposition } from '../lib/booking/party-composition';
+import { calculateCancellationRefund, cancellationTermsSnapshot, formatCancellationTerms } from '../lib/pricing/cancellation-terms.ts';
 
 interface Props {
   offer: CustomerBookingOffer;
@@ -66,6 +67,10 @@ const cancellationDisplay = getCancellationDisplayState({
   fullyPaid,
   acceptedOffer,
 });
+const cancellationTerms = cancellationTermsSnapshot(offer.paymentTermsSnapshot?.cancellationTerms);
+const cancellationRefund = cancelled
+  ? calculateCancellationRefund({ arrival: offer.arrival, payments, snapshot: cancellationTerms })
+  : null;
 const canCancel = allowResponse && !adminPreview && listAllowedBookingTransitions(offer.bookingStatus, 'booker')
   .some((transition) => transition.action === 'cancel_booking');
 const canReportBalance = allowResponse && confirmed && offer.balanceDuePence > 0 && depositVerified && !balanceVerified && !openPayment && !cancelled;
@@ -256,6 +261,17 @@ const conversationError = messageError || responseError;
           {(fullyPaid || cancelled) && <div><dt>Payment state</dt><dd>{cancelled ? cancellationDisplay.paymentState : 'Paid'}</dd></div>}
         </dl>
 
+        {cancelled && cancellationRefund && <section class="customer-booking-refund" aria-labelledby="refund-outcome-heading">
+          <p class="eyebrow">Cancellation outcome</p>
+          <h3 id="refund-outcome-heading">Estimated refund</h3>
+          <dl class="customer-booking-details">
+            <div><dt>Payments verified</dt><dd>{money(cancellationRefund.paymentsMadePence, offer.currency)}</dd></div>
+            <div><dt>Policy applied</dt><dd>{cancellationRefund.refundPercentage}%</dd></div>
+            <div><dt>Estimated refund</dt><dd><strong>{money(cancellationRefund.refundAmountPence, offer.currency)}</strong></dd></div>
+          </dl>
+          <p> This is an estimate under the cancellation terms recorded for this booking. Olrig Bank will confirm any refund separately.</p>
+        </section>}
+
         <h3>Payment history</h3>
         {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Reported</th><th>Payment</th><th>Method</th><th>Status</th></tr></thead><tbody>
           {payments.map((payment) => <tr>
@@ -265,6 +281,21 @@ const conversationError = messageError || responseError;
             <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
           </tr>)}
         </tbody></table></div> : <p>No payment has been reported yet.</p>}
+      </section>}
+
+      {(offer.terms || offer.paymentTermsSnapshot || isActive) && <section class="booking-drawer-section customer-booking-terms" aria-labelledby="customer-terms-heading">
+        <p class="eyebrow">Terms for this booking</p>
+        <h3 id="customer-terms-heading">Booking and cancellation terms</h3>
+        {offer.terms && <p>{offer.terms}</p>}
+        <p>{formatCancellationTerms(cancellationTerms)}</p>
+        <details>
+          <summary>Show refund bands</summary>
+          <table><thead><tr><th>Cancellation timing</th><th>Refund of verified payments</th></tr></thead><tbody>
+            <tr><td>30 days or more before arrival</td><td>{cancellationTerms.refundBands[0].refundPercentage}%</td></tr>
+            <tr><td>14 to 29 days before arrival</td><td>{cancellationTerms.refundBands[1].refundPercentage}%</td></tr>
+            <tr><td>Fewer than 14 days before arrival</td><td>{cancellationTerms.refundBands[2].refundPercentage}%</td></tr>
+          </tbody></table>
+        </details>
       </section>}
 
       <section class="booking-drawer-section">
@@ -279,11 +310,6 @@ const conversationError = messageError || responseError;
         </div> : <p>The price has not yet been confirmed. Olrig Bank will add it as part of the offer.</p>}
         {requestPending && offer.priceAvailable && <p class="customer-booking-price-note">This calculation was recorded when the request was made and can be revised before an offer is published.</p>}
       </section>
-
-      {offer.terms && <section class="booking-drawer-section customer-booking-copy">
-        <p class="eyebrow">Additional terms</p>
-        <p>{offer.terms}</p>
-      </section>}
 
       {paymentReported && <section class="booking-drawer-section customer-booking-payment">
         <div>

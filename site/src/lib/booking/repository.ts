@@ -13,6 +13,7 @@ import type { PublishedPricingQuote } from '../pricing/types';
 import type { PricingRule } from '../pricing/types';
 import { customerPricingLinesFromUnknown } from '../pricing/display';
 import { resolvePaymentTerms, type PaymentTermsSnapshot } from '../pricing/payment-terms';
+import { cancellationTermsSnapshot } from '../pricing/cancellation-terms.ts';
 import {
   botMessageForActivity,
   insertAdministratorOfferMessage,
@@ -713,6 +714,9 @@ export type ProvisionalBookingRequest = {
 function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
   return {
     ...row,
+    paymentTermsSnapshot: row.paymentTermsSnapshot
+      ? { ...row.paymentTermsSnapshot, cancellationTerms: cancellationTermsSnapshot(row.paymentTermsSnapshot.cancellationTerms) }
+      : null,
     guests: Number(row.guests),
     adults: Number(row.adults),
     children: Number(row.children),
@@ -1187,6 +1191,7 @@ export type CustomerBookingOffer = {
   depositDueAt: string | null;
   balanceDuePence: number;
   balanceDueOn: string | null;
+  paymentTermsSnapshot: PaymentTermsSnapshot | null;
   paymentReportedAt: string | null;
   paymentReceivedAt: string | null;
   allocation: OfferAllocation | null;
@@ -1250,6 +1255,9 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     depositDueAt: row.depositDueAt ? new Date(row.depositDueAt).toISOString() : null,
     balanceDuePence: Number(row.balanceDuePence || 0),
     balanceDueOn: row.balanceDueOn || null,
+    paymentTermsSnapshot: row.paymentTermsSnapshot
+      ? { ...row.paymentTermsSnapshot, cancellationTerms: cancellationTermsSnapshot(row.paymentTermsSnapshot.cancellationTerms) }
+      : null,
     paymentReportedAt: row.paymentReportedAt ? new Date(row.paymentReportedAt).toISOString() : null,
     paymentReceivedAt: row.paymentReceivedAt ? new Date(row.paymentReceivedAt).toISOString() : null,
     allocation: row.allocation || null,
@@ -1276,6 +1284,7 @@ const customerBookingSelect = `
          pb.payment_method AS "paymentMethod", pb.deposit_pence AS "depositPence",
          pb.deposit_due_at AS "depositDueAt", pb.balance_due_pence AS "balanceDuePence",
          pb.balance_due_on::text AS "balanceDueOn",
+         pb.payment_terms_snapshot AS "paymentTermsSnapshot",
          pb.payment_reported_at AS "paymentReportedAt", pb.payment_received_at AS "paymentReceivedAt",
          pb.pricing_currency AS "recordedCurrency", pb.guest_total_pence AS "recordedTotalPence",
          pb.pricing_result AS "recordedPricingResult",
