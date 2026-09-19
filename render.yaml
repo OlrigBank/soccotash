@@ -77,6 +77,19 @@ services:
       - key: BOOKING_PUBLIC_URL
         value: https://olrig-bank.com
 
+      # Payment methods remain unavailable until their values are supplied
+      # in the Render Dashboard. Never commit account details or Stripe keys.
+      - key: BOOKING_BANK_PAYEE
+        sync: false
+      - key: BOOKING_BANK_SORT_CODE
+        sync: false
+      - key: BOOKING_BANK_ACCOUNT_NUMBER
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
       # Booker account access to each booking remains available through this many days after departure.
       - key: BOOKING_ACCESS_EXPIRY_DAYS_AFTER_DEPARTURE
         value: "90"

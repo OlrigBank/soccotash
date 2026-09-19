@@ -329,7 +329,7 @@ if (Astro.request.method === 'POST') {
             eventType: response === 'accepted' ? 'payment_required' : 'offer_declined',
             sourceKey: `offer-response:${offer.offerId || offer.bookingReference}:${response}:booker`,
             emailDelivery: responseOffer.guestEmail ? async () => {
-              const sent = await sendCustomerOfferResponseEmail({ offer: responseOffer, propertyName, response, manageUrl });
+              const sent = await sendCustomerOfferResponseEmail({ offer: responseOffer, propertyName, response, manageUrl: response === 'accepted' ? `${manageUrl}payment/` : manageUrl });
               return { ...sent, recipient: responseOffer.guestEmail };
             } : undefined,
           });
@@ -363,7 +363,9 @@ if (Astro.request.method === 'POST') {
           });
         }
 
-        return Astro.redirect(`/booking/manage/${token}/reservation/?response=${response === 'accepted' ? 'payment-required' : 'declined'}&email=${customerEmailStatus}`);
+        return Astro.redirect(response === 'accepted'
+          ? `/booking/manage/${token}/payment/?response=payment-required&email=${customerEmailStatus}`
+          : `/booking/manage/${token}/reservation/?response=declined&email=${customerEmailStatus}`);
       }
 
       const messages: Record<CustomerOfferResponseResult, string> = {

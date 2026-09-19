@@ -86,7 +86,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel('Booker email').fill(EMAIL);
     await page.getByRole('button', { name: 'Continue to review' }).click();
   await page.getByRole('button', { name: 'Request booking' }).click();
-    await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
+    await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/payment\/$/);
     const bookerUrl = page.url();
     await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
     await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
