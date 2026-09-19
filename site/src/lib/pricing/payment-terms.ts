@@ -46,6 +46,7 @@ export function resolvePaymentTerms(input: {
   totalPence: number;
   acceptedAt: Date;
   arrival: string;
+  securityDeposit?: CancellationTermsSnapshot['securityDeposit'];
 }): PaymentTermsSnapshot {
   if (!input.pricingPlanId || !Number.isInteger(input.pricingPlanVersion) || input.pricingPlanVersion < 1) {
     throw new Error('PAYMENT_TERM_PLAN_VERSION_INVALID');
@@ -88,6 +89,9 @@ export function resolvePaymentTerms(input: {
     balanceDuePence: input.totalPence - initialPaymentPence,
     initialPaymentDueAt,
     balanceDueOn,
-    cancellationTerms: DEFAULT_CANCELLATION_TERMS,
+    cancellationTerms: {
+      ...DEFAULT_CANCELLATION_TERMS,
+      securityDeposit: input.securityDeposit ?? DEFAULT_CANCELLATION_TERMS.securityDeposit,
+    },
   };
 }

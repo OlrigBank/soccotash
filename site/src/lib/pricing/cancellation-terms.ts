@@ -11,7 +11,11 @@ export type CancellationTermsSnapshot = {
   maximumGuests: 8;
   calculationBasis: 'verified_payments';
   refundBands: CancellationRefundBand[];
-  securityDeposit: null;
+  securityDeposit: {
+    amountPence: number;
+    holdDaysBeforeArrival: number;
+    releaseDaysAfterDeparture: number;
+  } | null;
   processingFeeExcluded: false;
 };
 
@@ -56,7 +60,10 @@ export function formatCancellationTerms(snapshot: CancellationTermsSnapshot = DE
     `Cancellations 30 days or more before arrival receive ${snapshot.refundBands[0].refundPercentage}% of verified payments made.`,
     `Cancellations 14 to 29 days before arrival receive ${snapshot.refundBands[1].refundPercentage}% of verified payments made.`,
     `Cancellations fewer than 14 days before arrival receive ${snapshot.refundBands[2].refundPercentage}% of verified payments made.`,
-    'Refunds are calculated on verified payments recorded for this booking. No security deposit is currently charged.',
+    'Refunds are calculated on verified payments recorded for this booking.',
+    snapshot.securityDeposit
+      ? `A security deposit of £${(snapshot.securityDeposit.amountPence / 100).toFixed(2)} is authorised ${snapshot.securityDeposit.holdDaysBeforeArrival} day(s) before arrival and released ${snapshot.securityDeposit.releaseDaysAfterDeparture} day(s) after departure.`
+      : 'No security deposit is currently charged.',
   ].join(' ');
 }
 

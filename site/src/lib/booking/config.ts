@@ -14,6 +14,12 @@ export type PropertyConfig = {
   minimumNights: number;
   maximumGuests: number;
   enabled: boolean;
+  image?: string;
+  rating?: number;
+  reviewCount?: number;
+  securityDepositPence?: number;
+  securityDepositHoldDaysBeforeArrival?: number;
+  securityDepositReleaseDaysAfterDeparture?: number;
 };
 
 let cache: PropertyConfig[] | undefined;

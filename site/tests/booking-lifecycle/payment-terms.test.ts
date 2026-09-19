@@ -61,6 +61,24 @@ test('requires full payment when acceptance is exactly 42 days before arrival', 
   assert.equal(result.balanceDueOn, '2026-08-20');
 });
 
+test('snapshots a configured security deposit with the accepted payment terms', () => {
+  const result = resolvePaymentTerms({
+    rules: paymentRules,
+    pricingPlanId: '17',
+    pricingPlanVersion: 3,
+    totalPence: 200_000,
+    acceptedAt: new Date('2026-08-01T12:00:00.000Z'),
+    arrival: '2026-10-01',
+    securityDeposit: { amountPence: 15_000, holdDaysBeforeArrival: 0, releaseDaysAfterDeparture: 2 },
+  });
+
+  assert.deepEqual(result.cancellationTerms.securityDeposit, {
+    amountPence: 15_000,
+    holdDaysBeforeArrival: 0,
+    releaseDaysAfterDeparture: 2,
+  });
+});
+
 test('fails closed when a required pricing-plan payment rule is missing', () => {
   assert.throws(
     () => resolvePaymentTerms({

@@ -30,3 +30,15 @@ test('administrator reservation view provides a recorded refund decision path', 
   assert.match(adminView, /record-refund-decision/);
   assert.match(adminView, /refund_decision_recorded/);
 });
+
+test('payment page exposes the reference summary and state-aware actions', async () => {
+  const paymentView = await source('src/pages/booking/manage/[token]/payment/index.astro');
+
+  assert.match(paymentView, /role="tablist"/);
+  assert.match(paymentView, /Credit card/);
+  assert.match(paymentView, /Bank transfer/);
+  assert.match(paymentView, /Reservation summary/);
+  assert.match(paymentView, /Add a promo code/);
+  assert.match(paymentView, /Confirm reservation/);
+  assert.match(paymentView, /payment-action-bar/);
+});

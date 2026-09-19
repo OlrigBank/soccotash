@@ -1549,6 +1549,13 @@ export async function respondToCustomerBookingOffer(
         totalPence: Number(row.offer_total_pence),
         acceptedAt,
         arrival: row.arrival,
+        securityDeposit: property.securityDepositPence
+          ? {
+              amountPence: property.securityDepositPence,
+              holdDaysBeforeArrival: property.securityDepositHoldDaysBeforeArrival ?? 0,
+              releaseDaysAfterDeparture: property.securityDepositReleaseDaysAfterDeparture ?? 2,
+            }
+          : null,
       });
 
       await client.query(

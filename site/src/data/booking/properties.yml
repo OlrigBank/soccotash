@@ -5,6 +5,10 @@ properties:
     airbnbCalendarEnv: AIRBNB_MAIN_HOUSE_ICAL_URLS
     minimumNights: 2
     maximumGuests: 10
+    image: /media/images/listings/house.jpeg
+    securityDepositPence: 15000
+    securityDepositHoldDaysBeforeArrival: 0
+    securityDepositReleaseDaysAfterDeparture: 2
     enabled: true
   - id: cottage
     name: Cottage at Olrig Bank
@@ -12,6 +16,10 @@ properties:
     airbnbCalendarEnv: AIRBNB_COTTAGE_ICAL_URLS
     minimumNights: 2
     maximumGuests: 4
+    image: /media/images/listings/cottage.jpeg
+    securityDepositPence: 15000
+    securityDepositHoldDaysBeforeArrival: 0
+    securityDepositReleaseDaysAfterDeparture: 2
     enabled: true
   - id: whole-property
     name: Olrig Bank++
