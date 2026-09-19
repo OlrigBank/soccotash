@@ -161,6 +161,15 @@ export async function reportManualBankTransfer(token: string): Promise<ReportMan
         FOR UPDATE`,
       [row.id],
     );
+    const activeCheckout = await client.query(
+      `SELECT 1 FROM booking_checkout_attempts
+        WHERE provisional_booking_id = $1 AND status IN ('creating', 'open') LIMIT 1`,
+      [row.id],
+    );
+    if (activeCheckout.rowCount) {
+      await client.query('ROLLBACK');
+      return 'payment_not_due';
+    }
     if (payments.rows.some((payment) => payment.status === 'reported')) {
       await client.query('ROLLBACK');
       return 'already_reported';

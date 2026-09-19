@@ -340,7 +340,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         return;
       }
       window.olrigAnalytics?.track('booking_requested', { property: state.selection.propertyId, pricing_available: quote.pricingAvailable === true });
-      window.location.assign(managePath);
+      window.location.assign(`${managePath}payment/`);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {

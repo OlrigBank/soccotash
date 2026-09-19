@@ -72,11 +72,12 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     await page.getByRole('button',{name:'Continue to review'}).click();
     await expect(page.locator('[data-booking-review]')).toBeVisible();
     await page.getByRole('button',{name:'Request booking',exact:true}).click();
-    await expect(page).toHaveURL(/\/booking\/manage\/[0-9a-f-]{36}\/$/);
-    const privatePath=new URL(page.url()).pathname;
+    await expect(page).toHaveURL(/\/booking\/manage\/[0-9a-f-]{36}\/payment\/$/);
+    const paymentPath=new URL(page.url()).pathname;
+    const privatePath=paymentPath.replace(/payment\/$/, '');
     const booking=(await db.query('SELECT id,public_id::text,customer_reference,booker_account_id FROM provisional_bookings WHERE guest_name=$1',[name])).rows[0];
     expect(booking.customer_reference).toMatch(/^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
-    await expect(page.getByText('Reference', { exact: true }).locator('..').locator('code')).toHaveText(booking.customer_reference);
+    await expect(page.getByText('Booking reference', { exact: true }).locator('..').locator('code')).toHaveText(booking.customer_reference);
     accountId=booking.booker_account_id;expect(accountId).toBeTruthy();
     const session=(await context.cookies()).find(cookie=>cookie.name==='olrig_booker_session')!;
     expect(session.httpOnly).toBe(true);expect(session.sameSite).toBe('Lax');expect(session.value.length).toBe(43);

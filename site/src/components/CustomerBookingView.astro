@@ -121,7 +121,7 @@ const statusMessage = cancelled
   : paymentReported
     ? `You reported that the ${initialPaymentLabel} was sent. Olrig Bank must verify the transfer against the bank account before the booking is confirmed.`
     : paymentPending
-      ? `You accepted the offer. Send the required ${initialPaymentLabel} by manual bank transfer; confirmation follows after Olrig Bank verifies receipt.`
+      ? `You accepted the offer. Pay the required ${initialPaymentLabel} by card or bank transfer on the payment page.`
       : requestPending
         ? offer.propertyId === 'bespoke-arrangement'
           ? 'Jenna and the Olrig Bank team are reviewing your non-blocking request. Your dates have not been reserved.'
@@ -277,7 +277,7 @@ const conversationError = messageError || responseError;
           {payments.map((payment) => <tr>
             <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}</td>
             <td><strong>{payment.stage === 'balance' ? 'Balance' : payment.stage === 'full_payment' ? 'Full payment' : 'Deposit'}</strong><small>{money(payment.amountPence, payment.currency)}</small></td>
-            <td>Manual bank transfer</td>
+            <td>{payment.method === 'stripe' ? 'Card' : payment.method === 'bank_transfer' ? 'Bank transfer' : 'Instant bank payment'}</td>
             <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
           </tr>)}
         </tbody></table></div> : <p>No payment has been reported yet.</p>}
@@ -339,6 +339,7 @@ const conversationError = messageError || responseError;
           <p>Your booking remains confirmed while the transfer is reported and verified.</p>
         </div>
         <div class="customer-booking-payment-options">
+          {!adminPreview && <p><a href={`/booking/manage/${offer.bookingReference}/payment/`}>Choose card or bank transfer on the payment page</a></p>}
           <article class="customer-booking-payment-option is-recommended">
             <span class="customer-booking-payment-badge">Available for first live bookings</span>
             <h4>Manual bank transfer</h4>
@@ -366,6 +367,7 @@ const conversationError = messageError || responseError;
             : <p>The remaining balance is {money(offer.balanceDuePence, offer.currency)} and is due by <strong>{offer.balanceDueOn ? dateLabel(offer.balanceDueOn) : 'the date agreed with Olrig Bank'}</strong>.</p>}
         </div>
         <div class="customer-booking-payment-options">
+          {!adminPreview && <p><a href={`/booking/manage/${offer.bookingReference}/payment/`}>Choose card or bank transfer on the payment page</a></p>}
           <article class="customer-booking-payment-option is-recommended">
             <span class="customer-booking-payment-badge">Available for first live bookings</span>
             <h4>Manual bank transfer</h4>
@@ -379,16 +381,6 @@ const conversationError = messageError || responseError;
               <button class="customer-booking-submit customer-booking-accept" type="submit">Report bank transfer sent</button>
             </form>
             <small>This records your report for administrator verification; it does not confirm the booking.</small>
-          </article>
-          <article class="customer-booking-payment-option">
-            <h4>GoCardless Instant Bank Pay</h4>
-            <p>Hosted online bank payment is planned for a later release.</p>
-            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Not available yet</button>
-          </article>
-          <article class="customer-booking-payment-option">
-            <h4>Stripe card payment</h4>
-            <p>Hosted card checkout is planned for a later release.</p>
-            <button type="button" class="customer-booking-submit" disabled aria-disabled="true">Not available yet</button>
           </article>
         </div>
       </section>}

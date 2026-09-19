@@ -1,0 +1,128 @@
+---
+import BookerLayout from '../../../../../layouts/BookerLayout.astro';
+import { getProperties } from '../../../../../lib/booking/config.ts';
+import { resolveBookingAccessCredential } from '../../../../../lib/booking/booking-access.ts';
+import { getCustomerBookingPage } from '../../../../../lib/booking/repository.ts';
+import { getBookingPaymentHistory } from '../../../../../lib/booking/payment-lifecycle.ts';
+import { activeCheckoutAttempt, bankTransferDetails, startCardCheckout, stripeAvailable, switchToBankTransfer } from '../../../../../lib/booking/stripe-checkout.ts';
+import { isSameBookerOrigin } from '../../../../../lib/booker/origin.ts';
+import { formatPartyComposition } from '../../../../../lib/booking/party-composition.ts';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+const token = String(Astro.params.token || '');
+const access = await resolveBookingAccessCredential(token, { recordUse: true, recordDenied: true });
+if (!access.allowed) return new Response('Booking not found.', { status: 404 });
+let offer = await getCustomerBookingPage(token, true);
+if (!offer) return new Response('Booking not found.', { status: 404 });
+const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name || offer.propertyId;
+const publicOrigin = String(process.env.BOOKING_PUBLIC_URL || Astro.url.origin).replace(/\/$/, '');
+let error = '';
+if (Astro.request.method === 'POST') {
+  if (!isSameBookerOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') || '');
+  if (action === 'card-checkout') {
+    const result = await startCardCheckout(token, publicOrigin);
+    if (result.url) return Astro.redirect(result.url, 303);
+    error = result.error || 'Card checkout could not start.';
+  } else if (action === 'switch-to-bank') {
+    error = await switchToBankTransfer(token) || '';
+    if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank`, 303);
+  } else error = 'Choose a payment method to continue.';
+  offer = await getCustomerBookingPage(token, false) || offer;
+}
+const payments = await getBookingPaymentHistory(offer.bookingReference);
+const activeCheckout = await activeCheckoutAttempt(offer.bookingReference);
+const bank = bankTransferDetails();
+const card = stripeAvailable();
+const verifiedDeposit = payments.some((payment) => payment.stage === 'deposit' && payment.status === 'verified');
+const verifiedBalance = payments.some((payment) => payment.stage === 'balance' && payment.status === 'verified');
+const verifiedFull = payments.some((payment) => payment.stage === 'full_payment' && payment.status === 'verified');
+const reported = payments.some((payment) => payment.status === 'reported');
+const awaitingOffer = offer.bookingStatus === 'pending';
+const offerReady = offer.bookingStatus === 'offered' && offer.customerStatus === 'active';
+const balanceDue = offer.bookingStatus === 'confirmed' && verifiedDeposit && !verifiedBalance && offer.balanceDuePence > 0;
+const initialDue = offer.bookingStatus === 'payment_pending' && !verifiedDeposit && !verifiedFull;
+const due = balanceDue || initialDue;
+const amountPence = balanceDue ? offer.balanceDuePence : offer.depositPence;
+const stageLabel = balanceDue ? 'Remaining balance' : offer.balanceDuePence > 0 ? 'Deposit' : 'Full payment';
+const money = (pence: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: offer.currency }).format(pence / 100);
+const date = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
+const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' && offer.bookingStatus !== 'confirmed'
+  ? 'Your card payment is being checked. The reservation will update when Stripe confirms payment.'
+  : Astro.url.searchParams.get('checkout') === 'cancelled'
+    ? 'Card checkout was cancelled. You can try again or choose bank transfer.' : '';
+---
+<BookerLayout title={`Payment · ${propertyName}`} description="Review your booking and choose how to pay." showSidebar={false}>
+  <div class:list={['payment-page', { 'has-payment-bar': due && !reported }]}>
+    <nav class="payment-progress" aria-label="Booking progress"><ol>
+      <li>Dates</li><li>Contact</li><li aria-current={offer.bookingStatus === 'confirmed' ? undefined : 'step'}>Payment</li><li aria-current={offer.bookingStatus === 'confirmed' ? 'step' : undefined}>Reservation</li>
+    </ol></nav>
+    <header class="payment-heading"><p class="eyebrow">Your booking</p><h1>{offer.bookingStatus === 'confirmed' && !balanceDue ? 'Reservation confirmed' : 'Review and pay'}</h1>
+      <p>{propertyName} · {date(offer.arrival)} to {date(offer.departure)}</p></header>
+    {error && <p class="payment-alert" role="alert">{error}</p>}
+    {checkoutMessage && <p class="payment-alert" role="status">{checkoutMessage}</p>}
+    {due && !reported && <div class="payment-mobile-bar" aria-label="Payment due">
+      <div><small>{stageLabel} due</small><strong>{money(amountPence)}</strong></div>
+      <a href="#methods-heading">Choose payment method</a>
+    </div>}
+    <div class="payment-layout"><div class="payment-main">
+      <section class="payment-panel" aria-labelledby="stay-heading"><h2 id="stay-heading">Reservation summary</h2>
+        <dl class="payment-facts"><div><dt>Dates</dt><dd>{date(offer.arrival)} – {date(offer.departure)}</dd></div>
+          <div><dt>Guests</dt><dd>{formatPartyComposition(offer, ', ')}</dd></div>
+          <div><dt>Booking reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
+      </section>
+      <section class="payment-panel" aria-labelledby="contact-heading"><h2 id="contact-heading">Your contact details</h2>
+        <p>{offer.guestName}</p><p>{offer.guestEmail || offer.guestTelephone || 'Contact verified for this booking'}</p>
+      </section>
+      {offer.terms && <section class="payment-panel" aria-labelledby="terms-heading"><h2 id="terms-heading">Offer terms</h2><p>{offer.terms}</p></section>}
+
+      {awaitingOffer && <section class="payment-panel payment-state" aria-labelledby="review-heading"><h2 id="review-heading">Your request is being reviewed</h2>
+        <p>Olrig Bank will confirm the price and terms before payment is requested. Return through your private booking link when the offer is ready.</p>
+        <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View request details</a></section>}
+      {offerReady && <section class="payment-panel payment-state" aria-labelledby="offer-heading"><h2 id="offer-heading">Your offer is ready</h2>
+        <p>Review the dates, total and terms, then accept the offer to choose a payment method.</p>
+        <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="accept" />
+          <label class="payment-check"><input type="checkbox" name="confirmAccept" value="yes" required /><span>I have reviewed and accept the dates, price and terms.</span></label>
+          <button class="payment-primary" type="submit">Accept offer and continue to payment</button></form>
+        <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View full offer or decline</a></section>}
+      {due && !reported && <section class="payment-panel" aria-labelledby="methods-heading"><h2 id="methods-heading">Payment details</h2>
+        <p>Choose how to pay the {stageLabel.toLowerCase()} of <strong>{money(amountPence)}</strong>.</p>
+        <div class="payment-methods">
+          <article class="payment-method"><div class="payment-method__heading"><span aria-hidden="true">▣</span><h3>Credit or debit card</h3></div>
+            <p>Pay securely with Stripe. Available cards and wallets appear at checkout.</p>
+            {card ? <form method="post"><input type="hidden" name="action" value="card-checkout" /><button class="payment-primary" type="submit">Pay {money(amountPence)} by card</button></form>
+              : <p class="payment-unavailable">Card payment is temporarily unavailable.</p>}
+          </article>
+          <article class="payment-method"><div class="payment-method__heading"><span aria-hidden="true">▥</span><h3>Bank transfer</h3></div>
+            <p>Send the transfer using the details below. Your reservation is confirmed after Olrig Bank verifies receipt.</p>
+            {activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
+              : bank ? <div class="payment-bank"><dl class="payment-facts"><div><dt>Payee</dt><dd>{bank.payee}</dd></div><div><dt>Sort code</dt><dd>{bank.sortCode}</dd></div>
+                <div><dt>Account number</dt><dd>{bank.accountNumber}</dd></div><div><dt>Amount</dt><dd>{money(amountPence)}</dd></div><div><dt>Reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
+                <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" />
+                  <label class="payment-check"><input type="checkbox" name="confirmTransfer" value="yes" required /><span>I confirm that I have sent this bank transfer.</span></label>
+                  <button class="payment-primary" type="submit">Report bank transfer sent</button></form>
+              </div> : <p class="payment-unavailable">Bank transfer details are temporarily unavailable. Please contact Olrig Bank through your booking messages.</p>}
+          </article>
+        </div>
+      </section>}
+      {reported && <section class="payment-panel payment-state" aria-labelledby="reported-heading"><h2 id="reported-heading">Bank transfer awaiting verification</h2><p>Olrig Bank will check for your payment. Your booking status will update after receipt is verified.</p></section>}
+      {offer.bookingStatus === 'confirmed' && !balanceDue && <section class="payment-panel payment-state"><h2>Reservation confirmed</h2><p>Your payment has been recorded. You can review the reservation and any remaining balance in your private booking area.</p></section>}
+      {['cancelled', 'declined', 'expired'].includes(offer.bookingStatus) && <section class="payment-panel payment-state"><h2>Payment is unavailable</h2><p>This offer is no longer active. Open the reservation for the current status and available next steps.</p></section>}
+    </div><aside class="payment-totals" aria-label="Payment summary"><h2>Payment summary</h2>
+      <dl class="payment-facts"><div><dt>{awaitingOffer ? 'Provisional total' : 'Booking total'}</dt><dd>{offer.priceAvailable ? money(offer.totalPence) : 'Price to be agreed'}</dd></div>
+        {(due || offerReady) && <div><dt>{offerReady ? 'Due after acceptance' : stageLabel}</dt><dd>{offerReady ? 'Calculated on acceptance' : money(amountPence)}</dd></div>}
+        {offer.balanceDuePence > 0 && !balanceDue && <div><dt>Remaining balance</dt><dd>{money(offer.balanceDuePence)}</dd></div>}
+        {offer.balanceDueOn && <div><dt>Balance deadline</dt><dd>{date(offer.balanceDueOn)}</dd></div>}</dl>
+      <a href={`/booking/manage/${token}/reservation/`}>View reservation details</a>
+    </aside></div>
+  </div>
+</BookerLayout>
+
+<style>
+  .payment-page{max-width:74rem;margin:0 auto;padding:clamp(1rem,3vw,2.5rem);color:#22342f}.payment-progress ol{display:flex;gap:.5rem;list-style:none;padding:0;margin:0 0 2rem;flex-wrap:wrap;color:#5b6862}.payment-progress li+li::before{content:'›';margin-right:.5rem;color:#83918a}.payment-progress [aria-current]{font-weight:700;color:#173d32;border-bottom:3px solid #b98648}.payment-heading h1{font-size:clamp(2rem,4vw,3.3rem);margin:.2rem 0}.payment-heading p:last-child{color:#59665d;margin-top:.25rem}.payment-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(16rem,1fr);gap:1.5rem;align-items:start}.payment-main{display:grid;gap:1rem;min-width:0}.payment-panel,.payment-totals{background:#fffdf8;border:1px solid #d9dfd5;border-radius:1rem;padding:clamp(1.1rem,2vw,1.7rem);box-shadow:0 7px 28px #173d320b}.payment-panel h2,.payment-totals h2{font-size:1.35rem;margin:0 0 1rem}.payment-panel p{margin:.4rem 0 1rem}.payment-facts{margin:0;display:grid;gap:.75rem}.payment-facts div{display:flex;justify-content:space-between;gap:1rem;border-bottom:1px solid #e4e8df;padding-bottom:.65rem}.payment-facts div:last-child{border:0;padding-bottom:0}.payment-facts dt{color:#59665d}.payment-facts dd{margin:0;text-align:right;font-weight:650;overflow-wrap:anywhere}.payment-facts code{font:inherit;letter-spacing:.04em}.payment-methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.payment-method{border:1px solid #cad7ce;border-radius:.8rem;padding:1.1rem;min-width:0}.payment-method:focus-within{outline:3px solid #b98648;outline-offset:2px}.payment-method__heading{display:flex;align-items:center;gap:.65rem}.payment-method__heading span{font-size:1.7rem;color:#316a54}.payment-method h3{font-size:1.1rem;margin:0}.payment-method p{font-size:.95rem}.payment-primary,.payment-secondary{display:inline-block;appearance:none;border:1px solid #204d3d;border-radius:.55rem;padding:.8rem 1rem;text-decoration:none;font:inherit;font-weight:700;cursor:pointer}.payment-primary{background:#204d3d;color:#fff}.payment-secondary{background:#fffdf8;color:#204d3d}.payment-primary:hover{background:#123a2b}.payment-primary:focus-visible,.payment-secondary:focus-visible,.payment-mobile-bar a:focus-visible,.payment-totals a:focus-visible{outline:3px solid #b98648;outline-offset:3px}.payment-bank{border-top:1px solid #d9dfd5;padding-top:1rem}.payment-bank .payment-facts{margin-bottom:1.2rem}.payment-bank .payment-facts div{display:block}.payment-bank .payment-facts dd{text-align:left}.payment-check{display:flex;gap:.7rem;align-items:start;margin:1rem 0}.payment-check input{width:1.2rem;height:1.2rem;flex:none;accent-color:#204d3d}.payment-state{border-left:5px solid #b98648}.payment-alert{padding:1rem;background:#fff1df;border:1px solid #d49f55;border-radius:.5rem}.payment-unavailable{color:#6a4f34}.payment-totals{position:sticky;top:1rem}.payment-totals a{display:inline-block;margin-top:1.2rem;color:#204d3d;font-weight:700}.payment-mobile-bar{display:none}@media(max-width:800px){.payment-layout{grid-template-columns:1fr}.payment-totals{position:static;order:-1}.payment-methods{grid-template-columns:1fr}}@media(max-width:480px){.payment-page{padding:1rem}.payment-progress{font-size:.9rem}.payment-panel,.payment-totals{padding:1rem}.payment-facts div{display:block}.payment-facts dd{text-align:left}.payment-primary,.payment-secondary{width:100%;text-align:center}.payment-mobile-bar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:1rem;justify-content:space-between;background:#fffdf8;border-top:1px solid #cad7ce;box-shadow:0 5px 25px #173d3220;padding:.7rem 1rem;margin:0 0 1rem}.payment-mobile-bar div{display:grid}.payment-mobile-bar small{color:#59665d}.payment-mobile-bar strong{font-size:1.2rem}.payment-mobile-bar a{background:#204d3d;color:#fff;padding:.75rem;border-radius:.55rem;text-align:center;text-decoration:none;font-weight:700}}
+</style>

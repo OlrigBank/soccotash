@@ -181,7 +181,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
             emailDelivery: saved.email ? async () => ({ ...await sendBookingOfferEmail({
               booking: saved, propertyName: property.name, currency: offer.currency, lineItems: offer.lineItems,
               totalPence: offer.totalPence, offerMessage: offer.offerMessage || '', terms: offer.terms || '',
-              validUntil: offer.validUntil, subject: offer.subject, manageUrl,
+              validUntil: offer.validUntil, subject: offer.subject, manageUrl: `${manageUrl}payment/`,
             }), recipient: saved.email }) : undefined,
           });
           if (delivery.status === 'sent' || delivery.status === 'submitted') {
