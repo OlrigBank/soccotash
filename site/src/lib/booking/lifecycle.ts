@@ -109,6 +109,10 @@ export const BOOKING_ACTIONS = {
     label: 'Verify payment',
     description: 'Record administrator verification that the required payment was received.',
   },
+  verify_card_payment: {
+    label: 'Record card payment',
+    description: 'Confirm a booking after Stripe reports the required card payment as paid.',
+  },
   reject_payment_report: {
     label: 'Reject payment report',
     description: 'Return an unverified or incorrect payment report to payment required.',
@@ -116,6 +120,10 @@ export const BOOKING_ACTIONS = {
   verify_balance_payment: {
     label: 'Verify balance payment',
     description: 'Verify the reported remaining balance while retaining confirmation.',
+  },
+  verify_card_balance_payment: {
+    label: 'Record card balance payment',
+    description: 'Record a paid card balance while retaining confirmation.',
   },
   reject_balance_payment_report: {
     label: 'Reject balance payment report',
@@ -167,9 +175,11 @@ export const BOOKING_TRANSITION_RULES: readonly BookingTransitionRule[] = Object
   rule({ id: 'offered.expire_offer.system', from: 'offered', action: 'expire_offer', actor: 'system', to: 'expired', calendarEffect: 'release', requirements: [], activityEvent: 'offer_expired', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: [] }),
   rule({ id: 'payment_pending.report_payment.booker', from: 'payment_pending', action: 'report_payment', actor: 'booker', to: 'payment_reported', calendarEffect: 'retain', requirements: ['confirmation'], activityEvent: 'payment_reported', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['administrator'] }),
   rule({ id: 'payment_reported.verify_payment.administrator', from: 'payment_reported', action: 'verify_payment', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'], activityEvent: 'payment_verified_booking_confirmed', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
+  rule({ id: 'payment_pending.verify_card_payment.system', from: 'payment_pending', action: 'verify_card_payment', actor: 'system', to: 'confirmed', calendarEffect: 'retain', requirements: [], activityEvent: 'card_payment_verified_booking_confirmed', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'payment_reported.reject_payment_report.administrator', from: 'payment_reported', action: 'reject_payment_report', actor: 'administrator', to: 'payment_pending', calendarEffect: 'retain', requirements: ['reason'], activityEvent: 'payment_report_rejected', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'confirmed.report_balance_payment.booker', from: 'confirmed', action: 'report_balance_payment', actor: 'booker', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'], activityEvent: 'balance_payment_reported', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['administrator'] }),
   rule({ id: 'confirmed.verify_balance_payment.administrator', from: 'confirmed', action: 'verify_balance_payment', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['confirmation'], activityEvent: 'balance_payment_verified', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
+  rule({ id: 'confirmed.verify_card_balance_payment.system', from: 'confirmed', action: 'verify_card_balance_payment', actor: 'system', to: 'confirmed', calendarEffect: 'retain', requirements: [], activityEvent: 'card_balance_payment_verified', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
   rule({ id: 'confirmed.reject_balance_payment_report.administrator', from: 'confirmed', action: 'reject_balance_payment_report', actor: 'administrator', to: 'confirmed', calendarEffect: 'retain', requirements: ['reason'], activityEvent: 'balance_payment_report_rejected', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] }),
   ...(['pending', 'offered', 'offer_accepted', 'payment_pending'] as const).map((from) => rule({ id: `${from}.cancel_booking.administrator`, from, action: 'cancel_booking', actor: 'administrator', to: 'cancelled', calendarEffect: 'release', requirements: ['confirmation', 'reason'], activityEvent: 'booking_cancelled', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['booker'] })),
   ...(['pending', 'offered', 'offer_accepted', 'payment_pending', 'payment_reported', 'confirmed', 'approved'] as const).map((from) => rule({ id: `${from}.cancel_booking.booker`, from, action: 'cancel_booking', actor: 'booker', to: 'cancelled', calendarEffect: 'release', requirements: ['confirmation', 'reason'], activityEvent: 'booking_cancelled', botMessageTargets: ['booker', 'administrator'], emailNotificationTargets: ['administrator'] })),

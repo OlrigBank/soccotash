@@ -728,7 +728,7 @@ if (arrangementAssigned) {
             <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}<small><code>{payment.publicId}</code></small></td>
             <td>{payment.stage.replaceAll('_', ' ')}</td>
             <td>{money(payment.amountPence, payment.currency)}</td>
-            <td>Manual bank transfer</td>
+            <td>{payment.method === 'stripe' ? 'Card' : payment.method === 'bank_transfer' ? 'Bank transfer' : 'Instant bank payment'}</td>
             <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
           </tr>)}
         </tbody></table></div> : <p class="muted">No payment has been reported.</p>}

@@ -86,10 +86,10 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel('Booker email').fill(EMAIL);
     await page.getByRole('button', { name: 'Continue to review' }).click();
   await page.getByRole('button', { name: 'Request booking' }).click();
-    await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/$/);
+    await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/payment\/$/);
     const bookerUrl = page.url();
     await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
-    await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Booking progress' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
@@ -111,7 +111,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(adminPage.getByText("Awaiting the Booker's date decision")).toBeVisible();
 
     await page.reload();
-    await page.getByRole('link', { name: /Reservation/ }).click();
+    await page.getByRole('link', { name: /reservation details/i }).click();
     await expect(page.getByRole('heading', { name: 'Olrig Bank has suggested a change to your request' })).toBeVisible();
     await page.getByRole('button', { name: 'Keep my original dates' }).click();
     await expect(page.getByText('Your original dates were kept')).toBeVisible();
@@ -135,12 +135,13 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(adminPage.getByRole('status').filter({ hasText: 'The offer is published on the Booker booking page.' })).toBeVisible();
 
     await page.goto(bookerUrl);
-    await page.getByRole('link', { name: /Reservation/ }).click();
+    await page.getByRole('link', { name: /reservation details/i }).click();
     await expect(page.getByRole('heading',{name:'Olrig Bank'}).last()).toBeVisible();
     await expect(page.getByText('Approved for 4 adults')).toBeVisible();
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
-    await expect(page.getByText(/offer is accepted/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Review and pay' })).toBeVisible();
+    await page.getByRole('link', { name: /reservation details/i }).click();
     const cancellationForm = page.locator('form').filter({ has: page.locator('input[name="action"][value="cancel-booking"]') });
     await cancellationForm.getByLabel('Reason for cancellation').fill('Automated regression completed');
     await cancellationForm.getByLabel(/I confirm that I want to cancel this booking/).evaluate((checkbox: HTMLInputElement) => {

@@ -13,6 +13,7 @@ import {
   verifyReportedPayment,
 } from '../../../../../lib/booking/payment-lifecycle';
 import { deliverBookingLifecycleNotification } from '../../../../../lib/booking/lifecycle-notification';
+import { listCheckoutAttempts } from '../../../../../lib/booking/stripe-checkout';
 
 export const prerender = false;
 
@@ -27,6 +28,7 @@ const publicOrigin = configuredPublicOrigin || Astro.url.origin;
 const money = (pence: number, currency = 'GBP') => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(pence / 100);
 let error = '';
 let payments = await getBookingPaymentHistory(reference);
+const checkoutAttempts = await listCheckoutAttempts(reference);
 let reportedPayment = await getReportedBookingPayment(reference);
 
 if (Astro.request.method === 'POST') {
@@ -185,7 +187,7 @@ const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
       <div><dt>{initialPaymentLabel}</dt><dd>{money(booking.depositPence ?? 0, currency)}</dd></div>
       <div><dt>Initial payment due</dt><dd>{booking.depositDueAt ? new Date(booking.depositDueAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' }) : 'Not recorded'}</dd></div>
       {!fullPaymentRequired && <div><dt>Remaining balance</dt><dd>{money(booking.balanceDuePence ?? 0, currency)} · due {booking.balanceDueOn ?? 'date not recorded'}</dd></div>}
-      <div><dt>Payment method</dt><dd>Manual bank transfer</dd></div>
+      <div><dt>Payment method</dt><dd>{payments[0]?.method === 'stripe' ? 'Card' : payments[0]?.method === 'bank_transfer' ? 'Bank transfer' : 'Not chosen'}</dd></div>
       {reportedPayment && <div><dt>Report ID</dt><dd><code>{reportedPayment.publicId}</code></dd></div>}
     </dl>
   </section>
@@ -231,14 +233,27 @@ const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
   <section class="admin-panel">
     <p class="eyebrow">Permanent financial record</p>
     <h2>Payment history</h2>
-    {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Reported</th><th>Stage</th><th>Amount</th><th>Status</th><th>Decision</th></tr></thead><tbody>
+    {payments.length ? <div class="admin-table-wrap"><table><thead><tr><th>Recorded</th><th>Stage</th><th>Amount</th><th>Status</th><th>Decision</th></tr></thead><tbody>
       {payments.map((payment) => <tr>
         <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}<small><code>{payment.publicId}</code></small></td>
         <td>{payment.stage.replaceAll('_', ' ')}</td>
-        <td>{money(payment.amountPence, payment.currency)}<small>Manual bank transfer</small></td>
+        <td>{money(payment.amountPence, payment.currency)}<small>{payment.method === 'stripe' ? 'Card' : payment.method === 'bank_transfer' ? 'Bank transfer' : 'Instant bank payment'}</small></td>
         <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span></td>
         <td>{payment.verifiedAt ? `Verified ${new Date(payment.verifiedAt).toLocaleString('en-GB')}` : payment.rejectedAt ? `Rejected ${new Date(payment.rejectedAt).toLocaleString('en-GB')}` : payment.cancelledAt ? `Closed ${new Date(payment.cancelledAt).toLocaleString('en-GB')}` : 'Awaiting verification'}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}</td>
       </tr>)}
     </tbody></table></div> : <p class="muted">No payment has been reported.</p>}
   </section>
+
+  {checkoutAttempts.length > 0 && <section class="admin-panel">
+    <p class="eyebrow">Card checkout</p><h2>Checkout attempts</h2>
+    <div class="admin-table-wrap"><table><thead><tr><th>Started</th><th>Stage</th><th>Amount</th><th>Status</th><th>Provider reference</th></tr></thead><tbody>
+      {checkoutAttempts.map((attempt) => <tr>
+        <td>{new Date(attempt.createdAt).toLocaleString('en-GB')}</td>
+        <td>{attempt.stage.replaceAll('_', ' ')}</td>
+        <td>{money(attempt.amountPence, attempt.currency)}</td>
+        <td><strong>{attempt.status === 'refund_required' ? 'Refund requires attention' : attempt.status.replaceAll('_', ' ')}</strong></td>
+        <td><code>{attempt.stripePaymentIntentId || attempt.stripeSessionId || attempt.id}</code></td>
+      </tr>)}
+    </tbody></table></div>
+  </section>}
 </AdminLayout>

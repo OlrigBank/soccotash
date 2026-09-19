@@ -65,7 +65,7 @@ test('E11 persists a non-notifying request and resumes its private page', async 
     expect(deliveries.rows.every(row => ['skipped', 'not_requested'].includes(row.status))).toBe(true);
     await page.reload();
     await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
-    await expect(page.getByRole('navigation', { name: 'Your booking' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Booking progress' })).toBeVisible();
     // Disposable administrator session; no real credentials or notifications.
     const admin = await database.query("INSERT INTO admin_users(email,display_name,password_hash) VALUES($1,'E11 disposable administrator','unusable-test-password') RETURNING id", [adminEmail]);
     const token = randomBytes(32).toString('base64url');
