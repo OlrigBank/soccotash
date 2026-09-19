@@ -1,5 +1,6 @@
 import { formatDate, isIsoDate, parseDate } from '../booking/dates.ts';
 import type { PricingRule } from './types.ts';
+import { DEFAULT_CANCELLATION_TERMS, type CancellationTermsSnapshot } from './cancellation-terms.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -14,6 +15,7 @@ export type PaymentTermsSnapshot = {
   balanceDuePence: number;
   initialPaymentDueAt: string;
   balanceDueOn: string;
+  cancellationTerms: CancellationTermsSnapshot;
 };
 
 type PaymentTermRuleType =
@@ -86,5 +88,6 @@ export function resolvePaymentTerms(input: {
     balanceDuePence: input.totalPence - initialPaymentPence,
     initialPaymentDueAt,
     balanceDueOn,
+    cancellationTerms: DEFAULT_CANCELLATION_TERMS,
   };
 }
