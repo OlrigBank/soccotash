@@ -1,3 +1,4 @@
+import { getEditableRequestJourney } from '../../lib/booking/request-journey.ts';
 import { sendBookingOfferEmail } from '../../lib/booking/offer-email';
 import { directOfferDecision } from '../../lib/booking/direct-offer.ts';
 import { browserToken, hashToken, sessionAccount, setSession, resumeSubmission, BookerError } from '../../lib/booker/accounts.ts';
@@ -31,13 +32,22 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
     }
 
     const input = await request.json();
+    const editReference = input.bookingReference == null ? null : String(input.bookingReference);
+    if (editReference && (!validBookingReference(editReference) || !Number.isInteger(input.expectedRevision) || input.expectedRevision < 1)) {
+      return Response.json({ error: 'A valid saved booking revision is required.' }, { status: 400 });
+    }
     if (validBookingReference(String(input.submissionId || ''))) {
       const previous = await resumeSubmission(input.submissionId, hashToken(browserToken(cookies, url)));
       if (previous) {
+        if (editReference && previous.reference !== editReference) throw new BookerError('This submission belongs to another booking.', 409);
         setSession(cookies, previous.sessionToken, url);
         const saved = await getProvisionalBookingRequest(previous.reference);
-        return Response.json({ reference: previous.reference, customerReference: saved?.customerReference, status: saved?.status, managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
+        return Response.json({ reference: previous.reference, customerReference: saved?.customerReference, status: saved?.status, journeyRevision: saved?.requestJourneyRevision, managePath: `/booking/manage/${previous.reference}/` }, { status: 201 });
       }
+    }
+    const accountId = await sessionAccount(cookies);
+    if (editReference && !await getEditableRequestJourney(editReference, accountId)) {
+      throw new BookerError('This booking can no longer be edited here. Open your booking messages to request a change.', 409);
     }
     const property = getProperty(String(input.propertyId || ''));
     if (!property) return Response.json({ error: 'Unknown property.' }, { status: 400 });
@@ -144,10 +154,19 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       return Response.json({ error: restrictions || 'This stay does not meet the published booking rules.' }, { status: 422 });
     }
 
+    const decision = directOfferDecision({ propertyId: property.id, administratorPriced: property.administratorPriced,
+      occupancyOutcome: occupancyAssessment.result.outcome, promoCode, pricingQuote });
+    if (input.journeyMode === 'payment' && !decision.automaticOffer) {
+      return Response.json({ error: 'This stay now requires review. Check the updated details before sending your request.',
+        quote: { ...(pricingQuote ? publicQuotePayload(pricingQuote) : { pricingAvailable: false }), ...decision },
+      }, { status: 409 });
+    }
     if (!validBookingReference(String(input.submissionId || ''))) return Response.json({ error: 'A submission identifier is required.' }, { status: 400 });
     const booking = await createProvisionalBooking({
-      authorisation: { browserHash: hashToken(browserToken(cookies, url)), accountId: await sessionAccount(cookies),
+      authorisation: { browserHash: hashToken(browserToken(cookies, url)), accountId,
         email, mobile: whatsappConsent.telephoneE164, submissionId: input.submissionId },
+      requestJourney: input.journeyMode === 'payment',
+      edit: editReference ? { reference: editReference, revision: input.expectedRevision } : undefined,
       propertyId: property.id,
       arrival,
       departure,
@@ -181,7 +200,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
             emailDelivery: saved.email ? async () => ({ ...await sendBookingOfferEmail({
               booking: saved, propertyName: property.name, currency: offer.currency, lineItems: offer.lineItems,
               totalPence: offer.totalPence, offerMessage: offer.offerMessage || '', terms: offer.terms || '',
-              validUntil: offer.validUntil, subject: offer.subject, manageUrl,
+              validUntil: offer.validUntil, subject: offer.subject, manageUrl: `${manageUrl}payment/`,
             }), recipient: saved.email }) : undefined,
           });
           if (delivery.status === 'sent' || delivery.status === 'submitted') {
@@ -213,6 +232,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       reference: booking.reference,
       customerReference: saved?.customerReference,
       status: saved?.status,
+      journeyRevision: saved?.requestJourneyRevision,
       managePath: `/booking/manage/${booking.reference}/`,
       pricingAvailable: Boolean(pricingQuote),
       currency: pricingQuote?.result.currency,

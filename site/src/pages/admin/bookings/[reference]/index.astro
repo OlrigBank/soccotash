@@ -43,6 +43,7 @@ import { PlannerError } from '../../../../lib/planner/types.ts';
 import { getOccupancyDetails, occupancyDetailsFromForm, replaceOccupancyDetails } from '../../../../lib/booking/occupancy-details';
 import { listAccommodationModel } from '../../../../lib/accommodation/repository.ts';
 import { getOfferAllocation } from '../../../../lib/accommodation/allocation.ts';
+import { calculateCancellationRefund, cancellationTermsSnapshot, formatCancellationTerms } from '../../../../lib/pricing/cancellation-terms.ts';
 
 export const prerender = false;
 
@@ -93,6 +94,10 @@ function pricingLines(value: Record<string, unknown> | null | undefined): Bookin
 let offers = await getBookingOffers(reference);
 let activity = await getBookingActivity(reference);
 let payments = await getBookingPaymentHistory(reference);
+const cancellationTerms = cancellationTermsSnapshot(booking.paymentTermsSnapshot?.cancellationTerms);
+const cancellationRefund = booking.status === 'cancelled'
+  ? calculateCancellationRefund({ arrival: booking.arrival, payments, snapshot: cancellationTerms })
+  : null;
 const priorOffer = offers.find((offer) => offer.customerStatus === 'active' || offer.customerStatus === 'accepted') ?? offers[0];
 const recordedPricingLines = pricingLines(booking.pricingResult);
 const priceToBeAgreed = Astro.request.method !== 'POST' && !priorOffer?.lineItems.length && !recordedPricingLines.length && booking.guestTotalPence === null;
@@ -268,6 +273,31 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(
           `/admin/bookings/${reference}/?cancelled=1&email=${notification.status}`,
         );
+      }
+    }
+  } else if (action === 'record-refund-decision') {
+    if (booking.status !== 'cancelled') {
+      error = 'Record a refund decision after the booking has been cancelled.';
+    } else {
+      const refundAmount = poundsToPence(cleanText(form.get('refundAmount'), 30));
+      const reason = cleanText(form.get('refundDecisionReason'), 1000);
+      if (refundAmount === null || refundAmount < 0 || !reason) {
+        error = 'Enter a non-negative refund amount and the decision reason.';
+      } else {
+        await recordBookingActivity({
+          bookingReference: reference,
+          actor: 'administrator',
+          eventType: 'refund_decision_recorded',
+          details: { amountPence: refundAmount, currency: booking.pricingCurrency || 'GBP', reason, policyVersion: cancellationTerms.policyVersion },
+        });
+        await audit(Astro.locals.adminUser!.id, 'booking.refund_decision_recorded', {
+          bookingReference: reference,
+          amountPence: refundAmount,
+          currency: booking.pricingCurrency || 'GBP',
+          reason,
+          policyVersion: cancellationTerms.policyVersion,
+        });
+        return Astro.redirect(`/admin/bookings/${reference}/reservation/?refund=recorded`);
       }
     }
   } else if (action === 'publish-offer') {
@@ -643,6 +673,27 @@ if (arrangementAssigned) {
         {booking.pricingPlanVersion && <p class="pricing-footnote">{booking.pricingPlanName || 'Published pricing plan'} · version {booking.pricingPlanVersion}</p>}
       </section>
 
+      <section class="booking-drawer-section booking-terms-panel" aria-labelledby="admin-terms-heading">
+        <p class="eyebrow">Customer-facing policy</p>
+        <h3 id="admin-terms-heading">Booking and cancellation terms</h3>
+        <p>{formatCancellationTerms(cancellationTerms)}</p>
+        <details><summary>Show refund bands</summary><table><thead><tr><th>Cancellation timing</th><th>Refund</th></tr></thead><tbody>
+          <tr><td>30 days or more before arrival</td><td>{cancellationTerms.refundBands[0].refundPercentage}%</td></tr>
+          <tr><td>14 to 29 days before arrival</td><td>{cancellationTerms.refundBands[1].refundPercentage}%</td></tr>
+          <tr><td>Fewer than 14 days before arrival</td><td>{cancellationTerms.refundBands[2].refundPercentage}%</td></tr>
+        </tbody></table></details>
+        {cancellationRefund && <div class="pricing-message">
+          <strong>Estimated refund: {money(cancellationRefund.refundAmountPence, booking.pricingCurrency || 'GBP')}</strong>
+          <p>{cancellationRefund.refundPercentage}% of {money(cancellationRefund.paymentsMadePence, booking.pricingCurrency || 'GBP')} in verified payments, based on {cancellationRefund.daysBeforeArrival} days before arrival.</p>
+          <form method="post" class="admin-form">
+            <input type="hidden" name="action" value="record-refund-decision" />
+            <label>Final refund amount (£)<input name="refundAmount" type="number" min="0" step="0.01" value={(cancellationRefund.refundAmountPence / 100).toFixed(2)} required /></label>
+            <label>Refund decision reason<textarea name="refundDecisionReason" rows="3" maxlength="1000" required></textarea></label>
+            <button class="admin-button admin-button--secondary" type="submit">Record refund decision</button>
+          </form>
+        </div>}
+      </section>
+
       {isUnassignedBespoke && <section class="booking-drawer-section">
         <div class="pricing-message"><strong>Choose the agreed stay arrangement first.</strong> Pricing and an offer can be prepared after Olrig Bank, Olrig Bank++ or Cottage at Olrig Bank has been assigned.</div>
       </section>}
@@ -728,7 +779,7 @@ if (arrangementAssigned) {
             <td>{new Date(payment.reportedAt).toLocaleString('en-GB')}<small><code>{payment.publicId}</code></small></td>
             <td>{payment.stage.replaceAll('_', ' ')}</td>
             <td>{money(payment.amountPence, payment.currency)}</td>
-            <td>Manual bank transfer</td>
+            <td>{payment.method === 'stripe' ? 'Card' : payment.method === 'bank_transfer' ? 'Bank transfer' : 'Instant bank payment'}</td>
             <td><span class={`status-badge status-${payment.status}`}>{payment.status}</span>{payment.verifiedAt && <small>Verified {new Date(payment.verifiedAt).toLocaleString('en-GB')}</small>}{payment.rejectedAt && <small>Rejected {new Date(payment.rejectedAt).toLocaleString('en-GB')}</small>}{payment.rejectionReason && <small>{payment.rejectionReason}</small>}{payment.cancelledAt && <small>Closed {new Date(payment.cancelledAt).toLocaleString('en-GB')}</small>}</td>
           </tr>)}
         </tbody></table></div> : <p class="muted">No payment has been reported.</p>}

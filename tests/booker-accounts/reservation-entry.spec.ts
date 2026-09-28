@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createReservationFixture } from '../support/reservation-fixture.mjs';
 
-test('booking root opens Reservation and retains statuses, notices and section links', async ({page, context, baseURL}) => {
+test('booking root resumes payment or Reservation and retains notices and section links', async ({page, context, baseURL}) => {
   const fixture = await createReservationFixture();
   const root = `/booking/manage/${fixture.booking.reference}/`;
   const errors: string[] = [];
@@ -15,6 +15,14 @@ test('booking root opens Reservation and retains statuses, notices and section l
     ]) {
       await fixture.setStatus(status);
       await page.goto(root);
+      if (['pending', 'offered', 'payment_pending'].includes(status)) {
+        await expect(page).toHaveURL(`${baseURL}${root}payment/`);
+        await expect(page.getByRole('heading', {name:'Make a payment',exact:true})).toBeVisible();
+        // Reservation-specific controls remain on the explicit workspace route.
+        await page.goto(`${root}reservation/`);
+      } else {
+        await expect(page).toHaveURL(`${baseURL}${root}${status === 'payment_reported' ? '' : 'reservation/'}`);
+      }
       await expect(page).toHaveTitle(/^Your booking ·/);
       await expect(page.locator('.booker-page-header .eyebrow')).toHaveText('Your booking');
       await expect(page.locator('.booker-page-header')).toContainText('19 October 2099 to 23 October 2099');
@@ -26,10 +34,10 @@ test('booking root opens Reservation and retains statuses, notices and section l
       await expect(page.getByRole('heading',{name:'Save this booking link'})).toHaveCount(0);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
       if (status === 'pending') {
-        // Exercise server-side validation on the newly visible root form without cancelling.
+        // Exercise server-side validation on the reservation form without cancelling.
         await page.locator('form').filter({has:page.locator('input[value="cancel-booking"]')}).evaluate((form: HTMLFormElement) => { form.noValidate = true; });
         await page.getByRole('button',{name:'Cancel request',exact:true}).click();
-        await expect(page).toHaveURL(`${baseURL}${root}`);
+        await expect(page).toHaveURL(`${baseURL}${root}reservation/`);
         await expect(page.getByRole('alert')).toContainText('Confirm that this booking should be cancelled');
         await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
         expect((await fixture.database.query('SELECT status FROM provisional_bookings WHERE id=$1',[fixture.booking.id])).rows[0].status).toBe('pending');

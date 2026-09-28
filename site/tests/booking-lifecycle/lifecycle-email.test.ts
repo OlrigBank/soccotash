@@ -7,6 +7,7 @@ import {
 import type { ProvisionalBookingRequest } from '../../src/lib/booking/repository.ts';
 
 const booking: ProvisionalBookingRequest = {
+  requestJourneyRevision: 0,
   reference: '11111111-2222-4333-8444-555555555555',
   customerReference: 'OB-23456789',
   customerAccessToken: 'customer-token',

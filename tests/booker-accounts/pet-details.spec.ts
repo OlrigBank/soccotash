@@ -10,7 +10,7 @@ test('customer pet edits preserve names, reject invalid pets and retain administ
   const pets = async () => (await fixture.database.query('SELECT * FROM booking_pets WHERE provisional_booking_id=$1 ORDER BY position',[fixture.booking.id])).rows;
   try {
     await context.addCookies([{name:'olrig_booker_session',value:fixture.token,url:baseURL!,httpOnly:true,sameSite:'Lax'}]);
-    await page.goto(root);
+    await page.goto(`${root}reservation/`);
     await expect(page.getByRole('region',{name:'Pet details',exact:true})).toHaveCount(0);
     await expect(page.getByRole('button',{name:'Save occupants and pets'})).toHaveCount(0);
     await expect(page.getByText('Optional occupant names')).toHaveCount(0);

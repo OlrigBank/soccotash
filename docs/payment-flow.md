@@ -9,8 +9,8 @@ The direct booking flow is now:
    - deposit percentage;
    - initial-payment deadline in calendar days after acceptance; and
    - balance-payment deadline in calendar days before arrival.
-5. For the first live-booking phase, manual bank transfer is the only active payment method.
-6. GoCardless Instant Bank Pay and Stripe Checkout remain clearly disabled integration stubs.
+5. The private payment page offers hosted Stripe card checkout and manual bank transfer when their service configuration is present.
+6. GoCardless Instant Bank Pay is not active.
 7. Reporting the transfer changes the booking to `payment_reported`. It does **not** confirm the booking or record the money as received.
    The configured booking administrators are notified automatically.
 8. The administrator opens the payment-verification screen from the bookings list and checks the Olrig Bank account.
@@ -23,6 +23,14 @@ The direct booking flow is now:
 13. Reporting, rejecting or verifying the balance leaves the booking `confirmed` and keeps the dates classified as a confirmed direct booking.
 14. The administrator decides the exact reported payment record. Stale forms cannot decide a replacement report.
 15. A verified balance displays the reservation as “Booking confirmed and fully paid”. Rejected and replacement attempts remain visible to both the Booker and administrator.
+
+For card payments, the Booker starts Stripe Checkout for the amount due on the
+private payment page. A signed webhook with a paid Checkout Session records the
+payment as verified and confirms the initial booking. The return URL does not
+change booking state. Checkout creation is idempotent, an active checkout must
+be expired before reporting a bank transfer, and a late paid session for a
+cancelled or already paid stage is flagged for refund. The same path records a
+later card balance while retaining the confirmed status.
 
 An administrator can cancel an active request or booking from its permanent booking record by entering a reason and explicitly confirming the action. Cancellation changes the status to `cancelled`, releases the dates, preserves the booking, conversation and decided payment history, and closes any currently reported payment as `cancelled`. It automatically emails the reason to the Booker. Email failure is recorded but does not roll back the cancellation.
 

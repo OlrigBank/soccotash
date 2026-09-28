@@ -90,6 +90,12 @@ test('retains every payment attempt through deposit, balance, stale decisions an
       'rejected',
     );
     assert.equal(await verifyReportedPayment(booking.public_id, rejectedDepositId, adminId), 'transition_not_allowed');
+    assert.equal(await rejectReportedPayment(booking.public_id, rejectedDepositId, 'Duplicate decision.', adminId), 'transition_not_allowed');
+    const rejectionMessage = await applicationPool.query(
+      `SELECT sender_type, sender_name, body, booker_read_at FROM booking_messages WHERE source_key = $1`,
+      [`payment-rejection-message:${rejectedDepositId}`],
+    );
+    assert.deepEqual(rejectionMessage.rows, [{ sender_type: 'administrator', sender_name: 'Payment Test Admin', body: 'Transfer is not visible.', booker_read_at: null }]);
     assert.equal((await applicationPool.query('SELECT status FROM provisional_bookings WHERE id = $1', [booking.id])).rows[0].status, 'payment_pending');
 
     assert.equal(await reportManualBankTransfer(booking.public_id), 'payment_reported');

@@ -4,6 +4,7 @@ import { assertBookingTransitionAllowed } from './lifecycle.ts';
 import { insertBotBookingMessage } from './messaging.ts';
 import { resolveBookingAccessCredential } from './booking-access.ts';
 import { releaseBookingResourceReservations } from '../accommodation/allocation.ts';
+import { calculateCancellationRefund, cancellationTermsSnapshot, type CancellationRefundEstimate } from '../pricing/cancellation-terms.ts';
 
 export type CancelBookingResult =
   | 'cancelled'
@@ -19,6 +20,7 @@ async function insertCancellationActivity(
     reason: string;
     lifecycleRule: string;
     actor: 'administrator' | 'customer';
+    refundEstimate?: CancellationRefundEstimate | null;
   },
 ): Promise<void> {
   await client.query(
@@ -32,6 +34,7 @@ async function insertCancellationActivity(
       JSON.stringify({
         reason: input.reason,
         lifecycleRule: input.lifecycleRule,
+        refundEstimate: input.refundEstimate || null,
       }),
     ],
   );
@@ -50,7 +53,8 @@ async function cancelBookingForActor(
   try {
     await client.query('BEGIN');
     const selected = await client.query(
-      `SELECT pb.id, pb.status, bo.id AS offer_id
+      `SELECT pb.id, pb.status, pb.arrival::text AS arrival, pb.payment_terms_snapshot,
+              bo.id AS offer_id
          FROM provisional_bookings pb
          LEFT JOIN LATERAL (
            SELECT id
@@ -70,6 +74,15 @@ async function cancelBookingForActor(
     }
 
     const row = selected.rows[0];
+    const verifiedPayments = await client.query(
+      `SELECT amount_pence AS "amountPence", status FROM booking_payments WHERE provisional_booking_id = $1 AND status = 'verified'`,
+      [row.id],
+    );
+    const refundEstimate = calculateCancellationRefund({
+      arrival: row.arrival,
+      payments: verifiedPayments.rows,
+      snapshot: cancellationTermsSnapshot(row.payment_terms_snapshot?.cancellationTerms),
+    });
     let decision;
     try {
       decision = assertBookingTransitionAllowed({
@@ -116,6 +129,7 @@ async function cancelBookingForActor(
       reason,
       lifecycleRule: decision.rule.id,
       actor: actor === 'booker' ? 'customer' : 'administrator',
+      refundEstimate,
     });
     if (restoredOverrides.rowCount) {
       await client.query(

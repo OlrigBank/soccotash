@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { resolveBookingAccessCredential } from '../../../../lib/booking/booking-access';
 import { getBookingMessagesByToken } from '../../../../lib/booking/messaging';
 import { getCustomerBookingPage } from '../../../../lib/booking/repository';
+import { getBookingPaymentHistory } from '../../../../lib/booking/payment-lifecycle';
 
 export const prerender = false;
 
@@ -15,11 +16,12 @@ export const GET: APIRoute = async ({ params, url }) => {
     afterId: url.searchParams.get('after'),
     markRead: true,
   });
+  const payments = await getBookingPaymentHistory(booking.bookingReference);
   return Response.json({
     messages,
     latestMessageId: messages.at(-1)?.id || url.searchParams.get('after') || '0',
     bookingStatus: booking.bookingStatus,
     customerStatus: booking.customerStatus,
-    reservationVersion: `${booking.bookingStatus}:${booking.customerStatus}:${booking.offerId || ''}:${booking.publishedAt || ''}:${booking.arrival}:${booking.departure}:${booking.bespokeSuggestedArrival || ''}`,
+    reservationVersion: `${booking.bookingStatus}:${booking.customerStatus}:${booking.offerId || ''}:${booking.publishedAt || ''}:${booking.arrival}:${booking.departure}:${booking.bespokeSuggestedArrival || ''}:${payments[0]?.publicId || ''}:${payments[0]?.status || ''}`,
   }, { headers: { 'cache-control': 'no-store, private' } });
 };

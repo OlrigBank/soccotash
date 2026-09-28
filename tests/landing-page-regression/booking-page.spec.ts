@@ -154,13 +154,14 @@ test('changed quote needs another explicit submission and safe continuation uses
   await page.getByRole('button', { name: 'Continue to review' }).click();
   let submissions = 0;
   const privatePath = '/booking/manage/11111111-1111-4111-8111-111111111111/';
+  const paymentPath = `${privatePath}payment/`;
   await page.route('**/api/provisional-bookings/**', route => {
     submissions++;
     if (submissions === 1) return route.fulfill({ status: 409, json: { error: 'Price changed. Review the new total.', quote: { ...quote, guestTotalPence: 180000, plan: { id: 'fixture', version: 2 } } } });
     expect(route.request().postDataJSON().reviewedPricing).toMatchObject({ guestTotalPence: 180000, planVersion: 2 });
     return route.fulfill({ status: 201, json: { managePath: privatePath } });
   });
-  await page.route(`**${privatePath}`, route => route.fulfill({ contentType: 'text/html', body: '<h1>Disposable continuation fixture</h1>' }));
+  await page.route(`**${paymentPath}`, route => route.fulfill({ contentType: 'text/html', body: '<h1>Disposable continuation fixture</h1>' }));
   await page.getByRole('button', { name: 'Request booking' }).click();
   await expect(page.locator('[data-booking-submit-review]')).toContainText('£1,800.00');
   await expect(page.locator('[data-booking-submit-review]')).toBeFocused();
@@ -169,7 +170,7 @@ test('changed quote needs another explicit submission and safe continuation uses
   await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.getByLabel('Booker name')).toHaveValue('Changed quote fixture');
   await page.getByRole('button', { name: 'Request booking' }).click();
-  await expect(page).toHaveURL(privatePath);
+  await expect(page).toHaveURL(paymentPath);
   await page.reload(); await expect(page.getByRole('heading')).toHaveText('Disposable continuation fixture');
 });
 

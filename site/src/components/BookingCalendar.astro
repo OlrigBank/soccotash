@@ -1,15 +1,18 @@
 ---
 import BookerVerification from './BookerVerification.astro';
 import CompactBookingPanel from './CompactBookingPanel.astro';
+import type { RequestJourney } from '../lib/booking/request-journey.ts';
+interface Props { journey?: RequestJourney | null; startStep?: string }
+const { journey, startStep = 'details' } = Astro.props;
 ---
-<section class="booking-panel" data-booking-calendar>
+<section class="booking-panel" data-booking-calendar data-booking-reference={journey?.reference} data-journey-revision={journey?.revision} data-saved-pets={journey ? JSON.stringify(journey.petDetails) : undefined}>
   <ol class="booking-progress" aria-label="Booking request progress">
     <li class="is-current" data-progress-step="1" aria-current="step"><span>1</span><strong>Check your stay</strong></li>
     <li data-progress-step="2"><span>2</span><strong>Your details</strong></li>
     <li data-progress-step="3"><span>3</span><strong>Review and send request</strong></li>
   </ol>
   <div data-stay-editor>
-  <CompactBookingPanel source="booking" requestPage={true} quickCheck={true} autoSelectProperty={true} heading="Check your stay" idPrefix="request-stay" />
+  <CompactBookingPanel source="booking" requestPage={true} quickCheck={true} autoSelectProperty={true} heading="Check your stay" idPrefix="request-stay" initialSelection={journey || undefined} bookingReference={journey?.reference} initialStep={startStep} />
   <p class="booking-note">Check the total, then choose Book to enter your details. Your request does not confirm a booking or take payment.</p>
   </div>
   <section class="booking-stay-summary" data-stay-summary hidden aria-label="Your stay">
@@ -24,15 +27,15 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       <p class="booking-step-intro">Tell us who is making the request and how you would like us to reply.</p>
       <div class="booking-field">
         <label for="guest-name">Booker name</label>
-        <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required />
+        <input id="guest-name" name="name" autocomplete="name" minlength="2" maxlength="120" required value={journey?.name} />
       </div>
       <div class="booking-field">
         <label for="guest-email">Booker email</label>
-        <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" />
+        <input id="guest-email" name="email" type="email" autocomplete="email" maxlength="254" value={journey?.email} />
       </div>
       <div class="booking-field">
         <label for="guest-telephone">Mobile number</label>
-        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" />
+        <input id="guest-telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel" maxlength="80" value={journey?.telephone} />
       </div>
       <BookerVerification />
     <div class="booking-field booking-field-wide" data-pet-details hidden>
@@ -42,12 +45,12 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     </div>
       <div class="booking-field booking-field-wide">
         <label for="guest-promo-code">Promo code (optional)</label>
-        <input id="guest-promo-code" name="promoCode" maxlength="80" aria-describedby="promo-code-help" />
+        <input id="guest-promo-code" name="promoCode" value={journey?.promoCode} maxlength="80" aria-describedby="promo-code-help" />
         <p id="promo-code-help" class="booking-note">Promo code requires review. No discount has been applied to this total.</p>
       </div>
       <div class="booking-field booking-field-wide">
         <label for="guest-message">Message to Olrig Bank (optional)</label>
-        <textarea id="guest-message" name="message" rows="4" maxlength="2000"></textarea>
+        <textarea id="guest-message" name="message" rows="4" maxlength="2000">{journey?.message}</textarea>
       </div>
       <button class="button" type="button" data-continue-review disabled>Continue to review</button>
     </fieldset>
@@ -58,6 +61,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
       <button class="button" type="button" data-edit-details>Edit details</button>
       <button class="button" type="submit" data-submit-booking>Request booking</button>
     </fieldset>
+    {journey && <p><a href={`/booking/manage/${journey.reference}/payment/`}>Return to payment without saving</a> · <a href={`/book/?booking=${journey.reference}&step=${startStep}`}>Reload saved booking</a></p>}
     <p class="booking-status" data-booking-status role="status" aria-live="polite"></p>
     <button class="button" type="button" data-review-stay hidden>Review your stay</button>
   </form>
@@ -77,7 +81,20 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
   const petDetails = root?.querySelector<HTMLElement>('[data-pet-details]');
   const petDetailRows = root?.querySelector<HTMLElement>('[data-pet-detail-rows]');
   const isVerified = () => root?.querySelector<HTMLElement>('[data-booker-verification]')?.dataset.verified === 'true';
-  const submissionId = crypto.randomUUID();
+  let submissionId = crypto.randomUUID();
+  let bookingReference = root?.dataset.bookingReference || '';
+  let expectedRevision = Number(root?.dataset.journeyRevision || 0);
+  const savedPets = JSON.parse(root?.dataset.savedPets || '[]');
+  const isStandard = (state = panel?.bookingPanel?.getState()) => state?.quote?.automaticOffer === true
+    && !form?.querySelector<HTMLInputElement>('[name="promoCode"]')?.value.trim();
+  function updateJourneyLabels() {
+    const standard = isStandard();
+    const step = root?.querySelector('[data-progress-step="3"] strong');
+    if (step) step.textContent = standard ? 'Make a payment' : 'Review and send request';
+    if (continueReview) continueReview.textContent = standard ? (bookingReference ? 'Save and continue to payment' : 'Continue to payment') : 'Continue to review';
+    const hint = root?.querySelector('[data-verification-next]');
+    if (hint) hint.textContent = standard ? 'Complete the remaining details below, then continue to payment.' : 'Complete the remaining details below, then choose Continue to review.';
+  }
   root?.addEventListener('booker-verification-change', () => { updateCheck(); if (!isVerified() && activeStep === 3) setProgress(2); });
   let reviewedState: BookingPanelState | null = null;
   let submitting = false;
@@ -126,11 +143,11 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     const previous = [...petDetailRows.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({ species: row.querySelector<HTMLSelectElement>('[data-pet-species]')?.value || 'dog', otherSpecies: row.querySelector<HTMLInputElement>('[data-pet-other]')?.value || '', breed: row.querySelector<HTMLInputElement>('[data-pet-breed]')?.value || '', size: row.querySelector<HTMLSelectElement>('[data-pet-size]')?.value || '', serviceAnimal: row.querySelector<HTMLInputElement>('[data-pet-service]')?.checked || false }));
     petDetailRows.replaceChildren();
     for (let index = 0; index < count; index += 1) {
-      const saved = previous[index] || { species: 'dog', otherSpecies: '', breed: '', size: '', serviceAnimal: false };
+      const saved = previous[index] || savedPets[index] || { species: 'dog', otherSpecies: '', breed: '', size: '', serviceAnimal: false };
       const row = document.createElement('fieldset'); row.dataset.petRow = String(index); row.className = 'booking-pet-detail';
       row.innerHTML = `<legend>Pet ${index + 1}</legend><label>Species<select data-pet-species required><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label><label data-pet-other-label hidden>Other species<input data-pet-other maxlength="80"></label><label>Breed (optional)<input data-pet-breed maxlength="80"></label><label>Size (optional)<select data-pet-size><option value="">Not specified</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><label class="booking-consent"><input type="checkbox" data-pet-service><span>This pet is a service animal</span></label>`;
       const species = row.querySelector<HTMLSelectElement>('[data-pet-species]')!; const other = row.querySelector<HTMLInputElement>('[data-pet-other]')!; const otherLabel = row.querySelector<HTMLElement>('[data-pet-other-label]')!;
-      species.value = saved.species; other.value = saved.otherSpecies; row.querySelector<HTMLInputElement>('[data-pet-breed]')!.value = saved.breed; row.querySelector<HTMLSelectElement>('[data-pet-size]')!.value = saved.size; row.querySelector<HTMLInputElement>('[data-pet-service]')!.checked = saved.serviceAnimal;
+      species.value = saved.species; other.value = saved.otherSpecies || ''; row.querySelector<HTMLInputElement>('[data-pet-breed]')!.value = saved.breed || ''; row.querySelector<HTMLSelectElement>('[data-pet-size]')!.value = saved.size || ''; row.querySelector<HTMLInputElement>('[data-pet-service]')!.checked = saved.serviceAnimal;
       const toggleOther = () => { otherLabel.hidden = species.value !== 'other'; other.required = species.value === 'other'; if (species.value !== 'other') other.value = ''; }; species.addEventListener('change', toggleOther); toggleOther(); petDetailRows.append(row);
     }
   }
@@ -176,6 +193,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     const state = panel?.bookingPanel?.getState();
     const check = panel?.bookingPanel?.getCheckState();
     if (!state || !check) return;
+    updateJourneyLabels();
     if (staySummaryText) {
       const selection = state.selection;
       const stay = panel?.querySelector<HTMLSelectElement>('[name="propertyId"]')?.selectedOptions[0]?.textContent || 'Your stay';
@@ -183,7 +201,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     }
     if (checkStatus) checkStatus.textContent = check.checking ? 'Checking the latest availability and price…'
       : check.error || (state.quote ? state.quote.pricingAvailable
-        ? `Total: ${money(Number(state.quote.guestTotalPence || 0))}. ${state.quote.reviewReason || 'Send your request to receive an offer at this total.'}`
+        ? `Total: ${money(Number(state.quote.guestTotalPence || 0))}. ${state.quote.reviewReason || (isStandard(state) ? 'Continue with your details to make a payment.' : 'Send your request to receive an offer at this total.')}`
         : 'This request requires review before an offer can be made.' : 'Check your stay before continuing to review.');
     if (retryStay) retryStay.hidden = !check.error || check.checking;
     if (continueReview) continueReview.disabled = !state.quote || check.checking || !isVerified();
@@ -263,16 +281,18 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     renderReview(state); renderAnswers();
     if (submitButton) submitButton.disabled = false;
     if (status) status.textContent = '';
+    if (isStandard(state)) { void saveBooking(); return; }
     setProgress(3); focusForm();
   });
   // Component scripts may initialise in either order.
   updateCheck();
   for (const input of [email, telephone]) input?.addEventListener('input', () => email?.setCustomValidity(''));
 
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  form?.querySelector('[name="promoCode"]')?.addEventListener('input', updateJourneyLabels);
+  window.addEventListener('pageshow', event => { if (event.persisted && bookingReference) location.reload(); });
+  async function saveBooking() {
     if (!form || !status || !contact || submitting) return;
-    if (activeStep !== 3) { continueReview?.click(); return; }
+    if (activeStep !== 3 && !isStandard()) { continueReview?.click(); return; }
     const currentState = panel?.bookingPanel?.getState();
     if (!reviewedState?.quote || !currentState?.quote || JSON.stringify(reviewedState) !== JSON.stringify(currentState)) {
       status.textContent = 'Check your stay and choose Book before sending your request.';
@@ -287,6 +307,8 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     const quote = state.quote!;
     const payload = {
       submissionId,
+      journeyMode: isStandard(state) ? 'payment' : 'request',
+      ...(bookingReference ? { bookingReference, expectedRevision } : {}),
       ...Object.fromEntries(data.entries()),
       ...state.selection,
       petDetails: [...form.querySelectorAll<HTMLElement>('[data-pet-row]')].map((row) => ({
@@ -306,7 +328,7 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
     panel?.setAttribute('inert', '');
     if (review) review.disabled = true;
     if (staySummary) staySummary.inert = true;
-    status.textContent = 'Rechecking the price and creating your private booking page…';
+    status.textContent = bookingReference ? 'Rechecking your stay and saving the updated booking…' : 'Rechecking the price and creating your private booking page…';
     try {
       const response = await fetch('/api/provisional-bookings/', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
@@ -318,12 +340,13 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
           panel?.bookingPanel?.setQuote(body.quote as PanelQuote);
           reviewedState = panel?.bookingPanel?.getState() || null;
           if (reviewedState) renderReview(reviewedState);
-          setProgress(3);
+          setProgress(isStandard() ? 2 : 3);
+          updateJourneyLabels();
           status.textContent = body.error || 'The provisional price changed. Review the updated total and submit again.';
-          submitReview?.scrollIntoView({ block: 'center' });
-          submitReview?.setAttribute('tabindex', '-1'); submitReview?.focus({ preventScroll: true });
+          if (isStandard()) focusForm();
+          else { submitReview?.scrollIntoView({ block: 'center' }); submitReview?.focus({ preventScroll: true }); }
         } else {
-          if (response.status === 409 || response.status === 422) {
+          if (!bookingReference && (response.status === 409 || response.status === 422)) {
             panel?.bookingPanel?.invalidate();
             setProgress(1);
             returnToStay = true;
@@ -339,8 +362,14 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         reviewedState = null;
         return;
       }
+      if (Number(body.journeyRevision) > 0) {
+        bookingReference = body.reference;
+        expectedRevision = Number(body.journeyRevision);
+        submissionId = crypto.randomUUID();
+        history.replaceState(null, '', `/book/?booking=${bookingReference}&step=details`);
+      }
       window.olrigAnalytics?.track('booking_requested', { property: state.selection.propertyId, pricing_available: quote.pricingAvailable === true });
-      window.location.assign(managePath);
+      window.location.assign(`${managePath}payment/`);
     } catch {
       status.textContent = 'The request could not be saved. Please try again.';
     } finally {
@@ -355,6 +384,10 @@ import CompactBookingPanel from './CompactBookingPanel.astro';
         panel?.scrollIntoView({ block: 'start' });
       }
     }
+  }
+  form?.addEventListener('submit', event => {
+    event.preventDefault();
+    if (activeStep === 2) continueReview?.click(); else void saveBooking();
   });
 </script>
 <style>

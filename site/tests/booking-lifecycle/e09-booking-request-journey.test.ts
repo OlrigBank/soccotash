@@ -35,5 +35,5 @@ test('workflow restructuring retains authoritative checks and safe submission', 
   assert.match(component, /fetch\('\/api\/provisional-bookings\/'/);
   assert.match(component, /JSON\.stringify\(reviewedState\) !== JSON\.stringify\(currentState\)/);
   assert.match(component, /response\.status === 409/);
-  assert.match(component, /const managePath =[\s\S]*window\.location\.assign\(managePath\)/);
+  assert.match(component, /const managePath =[\s\S]*window\.location\.assign\(`\$\{managePath\}payment\/`\)/);
 });

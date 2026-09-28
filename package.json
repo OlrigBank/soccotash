@@ -18,6 +18,10 @@
     "test:live-smoke:headed": "playwright test --config=playwright.live-smoke.config.ts --headed",
     "show:live-smoke-report": "playwright show-report playwright-report/live-smoke",
     "test:booking-regression": "playwright test --config=playwright.booking-regression.config.ts",
+    "test:payment-layout": "playwright test --config=playwright.payment-layout.config.ts",
+    "test:request-journey": "playwright test --config=playwright.request-journey.config.ts",
+    "preview:request-journey": "npm run build && node tests/support/request-journey-preview.mjs",
+    "preview:payment": "npm run build && node tests/support/payment-preview.mjs",
     "test:booking-request": "node --env-file=.env node_modules/@playwright/test/cli.js test --config=playwright.booking-request.config.ts",
     "test:airbnb-admin-ui": "playwright test --config=playwright.airbnb-admin.config.ts",
     "test:booking-regression:headed": "playwright test --config=playwright.booking-regression.config.ts --headed",
@@ -44,7 +48,9 @@
     "docker:isolated:report": "docker compose --env-file .env.agent2 -f compose.yaml -f compose.isolated.yaml --profile tools run --rm booking-report",
     "docker:isolated:backup": "SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./backup-db.bash",
     "docker:isolated:restore": "COMPOSE_FILE=compose.yaml:compose.isolated.yaml COMPOSE_ENV_FILES=.env.agent2 SOCCOTASH_DATABASE_CONTAINER=olrigbank2-database-1 ./restore-db.bash",
-    "test:booker-accounts": "node --env-file=.env node_modules/@playwright/test/cli.js test --config=playwright.booker-accounts.config.ts"
+    "test:booker-accounts": "node --env-file=.env node_modules/@playwright/test/cli.js test --config=playwright.booker-accounts.config.ts",
+    "test:payment-completion": "playwright test --config=playwright.payment-completion.config.ts",
+    "test:public-booking-journey": "playwright test --config=playwright.public-booking-journey.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

@@ -72,11 +72,12 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     await page.getByRole('button',{name:'Continue to review'}).click();
     await expect(page.locator('[data-booking-review]')).toBeVisible();
     await page.getByRole('button',{name:'Request booking',exact:true}).click();
-    await expect(page).toHaveURL(/\/booking\/manage\/[0-9a-f-]{36}\/$/);
-    const privatePath=new URL(page.url()).pathname;
+    await expect(page).toHaveURL(/\/booking\/manage\/[0-9a-f-]{36}\/payment\/$/);
+    const paymentPath=new URL(page.url()).pathname;
+    const privatePath=paymentPath.replace(/payment\/$/, '');
     const booking=(await db.query('SELECT id,public_id::text,customer_reference,booker_account_id FROM provisional_bookings WHERE guest_name=$1',[name])).rows[0];
     expect(booking.customer_reference).toMatch(/^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
-    await expect(page.getByText('Reference', { exact: true }).locator('..').locator('code')).toHaveText(booking.customer_reference);
+    await expect(page.getByText('Booking reference', { exact: true }).locator('..').locator('code')).toHaveText(booking.customer_reference);
     accountId=booking.booker_account_id;expect(accountId).toBeTruthy();
     const session=(await context.cookies()).find(cookie=>cookie.name==='olrig_booker_session')!;
     expect(session.httpOnly).toBe(true);expect(session.sameSite).toBe('Lax');expect(session.value.length).toBe(43);
@@ -84,7 +85,7 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     expect((await db.query('SELECT identifier FROM booker_identities WHERE account_id=$1',[accountId])).rows).toEqual([{identifier:email}]);
     await page.reload();await page.locator('summary[aria-label="Booking account"]').click();await expect(page.getByRole('button',{name:'Log out'})).toBeVisible();
     await page.getByRole('link',{name:'Your bookings',exact:true}).click();await expect(page.locator('.booking-selector li')).toHaveCount(1);
-    await page.goto('/');await page.getByRole('link',{name:'Your bookings',exact:true}).click();await expect(page).toHaveURL(privatePath);
+    await page.goto('/');await page.getByRole('link',{name:'Your bookings',exact:true}).click();await expect(page).toHaveURL(paymentPath);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
     await db.query(`INSERT INTO provisional_bookings(property_id,arrival,departure,guests,guest_name,guest_email,booker_account_id)
       VALUES('bespoke-arrangement','2099-11-19','2099-11-23',2,$1,$2,$3)`,[name,email,accountId]);
@@ -97,7 +98,7 @@ test('verify, submit, return, select bookings and log out', async ({ page, conte
     await expect(page.locator('[data-code-entry]')).toBeVisible();
     const loginCode=(await (await request.get(`http://127.0.0.1:1027/?recipient=${encodeURIComponent(email)}`)).json()).code;
     await page.getByLabel('Verification code',{exact:true}).fill(loginCode);await page.getByRole('button',{name:'Verify code',exact:true}).click();
-    await expect(page).toHaveURL(privatePath);
+    await expect(page).toHaveURL(paymentPath);
     const csrf=await page.request.post(`/api/booking/planner/${booking.public_id}/`,{headers:{origin:'https://foreign.example'},data:{}});expect(csrf.status()).toBe(403);
     const old=await page.request.get(`/booking/manage/${randomBytes(32).toString('base64url')}/`,{maxRedirects:0});expect(old.status()).toBe(303);
     await page.goto('/book/?propertyId=bespoke-arrangement&arrival=2099-10-19&departure=2099-10-23&adults=2');await page.getByRole('link',{name:'Start a bespoke request'}).click();

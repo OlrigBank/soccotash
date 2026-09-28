@@ -36,14 +36,13 @@ for (const width of [390, 768, 1440]) {
       await page.getByLabel('Booker name').fill(name);
       await page.getByLabel('Mobile number', { exact: true }).fill(mobile);
       await page.getByLabel('Booker name').focus();
-      await page.getByRole('button', { name: 'Continue to review' }).click();
-      await expect(page.locator('[data-booking-submit-review]')).toContainText('receive an offer at this total');
-      const total = await page.locator('[data-booking-submit-review] > strong').innerText();
+      await expect(page.locator('[data-progress-step="3"]')).toHaveText('3Make a payment');
+      const total = (await page.locator('[data-stay-summary-text]').innerText()).split('Total: ')[1];
       const submitted = page.waitForRequest(request => request.url().endsWith('/api/provisional-bookings/') && request.method() === 'POST');
-      await page.getByRole('button', { name: 'Request booking', exact: true }).click();
+      await page.getByRole('button', { name: 'Continue to payment', exact: true }).click();
       const request = await submitted;
-      await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/(?:reservation\/)?$/);
-      await expect(page.getByRole('heading', { name: 'Current offer', exact: true })).toBeVisible();
+      await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/payment\/$/);
+      await expect(page.getByRole('heading', { name: 'Make a payment', level: 1 })).toBeVisible();
       await expect(page.locator('body')).toContainText(total.replace('Total: ', ''));
       await expect(page.locator('body')).not.toContainText('while Jenna and the team review');
       const replay = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: request.postDataJSON() });
@@ -54,7 +53,7 @@ for (const width of [390, 768, 1440]) {
       expect(saved).toHaveLength(1); expect(saved[0].status).toBe('offered');
       expect(saved[0].customer_reference).toMatch(/^OB-[23456789BCDFGHJKMNPQRSTVWXYZ]{8}$/);
       expect(replayed.customerReference).toBe(saved[0].customer_reference);
-      await expect(page.getByText('Reference', { exact: true }).locator('..').locator('code')).toHaveText(saved[0].customer_reference);
+      await expect(page.getByText('Booking reference', { exact: true }).locator('..').locator('code')).toHaveText(saved[0].customer_reference);
       expect((await db.query('SELECT count(*)::int AS count FROM booking_offers WHERE provisional_booking_id=$1', [saved[0].id])).rows[0].count).toBe(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(errors).toEqual([]);
@@ -64,14 +63,17 @@ for (const width of [390, 768, 1440]) {
       expect(changed.status()).toBe(409); expect((await changed.json()).quote.guestTotalPence).toBeGreaterThan(1);
       const missingReview = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...stale, reviewedPricing: null } });
       expect(missingReview.status()).toBe(409);
+      // Legacy reservation response remains supported; the payment journey has its own coverage.
+      await page.goto(page.url().replace(/payment\/.*$/, 'reservation/'));
       await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
       await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
-      await expect(page.locator('body')).toContainText(`booking reference ${saved[0].customer_reference}`);
+      await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/payment\//);
+      await expect(page.getByRole('heading', { name: 'Payment details' })).toBeVisible();
       await db.query('DELETE FROM provisional_bookings WHERE guest_name=$1', [name]);
-      const promo = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...request.postDataJSON(), submissionId: randomUUID(), promoCode: 'TEST' } });
+      const promo = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...request.postDataJSON(), submissionId: randomUUID(), promoCode: 'TEST', journeyMode: 'request' } });
       expect(promo.status()).toBe(201); const pending = await promo.json(); expect(pending.status).toBe('pending');
-      await page.goto(pending.managePath);
-      await expect(page.getByRole('heading', { name: 'Current offer', exact: true })).toHaveCount(0);
+      await page.goto(`${pending.managePath}payment/`);
+      await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible();
       const noLongerPriced = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...stale, propertyId: 'bespoke-arrangement' } });
       expect(noLongerPriced.status()).toBe(409); expect((await noLongerPriced.json()).quote.pricingAvailable).toBe(false);
       if (width === 390) {

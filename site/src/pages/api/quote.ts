@@ -1,3 +1,5 @@
+import { sessionAccount } from '../../lib/booker/accounts.ts';
+import { getEditableRequestJourney } from '../../lib/booking/request-journey.ts';
 import { directOfferDecision } from '../../lib/booking/direct-offer.ts';
 import type { APIRoute } from 'astro';
 import { isSameOrigin } from '../../lib/admin/auth';
@@ -16,7 +18,7 @@ function number(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   if (!isSameOrigin(request)) return Response.json({ error: 'Cross-origin request rejected.' }, { status: 403 });
   if (!request.headers.get('content-type')?.includes('application/json')) {
     return Response.json({ error: 'JSON request required.' }, { status: 415 });
@@ -24,6 +26,8 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const raw = await request.json();
+    const journey = raw.bookingReference ? await getEditableRequestJourney(String(raw.bookingReference), await sessionAccount(cookies)) : null;
+    if (raw.bookingReference && !journey) return Response.json({ error: 'This booking can no longer be edited here. Return to your booking.' }, { status: 409 });
     const propertyId = String(raw.propertyId || '');
     const property = getProperty(propertyId);
     const arrival = String(raw.arrival || '');
@@ -44,7 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!Number.isInteger(pets) || pets < 0) {
       return Response.json({ error: 'Please check the guest and pet numbers.' }, { status: 400 });
     }
-    if (propertyId !== 'bespoke-arrangement' && (await getBlocks(propertyId, arrival, departure)).length) {
+    if (propertyId !== 'bespoke-arrangement' && (await getBlocks(propertyId, arrival, departure, journey?.id)).length) {
       return Response.json({ error: 'Those dates are unavailable.' }, { status: 409 });
     }
 

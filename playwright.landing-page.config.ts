@@ -39,7 +39,11 @@ export default defineConfig({
     productionAllowed: false,
   },
   webServer: isLocal ? {
-    command: `npm --prefix site run dev -- --host 127.0.0.1 --port ${developmentPort}`,
+    // Vite's initial dependency optimisation can reload the first browser
+    // sessions mid-test. CI verifies the stable production bundle instead.
+    command: process.env.CI
+      ? `npm run build && HOST=127.0.0.1 PORT=${developmentPort} node site/dist/server/entry.mjs`
+      : `npm --prefix site run dev -- --host 127.0.0.1 --port ${developmentPort}`,
     url: target.origin,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

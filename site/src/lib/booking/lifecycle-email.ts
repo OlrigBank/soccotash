@@ -15,9 +15,11 @@ import {
 export type BookingLifecycleEmailEvent =
   | 'payment_reported'
   | 'payment_verified_booking_confirmed'
+  | 'card_payment_verified_booking_confirmed'
   | 'payment_report_rejected'
   | 'balance_payment_reported'
   | 'balance_payment_verified'
+  | 'card_balance_payment_verified'
   | 'balance_payment_report_rejected'
   | 'booking_cancelled'
   | 'booking_cancelled_by_booker';
@@ -199,6 +201,10 @@ function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
         ),
       };
     }
+    case 'card_payment_verified_booking_confirmed': {
+      return { to: '', ...bookerEmail(input, `Your ${input.propertyName} booking is confirmed`,
+        `Your card ${payment.label} of ${payment.amount} was received. Your direct booking is now confirmed.`, 'View confirmed booking') };
+    }
     case 'payment_report_rejected': {
       const reason = String(input.reason || '').trim();
       if (!reason) throw new Error('PAYMENT_REJECTION_REASON_REQUIRED');
@@ -245,6 +251,10 @@ function outgoingEmail(input: BookingLifecycleEmailInput): OutgoingEmail {
           'View confirmed booking',
         ),
       };
+    }
+    case 'card_balance_payment_verified': {
+      return { to: '', ...bookerEmail(input, `Your ${input.propertyName} booking is fully paid`,
+        `Your remaining balance of ${payment.amount} was received by card. Your booking is confirmed and fully paid.`, 'View confirmed booking') };
     }
     case 'balance_payment_report_rejected': {
       const reason = String(input.reason || '').trim();
