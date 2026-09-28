@@ -66,7 +66,8 @@ export interface AirbnbReviewSummary {
   sourceListingName: string;
   arrival: string;
   departure: string;
-  publishedOn: string;
+  publishedOn: string | null;
+  stayYearSource: string | null;
   overallRating: number;
   hasPrivateFeedback: boolean;
   reservationLinkStatus: 'confirmed' | 'proposed' | null;
@@ -263,7 +264,11 @@ function likePattern(value: string): string {
 }
 
 function iso(value: unknown): string {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+  // pg represents DATE columns as local midnight. UTC conversion can move a
+  // summer date back one day in Europe/London; retain the calendar components.
+  return value instanceof Date
+    ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+    : String(value).slice(0, 10);
 }
 
 export async function getAirbnbDashboardSummary(database: QueryDatabase = getPool()): Promise<{
@@ -341,12 +346,12 @@ export async function listAirbnbReviews(
   else if (query.link) add('EXISTS (SELECT 1 FROM airbnb_review_reservation_links link WHERE link.review_id=review.id AND link.link_status=?)', query.link);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const total = Number((await database.query(`SELECT count(*)::int AS count FROM airbnb_reviews review ${where}`, values)).rows[0].count);
-  const order = query.sort === 'published-asc' ? 'review.published_on ASC, review.id ASC'
+  const order = query.sort === 'published-asc' ? 'review.published_on ASC NULLS LAST, review.id ASC'
     : query.sort === 'arrival-desc' ? 'review.arrival DESC, review.id DESC'
-      : 'review.published_on DESC, review.id DESC';
+      : 'review.published_on DESC NULLS LAST, review.id DESC';
   const rows = (await database.query(`SELECT review.public_id::text AS id,
       review.reviewer_display_name, review.property_id, review.source_listing_name,
-      review.arrival, review.departure, review.published_on, review.overall_rating,
+      review.arrival, review.departure, review.published_on, review.stay_year_source, review.overall_rating,
       review.private_feedback IS NOT NULL AS has_private_feedback,
       (SELECT CASE WHEN bool_or(link.link_status='confirmed') THEN 'confirmed'
                    WHEN bool_or(link.link_status='proposed') THEN 'proposed' END
@@ -357,7 +362,7 @@ export async function listAirbnbReviews(
   return { items: rows.map((row) => ({
     id: row.id, reviewerDisplayName: row.reviewer_display_name, propertyId: row.property_id,
     sourceListingName: row.source_listing_name, arrival: iso(row.arrival), departure: iso(row.departure),
-    publishedOn: iso(row.published_on), overallRating: Number(row.overall_rating),
+    publishedOn: row.published_on === null ? null : iso(row.published_on), stayYearSource: row.stay_year_source ?? null, overallRating: Number(row.overall_rating),
     hasPrivateFeedback: row.has_private_feedback, reservationLinkStatus: row.reservation_link_status,
   })), page, pageSize, total };
 }
@@ -506,7 +511,7 @@ export async function getAirbnbReviewDetail(
   const reviewResult = await database.query(
     `SELECT review.id::text AS internal_id, review.public_id::text AS id,
             review.reviewer_display_name, review.property_id, review.source_listing_name,
-            review.arrival, review.departure, review.nights, review.published_on,
+            review.arrival, review.departure, review.nights, review.published_on, review.stay_year_source,
             review.overall_rating, review.public_text, review.private_feedback,
             review.captured_on, source.document_type, source.relative_path,
             left(source.sha256,12) AS abbreviated_hash, source.captured_at,
@@ -550,7 +555,7 @@ export async function getAirbnbReviewDetail(
     propertyId: review.property_id,
     sourceListingName: review.source_listing_name,
     arrival: iso(review.arrival), departure: iso(review.departure), nights: Number(review.nights),
-    publishedOn: iso(review.published_on), overallRating: Number(review.overall_rating),
+    publishedOn: review.published_on === null ? null : iso(review.published_on), stayYearSource: review.stay_year_source ?? null, overallRating: Number(review.overall_rating),
     publicText: review.public_text, privateFeedback: review.private_feedback,
     hasPrivateFeedback: review.private_feedback !== null,
     capturedOn: iso(review.captured_on), reservationLinkStatus: review.reservation_link_status,

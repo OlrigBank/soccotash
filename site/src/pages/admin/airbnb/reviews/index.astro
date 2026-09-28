@@ -9,7 +9,7 @@ const properties = getProperties();
 const propertyNames = new Map(properties.map((property) => [property.id, property.name]));
 const pageCount = Math.max(1, Math.ceil(results.total / results.pageSize));
 const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-const displayDate = (value: string) => formatter.format(new Date(`${value}T00:00:00Z`));
+const displayDate = (value: string | null) => value ? formatter.format(new Date(`${value}T00:00:00Z`)) : 'Unknown';
 const linkLabel = (value: 'confirmed' | 'proposed' | null) => value === 'confirmed' ? 'Reservation linked' : value === 'proposed' ? 'Candidate proposed' : 'No reservation link';
 const pageUrl = (page: number) => { const params = new URLSearchParams(Astro.url.searchParams); if (page <= 1) params.delete('page'); else params.set('page', String(page)); const value = params.toString(); return `/admin/airbnb/reviews/${value ? `?${value}` : ''}`; };
 const returnTo = encodeURIComponent(`${Astro.url.pathname}${Astro.url.search}`);
@@ -17,7 +17,7 @@ const firstItem = results.total ? (results.page - 1) * results.pageSize + 1 : 0;
 const lastItem = Math.min(results.total, results.page * results.pageSize);
 ---
 <AdminLayout title="Airbnb reviews">
-  <header class="admin-page-header"><div><p class="eyebrow">Airbnb records</p><h1>Reviews</h1><p>Find imported guest reviews without loading review or private-feedback text into the list.</p></div><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Airbnb overview</a></header>
+  <header class="admin-page-header airbnb-review-header"><div><p class="eyebrow">Airbnb records</p><h1>Reviews</h1><p>Find imported guest reviews without loading review or private-feedback text into the list.</p></div><a class="admin-button admin-button--secondary" href="/admin/airbnb/">Airbnb overview</a></header>
   <section class="admin-panel airbnb-filter-panel" aria-labelledby="review-filters-heading"><div class="admin-panel-heading"><div><h2 id="review-filters-heading">Filter reviews</h2><p>Filters are applied securely in the database.</p></div></div>
     <form method="get" class="airbnb-filter-grid">
       <label>Reviewer name<input type="search" name="search" value={query.search || ''} maxlength="200" autocomplete="off" /></label>
