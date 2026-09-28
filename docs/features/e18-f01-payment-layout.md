@@ -62,6 +62,23 @@ The preview entry route exists only in the test runner, not the production app.
 - **Mobile payment bar** — custom sticky summary and navigation pattern.
 - **Hosted card checkout** — existing Stripe-hosted control.
 - **Transfer declaration** — native required checkbox within the existing form.
+- **Paid reservation link** — native link, conditionally displayed after a
+  verified deposit, balance or full payment.
+
+## Layout review adjustment
+
+The payment heading is now “Make a payment”; the completed reservation still
+uses “Reservation confirmed”. The summary's “View reservation details” link is
+hidden during the initial unpaid journey, including a transfer merely reported
+as sent. It becomes available after a verified payment, including when returning
+to pay a balance. This changes link visibility, not booking access permissions.
+
+Rebuilt and reran all six payment-layout tests successfully. Chrome DevTools
+checked unpaid, reported-transfer, balance-due and paid states at 390 × 844,
+768 × 1024 and 1440 × 900: expected heading/link visibility, no document or local
+overflow, visible keyboard focus and no console or network failures. Existing
+Lighthouse results below precede this small copy/link-visibility adjustment;
+no new layout or control pattern requiring a fresh audit was introduced.
 
 ## Verification — 28 September 2026
 

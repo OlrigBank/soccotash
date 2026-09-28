@@ -66,7 +66,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
     <nav class="payment-progress" aria-label="Booking progress"><ol>
       <li>Dates</li><li>Contact</li><li aria-current={offer.bookingStatus === 'confirmed' ? undefined : 'step'}>Payment</li><li aria-current={offer.bookingStatus === 'confirmed' ? 'step' : undefined}>Reservation</li>
     </ol></nav>
-    <header class="payment-heading"><p class="eyebrow">Your booking</p><h1>{offer.bookingStatus === 'confirmed' && !balanceDue ? 'Reservation confirmed' : 'Review and pay'}</h1>
+    <header class="payment-heading"><p class="eyebrow">Your booking</p><h1>{offer.bookingStatus === 'confirmed' && !balanceDue ? 'Reservation confirmed' : 'Make a payment'}</h1>
       <p>{propertyName} · {date(offer.arrival)} to {date(offer.departure)}</p></header>
     {error && <p class="payment-alert" role="alert">{error}</p>}
     {checkoutMessage && <p class="payment-alert" role="status">{checkoutMessage}</p>}
@@ -146,7 +146,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
         {initialDue && offer.depositDueAt && <div><dt>Payment deadline</dt><dd>{date(offer.depositDueAt.slice(0, 10))}</dd></div>}
         {offer.balanceDueOn && <div><dt>Balance deadline</dt><dd>{date(offer.balanceDueOn)}</dd></div>}</dl>
       </section>
-      <a href={`/booking/manage/${token}/reservation/`}>View reservation details</a>
+      {(verifiedDeposit || verifiedBalance || verifiedFull) && <a href={`/booking/manage/${token}/reservation/`}>View reservation details</a>}
     </aside></div>
   </div>
 </BookerLayout>

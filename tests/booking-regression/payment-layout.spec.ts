@@ -4,6 +4,8 @@ test('payment methods, summary and keyboard validation', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/__payment-preview/');
+  await expect(page.getByRole('heading', { name: 'Make a payment', level: 1 })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View reservation details', exact: true })).toHaveCount(0);
   const summary = page.getByRole('complementary', { name: 'Reservation summary' });
   await expect(summary).toContainText('Alex Example');
   await expect(summary).toContainText('alex@example.test');
@@ -50,6 +52,14 @@ test('review, offer, confirmation and unavailable states retain one summary', as
     await page.goto(`/__payment-preview/?state=${state}`);
     await expect(page.getByRole('heading', { name: heading, level: 2 })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Reservation summary' })).toHaveCount(1);
+    const reservationLink = page.getByRole('link', { name: 'View reservation details', exact: true });
+    if (state === 'confirmed' || state === 'balance') {
+      await expect(reservationLink).toBeVisible();
+      await expect(reservationLink).toHaveAttribute('href', /\/reservation\/$/);
+    } else {
+      await expect(reservationLink).toHaveCount(0);
+    }
+    await expect(page.getByRole('heading', { name: state === 'confirmed' ? 'Reservation confirmed' : 'Make a payment', level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.goto('/__payment-preview/?state=pending');
