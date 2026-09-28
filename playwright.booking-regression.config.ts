@@ -14,6 +14,9 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required for iso
 
 export default defineConfig({
   testDir: './tests/booking-regression',
+  // These suites use isolated production-build fixtures and their own configs.
+  // GitHub runs all four through payment-journey-regression.yml.
+  testIgnore: '**/{payment-layout,request-journey,payment-completion,public-booking-journey}.spec.ts',
   outputDir: './test-results/booking-regression',
   timeout: 90_000,
   expect: { timeout: 15_000 },
