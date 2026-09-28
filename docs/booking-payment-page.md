@@ -1,5 +1,9 @@
 # Booking payment page
 
+The E18 implementation milestones are accepted. See the
+[final regression and merge hand-off](features/e18-f08-merge-readiness.md) for
+current evidence and deployment prerequisites. Nothing has been merged or deployed.
+
 Standard priced Cottage and Main House requests continue from verified Your
 details to `/payment/`, creating the booking reference at that point. Saved
 summary edits reuse that reference and recheck prices and availability. Bespoke

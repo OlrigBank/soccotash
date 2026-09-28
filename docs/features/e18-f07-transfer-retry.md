@@ -1,5 +1,8 @@
 # E18-F07 — Transfer not received and payment retry
 
+Accepted by the owner. Final regression and merge-readiness evidence is recorded
+in [E18-F08](e18-f08-merge-readiness.md).
+
 When the Booker reports a transfer, the admin Bookings dashboard offers **Check
 transfer received** beside the status. A reported balance has its own check even
 though the booking remains confirmed. The administrator can use **Transfer not
@@ -64,4 +67,4 @@ Verification on 28 September 2026:
   conversation and reopened payment. No real transfer, live provider or customer
   notification was exercised.
 
-Implemented on the task branch for owner review; nothing merged or deployed.
+Accepted on the task branch; nothing merged or deployed.

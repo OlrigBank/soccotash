@@ -2,11 +2,12 @@
 
 ## Status
 
-Implemented for owner review on `feat/e18-finalise-payment-page`. The owner
+Implemented and subsequently accepted on `feat/e18-finalise-payment-page`. The owner
 accepted E18-F04's work but correctly identified that its completion claim did
 not establish integration through the public entry points. This milestone closes
 that verification gap and corrects the returning-booking routes. Nothing merged
-or deployed; E18 remains open for owner acceptance.
+or deployed. Later accepted refinements and final regression evidence are recorded
+in [E18-F08](e18-f08-merge-readiness.md).
 
 ## Delivered
 
