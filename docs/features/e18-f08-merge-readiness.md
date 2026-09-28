@@ -65,3 +65,26 @@ email verification. No live card charge, bank transfer, external calendar feed,
 real customer notification or production migration was performed. The shared
 public-footer contrast finding from E18-F02 remains outside this epic's changes;
 the broader legacy booking suite was not rerun at this checkpoint.
+
+## Development merge review
+
+The owner subsequently authorised the development merge review and instructed
+that Git-triggered regressions must pass, with failures investigated and fixed.
+[PR #164](https://github.com/OlrigBank/soccotash/pull/164) runs the existing
+GitHub Actions suites plus the four E18 suites, now wired to development pull
+requests and pushes. The legacy booking configuration excludes only those four
+specifications because they require their dedicated production-build fixtures.
+
+The wider CI suite exposed stale navigation expectations in bespoke and Booker
+account tests. These now exercise the accepted payment-first return route and
+use the explicit reservation workspace for legacy responses and pet editing.
+Review also found a real regression: the root redirect discarded query-string
+confirmation notices. The redirect now preserves them; cancellation-notice and
+status routing coverage remains in the account suite. All 36 account cases and
+91 lifecycle cases passed locally after correction.
+
+Chrome DevTools inspected the rebuilt root-to-reservation continuation with a
+cancellation notice at 390 × 844, 768 × 1024 and 1440 × 900: the notice persisted,
+there was no document overflow, and keyboard focus on Messages was visible.
+This reuses the existing native navigation links and status notice; no new UI
+pattern is introduced. Disposable local fixtures were used throughout.

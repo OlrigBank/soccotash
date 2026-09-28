@@ -59,7 +59,7 @@ if (!offer) return new Response('Booking not found.', { status: 404 });
 if (Astro.request.method === 'GET' && !Astro.url.searchParams.has('workspace')) {
   const paymentHistory = await getBookingPaymentHistory(offer.bookingReference);
   const destination = bookingDestination({ reference: token, status: offer.bookingStatus, hasVerifiedPayment: paymentHistory.some(payment => payment.status === 'verified'), hasReportedPayment: paymentHistory.some(payment => payment.status === 'reported') });
-  if (destination !== `/booking/manage/${token}/`) return Astro.redirect(destination, 303);
+  if (destination !== `/booking/manage/${token}/`) return Astro.redirect(`${destination}${Astro.url.search}`, 303);
 }
 
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
