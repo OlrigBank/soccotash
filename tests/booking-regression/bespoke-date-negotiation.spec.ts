@@ -85,7 +85,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel('Booker name').fill('Playwright Bespoke Regression');
     await page.getByLabel('Booker email').fill(EMAIL);
     await page.getByRole('button', { name: 'Continue to review' }).click();
-  await page.getByRole('button', { name: 'Request booking' }).click();
+    await page.getByRole('button', { name: 'Request booking' }).click();
     await expect(page).toHaveURL(/\/booking\/manage\/[A-Za-z0-9_-]+\/payment\/$/);
     const bookerUrl = page.url();
     await expect(page.locator('.booker-brand')).toHaveAccessibleName('Olrig Bank Kendal — Your booking home');
@@ -111,7 +111,7 @@ test.describe('bespoke blocked-date negotiation', () => {
     await expect(adminPage.getByText("Awaiting the Booker's date decision")).toBeVisible();
 
     await page.reload();
-    await page.getByRole('link', { name: /reservation details/i }).click();
+    await page.getByRole('link', { name: 'View request details', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Olrig Bank has suggested a change to your request' })).toBeVisible();
     await page.getByRole('button', { name: 'Keep my original dates' }).click();
     await expect(page.getByText('Your original dates were kept')).toBeVisible();
@@ -134,8 +134,9 @@ test.describe('bespoke blocked-date negotiation', () => {
     await adminPage.getByRole('button', { name: 'Publish offer' }).click();
     await expect(adminPage.getByRole('status').filter({ hasText: 'The offer is published on the Booker booking page.' })).toBeVisible();
 
-    await page.goto(bookerUrl);
-    await page.getByRole('link', { name: /reservation details/i }).click();
+    // Exercise the retained legacy offer response explicitly: unpaid payment
+    // pages deliberately omit the reservation-summary link.
+    await page.goto(bookerUrl.replace(/payment\/.*$/, 'reservation/'));
     await expect(page.getByRole('heading',{name:'Olrig Bank'}).last()).toBeVisible();
     await expect(page.getByText('Approved for 4 adults')).toBeVisible();
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
