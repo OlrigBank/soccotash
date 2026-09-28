@@ -26,6 +26,17 @@ Configure `BOOKING_BANK_PAYEE`, `BOOKING_BANK_SORT_CODE` and
 instructions. The booking reference is the transfer reference. Reporting a bank
 transfer leaves the booking awaiting administrator verification.
 
+The admin Bookings dashboard shows **Check transfer received**, including a
+separate balance check for an already confirmed booking. If the money has not
+arrived, the administrator uses **Transfer not received** and **Send message and
+reopen payment**. The explanation becomes a visible administrator message in the
+permanent conversation in the same transaction as the rejected payment report.
+The Booker can use **Make a payment** from that conversation, choose card or bank
+again, and request bank details afresh. Accepted booking details and terms stay
+in place; previous payment attempts remain in the history. A new report returns
+to the main booking page and requires another admin check. See the
+[transfer retry record](features/e18-f07-transfer-retry.md) for regression coverage.
+
 Configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to enable hosted card
 checkout. Register `POST /api/stripe-webhook/` in Stripe for
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,

@@ -1,5 +1,78 @@
 import { test, expect } from '@playwright/test';
 
+test('unreceived transfers notify the Booker and reopen payment from the conversation', async ({ page, browser, baseURL }) => {
+  const adminContext = await browser.newContext({ baseURL, viewport: page.viewportSize()! });
+  const admin = await adminContext.newPage();
+  const errors: string[] = [];
+  for (const window of [page, admin]) window.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto('/__request-preview/');
+    await page.getByLabel('Booker name').fill('Transfer Retry Example');
+    await page.getByLabel('Booker email').fill('journey@example.test');
+    await page.getByRole('button', { name: 'Continue to payment', exact: true }).click();
+    await expect(page).toHaveURL(/\/payment\/$/);
+    const reference = new URL(page.url()).pathname.split('/')[3];
+    const home = `/booking/manage/${reference}/`;
+    await page.getByRole('link', { name: 'Bank transfer', exact: true }).click();
+    await page.getByRole('checkbox', { name: /I have reviewed/ }).check();
+    await page.getByRole('button', { name: 'Request bank transfer details' }).click();
+    await admin.goto('/__admin-preview/');
+    // Cover both the initial deposit and a later balance, whose booking stays confirmed.
+    for (const stage of ['deposit', 'balance']) {
+      if (stage === 'balance') {
+        await page.goto(`${home}payment/?method=bank`);
+        await expect(page.getByRole('complementary', { name: 'Reservation summary' })).toContainText('£900.00');
+      }
+      await page.getByRole('checkbox', { name: 'I confirm that I have sent this bank transfer.' }).check();
+      await page.getByRole('button', { name: 'Report bank transfer sent' }).click();
+      await expect(page).toHaveURL(new RegExp(`${home}\\?payment=bank-transfer-reported`));
+      await page.goto(`${home}messages/`);
+      await expect(page.getByRole('link', { name: 'Make a payment', exact: true })).toHaveCount(0);
+      await admin.goto('/admin/bookings/');
+      const row = admin.locator(`tr[data-booking-href="/admin/bookings/${reference}/payment/"]`);
+      await expect(row.getByRole('link', { name: `Check ${stage === 'balance' ? 'balance ' : ''}transfer received` })).toBeVisible();
+      await row.getByRole('link', { name: /Check .*transfer received/ }).click();
+      const send = admin.getByRole('button', { name: 'Send message and reopen payment' });
+      await send.click();
+      await expect(admin.getByLabel('Message to the Booker')).toBeFocused();
+      const reason = `We checked the bank account and your ${stage} transfer has not been received. Please check with your bank.`;
+      await admin.getByLabel('Message to the Booker').fill(reason);
+      await send.click();
+      await expect(admin.getByRole('heading', { name: 'No payment decision is currently required' })).toBeVisible();
+      // An already-open message board receives the message and offers a refresh,
+      // including for a rejected balance where the booking status is unchanged.
+      await expect(page.locator('.booking-conversation')).toContainText(reason, { timeout: 15_000 });
+      await page.getByRole('button', { name: 'Refresh this page' }).click();
+      const retry = page.getByRole('link', { name: 'Make a payment', exact: true });
+      await expect(retry).toHaveAttribute('href', `${home}payment/`);
+      await retry.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('button', { name: /Pay £.* by card/ })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Edit contact details' })).toHaveCount(0);
+      await page.getByRole('link', { name: 'Bank transfer', exact: true }).click();
+      await expect(page.getByText('Disposable preview account')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Request bank transfer details' }).click();
+      await expect(page.getByText('Disposable preview account')).toBeVisible();
+      await expect(page.getByRole('checkbox', { name: 'I confirm that I have sent this bank transfer.' })).not.toBeChecked();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.getByRole('checkbox', { name: 'I confirm that I have sent this bank transfer.' }).check();
+      await page.getByRole('button', { name: 'Report bank transfer sent' }).click();
+      await expect(page).toHaveURL(new RegExp(`${home}\\?payment=bank-transfer-reported`));
+      await admin.goto('/admin/bookings/');
+      await row.getByRole('link', { name: /Check .*transfer received/ }).click();
+      await expect(admin.locator('tbody tr').filter({ hasText: reason })).toContainText('rejected');
+      await expect(admin.locator('tbody tr').filter({ hasText: 'Awaiting verification' })).toHaveCount(1);
+      await admin.getByRole('checkbox', { name: 'I have verified the transfer against the bank account.' }).check();
+      await admin.getByRole('button', { name: stage === 'deposit' ? 'Verify deposit and confirm booking' : 'Verify balance payment' }).click();
+    }
+    await page.goto(`${home}messages/`);
+    await expect(page.getByRole('link', { name: 'Make a payment', exact: true })).toHaveCount(0);
+    await expect(admin.locator('tbody tr .status-rejected')).toHaveCount(2);
+    await expect(admin.locator('tbody tr .status-verified')).toHaveCount(2);
+    expect(errors).toEqual([]);
+  } finally { await adminContext.close(); }
+});
+
 test('standard bookings continue from verified details and edit the same booking', async ({ page, context, baseURL }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

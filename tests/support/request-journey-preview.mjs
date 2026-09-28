@@ -51,10 +51,19 @@ try {
   await db.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('email','journey@example.test',$1)", [account]);
   const token = randomBytes(32).toString('base64url');
   await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '24 hours')", [createHash('sha256').update(token).digest('hex'), account]);
+  const admin = (await db.query("INSERT INTO admin_users(email,display_name,password_hash) VALUES('admin@example.test','Preview administrator','no-password-login') RETURNING id")).rows[0].id;
+  const adminToken = randomBytes(32).toString('base64url');
+  await db.query("INSERT INTO admin_sessions(admin_user_id,token_hash,expires_at) VALUES($1,$2,NOW()+INTERVAL '24 hours')", [admin, createHash('sha256').update(adminToken).digest('hex')]);
   let sequence = 0;
   const { handler } = await import('../../site/dist/server/entry.mjs');
   const server = http.createServer(async (request, response) => {
     if (provider?.handle(request, response)) return;
+    if (request.url === '/__admin-preview/') {
+      response.writeHead(303, { 'Cache-Control': 'no-store',
+        'Set-Cookie': `olrig_admin_session=${adminToken}; HttpOnly; SameSite=Lax; Path=/`,
+        Location: '/admin/bookings/' });
+      response.end(); return;
+    }
     if (publicJourney && request.method === 'POST' && request.url === '/__mailbox/advance-cooldown') {
       // Simulate returning after the resend cooldown without weakening production checks.
       await db.query("UPDATE booker_verification_requests SET created_at=created_at-INTERVAL '61 seconds'");

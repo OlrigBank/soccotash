@@ -23,6 +23,8 @@ let offer = await getCustomerBookingPage(token, true);
 if (!offer) return new Response('Booking not found.', { status: 404 });
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name || offer.propertyId;
 const publicOrigin = String(process.env.BOOKING_PUBLIC_URL || Astro.url.origin).replace(/\/$/, '');
+const payments = await getBookingPaymentHistory(offer.bookingReference);
+const rejectedReport = payments[0]?.status === 'rejected' ? payments[0] : null;
 let error = '';
 if (Astro.request.method === 'POST') {
   if (!isSameBookerOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
@@ -47,15 +49,14 @@ if (Astro.request.method === 'POST') {
       const result = await startCardCheckout(token, publicOrigin);
       if (result.url) return Astro.redirect(result.url, 303);
       error = result.error || 'Card checkout could not start.';
-    } else if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank`, 303);
+    } else if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank${rejectedReport ? `&bankDetails=${rejectedReport.publicId}` : ''}`, 303);
   } else if (action === 'switch-to-bank') {
     error = await switchToBankTransfer(token) || '';
-    if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank`, 303);
+    if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank${rejectedReport ? `&bankDetails=${rejectedReport.publicId}` : ''}`, 303);
   } else error = 'Choose a payment method to continue.';
   offer = await getCustomerBookingPage(token, false) || offer;
 }
 const journey = offer.requestJourneyRevision > 0 ? await getEditableRequestJourney(token, currentBookerAccountId()) : null;
-const payments = await getBookingPaymentHistory(offer.bookingReference);
 const activeCheckout = await activeCheckoutAttempt(offer.bookingReference);
 const bank = bankTransferDetails();
 const card = stripeAvailable();
@@ -74,6 +75,10 @@ const offerReady = offer.bookingStatus === 'offered' && offer.customerStatus ===
 const balanceDue = offer.bookingStatus === 'confirmed' && verifiedDeposit && !verifiedBalance && offer.balanceDuePence > 0;
 const initialDue = offer.bookingStatus === 'payment_pending' && !verifiedDeposit && !verifiedFull;
 const due = balanceDue || initialDue || (offerReady && Boolean(previewTerms));
+const retryPayment = due && !reported && Boolean(rejectedReport);
+// Scope this presentation disclosure to the latest rejection so an earlier
+// attempt's URL does not skip requesting bank details again.
+const requestBankDetailsAgain = retryPayment && Astro.url.searchParams.get('bankDetails') !== rejectedReport?.publicId;
 const initialAmount = previewTerms?.initialPaymentPence ?? offer.depositPence;
 const remainingAmount = previewTerms?.balanceDuePence ?? offer.balanceDuePence;
 const amountPence = balanceDue ? offer.balanceDuePence : initialAmount;
@@ -107,6 +112,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
         <p>Olrig Bank will confirm the price and terms before payment is requested. Return through your private booking link when the offer is ready.</p>
         <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View request details</a></section>}
       {offerReady && !previewTerms && <p class="payment-alert" role="status">Payment details are temporarily unavailable. Please contact Olrig Bank through your booking messages.</p>}
+      {retryPayment && <p class="payment-alert" role="status">The previous transfer has not been verified. Read <a href={`/booking/manage/${token}/messages/`}>Olrig Bank’s message</a> and check with your bank before paying again. Your accepted reservation details and terms are unchanged.</p>}
       {due && !reported && <section aria-labelledby="methods-heading"><h2 id="methods-heading">Payment details</h2>
         <p>Choose how to pay the {stageLabel.toLowerCase()} of <strong>{money(amountPence)}</strong>.</p>
         <nav class="payment-methods" aria-label="Payment method">
@@ -129,6 +135,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
               <button class="payment-primary" type="submit">Request bank transfer details</button>
               <p>Requesting these details does not confirm payment or your reservation.</p>
             </form> : activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
+              : bank && requestBankDetailsAgain ? <form method="post"><input type="hidden" name="action" value="request-bank-details" /><button class="payment-primary" type="submit">Request bank transfer details</button></form>
               : bank ? <div class="payment-bank"><dl class="payment-facts"><div><dt>Payee</dt><dd>{bank.payee}</dd></div><div><dt>Sort code</dt><dd>{bank.sortCode}</dd></div>
                 <div><dt>Account number</dt><dd>{bank.accountNumber}</dd></div><div><dt>Amount</dt><dd>{money(amountPence)}</dd></div><div><dt>Reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
                 <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" />
