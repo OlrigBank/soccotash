@@ -88,3 +88,11 @@ cancellation notice at 390 × 844, 768 × 1024 and 1440 × 900: the notice persi
 there was no document overflow, and keyboard focus on Messages was visible.
 This reuses the existing native navigation links and status notice; no new UI
 pattern is introduced. Disposable local fixtures were used throughout.
+
+The public-experience job also revealed intermittent first-attempt failures
+while running against Astro's development server. A trace showed two complete
+page navigations and one quote request per document, rather than a duplicated
+request within one document. Another early calendar test passed only on retry.
+The CI public suite now builds and serves the production bundle to remove
+startup dependency-optimisation reloads from regression runs; assertions are
+unchanged and local interactive development retains the dev server.
