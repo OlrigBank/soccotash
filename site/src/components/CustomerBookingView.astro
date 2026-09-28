@@ -394,6 +394,7 @@ const conversationError = messageError || responseError;
         <div class="customer-booking-actions">
           <form method="post" class="customer-booking-decision-form">
             <input type="hidden" name="action" value="accept" />
+            <input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
             <strong>Accept offer</strong>
             <p>Confirm that you accept the dates, price and terms shown here.</p>
             <label class="customer-booking-confirm-check">
@@ -405,6 +406,7 @@ const conversationError = messageError || responseError;
 
           <form method="post" class="customer-booking-decision-form is-decline">
             <input type="hidden" name="action" value="decline" />
+            <input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
             <strong>Decline this offer</strong>
             <p>Declining closes this offer. Continue the conversation to discuss a different stay.</p>
             <label class="customer-booking-confirm-check">

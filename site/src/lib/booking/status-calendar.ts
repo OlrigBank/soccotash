@@ -105,6 +105,7 @@ export async function queryBookingBlocks(
     from: string;
     to: string;
     applyAvailabilityOverrides?: boolean;
+    excludeBookingId?: string;
   },
 ): Promise<BookingBlock[]> {
   const result = await database.query(
@@ -124,6 +125,7 @@ export async function queryBookingBlocks(
           AND booking.status = ANY($6::text[])
           AND NOT (booking.property_id = 'bespoke-arrangement' AND booking.status = 'pending')
           AND booking.arrival < $3::date AND booking.departure > $2::date
+          AND ($8::bigint IS NULL OR booking.id <> $8::bigint)
      ), unblocked_nights_removed AS (
        SELECT raw.block_key, raw.source, blocked_night.value::date AS blocked_on
          FROM raw_blocks raw
@@ -156,6 +158,7 @@ export async function queryBookingBlocks(
       [...DIRECT_BOOKING_STATUSES],
       [...BLOCKING_BOOKING_STATUSES],
       input.applyAvailabilityOverrides ?? false,
+      input.excludeBookingId ?? null,
     ],
   );
   return result.rows;

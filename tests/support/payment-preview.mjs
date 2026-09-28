@@ -1,20 +1,14 @@
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
-import { parseEnv } from 'node:util';
+import { createLocalFixtureDatabase } from './local-fixture-database.mjs';
 import { createReservationFixture } from './reservation-fixture.mjs';
 
 // Local-only presentation fixtures: no real contact details or payment providers.
-let local = {};
-try { local = parseEnv(readFileSync('.env', 'utf8')); }
-catch (error) { if (error.code !== 'ENOENT') throw error; }
-const databaseUrl = process.env.DATABASE_URL || local.DATABASE_URL
-  || `postgresql://${encodeURIComponent(local.POSTGRES_USER || 'soccotash')}:${encodeURIComponent(local.POSTGRES_PASSWORD || '')}@127.0.0.1:${local.POSTGRES_PORT || 5433}/${local.POSTGRES_DB || 'soccotash'}`;
-if (!['localhost', '127.0.0.1'].includes(new URL(databaseUrl).hostname)) throw new Error('A local database is required.');
+const fixtureDatabase = await createLocalFixtureDatabase('payment_preview');
 for (const key of Object.keys(process.env)) {
   if (/^(BOOKING_|BOOKER_|STRIPE_|SMTP_|EMAIL_|RESEND_|TWILIO_|WHATSAPP_)/.test(key)) delete process.env[key];
 }
 Object.assign(process.env, {
-  DATABASE_URL: databaseUrl, DATABASE_SSL: 'false', ASTRO_NODE_AUTOSTART: 'disabled',
+  DATABASE_SSL: 'false', ASTRO_NODE_AUTOSTART: 'disabled',
   BOOKING_PUBLIC_URL: 'http://127.0.0.1:8083', WHATSAPP_DELIVERY_ENABLED: 'false',
   STRIPE_SECRET_KEY: 'sk_test_disposable_preview',
   STRIPE_WEBHOOK_SECRET: 'whsec_disposable_preview',
@@ -66,6 +60,7 @@ try {
       await fixture.database.query('DELETE FROM provisional_bookings WHERE id=$1', [fixture.booking.id]);
       await fixture.cleanup();
     }
+    await fixtureDatabase.close();
     process.exit(0);
   };
   process.once('SIGINT', cleanup);
@@ -75,5 +70,6 @@ try {
     await fixture.database.query('DELETE FROM provisional_bookings WHERE id=$1', [fixture.booking.id]);
     await fixture.cleanup();
   }
+  await fixtureDatabase.close();
   throw error;
 }

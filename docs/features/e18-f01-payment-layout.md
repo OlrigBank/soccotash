@@ -32,8 +32,8 @@ merged or deployed. Review and iterate on this stage before starting the next.
   existing payment verification, deposit and balance rules. Add no new discount
   or security-deposit functionality.
 
-The progress trail, summary edit controls and revised acceptance flow belong to
-these next stages; the layout milestone deliberately retains their current flow.
+The progress trail and saved summary edits are now implemented in
+[E18-F02](e18-f02-request-journey.md). The revised acceptance flow remains next.
 
 ## Local review
 
@@ -49,7 +49,8 @@ The preview serves the rebuilt application on loopback, signs into disposable
 fixtures and uses dummy bank/Stripe configuration. External fetches are blocked
 and notification credentials are removed. Clicking the card payment button
 demonstrates the recoverable provider-error state; it does not open live Checkout.
-Stop with Ctrl+C to remove the fixtures. Restart after an hour to renew sessions.
+Fixtures now use an isolated, migrated database schema. Stop with Ctrl+C to
+remove it. Restart after an hour to renew sessions.
 The preview entry route exists only in the test runner, not the production app.
 
 ## UI pattern names

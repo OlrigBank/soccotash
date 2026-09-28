@@ -1,5 +1,6 @@
 ---
 import { getProperties } from '../lib/booking/config';
+import type { StaySelection } from '../lib/booking/booking-panel';
 
 interface Props {
   propertyId?: string;
@@ -12,10 +13,14 @@ interface Props {
   autoSelectProperty?: boolean;
   mobileDock?: boolean;
   defaultAdults?: number;
+  initialSelection?: StaySelection;
+  bookingReference?: string;
+  initialStep?: string;
 }
 
 const {
   propertyId,
+  initialSelection, bookingReference, initialStep,
   requestPage = false,
   source = propertyId ? 'listing' : 'homepage',
   heading = 'Plan your stay',
@@ -39,6 +44,9 @@ if (propertyId && !fixedProperty) {
 <section
   class:list={['compact-booking-panel', mobileDock && 'compact-booking-panel--mobile-dock']}
   data-compact-booking-panel
+  data-initial-selection={initialSelection ? JSON.stringify(initialSelection) : undefined}
+  data-booking-reference={bookingReference}
+  data-initial-step={initialStep}
   data-request-page={requestPage ? 'true' : undefined}
   data-mobile-dock={mobileDock ? 'true' : undefined}
   data-source={source}
@@ -362,6 +370,7 @@ if (propertyId && !fixedProperty) {
       renderCalendar();
       try {
         const params = new URLSearchParams({ property: property.value, from: availabilityFrom, to: availabilityTo });
+        if (panel.dataset.bookingReference) params.set('bookingReference', panel.dataset.bookingReference);
         const response = await fetch(`/api/availability/?${params}`);
         const body = await response.json();
         if (revision !== calendarRevision) return;
@@ -912,6 +921,11 @@ if (propertyId && !fixedProperty) {
         // An unreadable snapshot must not prevent choosing a stay.
       }
       const query = new URLSearchParams(location.search);
+      if (panel.dataset.initialSelection) {
+        const initial = JSON.parse(panel.dataset.initialSelection);
+        for (const key of ['propertyId', 'arrival', 'departure', 'adults', 'children', 'infants', 'pets']) query.set(key, String(initial[key]));
+        query.set('bookingContinue', panel.dataset.initialStep === 'stay' ? 'edit' : 'checked');
+      }
       const explicitInputs = ['arrival', 'departure', 'adults', 'children', 'infants', 'pets', 'propertyId'].some((name) => query.has(name));
       const params = explicitInputs ? query : savedParams || query;
       arrival.value = '';
@@ -939,7 +953,7 @@ if (propertyId && !fixedProperty) {
       initialContinuation = requestPage && Boolean(property.value && arrival.value >= today()
         && departure.value >= addDays(arrival.value, minimumNights())
         && departure.value <= addDays(arrival.value, 365))
-        && (query.get('bookingContinue') === 'checked' || Boolean(savedParams
+        && (query.get('bookingContinue') === 'checked' || Boolean(!panel.dataset.bookingReference && savedParams
           && saved?.selection === continuationHref() && typeof saved.checkedAt === 'number'
           && saved.checkedAt <= Date.now() && Date.now() - saved.checkedAt < 15 * 60 * 1000
           && quote && validPrice && validGuidance));
@@ -1007,6 +1021,7 @@ if (propertyId && !fixedProperty) {
           let selected: typeof candidates[number] | undefined;
           for (const candidate of candidates) {
             const params = new URLSearchParams({ property: candidate.id, from: arrival.value, to: departure.value });
+            if (panel.dataset.bookingReference) params.set('bookingReference', panel.dataset.bookingReference);
             const response = await fetch(`/api/availability/?${params}`);
             const availability = await response.json() as { blocks?: unknown[]; error?: string };
             if (revision !== inputRevision) return;
@@ -1035,6 +1050,7 @@ if (propertyId && !fixedProperty) {
           const availabilityParams = new URLSearchParams({
             property: property.value, from: arrival.value, to: departure.value,
           });
+          if (panel.dataset.bookingReference) availabilityParams.set('bookingReference', panel.dataset.bookingReference);
           const availabilityResponse = await fetch(`/api/availability/?${availabilityParams}`);
           const availability = await availabilityResponse.json() as { blocks?: unknown[]; error?: string };
           if (revision !== inputRevision) return;
@@ -1065,6 +1081,7 @@ if (propertyId && !fixedProperty) {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
+            bookingReference: panel.dataset.bookingReference,
             propertyId: property.value,
             arrival: arrival.value,
             departure: departure.value,

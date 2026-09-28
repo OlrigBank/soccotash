@@ -1,3 +1,4 @@
+import { editableRequestJourneySql } from './request-journey.ts';
 import { accountForIdentity, claimBookings, storeSession, verifiedBookingIdentity, BookerError, type BookingAuthorisation } from '../booker/accounts.ts';
 import { currentBookerAccountId } from '../booker/context.ts';
 import { resolveBookingAccessCredential } from './booking-access.ts';
@@ -137,14 +138,14 @@ export async function recordSyncError(propertyId: string, error: unknown): Promi
   );
 }
 
-export async function getBlocks(propertyId: string, from: string, to: string): Promise<BookingBlock[]> {
+export async function getBlocks(propertyId: string, from: string, to: string, excludeBookingId?: string): Promise<BookingBlock[]> {
   await expireElapsedBookingOffers();
   const property = getProperty(propertyId);
   const availabilityProperties = property ? getAvailabilityProperties(property) : [];
   if (!property || !availabilityProperties.length) throw new Error(`Unknown booking property: ${propertyId}`);
   const linkedPropertyIds = getPropertiesSharingAnyAvailability(property).map((candidate) => candidate.id);
   const blocks = (await Promise.all(availabilityProperties.map((availabilityProperty) => queryBookingBlocks(getPool(), {
-    availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds, from, to,
+    availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds, from, to, excludeBookingId,
     applyAvailabilityOverrides: property.id === 'bespoke-arrangement',
   })))).flat();
   return [...new Map(blocks.map((block) => [`${block.startsOn}|${block.endsOn}|${block.source}`, block])).values()];
@@ -263,6 +264,8 @@ export async function createProvisionalBooking(input: {
   pricingQuote?: PublishedPricingQuote | null;
   /** Set only after the submitting customer has reviewed the current quote. */
   publishDirectOffer?: boolean;
+  requestJourney?: boolean;
+  edit?: { reference: string; revision: number };
 }): Promise<{ reference: string; accessToken: string; sessionToken?: string; replayed?: boolean }> {
   const party = validatePartyComposition(input.party ?? partyCompositionFromLegacyGuests(input.guests));
   const occupancyDetails = validateOccupancyDetails(input.occupancyDetails ?? { occupants: [], pets: [] }, { ...party, pets: input.pets });
@@ -277,6 +280,7 @@ export async function createProvisionalBooking(input: {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
+    let edited: { id: string; reference: string; revision: number } | undefined;
     let verified: Awaited<ReturnType<typeof verifiedBookingIdentity>> | null = null;
     let accountId: string | null = null;
     if (input.authorisation) {
@@ -287,74 +291,88 @@ export async function createProvisionalBooking(input: {
       if (previous.rowCount) {
         const prior = previous.rows[0];
         if (prior.browser_hash !== input.authorisation.browserHash || !prior.recent) throw new BookerError('This submission has already been used. Sign in to view your bookings.', 409);
+        if (input.edit && prior.reference !== input.edit.reference) throw new BookerError('This submission belongs to another booking.', 409);
         const sessionToken = await storeSession(client, prior.account_id);
         await client.query('COMMIT');
         return { reference: prior.reference, accessToken: prior.reference, sessionToken, replayed: true };
       }
+      if (input.edit) {
+        const selected = await client.query(`SELECT pb.id::text,pb.public_id::text AS reference,
+          pb.request_journey_revision AS revision FROM provisional_bookings pb
+          WHERE pb.public_id=$1::uuid AND pb.booker_account_id=$2::uuid
+          AND ${editableRequestJourneySql} FOR UPDATE OF pb`, [input.edit.reference, input.authorisation.accountId]);
+        edited = selected.rows[0];
+        if (!edited) throw new BookerError('This booking can no longer be edited here. Open your booking messages to request a change.', 409);
+        if (edited.revision !== input.edit.revision) throw new BookerError('This booking changed in another tab. Reload the saved booking before continuing.', 409);
+        accountId = input.authorisation.accountId;
+      }
       verified = await verifiedBookingIdentity(client, input.authorisation);
-      accountId = await accountForIdentity(client, verified.identity);
-      await claimBookings(client, accountId, verified.identity);
+      if (!edited) {
+        accountId = await accountForIdentity(client, verified.identity);
+        await claimBookings(client, accountId, verified.identity);
+      }
     }
 
+    if (input.edit && !edited) throw new BookerError('Sign in to edit this booking.', 403);
     if (property.id !== 'bespoke-arrangement') {
       for (const availabilityProperty of availabilityProperties) {
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [availabilityProperty.id]);
       }
       const conflicts = await Promise.all(availabilityProperties.map((availabilityProperty) => hasBookingDateConflict(client, {
         availabilityPropertyId: availabilityProperty.id, propertyIds: linkedPropertyIds,
-        arrival: input.arrival, departure: input.departure,
+        arrival: input.arrival, departure: input.departure, excludeBookingId: edited?.id,
       })));
       const conflict = conflicts.some(Boolean);
       if (conflict) throw new Error('DATES_UNAVAILABLE');
     }
-    const result = await client.query(
-      `INSERT INTO provisional_bookings
-       (property_id, arrival, departure, guests, adults, children, infants, pets,
-        guest_name, guest_email, guest_telephone, guest_telephone_e164,
-        whatsapp_consent_status, whatsapp_consent_at, whatsapp_consent_source, whatsapp_consent_version,
-        whatsapp_consent_number_e164, guest_message,
-        pricing_plan_id, pricing_plan_version, pricing_currency, accommodation_pence, fees_pence,
-        guest_total_pence, channel_commission_pence, owner_revenue_pence, pricing_input, pricing_result, quoted_at,
-        customer_access_token, occupancy_policy_id, occupancy_policy_version,
-        occupancy_assessment_input, occupancy_assessment_outcome, occupancy_assessment_reasons, occupancy_assessed_at, promo_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-        CASE WHEN $13 = 'active' THEN NOW() END, $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb,$28,$29,
-        $30,$31,$32::jsonb,$33,$34::jsonb,$35,$36)
-       RETURNING id::text, public_id::text AS reference`,
-      [
-        input.propertyId, input.arrival, input.departure, compatibilityGuests,
-        party.adults, party.children, party.infants, input.pets, input.name, input.email,
-        input.telephone || null, input.telephoneE164 || null,
-        input.whatsappConsentRequested ? 'active' : 'not_requested',
-        input.whatsappConsentRequested ? 'booking_form' : null,
-        input.whatsappConsentRequested ? input.whatsappConsentVersion || null : null,
-        input.whatsappConsentRequested ? input.telephoneE164 || null : null,
-        input.message || null,
-        input.pricingQuote?.plan.id ?? null,
-        input.pricingQuote?.plan.version ?? null,
-        input.pricingQuote?.result.currency ?? null,
-        input.pricingQuote?.result.accommodationPence ?? null,
-        input.pricingQuote?.result.feesPence ?? null,
-        input.pricingQuote?.result.guestTotalPence ?? null,
-        input.pricingQuote?.result.commissionPence ?? null,
-        input.pricingQuote?.result.ownerRevenuePence ?? null,
-        input.pricingQuote ? JSON.stringify(input.pricingQuote.input) : null,
-        input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
-        input.pricingQuote ? new Date() : null,
-        accessToken,
-        input.occupancyAssessment?.policyId ?? null,
-        input.occupancyAssessment?.policyVersion ?? null,
-        input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.input) : null,
-        input.occupancyAssessment?.result.outcome ?? null,
-        input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.result.reasons) : null,
-        input.occupancyAssessment?.assessedAt ?? null,
-        input.promoCode?.trim() || null,
-      ],
-    );
+    const automaticOffer = input.publishDirectOffer === true && directOfferDecision({ ...input, administratorPriced: property.administratorPriced, occupancyOutcome: input.occupancyAssessment?.result.outcome }).automaticOffer;
+    const revision = edited ? edited.revision + 1 : input.requestJourney && automaticOffer ? 1 : 0;
+    const fields: Record<string, unknown> = {
+      property_id: input.propertyId, arrival: input.arrival, departure: input.departure,
+      guests: compatibilityGuests, adults: party.adults, children: party.children, infants: party.infants, pets: input.pets,
+      guest_name: input.name, guest_email: input.email, guest_telephone: input.telephone || null,
+      guest_telephone_e164: input.telephoneE164 || null,
+      whatsapp_consent_status: input.whatsappConsentRequested ? 'active' : 'not_requested',
+      whatsapp_consent_at: input.whatsappConsentRequested ? new Date() : null,
+      whatsapp_consent_source: input.whatsappConsentRequested ? 'booking_form' : null,
+      whatsapp_consent_version: input.whatsappConsentRequested ? input.whatsappConsentVersion || null : null,
+      whatsapp_consent_number_e164: input.whatsappConsentRequested ? input.telephoneE164 || null : null,
+      guest_message: input.message || null,
+      pricing_plan_id: input.pricingQuote?.plan.id ?? null,
+      pricing_plan_version: input.pricingQuote?.plan.version ?? null,
+      pricing_currency: input.pricingQuote?.result.currency ?? null,
+      accommodation_pence: input.pricingQuote?.result.accommodationPence ?? null,
+      fees_pence: input.pricingQuote?.result.feesPence ?? null,
+      guest_total_pence: input.pricingQuote?.result.guestTotalPence ?? null,
+      channel_commission_pence: input.pricingQuote?.result.commissionPence ?? null,
+      owner_revenue_pence: input.pricingQuote?.result.ownerRevenuePence ?? null,
+      pricing_input: input.pricingQuote ? JSON.stringify(input.pricingQuote.input) : null,
+      pricing_result: input.pricingQuote ? JSON.stringify(input.pricingQuote.result) : null,
+      quoted_at: input.pricingQuote ? new Date() : null,
+      occupancy_policy_id: input.occupancyAssessment?.policyId ?? null,
+      occupancy_policy_version: input.occupancyAssessment?.policyVersion ?? null,
+      occupancy_assessment_input: input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.input) : null,
+      occupancy_assessment_outcome: input.occupancyAssessment?.result.outcome ?? null,
+      occupancy_assessment_reasons: input.occupancyAssessment ? JSON.stringify(input.occupancyAssessment.result.reasons) : null,
+      occupancy_assessed_at: input.occupancyAssessment?.assessedAt ?? null,
+      promo_code: input.promoCode?.trim() || null, request_journey_revision: revision,
+    };
+    if (!edited) fields.customer_access_token = accessToken;
+    const columns = Object.keys(fields), values = Object.values(fields);
+    const result = edited
+      ? await client.query(`UPDATE provisional_bookings SET ${columns.map((column, index) => `${column}=$${index + 1}`).join(',')},
+          status='pending' WHERE id=$${values.length + 1} RETURNING id::text,public_id::text AS reference`, [...values, edited.id])
+      : await client.query(`INSERT INTO provisional_bookings (${columns.join(',')})
+          VALUES (${values.map((_, index) => `$${index + 1}`).join(',')}) RETURNING id::text,public_id::text AS reference`, values);
+    if (edited) {
+      await client.query(`UPDATE booking_offers SET customer_status='superseded',token_revoked_at=COALESCE(token_revoked_at,NOW())
+        WHERE provisional_booking_id=$1 AND customer_status='active'`, [edited.id]);
+      await client.query('DELETE FROM booking_pets WHERE provisional_booking_id=$1', [edited.id]);
+    }
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
-       VALUES ($1, 'customer', 'booking_requested')`,
-      [result.rows[0].id],
+       VALUES ($1, 'customer', $2)`,
+      [result.rows[0].id, edited ? 'booking_journey_updated' : 'booking_requested'],
     );
     for (const [position, pet] of occupancyDetails.pets.entries()) {
       await client.query(`INSERT INTO booking_pets(provisional_booking_id,species,other_species,breed,size,service_animal,position) VALUES($1,$2,$3,$4,$5,$6,$7)`, [result.rows[0].id, pet.species, pet.otherSpecies, pet.breed, pet.size, pet.serviceAnimal, position]);
@@ -366,17 +384,17 @@ export async function createProvisionalBooking(input: {
            source_key, booker_read_at, admin_read_at
          ) VALUES ($1, 'booker', $2, 'message', $3, $4, NOW(), NULL)
          ON CONFLICT (source_key) DO NOTHING`,
-        [result.rows[0].id, input.name, input.message.trim(), `request-message:${result.rows[0].id}`],
+        [result.rows[0].id, input.name, input.message.trim(), `request-message:${result.rows[0].id}${edited ? `:revision-${revision}` : ''}`],
       );
     }
-    const automaticOffer = input.publishDirectOffer === true && directOfferDecision({ ...input, administratorPriced: property.administratorPriced, occupancyOutcome: input.occupancyAssessment?.result.outcome }).automaticOffer;
+
     await insertBotBookingMessage(client, {
       bookingId: result.rows[0].id,
-      body: automaticOffer ? 'Your booking request has been received. Your offer is ready to review.' : input.propertyId === 'bespoke-arrangement'
+      body: edited ? 'Your booking details have been updated. Review the latest dates, price and terms before continuing.' : automaticOffer ? 'Your booking request has been received. Your offer is ready to review.' : input.propertyId === 'bespoke-arrangement'
         ? 'Your bespoke stay request has been received. Jenna will review the dates and discuss the accommodation and price with you here.'
         : 'Your booking request has been received. Jenna will review the dates and price, and any update will appear in this conversation.',
       audience: 'booker',
-      sourceKey: `request-received:${result.rows[0].id}`,
+      sourceKey: `request-received:${result.rows[0].id}${edited ? `:revision-${revision}` : ''}`,
     });
     if (!input.authorisation) {
       await client.query(`UPDATE provisional_bookings SET booker_claim_channel=CASE WHEN $2<>'' THEN 'email' WHEN $3::text IS NOT NULL THEN 'sms' END,
@@ -679,6 +697,7 @@ export type ProvisionalBookingRequest = {
   whatsappConsentNumberE164: string | null;
   message: string | null;
   promoCode?: string | null;
+  requestJourneyRevision: number;
   status: string;
   pricingPlanId?: string | null;
   pricingPlanName?: string | null;
@@ -714,6 +733,7 @@ export type ProvisionalBookingRequest = {
 function normaliseBookingRow(row: Record<string, any>): ProvisionalBookingRequest {
   return {
     ...row,
+    requestJourneyRevision: Number(row.requestJourneyRevision || 0),
     paymentTermsSnapshot: row.paymentTermsSnapshot
       ? { ...row.paymentTermsSnapshot, cancellationTerms: cancellationTermsSnapshot(row.paymentTermsSnapshot.cancellationTerms) }
       : null,
@@ -780,7 +800,7 @@ export async function getProvisionalBookingRequest(reference: string): Promise<P
             pb.whatsapp_consent_source AS "whatsappConsentSource",
             pb.whatsapp_consent_version AS "whatsappConsentVersion",
             pb.whatsapp_consent_number_e164 AS "whatsappConsentNumberE164",
-            pb.guest_message AS message, pb.promo_code AS "promoCode", pb.status,
+            pb.guest_message AS message, pb.promo_code AS "promoCode", pb.request_journey_revision AS "requestJourneyRevision", pb.status,
             pb.pricing_plan_id::text AS "pricingPlanId", pp.name AS "pricingPlanName",
             pb.pricing_currency AS "pricingCurrency", pb.accommodation_pence AS "accommodationPence",
             pb.fees_pence AS "feesPence", pb.guest_total_pence AS "guestTotalPence",
@@ -1170,6 +1190,7 @@ export type CustomerBookingOffer = {
   guestMessage: string | null;
   bookingStatus: string;
   requestCreatedAt: string;
+  requestJourneyRevision: number;
   priceAvailable: boolean;
   currency: string;
   lineItems: BookingOfferLine[];
@@ -1234,6 +1255,7 @@ function normaliseCustomerBooking(row: Record<string, any>): CustomerBookingOffe
     guestMessage: row.guestMessage,
     bookingStatus: row.bookingStatus,
     requestCreatedAt: new Date(row.requestCreatedAt).toISOString(),
+    requestJourneyRevision: Number(row.requestJourneyRevision || 0),
     priceAvailable: offerTotal !== null || recordedTotal !== null || lineItems.length > 0,
     currency: row.currency || row.recordedCurrency || 'GBP',
     lineItems,
@@ -1280,7 +1302,7 @@ const customerBookingSelect = `
          pb.whatsapp_consent_at AS "whatsappConsentAt",
          pb.whatsapp_consent_withdrawn_at AS "whatsappConsentWithdrawnAt",
          pb.guest_message AS "guestMessage",
-         pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt",
+         pb.status AS "bookingStatus", pb.created_at AS "requestCreatedAt", pb.request_journey_revision AS "requestJourneyRevision",
          pb.payment_method AS "paymentMethod", pb.deposit_pence AS "depositPence",
          pb.deposit_due_at AS "depositDueAt", pb.balance_due_pence AS "balanceDuePence",
          pb.balance_due_on::text AS "balanceDueOn",
@@ -1404,6 +1426,7 @@ export type CustomerOfferResponseResult =
 export async function respondToCustomerBookingOffer(
   token: string,
   response: 'accept' | 'decline',
+  expectedJourneyRevision?: number,
 ): Promise<CustomerOfferResponseResult> {
   if (!(await resolveBookingAccessCredential(token)).allowed) return 'not_found';
   const accountId = currentBookerAccountId();
@@ -1418,7 +1441,7 @@ export async function respondToCustomerBookingOffer(
               bo.valid_until IS NOT NULL AND bo.valid_until < CURRENT_DATE AS expired,
               bo.token_revoked_at,
               pb.public_id::text AS booking_reference, pb.property_id,
-              pb.arrival::text, pb.departure::text, pb.status AS booking_status,
+              pb.arrival::text, pb.departure::text, pb.status AS booking_status, pb.request_journey_revision,
               pb.originated_as_bespoke,
               bo.total_pence AS offer_total_pence,
               COALESCE(
@@ -1446,6 +1469,10 @@ export async function respondToCustomerBookingOffer(
       return 'not_found';
     }
     const row = selected.rows[0];
+    if (row.request_journey_revision > 0 && row.request_journey_revision !== expectedJourneyRevision) {
+      await client.query('ROLLBACK'); return 'superseded';
+    }
+
 
     if (row.customer_status === 'accepted') {
       await client.query('ROLLBACK');

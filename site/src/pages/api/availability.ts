@@ -1,3 +1,5 @@
+import { sessionAccount } from '../../lib/booker/accounts.ts';
+import { getEditableRequestJourney } from '../../lib/booking/request-journey.ts';
 import type { APIRoute } from 'astro';
 import { getAvailabilityProperty, getProperty } from '../../lib/booking/config';
 import { isIsoDate, nightsBetween } from '../../lib/booking/dates';
@@ -6,7 +8,7 @@ import { syncProperty } from '../../lib/booking/sync';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, cookies }) => {
   const propertyId = url.searchParams.get('property') || '';
   const from = url.searchParams.get('from') || '';
   const to = url.searchParams.get('to') || '';
@@ -19,6 +21,9 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
+    const reference = url.searchParams.get('bookingReference');
+    const journey = reference ? await getEditableRequestJourney(reference, await sessionAccount(cookies)) : null;
+    if (reference && !journey) return Response.json({ error: 'This booking can no longer be edited here. Return to your booking.' }, { status: 409, headers: { 'cache-control': 'private, no-store' } });
     let refreshWarning: string | undefined;
     if (await isCalendarStale(availabilityProperty.id, 30)) {
       try {
@@ -34,7 +39,7 @@ export const GET: APIRoute = async ({ url }) => {
         availabilityPropertyId: availabilityProperty.id,
         from,
         to,
-        blocks: await getBlocks(propertyId, from, to),
+        blocks: await getBlocks(propertyId, from, to, journey?.id),
         refreshWarning,
       },
       { headers: { 'cache-control': 'no-store' } },

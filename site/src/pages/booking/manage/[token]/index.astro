@@ -315,7 +315,7 @@ if (Astro.request.method === 'POST') {
         ? 'Please tick the confirmation box before accepting the offer.'
         : 'Please tick the confirmation box before declining the offer.';
     } else {
-      responseResult = await respondToCustomerBookingOffer(token, action);
+      responseResult = await respondToCustomerBookingOffer(token, action, Number(form.get('journeyRevision')));
       if (responseResult === 'accepted' || responseResult === 'declined') {
         offer = await getCustomerBookingPage(token, false);
         if (!offer) return new Response('Booking not found.', { status: 404 });

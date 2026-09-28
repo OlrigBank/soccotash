@@ -1,4 +1,6 @@
 ---
+import { currentBookerAccountId } from '../../../../../lib/booker/context.ts';
+import { getEditableRequestJourney } from '../../../../../lib/booking/request-journey.ts';
 import BookerLayout from '../../../../../layouts/BookerLayout.astro';
 import { getProperties } from '../../../../../lib/booking/config.ts';
 import { resolveBookingAccessCredential } from '../../../../../lib/booking/booking-access.ts';
@@ -36,6 +38,7 @@ if (Astro.request.method === 'POST') {
   } else error = 'Choose a payment method to continue.';
   offer = await getCustomerBookingPage(token, false) || offer;
 }
+const journey = offer.requestJourneyRevision > 0 ? await getEditableRequestJourney(token, currentBookerAccountId()) : null;
 const payments = await getBookingPaymentHistory(offer.bookingReference);
 const activeCheckout = await activeCheckoutAttempt(offer.bookingReference);
 const bank = bankTransferDetails();
@@ -64,7 +67,11 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
 <BookerLayout title={`Payment · ${propertyName}`} description="Review your booking and choose how to pay." showSidebar={false}>
   <div class:list={['payment-page', { 'has-payment-bar': due && !reported }]}>
     <nav class="payment-progress" aria-label="Booking progress"><ol>
-      <li>Dates</li><li>Contact</li><li aria-current={offer.bookingStatus === 'confirmed' ? undefined : 'step'}>Payment</li><li aria-current={offer.bookingStatus === 'confirmed' ? 'step' : undefined}>Reservation</li>
+      {offer.requestJourneyRevision > 0 ? <>
+        <li>{journey ? <a href={`/book/?booking=${token}&step=stay`}>Check your stay</a> : 'Check your stay'}</li>
+        <li>{journey ? <a href={`/book/?booking=${token}&step=details`}>Your details</a> : 'Your details'}</li>
+        <li aria-current="step">{awaitingOffer ? 'Review and send request' : 'Make a payment'}</li>
+      </> : <><li>Dates</li><li>Contact</li><li aria-current={offer.bookingStatus === 'confirmed' ? undefined : 'step'}>Payment</li><li aria-current={offer.bookingStatus === 'confirmed' ? 'step' : undefined}>Reservation</li></>}
     </ol></nav>
     <header class="payment-heading"><p class="eyebrow">Your booking</p><h1>{offer.bookingStatus === 'confirmed' && !balanceDue ? 'Reservation confirmed' : 'Make a payment'}</h1>
       <p>{propertyName} · {date(offer.arrival)} to {date(offer.departure)}</p></header>
@@ -80,7 +87,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
         <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View request details</a></section>}
       {offerReady && <section class="payment-state" aria-labelledby="offer-heading"><h2 id="offer-heading">Your offer is ready</h2>
         <p>Review the dates, total and terms, then accept the offer to choose a payment method.</p>
-        <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="accept" />
+        <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="accept" /><input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
           <label class="payment-check"><input type="checkbox" name="confirmAccept" value="yes" required /><span>I have reviewed and accept the dates, price and terms.</span></label>
           <button class="payment-primary" type="submit">Accept offer and continue to payment</button></form>
         <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View full offer or decline</a></section>}
@@ -122,14 +129,14 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
 
     </div><aside class="payment-totals" aria-labelledby="reservation-summary-heading"><h2 id="reservation-summary-heading">Reservation summary</h2>
       <p class="payment-property">{propertyName}</p>
-      <section class="payment-summary-section" aria-labelledby="stay-heading"><h3 id="stay-heading">Your stay</h3>
+      <section class="payment-summary-section" aria-labelledby="stay-heading"><div class="payment-summary-heading"><h3 id="stay-heading">Your stay</h3>{journey && <a href={`/book/?booking=${token}&step=stay`} aria-label="Edit stay dates and guests">Edit</a>}</div>
         <dl class="payment-facts payment-stay-facts">
           <div><dt>Dates</dt><dd>{date(offer.arrival)} – {date(offer.departure)}</dd></div>
           <div><dt>Guests</dt><dd>{formatPartyComposition(offer, ', ')}</dd></div>
           <div><dt>Booking reference</dt><dd><code>{offer.customerReference}</code></dd></div>
         </dl>
       </section>
-      <section class="payment-summary-section" aria-labelledby="contact-heading"><h3 id="contact-heading">Your contact details</h3>
+      <section class="payment-summary-section" aria-labelledby="contact-heading"><div class="payment-summary-heading"><h3 id="contact-heading">Your contact details</h3>{journey && <a href={`/book/?booking=${token}&step=details`} aria-label="Edit contact details">Edit</a>}</div>
         <p>{offer.guestName}</p>
         {offer.guestEmail && <p>{offer.guestEmail}</p>}
         {offer.guestTelephone && <p>{offer.guestTelephone}</p>}
@@ -195,6 +202,9 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
   .payment-totals { min-width:0; }
   .payment-property { font-weight:700; }
   .payment-summary-section { margin-top:1.2rem; padding-top:1.2rem; border-top:1px solid #d9dfd5; }
+  .payment-progress a { color:inherit; }
+  .payment-summary-heading { display:flex; justify-content:space-between; align-items:baseline; gap:.75rem; }
+  .payment-summary-heading a { margin:0; padding:.35rem .5rem; }
   .payment-summary-section h3 { font-size:1rem; margin:0 0 .8rem; }
   .payment-summary-section p { margin:.3rem 0; }
   .payment-stay-facts div { display:block; border:0; }

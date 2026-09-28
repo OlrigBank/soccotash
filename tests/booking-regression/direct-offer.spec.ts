@@ -36,14 +36,13 @@ for (const width of [390, 768, 1440]) {
       await page.getByLabel('Booker name').fill(name);
       await page.getByLabel('Mobile number', { exact: true }).fill(mobile);
       await page.getByLabel('Booker name').focus();
-      await page.getByRole('button', { name: 'Continue to review' }).click();
-      await expect(page.locator('[data-booking-submit-review]')).toContainText('receive an offer at this total');
-      const total = await page.locator('[data-booking-submit-review] > strong').innerText();
+      await expect(page.locator('[data-progress-step="3"]')).toHaveText('3Make a payment');
+      const total = (await page.locator('[data-stay-summary-text]').innerText()).split('Total: ')[1];
       const submitted = page.waitForRequest(request => request.url().endsWith('/api/provisional-bookings/') && request.method() === 'POST');
-      await page.getByRole('button', { name: 'Request booking', exact: true }).click();
+      await page.getByRole('button', { name: 'Continue to payment', exact: true }).click();
       const request = await submitted;
       await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/payment\/$/);
-      await expect(page.getByRole('heading', { name: 'Your offer is ready' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Make a payment', level: 1 })).toBeVisible();
       await expect(page.locator('body')).toContainText(total.replace('Total: ', ''));
       await expect(page.locator('body')).not.toContainText('while Jenna and the team review');
       const replay = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: request.postDataJSON() });
@@ -69,7 +68,7 @@ for (const width of [390, 768, 1440]) {
       await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/payment\//);
       await expect(page.getByRole('heading', { name: 'Payment details' })).toBeVisible();
       await db.query('DELETE FROM provisional_bookings WHERE guest_name=$1', [name]);
-      const promo = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...request.postDataJSON(), submissionId: randomUUID(), promoCode: 'TEST' } });
+      const promo = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...request.postDataJSON(), submissionId: randomUUID(), promoCode: 'TEST', journeyMode: 'request' } });
       expect(promo.status()).toBe(201); const pending = await promo.json(); expect(pending.status).toBe('pending');
       await page.goto(`${pending.managePath}payment/`);
       await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible();
