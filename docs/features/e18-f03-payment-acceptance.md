@@ -2,6 +2,9 @@
 
 Implemented on the task branch for iterative review; not merged or deployed.
 
+Accepted by the owner. Subsequent continuation improvements and final checks are
+recorded in [E18-F04](e18-f04-final-verification.md).
+
 The Make a payment page now shows payment methods immediately. The separate
 “Your offer is ready” section, acceptance button and offer/decline link have been
 removed from this page. Its required checkbox reads:

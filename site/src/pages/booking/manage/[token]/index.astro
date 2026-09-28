@@ -291,11 +291,11 @@ if (Astro.request.method === 'POST') {
           details: notification,
         });
         return Astro.redirect(
-          `/booking/manage/${token}/reservation/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
+          `/booking/manage/${token}/${form.get('returnToPayment') === 'yes' ? 'payment' : 'reservation'}/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
         );
       }
       if (transferResult === 'already_reported') {
-        return Astro.redirect(`/booking/manage/${token}/reservation/?payment=bank-transfer-reported`);
+        return Astro.redirect(`/booking/manage/${token}/${form.get('returnToPayment') === 'yes' ? 'payment' : 'reservation'}/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'
         ? 'A manual transfer cannot be reported at this stage of the booking.'

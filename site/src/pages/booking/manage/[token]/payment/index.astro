@@ -131,7 +131,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
             </form> : activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
               : bank ? <div class="payment-bank"><dl class="payment-facts"><div><dt>Payee</dt><dd>{bank.payee}</dd></div><div><dt>Sort code</dt><dd>{bank.sortCode}</dd></div>
                 <div><dt>Account number</dt><dd>{bank.accountNumber}</dd></div><div><dt>Amount</dt><dd>{money(amountPence)}</dd></div><div><dt>Reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
-                <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" />
+                <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" /><input type="hidden" name="returnToPayment" value="yes" />
                   <label class="payment-check"><input type="checkbox" name="confirmTransfer" value="yes" required /><span>I confirm that I have sent this bank transfer.</span></label>
                   <button class="payment-primary" type="submit">Report bank transfer sent</button></form>
               </div> : <p class="payment-unavailable">Bank transfer details are temporarily unavailable. Please contact Olrig Bank through your booking messages.</p>}
@@ -177,6 +177,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
         {initialDue && offer.depositDueAt && <div><dt>Payment deadline</dt><dd>{date(offer.depositDueAt.slice(0, 10))}</dd></div>}
         {(previewTerms?.balanceDueOn || offer.balanceDueOn) && <div><dt>Balance deadline</dt><dd>{date((previewTerms?.balanceDueOn || offer.balanceDueOn)!)}</dd></div>}</dl>
       </section>
+      {offer.requestJourneyRevision > 0 && !journey && !awaitingOffer && <p class="payment-change-help">To request changes to your stay or contact details, <a href={`/booking/manage/${token}/messages/`}>send a booking message</a>.</p>}
       {(verifiedDeposit || verifiedBalance || verifiedFull) && <a href={`/booking/manage/${token}/reservation/`}>View reservation details</a>}
     </aside></div>
   </div>
@@ -235,6 +236,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
   .payment-stay-facts dd { text-align:left; margin-top:.25rem; }
   .payment-price-breakdown .payment-facts { margin-top:1rem; }
   .payment-totals a { display:inline-block; margin-top:1.2rem; color:#204d3d; font-weight:700; }
+  .payment-change-help a { display:inline; margin:0; }
   .payment-mobile-bar { display:none; }
   @media(max-width:800px) {
     .payment-layout { grid-template-columns:1fr; }

@@ -1,0 +1,52 @@
+import { test, expect } from '@playwright/test';
+import { createHmac } from 'node:crypto';
+
+test('card return cannot confirm payment; signed events confirm deposit and balance once', async ({ page, context }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/__request-preview/');
+  await page.getByLabel('Booker name').fill('Card Completion');
+  await page.getByLabel('Booker email').fill('journey@example.test');
+  await page.getByRole('button', { name: 'Continue to payment', exact: true }).click();
+  await page.getByRole('checkbox', { name: /I have reviewed and accept/ }).check();
+  await page.getByRole('button', { name: 'Pay £300.00 by card' }).click();
+  await expect(page.getByRole('heading', { name: 'Disposable checkout simulation' })).toBeVisible();
+  const checkoutUrl = page.url();
+  const session = await (await context.request.get(`${checkoutUrl}/session`)).json();
+  expect(session.amount_total).toBe(30000);
+  await page.getByRole('link', { name: 'Cancel checkout' }).click();
+  await expect(page.getByRole('status')).toContainText('Card checkout was cancelled');
+  await expect(page.getByRole('link', { name: 'Edit contact details' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pay £300.00 by card' }).click();
+  await expect(page).toHaveURL(checkoutUrl); // Retry reuses the open provider session.
+  await page.getByRole('link', { name: 'Return to booking' }).click();
+  await expect(page.getByRole('status')).toContainText('being checked');
+  await expect(page.getByRole('link', { name: 'View reservation details', exact: true })).toHaveCount(0);
+  const paymentUrl = page.url();
+  const signedEvent = async (payment: Record<string, unknown>, valid = true) => {
+    const data = JSON.stringify({ type: 'checkout.session.completed', data: { object: payment } });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createHmac('sha256', 'whsec_disposable_preview').update(`${timestamp}.${data}`).digest('hex');
+    return context.request.post('/api/stripe-webhook/', { data, headers: { 'content-type': 'application/json', 'stripe-signature': `t=${timestamp},v1=${valid ? signature : '0'.repeat(64)}` } });
+  };
+  expect((await signedEvent(session, false)).status()).toBe(400);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Pay £300.00 by card' })).toBeVisible();
+  expect((await signedEvent(session)).status()).toBe(200);
+  expect((await signedEvent(session)).status()).toBe(200);
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'View reservation details', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pay £900.00 by card' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /I have reviewed and accept/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pay £900.00 by card' }).click();
+  const balance = await (await context.request.get(`${page.url()}/session`)).json();
+  expect(balance.amount_total).toBe(90000);
+  expect((await signedEvent(balance)).status()).toBe(200);
+  expect((await signedEvent(balance)).status()).toBe(200);
+  await page.goto(paymentUrl);
+  await expect(page.getByRole('heading', { name: 'Reservation confirmed', level: 1 })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Payment method', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'View reservation details', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Booking confirmed and fully paid', exact: true }).first()).toBeVisible();
+  expect(errors).toEqual([]);
+});

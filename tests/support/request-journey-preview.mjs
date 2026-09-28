@@ -1,4 +1,9 @@
 import http from 'node:http';
+import { fixtureCardProvider } from './fixture-card-provider.mjs';
+const simulatedCard = process.env.REQUEST_PREVIEW_SIMULATE_CARD === 'yes';
+const port = simulatedCard ? 8086 : 8085;
+const origin = `http://127.0.0.1:${port}`;
+const provider = simulatedCard ? fixtureCardProvider(origin) : null;
 import { randomBytes, createHash } from 'node:crypto';
 import { createLocalFixtureDatabase } from './local-fixture-database.mjs';
 
@@ -8,14 +13,14 @@ for (const key of Object.keys(process.env)) {
   if (/^(BOOKING_|BOOKER_|STRIPE_|SMTP_|EMAIL_|RESEND_|TWILIO_|WHATSAPP_|AIRBNB_)/.test(key)) delete process.env[key];
 }
 Object.assign(process.env, {
-  ASTRO_NODE_AUTOSTART: 'disabled', BOOKING_PUBLIC_URL: 'http://127.0.0.1:8085',
+  ASTRO_NODE_AUTOSTART: 'disabled', BOOKING_PUBLIC_URL: origin,
   BOOKER_VERIFICATION_SECRET: randomBytes(32).toString('hex'),
   BOOKER_AUTO_VERIFIED_EMAIL: 'changed@example.test',
   WHATSAPP_DELIVERY_ENABLED: 'false', STRIPE_SECRET_KEY: 'sk_test_disposable_preview',
   STRIPE_WEBHOOK_SECRET: 'whsec_disposable_preview', BOOKING_BANK_PAYEE: 'Disposable preview account',
   BOOKING_BANK_SORT_CODE: '00-00-00', BOOKING_BANK_ACCOUNT_NUMBER: '00000000',
 });
-globalThis.fetch = async () => { throw new Error('External requests are disabled in the request preview.'); };
+globalThis.fetch = provider?.fetch || (async () => { throw new Error('External requests are disabled in the request preview.'); });
 try {
   await db.query("UPDATE pricing_plans SET status='archived' WHERE status='published'");
   await db.query("UPDATE occupancy_policies SET status='archived' WHERE status='published'");
@@ -34,8 +39,9 @@ try {
   let sequence = 0;
   const { handler } = await import('../../site/dist/server/entry.mjs');
   const server = http.createServer((request, response) => {
+    if (provider?.handle(request, response)) return;
     if (request.url?.startsWith('/__request-preview/')) {
-      const url = new URL(request.url, 'http://127.0.0.1:8085');
+      const url = new URL(request.url, origin);
       const date = new Date('2099-01-10T12:00:00Z');
       date.setUTCDate(date.getUTCDate() + sequence++ * 10);
       const arrival = date.toISOString().slice(0, 10);
@@ -49,7 +55,7 @@ try {
     }
     handler(request, response);
   });
-  server.listen(8085, '127.0.0.1', () => console.log('Request journey preview: http://127.0.0.1:8085/__request-preview/ — use journey@example.test'));
+  server.listen(port, '127.0.0.1', () => console.log(`Request journey preview: ${origin}/__request-preview/ — use journey@example.test`));
   const cleanup = async () => { server.close(); await fixture.close(); process.exit(0); };
   process.once('SIGINT', cleanup); process.once('SIGTERM', cleanup);
 } catch (error) { await fixture.close(); throw error; }

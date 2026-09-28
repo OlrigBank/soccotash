@@ -141,7 +141,8 @@ test.describe('bespoke blocked-date negotiation', () => {
     await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
     await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
     await expect(page.getByRole('heading', { name: 'Make a payment' })).toBeVisible();
-    await page.getByRole('link', { name: /reservation details/i }).click();
+    // Unpaid payment pages deliberately hide the reservation-summary link.
+    await page.goto(page.url().replace(/payment\/.*$/, 'reservation/'));
     const cancellationForm = page.locator('form').filter({ has: page.locator('input[name="action"][value="cancel-booking"]') });
     await cancellationForm.getByLabel('Reason for cancellation').fill('Automated regression completed');
     await cancellationForm.getByLabel(/I confirm that I want to cancel this booking/).evaluate((checkbox: HTMLInputElement) => {

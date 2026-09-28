@@ -63,6 +63,8 @@ for (const width of [390, 768, 1440]) {
       expect(changed.status()).toBe(409); expect((await changed.json()).quote.guestTotalPence).toBeGreaterThan(1);
       const missingReview = await page.request.post('/api/provisional-bookings/', { headers: { origin }, data: { ...stale, reviewedPricing: null } });
       expect(missingReview.status()).toBe(409);
+      // Legacy reservation response remains supported; the payment journey has its own coverage.
+      await page.goto(page.url().replace(/payment\/.*$/, 'reservation/'));
       await page.getByLabel('I have reviewed and accept the dates, price and terms.').check();
       await page.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
       await expect(page).toHaveURL(/\/booking\/manage\/[^/]+\/payment\//);

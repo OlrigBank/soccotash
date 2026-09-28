@@ -128,10 +128,15 @@ for (const method of ['bank', 'card']) test(`accept the summary and terms when s
   if (method === 'bank') {
     await expect(page.getByText('Disposable preview account')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Report bank transfer sent' })).toBeVisible();
+    await page.getByRole('checkbox', { name: 'I confirm that I have sent this bank transfer.' }).check();
+    await page.getByRole('button', { name: 'Report bank transfer sent' }).click();
+    await expect(page).toHaveURL(/\/payment\/\?payment=bank-transfer-reported/);
+    await expect(page.getByRole('heading', { name: 'Bank transfer awaiting verification' })).toBeVisible();
   } else await expect(page.getByRole('alert')).toContainText('Card');
   await expect(page.getByRole('link', { name: 'Edit contact details' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Reservation confirmed' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'View reservation details', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'send a booking message' })).toHaveAttribute('href', /\/messages\/$/);
   await page.reload();
   await expect(page.getByRole('checkbox', { name: /I have reviewed/ })).toHaveCount(0);
 });
