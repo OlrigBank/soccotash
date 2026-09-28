@@ -92,6 +92,66 @@ test('direct offers are atomic, preserve review exceptions and retain the existi
       }
       await db!.query('DELETE FROM booker_accounts WHERE id=$1', [accountId]);
     });
+    await t.test('saved journeys retain their reference, reject stale edits and protect acceptance', async () => {
+      const { getEditableRequestJourney } = await import('../../src/lib/booking/request-journey.ts');
+      const accountId = (await db!.query('INSERT INTO booker_accounts DEFAULT VALUES RETURNING id')).rows[0].id;
+      await db!.query("INSERT INTO booker_identities(channel,identifier,account_id) VALUES('email',$1,$2)", [base.email, accountId]);
+      const authorisation = { accountId, email: base.email, mobile: null, browserHash: 'disposable-journey-browser', submissionId: crypto.randomUUID() };
+      const original = await repository.createProvisionalBooking({ ...input, requestJourney: true, authorisation });
+      const reference = original.reference;
+      const originalSaved = await repository.getProvisionalBookingRequest(reference);
+      assert.equal(originalSaved?.requestJourneyRevision, 1);
+      assert.ok(await getEditableRequestJourney(reference, accountId));
+      assert.equal(await getEditableRequestJourney(reference, crypto.randomUUID()), null);
+      const change = { ...input, name: 'Updated Booker', requestJourney: true,
+        authorisation: { ...authorisation, submissionId: crypto.randomUUID() }, edit: { reference, revision: 1 } };
+      assert.equal((await repository.createProvisionalBooking(change)).reference, reference);
+      assert.equal((await repository.createProvisionalBooking(change)).replayed, true);
+      const updated = await repository.getProvisionalBookingRequest(reference);
+      assert.equal(updated?.customerReference, originalSaved?.customerReference);
+      assert.equal(updated?.requestJourneyRevision, 2);
+      assert.equal(updated?.name, 'Updated Booker');
+      assert.equal((await repository.getBookingOffers(reference)).filter(offer => offer.customerStatus === 'active').length, 1);
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 1)), 'superseded');
+      await assert.rejects(repository.createProvisionalBooking({ ...change,
+        authorisation: { ...authorisation, submissionId: crypto.randomUUID() },
+      }), /another tab/);
+      await assert.rejects(repository.createProvisionalBooking({ ...change, edit: { reference, revision: 2 },
+        email: 'unverified@example.test', authorisation: { ...authorisation, email: 'unverified@example.test', submissionId: crypto.randomUUID() },
+      }), /Verify your email/);
+      await assert.rejects(repository.createProvisionalBooking({ ...change, edit: { reference, revision: 2 },
+        authorisation: { ...authorisation, accountId: crypto.randomUUID(), submissionId: crypto.randomUUID() },
+      }), /can no longer be edited/);
+      const concurrent = await Promise.allSettled([1, 2].map(() => repository.createProvisionalBooking({ ...change,
+        edit: { reference, revision: 2 }, authorisation: { ...authorisation, submissionId: crypto.randomUUID() },
+      })));
+      assert.equal(concurrent.filter(result => result.status === 'fulfilled').length, 1);
+      assert.equal(concurrent.filter(result => result.status === 'rejected').length, 1);
+      const conflict = await repository.createProvisionalBooking({ ...input, arrival: '2099-11-19', departure: '2099-11-23' });
+      await assert.rejects(repository.createProvisionalBooking({ ...change, arrival: '2099-11-19', departure: '2099-11-23',
+        edit: { reference, revision: 3 }, authorisation: { ...authorisation, submissionId: crypto.randomUUID() },
+      }), /DATES_UNAVAILABLE/);
+      assert.equal((await repository.getProvisionalBookingRequest(reference))?.requestJourneyRevision, 3);
+      const terms = await bookerContext.run({ accountId }, () => repository.previewOfferPaymentTerms(reference));
+      assert.ok(terms);
+      const offerId = String((await repository.getBookingOffers(reference)).find(offer => offer.customerStatus === 'active')!.id);
+      const review = { offerId, key: repository.paymentReviewKey(offerId, terms), method: 'bank' as const };
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, { ...review, key: 'stale-terms' })), 'superseded');
+      assert.ok(await getEditableRequestJourney(reference, accountId));
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, review)), 'accepted');
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, review)), 'already_accepted');
+      const acceptance = await db!.query(`SELECT details FROM booking_activity WHERE provisional_booking_id=(SELECT id FROM provisional_bookings WHERE public_id=$1) AND event_type='offer_accepted_payment_required'`, [reference]);
+      assert.equal(acceptance.rowCount, 1);
+      assert.equal(acceptance.rows[0].details.acceptance, 'booking_and_cancellation_terms_and_reservation_summary');
+      assert.equal((await repository.getProvisionalBookingRequest(reference))?.status, 'payment_pending');
+      assert.equal(await getEditableRequestJourney(reference, accountId), null);
+      await assert.rejects(repository.createProvisionalBooking({ ...change, edit: { reference, revision: 3 },
+        authorisation: { ...authorisation, submissionId: crypto.randomUUID() },
+      }), /can no longer be edited/);
+      await db!.query('DELETE FROM provisional_bookings WHERE public_id=ANY($1::uuid[])', [[reference, conflict.reference]]);
+      await db!.query('DELETE FROM booker_identities WHERE account_id=$1', [accountId]);
+      await db!.query('DELETE FROM booker_accounts WHERE id=$1', [accountId]);
+    });
     await t.test('a publication failure rolls back the booking as well as the offer', async () => {
       await db!.query(`CREATE FUNCTION reject_e15_offer() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'E15 publication failure'; END $$;
         CREATE TRIGGER reject_e15_offer BEFORE INSERT ON booking_offers FOR EACH ROW EXECUTE FUNCTION reject_e15_offer()`);

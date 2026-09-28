@@ -45,12 +45,14 @@ test('Booker actions remain in their relevant workspace after submission', async
   assert.match(page, /\/holiday-planner\/\?planner=created/);
   assert.match(page, /\/holiday-planner\/\?planner=example-copied/);
   assert.match(page, /\/reservation\/\?consent=withdrawn/);
-  assert.match(page, /\/reservation\/\?payment=bank-transfer-reported/);
+  assert.match(page, /\/\$\{token\}\/\?payment=bank-transfer-reported/);
+  assert.match(page, /payment=bank-transfer-reported/);
   assert.match(page, /\/reservation\/\?response=/);
 });
 
-test('the booking root opens Reservation without a link-saving panel', async () => {
+test('the booking root resumes the appropriate journey and explicit workspaces remain available', async () => {
   const page = await readFile(new URL('src/pages/booking/manage/[token]/index.astro', root), 'utf8');
+  assert.match(page, /bookingDestination/);
   assert.match(page, /searchParams.get\('workspace'\) \|\| 'reservation'/);
   assert.doesNotMatch(page, /customer-booking-access-card|data-copy-booking-link|data-refresh-booking-page|Booking overview/);
 });

@@ -1,15 +1,45 @@
 # Booking payment page
 
-After request submission, the private booking link opens `/payment/`. Standard
-priced Cottage and Main House requests receive an immediate offer; other requests
-show a review state until an administrator publishes one. The Booker must accept
-the offer before paying. The accepted pricing plan determines the deposit or full
+The E18 implementation milestones are accepted. See the
+[final regression and merge hand-off](features/e18-f08-merge-readiness.md) for
+current evidence and deployment prerequisites. Nothing has been merged or deployed.
+
+Standard priced Cottage and Main House requests continue from verified Your
+details to `/payment/`, creating the booking reference at that point. Saved
+summary edits reuse that reference and recheck prices and availability. Bespoke
+and promotion-code requests retain review and submission, then show a review
+state until an administrator publishes an offer. On Make a payment, the Booker
+accepts the booking and cancellation terms and reservation summary when starting
+card checkout or requesting bank details. The accepted pricing plan determines the deposit or full
 amount due now and the balance deadline.
+
+Either payment action ends saved editing. Requesting bank details does not
+confirm payment or the reservation; see the
+[payment acceptance record](features/e18-f03-payment-acceptance.md).
+
+Your bookings and saved root booking URLs resume unfinished requests at payment.
+Once the Booker reports a bank transfer sent, they open the main booking page
+while payment awaits verification, as recorded in
+[E18-F06](features/e18-f06-transfer-booking-home.md).
+After verified payment, they open the reservation workspace. Saved Edit links
+preserve their requested step through sign-in. See the
+[public journey integration record](features/e18-f05-public-journey-integration.md).
 
 Configure `BOOKING_BANK_PAYEE`, `BOOKING_BANK_SORT_CODE` and
 `BOOKING_BANK_ACCOUNT_NUMBER` in the service environment to show transfer
 instructions. The booking reference is the transfer reference. Reporting a bank
 transfer leaves the booking awaiting administrator verification.
+
+The admin Bookings dashboard shows **Check transfer received**, including a
+separate balance check for an already confirmed booking. If the money has not
+arrived, the administrator uses **Transfer not received** and **Send message and
+reopen payment**. The explanation becomes a visible administrator message in the
+permanent conversation in the same transaction as the rejected payment report.
+The Booker can use **Make a payment** from that conversation, choose card or bank
+again, and request bank details afresh. Accepted booking details and terms stay
+in place; previous payment attempts remain in the history. A new report returns
+to the main booking page and requires another admin check. See the
+[transfer retry record](features/e18-f07-transfer-retry.md) for regression coverage.
 
 Configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to enable hosted card
 checkout. Register `POST /api/stripe-webhook/` in Stripe for

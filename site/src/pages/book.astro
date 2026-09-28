@@ -1,9 +1,25 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BookingCalendar from '../components/BookingCalendar.astro';
+import { sessionAccount } from '../lib/booker/accounts.ts';
+import { getEditableRequestJourney } from '../lib/booking/request-journey.ts';
+import { validBookingReference } from '../lib/booker/context.ts';
 export const prerender = false;
+const reference = Astro.url.searchParams.get('booking');
+let journey = null;
+if (reference) {
+  Astro.response.headers.set('Cache-Control', 'private, no-store');
+  Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+  Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  if (!validBookingReference(reference)) return new Response('Booking not found.', { status: 404 });
+  const accountId = await sessionAccount(Astro.cookies);
+  if (!accountId) return Astro.redirect(`/booking/?returnTo=${encodeURIComponent(`/book/?booking=${reference}&step=${Astro.url.searchParams.get('step') === 'stay' ? 'stay' : 'details'}`)}`, 303);
+  journey = await getEditableRequestJourney(reference, accountId);
+  if (!journey) return Astro.redirect(`/booking/manage/${reference}/payment/`, 303);
+}
+const startStep = Astro.url.searchParams.get('step') === 'stay' ? 'stay' : 'details';
 ---
 <BaseLayout title="Request a stay" description="Check current availability and request a provisional stay at Olrig Bank." showSidebar={false} pageClass="booking-journey-page">
-  <section class="hero"><span class="badge">Book direct</span><h1>Request a stay</h1><p>Choose your stay, check the latest availability and price, then send your details to Olrig Bank.</p><p class="booking-journey-reassurance">You will not be charged and your booking is not confirmed when you send this request.</p></section>
-  <BookingCalendar />
+  <section class="hero"><span class="badge">Book direct</span><h1>Request a stay</h1><p>Choose your stay, check the latest availability and price, then enter your details to continue to payment or send a request for review.</p><p class="booking-journey-reassurance">You will not be charged and your booking is not confirmed when you enter your details.</p></section>
+  <BookingCalendar journey={journey} startStep={startStep} />
 </BaseLayout>

@@ -211,15 +211,15 @@ const initialPaymentLabel = fullPaymentRequired ? 'Full payment' : 'Deposit';
 
       <section class="admin-panel">
         <p class="eyebrow">Could not verify</p>
-        <h2>{reportedPayment.stage === 'balance' ? 'Reject balance report' : 'Return to payment required'}</h2>
-        <p>The Booker will see the reason in the permanent conversation and can report payment again later.</p>
+        <h2>Transfer not received</h2>
+        <p>Send the Booker a message explaining what you checked. It will appear in the permanent conversation and reopen the payment options.</p>
         <form method="post" class="admin-form">
           <input type="hidden" name="action" value="reject-payment" />
           <input type="hidden" name="paymentReference" value={reportedPayment.publicId} />
-          <label>Reason
+          <label>Message to the Booker
             <textarea name="reason" rows="5" maxlength="1000" required placeholder="For example: the transfer is not visible or the amount/reference does not match."></textarea>
           </label>
-          <button class="admin-button admin-button--secondary" type="submit">Reject payment report</button>
+          <button class="admin-button admin-button--secondary" type="submit">Send message and reopen payment</button>
         </form>
       </section>
     </div>

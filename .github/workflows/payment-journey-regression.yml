@@ -1,0 +1,61 @@
+name: Payment journey regression
+
+on:
+  pull_request:
+    branches: [development]
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payment-journey:
+    name: E18 ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [payment-layout, request-journey, payment-completion, public-booking-journey]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: soccotash
+          POSTGRES_PASSWORD: local-payment-fixture
+          POSTGRES_DB: payment_regression
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U soccotash -d payment_regression"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://soccotash:local-payment-fixture@127.0.0.1:5432/payment_regression
+      DATABASE_SSL: "false"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install browser test dependencies
+        run: npm ci
+      - name: Install application dependencies
+        run: npm --prefix site ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify payment journey with isolated local fixtures
+        run: npm run test:${{ matrix.suite }}
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: payment-journey-${{ matrix.suite }}-${{ github.run_number }}
+          path: test-results/${{ matrix.suite }}/
+          if-no-files-found: ignore
+          retention-days: 7

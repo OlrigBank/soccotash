@@ -1,3 +1,4 @@
+import { safeBookerReturnPath } from './booking-destination.ts';
 type Contact = { channel: string; identifier: string; expires_at?: string };
 export function initialiseVerification(root: HTMLElement) {
   const form = root.closest('form')!;
@@ -93,7 +94,7 @@ export function initialiseVerification(root: HTMLElement) {
         verifiedKey = selected; expires = Date.now() + body.expiresIn * 1000;
         if (purpose === 'login') {
           const returnTo = new URL(location.href).searchParams.get('returnTo');
-          location.assign(returnTo && (returnTo === '/booking/account/' || /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo)) ? returnTo : '/booking/');
+          location.assign(safeBookerReturnPath(returnTo) || '/booking/');
         }
         return;
       }
@@ -115,7 +116,7 @@ export function initialiseVerification(root: HTMLElement) {
       verifiedKey = challengeKey; expires = Date.now() + body.expiresIn * 1000;
       if (purpose === 'login') {
         const returnTo = new URL(location.href).searchParams.get('returnTo');
-        location.assign(returnTo && (returnTo === '/booking/account/' || /^\/booking\/manage\/[0-9a-f-]{36}\/(?:[a-z/-]*)?$/.test(returnTo)) ? returnTo : '/booking/');
+        location.assign(safeBookerReturnPath(returnTo) || '/booking/');
       }
     } catch (error) { if (currentRevision === revision) status.textContent = error instanceof Error ? error.message : 'Verification failed. Try again.'; }
     finally {

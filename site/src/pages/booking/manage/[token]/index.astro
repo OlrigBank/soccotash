@@ -1,4 +1,5 @@
 ---
+import { bookingDestination } from '../../../../lib/booker/booking-destination.ts';
 import BookerLayout from '../../../../layouts/BookerLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
 import BookingOccupancyDetails from '../../../../components/BookingOccupancyDetails.astro';
@@ -55,6 +56,11 @@ if (!access.allowed) return new Response('Booking not found.', { status: 404 });
 
 let offer = await getCustomerBookingPage(token, true);
 if (!offer) return new Response('Booking not found.', { status: 404 });
+if (Astro.request.method === 'GET' && !Astro.url.searchParams.has('workspace')) {
+  const paymentHistory = await getBookingPaymentHistory(offer.bookingReference);
+  const destination = bookingDestination({ reference: token, status: offer.bookingStatus, hasVerifiedPayment: paymentHistory.some(payment => payment.status === 'verified'), hasReportedPayment: paymentHistory.some(payment => payment.status === 'reported') });
+  if (destination !== `/booking/manage/${token}/`) return Astro.redirect(`${destination}${Astro.url.search}`, 303);
+}
 
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
 const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();
@@ -291,11 +297,11 @@ if (Astro.request.method === 'POST') {
           details: notification,
         });
         return Astro.redirect(
-          `/booking/manage/${token}/reservation/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
+          `/booking/manage/${token}/?payment=bank-transfer-reported&paymentEmail=${notification.status}`,
         );
       }
       if (transferResult === 'already_reported') {
-        return Astro.redirect(`/booking/manage/${token}/reservation/?payment=bank-transfer-reported`);
+        return Astro.redirect(`/booking/manage/${token}/?payment=bank-transfer-reported`);
       }
       responseError = transferResult === 'payment_not_due'
         ? 'A manual transfer cannot be reported at this stage of the booking.'
@@ -315,7 +321,7 @@ if (Astro.request.method === 'POST') {
         ? 'Please tick the confirmation box before accepting the offer.'
         : 'Please tick the confirmation box before declining the offer.';
     } else {
-      responseResult = await respondToCustomerBookingOffer(token, action);
+      responseResult = await respondToCustomerBookingOffer(token, action, Number(form.get('journeyRevision')));
       if (responseResult === 'accepted' || responseResult === 'declined') {
         offer = await getCustomerBookingPage(token, false);
         if (!offer) return new Response('Booking not found.', { status: 404 });

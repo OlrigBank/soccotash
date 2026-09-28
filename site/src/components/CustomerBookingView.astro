@@ -74,6 +74,7 @@ const cancellationRefund = cancelled
 const canCancel = allowResponse && !adminPreview && listAllowedBookingTransitions(offer.bookingStatus, 'booker')
   .some((transition) => transition.action === 'cancel_booking');
 const canReportBalance = allowResponse && confirmed && offer.balanceDuePence > 0 && depositVerified && !balanceVerified && !openPayment && !cancelled;
+const retryPayment = !adminPreview && allowResponse && !openPayment && (paymentPending || canReportBalance) && payments[0]?.status === 'rejected';
 const fullPaymentRequired = offer.balanceDuePence === 0;
 const initialPaymentLabel = fullPaymentRequired ? 'full payment' : 'deposit';
 const initialPaymentLabelTitle = fullPaymentRequired ? 'Full payment' : 'Deposit';
@@ -159,6 +160,12 @@ const conversationError = messageError || responseError;
     <a href={`/admin/bookings/${offer.bookingReference}/`}>Return to the booking conversation</a>
   </div>}
 
+  {retryPayment && <section class="customer-booking-message" aria-labelledby="retry-payment-heading">
+    <h2 id="retry-payment-heading">Your transfer has not been verified</h2>
+    <p>Read <a href={`/booking/manage/${offer.bookingReference}/messages/`}>Olrig Bank’s message</a> and check the transfer with your bank before sending another payment.</p>
+    <a href={`/booking/manage/${offer.bookingReference}/payment/`}>Make a payment</a>
+  </section>}
+
   {(view === 'combined' || view === 'messages') && <BookingConversation
     messages={messages}
     viewer="booker"
@@ -166,7 +173,7 @@ const conversationError = messageError || responseError;
     intro={adminPreview ? 'This is how the continuing booking conversation appears to the Booker.' : 'Reply here to Jenna and the Olrig Bank team. New messages are checked automatically.'}
     pollingUrl={pollingUrl}
     bookingStatus={offer.bookingStatus}
-    reservationVersion={`${offer.bookingStatus}:${offer.customerStatus}:${offer.offerId || ''}:${offer.publishedAt || ''}:${offer.arrival}:${offer.departure}:${offer.bespokeSuggestedArrival || ''}`}
+    reservationVersion={`${offer.bookingStatus}:${offer.customerStatus}:${offer.offerId || ''}:${offer.publishedAt || ''}:${offer.arrival}:${offer.departure}:${offer.bespokeSuggestedArrival || ''}:${payments[0]?.publicId || ''}:${payments[0]?.status || ''}`}
     canCompose={!adminPreview}
     notificationAvailable={messageNotificationAvailable}
     notificationLabel="Also notify the Olrig Bank administrators by email"
@@ -394,6 +401,7 @@ const conversationError = messageError || responseError;
         <div class="customer-booking-actions">
           <form method="post" class="customer-booking-decision-form">
             <input type="hidden" name="action" value="accept" />
+            <input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
             <strong>Accept offer</strong>
             <p>Confirm that you accept the dates, price and terms shown here.</p>
             <label class="customer-booking-confirm-check">
@@ -405,6 +413,7 @@ const conversationError = messageError || responseError;
 
           <form method="post" class="customer-booking-decision-form is-decline">
             <input type="hidden" name="action" value="decline" />
+            <input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
             <strong>Decline this offer</strong>
             <p>Declining closes this offer. Continue the conversation to discuss a different stay.</p>
             <label class="customer-booking-confirm-check">

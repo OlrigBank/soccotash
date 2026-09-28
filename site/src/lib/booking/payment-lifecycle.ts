@@ -464,12 +464,26 @@ export async function rejectReportedPayment(
         lifecycleRule: `${plan.from}.${plan.action}.${plan.actor}`,
       },
     });
+    // The reason is authored by the administrator. System audit messages are
+    // deliberately hidden from conversations, so also store the human message
+    // atomically with the decision, unread for the Booker and only once.
+    await client.query(
+      `INSERT INTO booking_messages (
+         provisional_booking_id, booking_offer_id, admin_user_id,
+         sender_type, sender_name, message_type, body, source_key,
+         booker_read_at, admin_read_at
+       ) VALUES ($1, $2, $3, 'administrator',
+         COALESCE((SELECT display_name FROM admin_users WHERE id = $3), 'Olrig Bank'),
+         'message', $4, $5, NULL, NOW())
+       ON CONFLICT (source_key) DO NOTHING`,
+      [row.id, row.offer_id, adminUserId || null, plan.reason, `payment-rejection-message:${row.payment_reference}`],
+    );
     await insertBotBookingMessage(client, {
       bookingId: row.id,
       offerId: row.offer_id,
       body: row.stage === 'balance'
-        ? `The reported remaining-balance transfer could not be verified. Reason: ${plan.reason} Your booking remains confirmed, and you can report the balance again after reviewing the details.`
-        : `The reported bank transfer could not be verified. Reason: ${plan.reason} Please review the details and contact Olrig Bank in this conversation before reporting payment again.`,
+        ? `The reported remaining-balance transfer could not be verified. Reason: ${plan.reason} Your booking remains confirmed. Check the transfer with your bank before making another payment. You can return to the payment page using Make a payment.`
+        : `The reported bank transfer could not be verified. Reason: ${plan.reason} Review this message and check the transfer with your bank before making another payment. You can return to the payment page using Make a payment.`,
       audience: 'booker',
       sourceKey: `payment-report-rejected-booker:${row.payment_reference}`,
     });
