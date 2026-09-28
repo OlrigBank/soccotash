@@ -13,6 +13,11 @@ Either payment action ends saved editing. Requesting bank details does not
 confirm payment or the reservation; see the
 [payment acceptance record](features/e18-f03-payment-acceptance.md).
 
+Your bookings and saved root booking URLs resume unfinished requests at payment.
+After verified payment, they open the reservation workspace. Saved Edit links
+preserve their requested step through sign-in. See the
+[public journey integration record](features/e18-f05-public-journey-integration.md).
+
 Configure `BOOKING_BANK_PAYEE`, `BOOKING_BANK_SORT_CODE` and
 `BOOKING_BANK_ACCOUNT_NUMBER` in the service environment to show transfer
 instructions. The booking reference is the transfer reference. Reporting a bank

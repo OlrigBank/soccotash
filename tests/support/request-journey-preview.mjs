@@ -1,7 +1,9 @@
 import http from 'node:http';
 import { fixtureCardProvider } from './fixture-card-provider.mjs';
 const simulatedCard = process.env.REQUEST_PREVIEW_SIMULATE_CARD === 'yes';
-const port = simulatedCard ? 8086 : 8085;
+const publicJourney = process.env.REQUEST_PREVIEW_PUBLIC_JOURNEY === 'yes';
+const mailbox = new Map();
+const port = publicJourney ? 8087 : simulatedCard ? 8086 : 8085;
 const origin = `http://127.0.0.1:${port}`;
 const provider = simulatedCard ? fixtureCardProvider(origin) : null;
 import { randomBytes, createHash } from 'node:crypto';
@@ -20,7 +22,20 @@ Object.assign(process.env, {
   STRIPE_WEBHOOK_SECRET: 'whsec_disposable_preview', BOOKING_BANK_PAYEE: 'Disposable preview account',
   BOOKING_BANK_SORT_CODE: '00-00-00', BOOKING_BANK_ACCOUNT_NUMBER: '00000000',
 });
-globalThis.fetch = provider?.fetch || (async () => { throw new Error('External requests are disabled in the request preview.'); });
+if (publicJourney) Object.assign(process.env, { EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'disposable-local-mailbox', BOOKING_EMAIL_FROM: 'preview@example.test' });
+globalThis.fetch = async (url, options) => {
+  if (publicJourney && String(url) === 'https://api.resend.com/emails') {
+    const message = JSON.parse(String(options.body));
+    for (const recipient of [message.to].flat()) {
+      if (!String(recipient).endsWith('@example.test')) throw new Error('Only disposable fixture email addresses are allowed.');
+      const messages = mailbox.get(recipient) || [];
+      messages.push(message); mailbox.set(recipient, messages);
+    }
+    return Response.json({ id: randomBytes(12).toString('hex') });
+  }
+  if (provider) return provider.fetch(url, options);
+  throw new Error('External requests are disabled in the request preview.');
+};
 try {
   await db.query("UPDATE pricing_plans SET status='archived' WHERE status='published'");
   await db.query("UPDATE occupancy_policies SET status='archived' WHERE status='published'");
@@ -38,8 +53,18 @@ try {
   await db.query("INSERT INTO booker_sessions(token_hash,account_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '24 hours')", [createHash('sha256').update(token).digest('hex'), account]);
   let sequence = 0;
   const { handler } = await import('../../site/dist/server/entry.mjs');
-  const server = http.createServer((request, response) => {
+  const server = http.createServer(async (request, response) => {
     if (provider?.handle(request, response)) return;
+    if (publicJourney && request.method === 'POST' && request.url === '/__mailbox/advance-cooldown') {
+      // Simulate returning after the resend cooldown without weakening production checks.
+      await db.query("UPDATE booker_verification_requests SET created_at=created_at-INTERVAL '61 seconds'");
+      response.writeHead(204); response.end(); return;
+    }
+    if (publicJourney && request.url?.startsWith('/__mailbox/')) {
+      const email = new URL(request.url, origin).searchParams.get('email');
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      response.end(JSON.stringify(mailbox.get(email) || [])); return;
+    }
     if (request.url?.startsWith('/__request-preview/')) {
       const url = new URL(request.url, origin);
       const date = new Date('2099-01-10T12:00:00Z');

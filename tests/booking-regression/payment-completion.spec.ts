@@ -48,5 +48,11 @@ test('card return cannot confirm payment; signed events confirm deposit and bala
   await expect(page.getByRole('navigation', { name: 'Payment method', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'View reservation details', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Booking confirmed and fully paid', exact: true }).first()).toBeVisible();
+  await page.goto('/booking/?all=1');
+  const reservationPath = new URL(paymentUrl).pathname.replace('payment/', 'reservation/');
+  await page.locator(`.booking-selector a[href="${reservationPath}"]`).click();
+  await expect(page).toHaveURL(/\/reservation\/$/);
+  await page.goto(new URL(paymentUrl).pathname.replace('payment/', ''));
+  await expect(page).toHaveURL(/\/reservation\/$/);
   expect(errors).toEqual([]);
 });

@@ -13,7 +13,7 @@ if (reference) {
   Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
   if (!validBookingReference(reference)) return new Response('Booking not found.', { status: 404 });
   const accountId = await sessionAccount(Astro.cookies);
-  if (!accountId) return Astro.redirect(`/booking/?returnTo=${encodeURIComponent(`/booking/manage/${reference}/payment/`)}`, 303);
+  if (!accountId) return Astro.redirect(`/booking/?returnTo=${encodeURIComponent(`/book/?booking=${reference}&step=${Astro.url.searchParams.get('step') === 'stay' ? 'stay' : 'details'}`)}`, 303);
   journey = await getEditableRequestJourney(reference, accountId);
   if (!journey) return Astro.redirect(`/booking/manage/${reference}/payment/`, 303);
 }

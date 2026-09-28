@@ -1,4 +1,5 @@
 ---
+import { bookingDestination } from '../../../../lib/booker/booking-destination.ts';
 import BookerLayout from '../../../../layouts/BookerLayout.astro';
 import CustomerBookingView from '../../../../components/CustomerBookingView.astro';
 import BookingOccupancyDetails from '../../../../components/BookingOccupancyDetails.astro';
@@ -55,6 +56,11 @@ if (!access.allowed) return new Response('Booking not found.', { status: 404 });
 
 let offer = await getCustomerBookingPage(token, true);
 if (!offer) return new Response('Booking not found.', { status: 404 });
+if (Astro.request.method === 'GET' && !Astro.url.searchParams.has('workspace')) {
+  const paymentHistory = await getBookingPaymentHistory(offer.bookingReference);
+  const destination = bookingDestination({ reference: token, status: offer.bookingStatus, hasVerifiedPayment: paymentHistory.some(payment => payment.status === 'verified') });
+  return Astro.redirect(destination, 303);
+}
 
 const propertyName = getProperties().find((property) => property.id === offer?.propertyId)?.name ?? offer.propertyId;
 const configuredOrigin = String(process.env.BOOKING_PUBLIC_URL || '').trim();

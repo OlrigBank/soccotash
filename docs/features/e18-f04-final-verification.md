@@ -2,9 +2,14 @@
 
 ## Status
 
-E18's implemented milestones are ready for final owner review on
+This is the payment-page verification checkpoint on
 `feat/e18-finalise-payment-page`. The owner accepted E18-F03 before this stage.
 Nothing has been merged or deployed, and no production data has been changed.
+
+The owner subsequently accepted this work and identified the outstanding public
+journey integration. See [E18-F05](e18-f05-public-journey-integration.md) for that
+implementation and its end-to-end evidence; this checkpoint alone did not complete
+the epic.
 
 ## Final adjustments
 
