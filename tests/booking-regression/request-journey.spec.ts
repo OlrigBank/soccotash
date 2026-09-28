@@ -47,9 +47,9 @@ test('standard bookings continue from verified details and edit the same booking
   await staleDetails.getByLabel('Booker name').fill('Stale overwrite');
   await staleDetails.getByRole('button', { name: 'Save and continue to payment' }).click();
   await expect(staleDetails.locator('[data-booking-status]')).toContainText('another tab');
-  await stalePayment.getByLabel('I have reviewed and accept the dates, price and terms.').check();
-  await stalePayment.getByRole('button', { name: 'Accept offer and continue to payment' }).click();
-  await expect(stalePayment.getByRole('button', { name: 'Pay £300.00 by card', exact: true })).toHaveCount(0);
+  await stalePayment.getByLabel('I have reviewed and accept the booking and cancellation terms and the content of the reservation summary.').check();
+  await stalePayment.getByRole('button', { name: 'Pay £300.00 by card' }).click();
+  await expect(stalePayment.getByRole('alert')).toContainText('This booking has changed');
   await page.reload();
   await expect(page.getByRole('link', { name: 'Edit contact details' })).toBeVisible();
   await staleDetails.close(); await stalePayment.close();
@@ -101,4 +101,37 @@ test('bespoke requests and promo codes retain review and explicit submission', a
     await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Edit contact details' })).toHaveCount(0);
   }
+});
+
+for (const method of ['bank', 'card']) test(`accept the summary and terms when starting ${method} payment`, async ({ page, context }) => {
+  await page.goto('/__request-preview/');
+  await page.getByLabel('Booker name').fill('Payment Example');
+  await page.getByLabel('Booker email').fill('journey@example.test');
+  await page.getByRole('button', { name: 'Continue to payment', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Payment details' })).toBeVisible();
+  await expect(page.getByText('Your offer is ready', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Accept offer and continue to payment' })).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Reservation summary' })).toContainText('£300.00');
+  if (method === 'bank') await page.getByRole('link', { name: 'Bank transfer', exact: true }).click();
+  await expect(page.getByText('Disposable preview account')).toHaveCount(0);
+  const action = page.getByRole('button', { name: method === 'bank' ? 'Request bank transfer details' : 'Pay £300.00 by card', exact: true });
+  await action.click();
+  const acceptance = page.getByRole('checkbox', { name: 'I have reviewed and accept the booking and cancellation terms and the content of the reservation summary.' });
+  await expect(acceptance).toBeFocused();
+  const hidden = await page.locator('.payment-method form').evaluate(form => Object.fromEntries(new FormData(form as HTMLFormElement)));
+  const rejected = await context.request.post(page.url(), { form: hidden, headers: { origin: new URL(page.url()).origin } });
+  expect(await rejected.text()).toContain('Confirm that you have reviewed and accept');
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'Edit contact details' })).toBeVisible();
+  await acceptance.check();
+  await action.click();
+  if (method === 'bank') {
+    await expect(page.getByText('Disposable preview account')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Report bank transfer sent' })).toBeVisible();
+  } else await expect(page.getByRole('alert')).toContainText('Card');
+  await expect(page.getByRole('link', { name: 'Edit contact details' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Reservation confirmed' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'View reservation details', exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: /I have reviewed/ })).toHaveCount(0);
 });

@@ -45,7 +45,7 @@ test('payment methods, summary and keyboard validation', async ({ page }) => {
 
 test('review, offer, confirmation and unavailable states retain one summary', async ({ page }) => {
   for (const [state, heading] of [
-    ['pending', 'Your request is being reviewed'], ['offered', 'Your offer is ready'],
+    ['pending', 'Your request is being reviewed'], ['offered', 'Payment details'],
     ['confirmed', 'Reservation confirmed'], ['cancelled', 'Payment is unavailable'],
     ['payment_reported', 'Bank transfer awaiting verification'], ['balance', 'Payment details'],
   ]) {

@@ -26,6 +26,10 @@ application version. Verification applied it only to disposable local schemas.
 
 ## Transitional acceptance boundary
 
+This transitional boundary has now been replaced by
+[acceptance within payment](e18-f03-payment-acceptance.md). The description below
+records the behaviour at the original E18-F02 review point.
+
 The separate acceptance checkbox and “Accept offer and continue to payment”
 button remain in this milestone. Self-service editing currently ends at offer
 acceptance. The next milestone will record acceptance when starting card checkout

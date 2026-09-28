@@ -132,7 +132,18 @@ test('direct offers are atomic, preserve review exceptions and retain the existi
         edit: { reference, revision: 3 }, authorisation: { ...authorisation, submissionId: crypto.randomUUID() },
       }), /DATES_UNAVAILABLE/);
       assert.equal((await repository.getProvisionalBookingRequest(reference))?.requestJourneyRevision, 3);
-      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3)), 'accepted');
+      const terms = await bookerContext.run({ accountId }, () => repository.previewOfferPaymentTerms(reference));
+      assert.ok(terms);
+      const offerId = String((await repository.getBookingOffers(reference)).find(offer => offer.customerStatus === 'active')!.id);
+      const review = { offerId, key: repository.paymentReviewKey(offerId, terms), method: 'bank' as const };
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, { ...review, key: 'stale-terms' })), 'superseded');
+      assert.ok(await getEditableRequestJourney(reference, accountId));
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, review)), 'accepted');
+      assert.equal(await bookerContext.run({ accountId }, () => repository.respondToCustomerBookingOffer(reference, 'accept', 3, review)), 'already_accepted');
+      const acceptance = await db!.query(`SELECT details FROM booking_activity WHERE provisional_booking_id=(SELECT id FROM provisional_bookings WHERE public_id=$1) AND event_type='offer_accepted_payment_required'`, [reference]);
+      assert.equal(acceptance.rowCount, 1);
+      assert.equal(acceptance.rows[0].details.acceptance, 'booking_and_cancellation_terms_and_reservation_summary');
+      assert.equal((await repository.getProvisionalBookingRequest(reference))?.status, 'payment_pending');
       assert.equal(await getEditableRequestJourney(reference, accountId), null);
       await assert.rejects(repository.createProvisionalBooking({ ...change, edit: { reference, revision: 3 },
         authorisation: { ...authorisation, submissionId: crypto.randomUUID() },

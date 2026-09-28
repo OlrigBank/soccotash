@@ -4,13 +4,14 @@ Standard priced Cottage and Main House requests continue from verified Your
 details to `/payment/`, creating the booking reference at that point. Saved
 summary edits reuse that reference and recheck prices and availability. Bespoke
 and promotion-code requests retain review and submission, then show a review
-state until an administrator publishes an offer. The Booker must accept
-the offer before paying. The accepted pricing plan determines the deposit or full
+state until an administrator publishes an offer. On Make a payment, the Booker
+accepts the booking and cancellation terms and reservation summary when starting
+card checkout or requesting bank details. The accepted pricing plan determines the deposit or full
 amount due now and the balance deadline.
 
-The current E18 review milestone ends saved editing at acceptance. Combining
-acceptance with the payment action is the next milestone; see the
-[saved request journey record](features/e18-f02-request-journey.md).
+Either payment action ends saved editing. Requesting bank details does not
+confirm payment or the reservation; see the
+[payment acceptance record](features/e18-f03-payment-acceptance.md).
 
 Configure `BOOKING_BANK_PAYEE`, `BOOKING_BANK_SORT_CODE` and
 `BOOKING_BANK_ACCOUNT_NUMBER` in the service environment to show transfer

@@ -1423,10 +1423,54 @@ export type CustomerOfferResponseResult =
   | 'dates_unavailable'
   | 'not_found';
 
+async function resolveOfferPaymentTerms(client: PoolClient | ReturnType<typeof getPool>, planId: string, totalPence: number, arrival: string, acceptedAt = new Date()): Promise<PaymentTermsSnapshot> {
+  const paymentTermRows = await client.query(
+    `SELECT r.id::text, r.plan_id::text AS "planId",
+            r.rule_definition_id::text AS "ruleDefinitionId",
+            r.type, r.name, r.position, r.priority, r.enabled, r.stackable,
+            r.stacking_group AS "stackingGroup", r.conditions, r.action,
+            p.version AS "planVersion"
+       FROM pricing_rules r
+       JOIN pricing_plans p ON p.id = r.plan_id
+      WHERE r.plan_id = $1
+        AND r.type IN ('deposit_percentage', 'initial_payment_deadline', 'balance_payment_deadline')
+      ORDER BY r.position, r.priority DESC, r.id`,
+    [planId],
+  );
+  return resolvePaymentTerms({
+    rules: paymentTermRows.rows as PricingRule[],
+    pricingPlanId: String(planId),
+    pricingPlanVersion: Number(paymentTermRows.rows[0]?.planVersion),
+    totalPence,
+    acceptedAt,
+    arrival,
+  });
+}
+
+export function paymentReviewKey(offerId: string, terms: PaymentTermsSnapshot): string {
+  // The deadline starts when the action is submitted; compare the rule, not the clock.
+  const { initialPaymentDueAt, ...stableTerms } = terms;
+  return crypto.createHash('sha256').update(JSON.stringify({ offerId, ...stableTerms })).digest('hex');
+}
+
+export async function previewOfferPaymentTerms(token: string): Promise<PaymentTermsSnapshot | null> {
+  if (!(await resolveBookingAccessCredential(token)).allowed) return null;
+  const result = await getPool().query(`SELECT COALESCE(pb.pricing_plan_id,
+    (SELECT id FROM pricing_plans WHERE property_id=pb.property_id AND status='published' LIMIT 1)) AS plan_id,
+    bo.total_pence, pb.arrival::text FROM provisional_bookings pb
+    JOIN booking_offers bo ON bo.provisional_booking_id=pb.id AND bo.customer_status='active'
+    WHERE pb.public_id::text=$1 AND pb.booker_account_id=$2::uuid AND pb.status='offered'
+    ORDER BY bo.published_at DESC,bo.id DESC LIMIT 1`, [token,currentBookerAccountId()]);
+  const row = result.rows[0];
+  if (!row?.plan_id) return null;
+  return resolveOfferPaymentTerms(getPool(), String(row.plan_id), Number(row.total_pence), row.arrival);
+}
+
 export async function respondToCustomerBookingOffer(
   token: string,
   response: 'accept' | 'decline',
   expectedJourneyRevision?: number,
+  paymentReview?: { key: string; offerId: string; method: 'card' | 'bank' },
 ): Promise<CustomerOfferResponseResult> {
   if (!(await resolveBookingAccessCredential(token)).allowed) return 'not_found';
   const accountId = currentBookerAccountId();
@@ -1474,6 +1518,9 @@ export async function respondToCustomerBookingOffer(
     }
 
 
+    if (paymentReview && paymentReview.offerId !== String(row.id)) {
+      await client.query('ROLLBACK'); return 'superseded';
+    }
     if (row.customer_status === 'accepted') {
       await client.query('ROLLBACK');
       return 'already_accepted';
@@ -1555,28 +1602,11 @@ export async function respondToCustomerBookingOffer(
       if (!row.payment_terms_plan_id) {
         throw new Error('PAYMENT_TERMS_PRICING_PLAN_REQUIRED');
       }
-      const paymentTermRows = await client.query(
-        `SELECT r.id::text, r.plan_id::text AS "planId",
-                r.rule_definition_id::text AS "ruleDefinitionId",
-                r.type, r.name, r.position, r.priority, r.enabled, r.stackable,
-                r.stacking_group AS "stackingGroup", r.conditions, r.action,
-                p.version AS "planVersion"
-           FROM pricing_rules r
-           JOIN pricing_plans p ON p.id = r.plan_id
-          WHERE r.plan_id = $1
-            AND r.type IN ('deposit_percentage', 'initial_payment_deadline', 'balance_payment_deadline')
-          ORDER BY r.position, r.priority DESC, r.id`,
-        [row.payment_terms_plan_id],
-      );
       const acceptedAt = new Date();
-      const paymentTerms = resolvePaymentTerms({
-        rules: paymentTermRows.rows as PricingRule[],
-        pricingPlanId: String(row.payment_terms_plan_id),
-        pricingPlanVersion: Number(paymentTermRows.rows[0]?.planVersion),
-        totalPence: Number(row.offer_total_pence),
-        acceptedAt,
-        arrival: row.arrival,
-      });
+      const paymentTerms = await resolveOfferPaymentTerms(client, String(row.payment_terms_plan_id), Number(row.offer_total_pence), row.arrival, acceptedAt);
+      if (paymentReview && paymentReview.key !== paymentReviewKey(String(row.id), paymentTerms)) {
+        await client.query('ROLLBACK'); return 'superseded';
+      }
 
       await client.query(
         `UPDATE booking_offers SET customer_status = 'accepted', accepted_at = $2 WHERE id = $1`,
@@ -1608,9 +1638,9 @@ export async function respondToCustomerBookingOffer(
       );
       await client.query(
         `INSERT INTO booking_activity
-           (provisional_booking_id, booking_offer_id, actor, event_type)
-         VALUES ($1, $2, 'customer', 'offer_accepted_payment_required')`,
-        [row.provisional_booking_id, row.id],
+           (provisional_booking_id, booking_offer_id, actor, event_type, details)
+         VALUES ($1, $2, 'customer', 'offer_accepted_payment_required', $3::jsonb)`,
+        [row.provisional_booking_id, row.id, JSON.stringify(paymentReview ? { paymentMethod: paymentReview.method, acceptance: 'booking_and_cancellation_terms_and_reservation_summary', reviewKey: paymentReview.key } : {})],
       );
       await insertBotBookingMessage(client, {
         bookingId: row.provisional_booking_id,

@@ -33,7 +33,8 @@ merged or deployed. Review and iterate on this stage before starting the next.
   or security-deposit functionality.
 
 The progress trail and saved summary edits are now implemented in
-[E18-F02](e18-f02-request-journey.md). The revised acceptance flow remains next.
+[E18-F02](e18-f02-request-journey.md). The revised acceptance flow is implemented
+in [E18-F03](e18-f03-payment-acceptance.md).
 
 ## Local review
 

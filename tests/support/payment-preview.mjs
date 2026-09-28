@@ -19,6 +19,11 @@ globalThis.fetch = async () => { throw new Error('External requests are disabled
 
 const fixtures = new Map();
 try {
+  await fixtureDatabase.database.query("UPDATE pricing_plans SET status='archived' WHERE property_id='cottage' AND status='published'");
+  const plan = (await fixtureDatabase.database.query("INSERT INTO pricing_plans(property_id,name,status,version,published_at) VALUES('cottage','Disposable payment price','published',100,NOW()) RETURNING id")).rows[0].id;
+  for (const [type, action] of [['deposit_percentage', { percentage: 20 }], ['initial_payment_deadline', { days: 7 }], ['balance_payment_deadline', { days: 42 }]]) {
+    await fixtureDatabase.database.query('INSERT INTO pricing_rules(plan_id,type,name,action,position) VALUES($1,$2,$2,$3::jsonb,(SELECT COALESCE(MAX(position),0)+10 FROM pricing_rules WHERE plan_id=$1))', [plan, type, JSON.stringify(action)]);
+  }
   for (const state of ['payment_pending', 'pending', 'offered', 'confirmed', 'cancelled', 'payment_reported', 'balance']) {
     const fixture = await createReservationFixture();
     fixtures.set(state, fixture);

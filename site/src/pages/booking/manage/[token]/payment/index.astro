@@ -4,7 +4,7 @@ import { getEditableRequestJourney } from '../../../../../lib/booking/request-jo
 import BookerLayout from '../../../../../layouts/BookerLayout.astro';
 import { getProperties } from '../../../../../lib/booking/config.ts';
 import { resolveBookingAccessCredential } from '../../../../../lib/booking/booking-access.ts';
-import { getCustomerBookingPage } from '../../../../../lib/booking/repository.ts';
+import { getCustomerBookingPage, previewOfferPaymentTerms, paymentReviewKey, respondToCustomerBookingOffer } from '../../../../../lib/booking/repository.ts';
 import { getBookingPaymentHistory } from '../../../../../lib/booking/payment-lifecycle.ts';
 import { activeCheckoutAttempt, bankTransferDetails, startCardCheckout, stripeAvailable, switchToBankTransfer } from '../../../../../lib/booking/stripe-checkout.ts';
 import { isSameBookerOrigin } from '../../../../../lib/booker/origin.ts';
@@ -28,10 +28,26 @@ if (Astro.request.method === 'POST') {
   if (!isSameBookerOrigin(Astro.request)) return new Response('Cross-site form submission forbidden.', { status: 403 });
   const form = await Astro.request.formData();
   const action = String(form.get('action') || '');
-  if (action === 'card-checkout') {
-    const result = await startCardCheckout(token, publicOrigin);
-    if (result.url) return Astro.redirect(result.url, 303);
-    error = result.error || 'Card checkout could not start.';
+  if (['card-checkout', 'request-bank-details'].includes(action)) {
+    if (action === 'card-checkout' && !stripeAvailable()) error = 'Card payment is temporarily unavailable.';
+    else if (action === 'request-bank-details' && !bankTransferDetails()) error = 'Bank transfer details are temporarily unavailable.';
+    else if (offer.bookingStatus === 'offered' || form.has('paymentReviewKey')) {
+      if (form.get('confirmAccept') !== 'yes') error = 'Confirm that you have reviewed and accept the booking and cancellation terms and the reservation summary.';
+      else {
+        const accepted = await respondToCustomerBookingOffer(token, 'accept', Number(form.get('journeyRevision')), {
+          key: String(form.get('paymentReviewKey') || ''), offerId: String(form.get('offerId') || ''),
+          method: action === 'card-checkout' ? 'card' : 'bank',
+        });
+        if (!['accepted', 'already_accepted'].includes(accepted)) error = accepted === 'dates_unavailable'
+          ? 'These dates are no longer available. Please contact Olrig Bank through your booking messages.'
+          : 'This booking has changed or is no longer available. Review the current reservation summary and terms before continuing.';
+      }
+    }
+    if (!error && action === 'card-checkout') {
+      const result = await startCardCheckout(token, publicOrigin);
+      if (result.url) return Astro.redirect(result.url, 303);
+      error = result.error || 'Card checkout could not start.';
+    } else if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank`, 303);
   } else if (action === 'switch-to-bank') {
     error = await switchToBankTransfer(token) || '';
     if (!error) return Astro.redirect(`/booking/manage/${token}/payment/?method=bank`, 303);
@@ -45,7 +61,10 @@ const bank = bankTransferDetails();
 const card = stripeAvailable();
 const requestedMethod = Astro.url.searchParams.get('method');
 const selectedMethod = requestedMethod === 'bank' || (requestedMethod !== 'card' && !card && bank) ? 'bank' : 'card';
-const cancellationTerms = cancellationTermsSnapshot(offer.paymentTermsSnapshot?.cancellationTerms);
+const previewTerms = offer.bookingStatus === 'offered' ? await previewOfferPaymentTerms(token) : null;
+const terms = offer.paymentTermsSnapshot || previewTerms;
+const reviewKey = previewTerms && offer.offerId ? paymentReviewKey(offer.offerId, previewTerms) : '';
+const cancellationTerms = cancellationTermsSnapshot(terms?.cancellationTerms);
 const verifiedDeposit = payments.some((payment) => payment.stage === 'deposit' && payment.status === 'verified');
 const verifiedBalance = payments.some((payment) => payment.stage === 'balance' && payment.status === 'verified');
 const verifiedFull = payments.some((payment) => payment.stage === 'full_payment' && payment.status === 'verified');
@@ -54,9 +73,11 @@ const awaitingOffer = offer.bookingStatus === 'pending';
 const offerReady = offer.bookingStatus === 'offered' && offer.customerStatus === 'active';
 const balanceDue = offer.bookingStatus === 'confirmed' && verifiedDeposit && !verifiedBalance && offer.balanceDuePence > 0;
 const initialDue = offer.bookingStatus === 'payment_pending' && !verifiedDeposit && !verifiedFull;
-const due = balanceDue || initialDue;
-const amountPence = balanceDue ? offer.balanceDuePence : offer.depositPence;
-const stageLabel = balanceDue ? 'Remaining balance' : offer.balanceDuePence > 0 ? 'Deposit' : 'Full payment';
+const due = balanceDue || initialDue || (offerReady && Boolean(previewTerms));
+const initialAmount = previewTerms?.initialPaymentPence ?? offer.depositPence;
+const remainingAmount = previewTerms?.balanceDuePence ?? offer.balanceDuePence;
+const amountPence = balanceDue ? offer.balanceDuePence : initialAmount;
+const stageLabel = balanceDue ? 'Remaining balance' : remainingAmount > 0 ? 'Deposit' : 'Full payment';
 const money = (pence: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: offer.currency }).format(pence / 100);
 const date = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' && offer.bookingStatus !== 'confirmed'
@@ -85,12 +106,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
       {awaitingOffer && <section class="payment-state" aria-labelledby="review-heading"><h2 id="review-heading">Your request is being reviewed</h2>
         <p>Olrig Bank will confirm the price and terms before payment is requested. Return through your private booking link when the offer is ready.</p>
         <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View request details</a></section>}
-      {offerReady && <section class="payment-state" aria-labelledby="offer-heading"><h2 id="offer-heading">Your offer is ready</h2>
-        <p>Review the dates, total and terms, then accept the offer to choose a payment method.</p>
-        <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="accept" /><input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} />
-          <label class="payment-check"><input type="checkbox" name="confirmAccept" value="yes" required /><span>I have reviewed and accept the dates, price and terms.</span></label>
-          <button class="payment-primary" type="submit">Accept offer and continue to payment</button></form>
-        <a class="payment-secondary" href={`/booking/manage/${token}/reservation/`}>View full offer or decline</a></section>}
+      {offerReady && !previewTerms && <p class="payment-alert" role="status">Payment details are temporarily unavailable. Please contact Olrig Bank through your booking messages.</p>}
       {due && !reported && <section aria-labelledby="methods-heading"><h2 id="methods-heading">Payment details</h2>
         <p>Choose how to pay the {stageLabel.toLowerCase()} of <strong>{money(amountPence)}</strong>.</p>
         <nav class="payment-methods" aria-label="Payment method">
@@ -100,11 +116,19 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
         <div class="payment-method-content">
           {selectedMethod === 'card' ? <article class="payment-method" aria-label="Credit or debit card">
             <p>Pay securely with Stripe. Available cards and wallets appear at checkout.</p>
-            {card ? <form method="post"><input type="hidden" name="action" value="card-checkout" /><button class="payment-primary" type="submit">Pay {money(amountPence)} by card</button></form>
+            {card ? <form method="post"><input type="hidden" name="action" value="card-checkout" />
+              {offerReady && <><input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} /><input type="hidden" name="offerId" value={offer.offerId} /><input type="hidden" name="paymentReviewKey" value={reviewKey} />
+                <label class="payment-check"><input type="checkbox" name="confirmAccept" value="yes" required /><span>I have reviewed and accept the <a href="#terms-heading">booking and cancellation terms</a> and the content of the <a href="#reservation-summary-heading">reservation summary</a>.</span></label></>}
+              <button class="payment-primary" type="submit">Pay {money(amountPence)} by card</button></form>
               : <p class="payment-unavailable">Card payment is temporarily unavailable.</p>}
           </article> : <article class="payment-method" aria-label="Bank transfer">
-            <p>Send the transfer using the details below. Your reservation is confirmed after Olrig Bank verifies receipt.</p>
-            {activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
+            <p>Your reservation is confirmed after Olrig Bank verifies receipt of your payment.</p>
+            {offerReady && bank ? <form method="post"><input type="hidden" name="action" value="request-bank-details" />
+              <input type="hidden" name="journeyRevision" value={offer.requestJourneyRevision} /><input type="hidden" name="offerId" value={offer.offerId} /><input type="hidden" name="paymentReviewKey" value={reviewKey} />
+              <label class="payment-check"><input type="checkbox" name="confirmAccept" value="yes" required /><span>I have reviewed and accept the <a href="#terms-heading">booking and cancellation terms</a> and the content of the <a href="#reservation-summary-heading">reservation summary</a>.</span></label>
+              <button class="payment-primary" type="submit">Request bank transfer details</button>
+              <p>Requesting these details does not confirm payment or your reservation.</p>
+            </form> : activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
               : bank ? <div class="payment-bank"><dl class="payment-facts"><div><dt>Payee</dt><dd>{bank.payee}</dd></div><div><dt>Sort code</dt><dd>{bank.sortCode}</dd></div>
                 <div><dt>Account number</dt><dd>{bank.accountNumber}</dd></div><div><dt>Amount</dt><dd>{money(amountPence)}</dd></div><div><dt>Reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
                 <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" />
@@ -117,7 +141,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
       {reported && <section class="payment-state" aria-labelledby="reported-heading"><h2 id="reported-heading">Bank transfer awaiting verification</h2><p>Olrig Bank will check for your payment. Your booking status will update after receipt is verified.</p></section>}
       {offer.bookingStatus === 'confirmed' && !balanceDue && <section class="payment-state"><h2>Reservation confirmed</h2><p>Your payment has been recorded. You can review the reservation and any remaining balance in your private booking area.</p></section>}
       {['cancelled', 'declined', 'expired'].includes(offer.bookingStatus) && <section class="payment-state"><h2>Payment is unavailable</h2><p>This offer is no longer active. Open the reservation for the current status and available next steps.</p></section>}
-      {(offer.terms || offer.paymentTermsSnapshot) && <section class="payment-terms" aria-labelledby="terms-heading"><h2 id="terms-heading">Booking and cancellation terms</h2>
+      {(offer.terms || terms) && <section class="payment-terms" aria-labelledby="terms-heading"><h2 id="terms-heading">Booking and cancellation terms</h2>
         {offer.terms && <p>{offer.terms}</p>}
         <p>{formatCancellationTerms(cancellationTerms)}</p>
         <details><summary>Show refund bands</summary><table><thead><tr><th>Cancellation timing</th><th>Refund of verified payments</th></tr></thead><tbody>
@@ -148,10 +172,10 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
       </details>}
       <section class="payment-summary-section" aria-labelledby="schedule-heading"><h3 id="schedule-heading">Payment schedule</h3>
       <dl class="payment-facts"><div><dt>{awaitingOffer ? 'Provisional total' : 'Booking total'}</dt><dd>{offer.priceAvailable ? money(offer.totalPence) : 'Price to be agreed'}</dd></div>
-        {(due || offerReady) && <div><dt>{offerReady ? 'Due after acceptance' : stageLabel}</dt><dd>{offerReady ? 'Calculated on acceptance' : money(amountPence)}</dd></div>}
-        {offer.balanceDuePence > 0 && !balanceDue && <div><dt>Remaining balance</dt><dd>{money(offer.balanceDuePence)}</dd></div>}
+        {(due || offerReady) && <div><dt>{stageLabel}</dt><dd>{money(amountPence)}</dd></div>}
+        {remainingAmount > 0 && !balanceDue && <div><dt>Remaining balance</dt><dd>{money(remainingAmount)}</dd></div>}
         {initialDue && offer.depositDueAt && <div><dt>Payment deadline</dt><dd>{date(offer.depositDueAt.slice(0, 10))}</dd></div>}
-        {offer.balanceDueOn && <div><dt>Balance deadline</dt><dd>{date(offer.balanceDueOn)}</dd></div>}</dl>
+        {(previewTerms?.balanceDueOn || offer.balanceDueOn) && <div><dt>Balance deadline</dt><dd>{date((previewTerms?.balanceDueOn || offer.balanceDueOn)!)}</dd></div>}</dl>
       </section>
       {(verifiedDeposit || verifiedBalance || verifiedFull) && <a href={`/booking/manage/${token}/reservation/`}>View reservation details</a>}
     </aside></div>
@@ -216,7 +240,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
     .payment-layout { grid-template-columns:1fr; }
   }
   @media(max-width:480px) {
-    #methods-heading,.payment-page :is(a,button,input,summary) { scroll-margin-top:8rem; }
+    #methods-heading,#terms-heading,#reservation-summary-heading,.payment-page :is(a,button,input,summary) { scroll-margin-top:8rem; }
     .payment-page { padding:1rem; }
     .payment-progress { font-size:.9rem; }
     .payment-panel,.payment-totals { padding:1rem; }
