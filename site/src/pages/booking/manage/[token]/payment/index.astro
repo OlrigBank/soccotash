@@ -131,7 +131,7 @@ const checkoutMessage = Astro.url.searchParams.get('checkout') === 'returned' &&
             </form> : activeCheckout ? <form method="post"><input type="hidden" name="action" value="switch-to-bank" /><button class="payment-secondary" type="submit">Switch to bank transfer</button></form>
               : bank ? <div class="payment-bank"><dl class="payment-facts"><div><dt>Payee</dt><dd>{bank.payee}</dd></div><div><dt>Sort code</dt><dd>{bank.sortCode}</dd></div>
                 <div><dt>Account number</dt><dd>{bank.accountNumber}</dd></div><div><dt>Amount</dt><dd>{money(amountPence)}</dd></div><div><dt>Reference</dt><dd><code>{offer.customerReference}</code></dd></div></dl>
-                <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" /><input type="hidden" name="returnToPayment" value="yes" />
+                <form method="post" action={`/booking/manage/${token}/reservation/`}><input type="hidden" name="action" value="report-bank-transfer" />
                   <label class="payment-check"><input type="checkbox" name="confirmTransfer" value="yes" required /><span>I confirm that I have sent this bank transfer.</span></label>
                   <button class="payment-primary" type="submit">Report bank transfer sent</button></form>
               </div> : <p class="payment-unavailable">Bank transfer details are temporarily unavailable. Please contact Olrig Bank through your booking messages.</p>}

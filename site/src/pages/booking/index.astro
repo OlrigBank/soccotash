@@ -12,7 +12,7 @@ Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 const returnTo = safeBookerReturnPath(Astro.url.searchParams.get('returnTo'));
 const accountId = await sessionAccount(Astro.cookies);
 if (accountId && returnTo) return Astro.redirect(returnTo, 303);
-const bookings = accountId ? (await getPool().query(`SELECT public_id::text AS reference,customer_reference AS "customerReference",property_id,arrival::text,departure::text,status, EXISTS(SELECT 1 FROM booking_payments bp WHERE bp.provisional_booking_id=provisional_bookings.id AND bp.status='verified') AS "hasVerifiedPayment" FROM provisional_bookings WHERE booker_account_id=$1 AND deletion_requested_at IS NULL ORDER BY arrival DESC`, [accountId])).rows : [];
+const bookings = accountId ? (await getPool().query(`SELECT public_id::text AS reference,customer_reference AS "customerReference",property_id,arrival::text,departure::text,status, EXISTS(SELECT 1 FROM booking_payments bp WHERE bp.provisional_booking_id=provisional_bookings.id AND bp.status='verified') AS "hasVerifiedPayment", EXISTS(SELECT 1 FROM booking_payments bp WHERE bp.provisional_booking_id=provisional_bookings.id AND bp.status='reported') AS "hasReportedPayment" FROM provisional_bookings WHERE booker_account_id=$1 AND deletion_requested_at IS NULL ORDER BY arrival DESC`, [accountId])).rows : [];
 const accessible = [];
 for (const booking of bookings) if ((await resolveBookingAccessCredential(booking.reference)).allowed) accessible.push(booking);
 if (accessible.length === 1 && !Astro.url.searchParams.has('all')) return Astro.redirect(bookingDestination(accessible[0]));

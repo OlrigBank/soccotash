@@ -14,6 +14,9 @@ confirm payment or the reservation; see the
 [payment acceptance record](features/e18-f03-payment-acceptance.md).
 
 Your bookings and saved root booking URLs resume unfinished requests at payment.
+Once the Booker reports a bank transfer sent, they open the main booking page
+while payment awaits verification, as recorded in
+[E18-F06](features/e18-f06-transfer-booking-home.md).
 After verified payment, they open the reservation workspace. Saved Edit links
 preserve their requested step through sign-in. See the
 [public journey integration record](features/e18-f05-public-journey-integration.md).

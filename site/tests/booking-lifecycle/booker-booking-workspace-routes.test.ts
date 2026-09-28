@@ -45,7 +45,7 @@ test('Booker actions remain in their relevant workspace after submission', async
   assert.match(page, /\/holiday-planner\/\?planner=created/);
   assert.match(page, /\/holiday-planner\/\?planner=example-copied/);
   assert.match(page, /\/reservation\/\?consent=withdrawn/);
-  assert.match(page, /form.get\('returnToPayment'\) === 'yes' \? 'payment' : 'reservation'/);
+  assert.match(page, /\/\$\{token\}\/\?payment=bank-transfer-reported/);
   assert.match(page, /payment=bank-transfer-reported/);
   assert.match(page, /\/reservation\/\?response=/);
 });

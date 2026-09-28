@@ -13,6 +13,9 @@ the epic.
 
 ## Final adjustments
 
+The transfer-report destination below was subsequently changed at the owner's
+request; [E18-F06](e18-f06-transfer-booking-home.md) records the current behaviour.
+
 - Reporting a bank transfer from Make a payment returns to that page's
   “Bank transfer awaiting verification” state. Existing reports originating from
   the reservation workspace retain their previous destination.
