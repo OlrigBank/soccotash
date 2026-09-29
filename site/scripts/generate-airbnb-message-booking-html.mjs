@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
+
+const emojiFont = readFileSync(new URL("./airbnb-capture/fonts/NotoEmoji.ttf", import.meta.url)).toString("base64");
 import path from "node:path";
+import { createHash } from "node:crypto";
 import process from "node:process";
 
 function escapeHtml(value) {
@@ -25,10 +29,23 @@ function normaliseHeading(value) {
   return lines.filter((line, index) => index === 0 || line !== lines[index - 1]).join(" ");
 }
 
+export function resolveBookingHeading(heading, reservationText) {
+  const supplied = normaliseHeading(heading);
+  if (supplied && !/^(messages|inbox|reservation|airbnb)$/iu.test(supplied)) return supplied;
+  const lines = nonEmptyLines(reservationText);
+  const sections = lines.flatMap((line, index) => /^(Guests|Who’s coming|Who's coming)$/u.test(line) ? [index] : []);
+  if (sections.length !== 1) throw new Error("Cannot identify the booker: expected one reservation guest section.");
+  const name = lines[sections[0] + 1] || "";
+  if (!/\p{L}/u.test(name) || /^(?:[+\d]|Cancellation policy|Your notes|Show|View|Add|Guests|Who.s coming|Messages|Reservation)/iu.test(name)) {
+    throw new Error("Cannot identify the booker from the reservation guest section.");
+  }
+  return name;
+}
+
 export function parseMessageGroup(group) {
   const label = String(group.accessibleLabel || "").trim();
   const match = label.match(
-    /^(?:(?:[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Today|Yesterday)\. )?(?:Most Recent Message\. )?(Airbnb service says|.+? sent) ([\s\S]*)\. Sent ((?:[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Today|Yesterday)), (\d{1,2}:\d{2} [AP]M)(?:\..*)?$/,
+    /^(?:(?:(?:[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?|\d{1,2} [A-Z][a-z]{2,3}(?:,? \d{4})?)|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Today|Yesterday)\. )?(?:Most Recent Message\. )?(Airbnb service says|.+? sent) ([\s\S]*)\. Sent (?:at )?((?:(?:[A-Z][a-z]{2} \d{1,2}(?:, \d{4})?|\d{1,2} [A-Z][a-z]{2,3}(?:,? \d{4})?)|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Today|Yesterday)), (\d{1,2}:\d{2}(?: [AP]M)?)(?:\..*)?$/,
   );
 
   if (!match) {
@@ -41,6 +58,10 @@ export function parseMessageGroup(group) {
 
   const sentDate = match[3];
   const sentTime = match[4];
+  const time = sentTime.match(/^(\d{1,2}):(\d{2})(?: ([AP]M))?$/);
+  if (Number(time[2]) > 59 || (time[3] ? Number(time[1]) < 1 || Number(time[1]) > 12 : Number(time[1]) > 23)) {
+    throw new Error(`Invalid message time in group ${group.index}`);
+  }
   const visibleLines = nonEmptyLines(group.visibleText);
   if (visibleLines[0] === sentDate) visibleLines.shift();
   if (visibleLines[0]?.includes("· Booker")) visibleLines.shift();
@@ -62,7 +83,10 @@ function renderDisplayLines(value) {
 }
 
 function renderMessages(groups) {
-  return groups.map(parseMessageGroup).map((message) => `
+  let messages;
+  try { messages = groups.map(parseMessageGroup); }
+  catch (cause) { throw Object.assign(new Error('Conversation rendering failed.', { cause }), { code: 'AIRBNB_MESSAGES_INVALID' }); }
+  return messages.map((message) => `
     <article class="message ${message.sender === "Airbnb service" ? "message--service" : ""}">
       <div class="message__meta">
         <strong>${escapeHtml(message.sender)}</strong>
@@ -72,7 +96,7 @@ function renderMessages(groups) {
     </article>`).join("\n");
 }
 
-export function renderBookingHtml(capture) {
+export function renderBookingHtml(capture, { omitMessages = false } = {}) {
   if (capture?.schemaVersion !== 1) {
     throw new Error("Expected Airbnb message capture schemaVersion 1");
   }
@@ -93,7 +117,10 @@ export function renderBookingHtml(capture) {
     }
   }
 
-  const heading = normaliseHeading(capture.conversation.heading) || "Airbnb booking";
+  const heading = normaliseHeading(capture.conversation.heading);
+  if (!heading || /^(messages|inbox|reservation|airbnb)$/iu.test(heading)) {
+    throw new Error("Capture has a generic conversation heading; correct the booker identity before rendering.");
+  }
   const conversationId = capture.source.conversationId;
 
   return `<!doctype html>
@@ -102,9 +129,10 @@ export function renderBookingHtml(capture) {
   <meta charset="utf-8">
   <title>${escapeHtml(heading)} - Airbnb booking ${escapeHtml(conversationId)}</title>
   <style>
+    @font-face { font-family: BookingEmoji; src: url(data:font/ttf;base64,${emojiFont}); }
     @page { size: A4; margin: 16mm 15mm 17mm; }
     * { box-sizing: border-box; }
-    html { color: #202124; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.42; }
+    html { color: #202124; font-family: Arial, Helvetica, BookingEmoji, sans-serif; font-size: 10pt; line-height: 1.42; }
     body { margin: 0; }
     h1, h2 { color: #172b3a; margin: 0; }
     h1 { font-size: 22pt; line-height: 1.12; }
@@ -160,8 +188,10 @@ export function renderBookingHtml(capture) {
   </section>
 
   <section class="section">
-    <h2>Complete conversation</h2>
-    ${renderMessages(capture.conversation.groups)}
+    <h2>${omitMessages ? 'Conversation unavailable' : 'Complete conversation'}</h2>
+    ${omitMessages ? `<p>Messages omitted: ${capture.conversation.groups.length}</p>
+    <p>Capture content SHA-256: ${createHash('sha256').update(JSON.stringify(capture)).digest('hex')}</p>
+    <p>Messages could not be validated. Original messages remain in the private capture JSON for repair. No conversation entries are included in this PDF.</p>` : renderMessages(capture.conversation.groups)}
   </section>
 
 </body>

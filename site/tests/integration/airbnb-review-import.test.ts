@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
 import pg from 'pg';
+import { listAirbnbReviews, getAirbnbReviewDetail, parseAirbnbReviewListQuery } from '../../src/lib/airbnb-admin/repository.ts';
 import {
   AirbnbReviewImportConflict,
   importAirbnbReviews,
@@ -131,6 +132,25 @@ test('Airbnb review import is normalized, idempotent and conflict-safe', async (
       )).rows[0],
       { status: 'failed', error_code: 'AIRBNB_REVIEW_IMPORT_CONFLICT' },
     );
+    const unknown = syntheticReview();
+    unknown.source.reviewId = '900000000000000002';
+    unknown.publishedAt = null;
+    unknown.stay.yearSource = 'current-year-assumption';
+    await importAirbnbReviews({ sourceSnapshotOn: '2026-08-31', documents: [documentFor(unknown, 'unknown')] }, database);
+    const stored = (await database.query('SELECT published_on, stay_year_source FROM airbnb_reviews WHERE review_id=$1', [unknown.source.reviewId])).rows[0];
+    assert.deepEqual(stored, { published_on: null, stay_year_source: 'current-year-assumption' });
+    for (const sort of ['published-asc', 'published-desc']) {
+      const page = await listAirbnbReviews(parseAirbnbReviewListQuery(new URLSearchParams({ sort })), database);
+      assert.equal(page.items[0].publishedOn, '2026-08-22');
+      assert.equal(page.items[1].publishedOn, null);
+      const detail = await getAirbnbReviewDetail(page.items[1].id, database);
+      assert.equal(detail?.publishedOn, null);
+      assert.equal(detail?.stayYearSource, 'current-year-assumption');
+    }
+    const bounded = await listAirbnbReviews(parseAirbnbReviewListQuery(new URLSearchParams('from=2026-01-01')), database);
+    assert.equal(bounded.total, 1);
+    const repeatUnknown = await importAirbnbReviews({ sourceSnapshotOn: '2026-08-31', documents: [documentFor(unknown, 'unknown')] }, database);
+    assert.equal(repeatUnknown.reviewsUnchanged, 1);
   } finally {
     await database.end();
     await control.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);

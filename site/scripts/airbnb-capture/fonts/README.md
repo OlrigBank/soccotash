@@ -1,0 +1,1 @@
+Noto Emoji outline font from https://github.com/google/fonts/tree/main/ofl/notoemoji (downloaded 29 September 2026). Licensed under the SIL Open Font License; see OFL.txt. Embedded in booking PDFs to preserve searchable emoji text: system colour emoji can render as bitmap glyphs without extractable Unicode.

@@ -2,19 +2,38 @@
 import AdminLayout from '../../../../../layouts/AdminLayout.astro';
 import { getAirbnbReviewDetail } from '../../../../../lib/airbnb-admin/repository';
 import { getProperty } from '../../../../../lib/booking/config';
+import { getReviewPublication } from '../../../../../lib/airbnb-admin/publication';
 export const prerender = false;
 const review = await getAirbnbReviewDetail(Astro.params.id || '');
 if (!review) return new Response('Imported review not found.', { status: 404 });
+const publication = await getReviewPublication(review.id);
 const requestedReturn = Astro.url.searchParams.get('returnTo');
 const returnTo = requestedReturn === '/admin/airbnb/reviews/' || requestedReturn?.startsWith('/admin/airbnb/reviews/?') ? requestedReturn : '/admin/airbnb/reviews/';
 const propertyName = (review.propertyId && getProperty(review.propertyId)?.name) || review.sourceListingName;
 const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' });
-const displayDate = (value: string) => formatter.format(new Date(`${value}T00:00:00Z`));
+const displayDate = (value: string | null) => value ? formatter.format(new Date(`${value}T00:00:00Z`)) : 'Unknown';
 ---
 <AdminLayout title={`Airbnb review · ${review.reviewerDisplayName}`}>
-  <header class="admin-page-header"><div><p class="eyebrow">Airbnb review</p><h1>{review.reviewerDisplayName}</h1><p>{propertyName} · stayed {displayDate(review.arrival)} – {displayDate(review.departure)}</p></div><a class="admin-button admin-button--secondary" href={returnTo}>Back to reviews</a></header>
-  <section class="admin-panel airbnb-detail-section" aria-labelledby="review-heading"><div class="admin-panel-heading"><div><p class="eyebrow">Public review</p><h2 id="review-heading">{review.overallRating}/5 · published {displayDate(review.publishedOn)}</h2></div></div><p class="airbnb-preserved-text airbnb-review-body">{review.publicText}</p></section>
+  <header class="admin-page-header airbnb-review-header"><div><p class="eyebrow">Airbnb review</p><h1>{review.reviewerDisplayName}</h1><p>{propertyName} · stayed {displayDate(review.arrival)} – {displayDate(review.departure)}</p>{review.stayYearSource === 'current-year-assumption' && <p>Stay year assumed from the capture year.</p>}</div><a class="admin-button admin-button--secondary" href={returnTo}>Back to reviews</a></header>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="website-publication-heading">
+    <h2 id="website-publication-heading">Website publication</h2>
+    {Astro.url.searchParams.get('publication') === 'saved' && <p role="status">Publication change saved.</p>}
+    <p><strong>{publication.published ? 'Published on the website' : 'Not published on the website'}</strong></p>
+    <p>Publishing shows the public review, guest display name, stay month, property and ratings. Private feedback and booking details stay private.</p>
+    {publication.eligible ? <>
+      <h3>Website preview</h3>
+      <blockquote>{publication.review.quote}</blockquote>
+      <p>{publication.review.reviewer.displayName} · {publication.review.stay.nights} nights · {publication.review.stay.month} {publication.review.stay.year} · {publication.review.listing.displayName} · {publication.review.rating}/5</p>
+    </> : <p>This review needs valid public text and all six category ratings before publication.</p>}
+    <form method="post" action="/api/admin/airbnb/reviews/publication/">
+      <input type="hidden" name="id" value={review.id} />
+      <input type="hidden" name="revision" value={publication.revision} />
+      <button class="admin-button" name="action" value={publication.published ? 'unpublish' : 'publish'} disabled={!publication.published && !publication.eligible}>{publication.published ? 'Unpublish from website' : 'Publish on website'}</button>
+    </form>
+    <p>Changes appear on the next homepage visit. <a href="/#guest-reviews">View website reviews</a></p>
+  </section>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="review-heading"><div class="admin-panel-heading"><div><p class="eyebrow">Public review</p><h2 id="review-heading">{review.overallRating}/5 · {review.publishedOn ? `published ${displayDate(review.publishedOn)}` : 'publication date unknown'}</h2></div></div><p class="airbnb-preserved-text airbnb-review-body">{review.publicText}</p></section>
   <section class="admin-panel airbnb-detail-section airbnb-private-section" aria-labelledby="feedback-heading"><p class="eyebrow">Private host information</p><h2 id="feedback-heading">Private feedback</h2><p class="airbnb-preserved-text">{review.privateFeedback || 'No private feedback was captured.'}</p></section>
   <section class="admin-panel airbnb-detail-section" aria-labelledby="ratings-heading"><h2 id="ratings-heading">Detailed ratings</h2><ol class="airbnb-rating-grid">{review.categoryRatings.map((rating) => <li><header><h3>{rating.displayName}</h3><strong>{rating.rating}/5</strong></header>{rating.feedbackTags.length ? <ul>{rating.feedbackTags.map((tag) => <li>{tag}</li>)}</ul> : <p>No feedback tags.</p>}</li>)}</ol></section>
   <section class="admin-panel airbnb-detail-section" aria-labelledby="reservation-links-heading"><h2 id="reservation-links-heading">Reservation links</h2>{review.reservationLinks.length ? <ul class="airbnb-linked-stays">{review.reservationLinks.map((link) => <li><div><strong>{(link.propertyId && getProperty(link.propertyId)?.name) || link.sourceListingName}</strong><span>{link.bookerDisplayName} · {displayDate(link.arrival)} – {displayDate(link.departure)}</span></div><span class="status-badge">{link.status}</span><a class="admin-button admin-button--secondary" href={`/admin/airbnb/reservations/${link.reservationId}/`}>Open reservation</a></li>)}</ul> : <p>No reservation candidates are linked to this review.</p>}</section>

@@ -10,8 +10,8 @@ export interface ParsedAirbnbReview {
   };
   reviewer: { displayName: string };
   listing: { key: string; displayName: string; sourceDisplayName: string };
-  stay: { checkIn: string; checkOut: string; nights: number };
-  publishedAt: string;
+  stay: { checkIn: string; checkOut: string; nights: number; yearSource?: 'displayed' | 'verified-review' | 'reservation' | 'current-year-assumption' };
+  publishedAt: string | null;
   publicReview: { rating: number; text: string };
   privateFeedback: { text: string } | null;
   detailedRatings: Array<{
@@ -69,9 +69,9 @@ async function insertReviewGraph(
     `INSERT INTO airbnb_reviews
        (review_id, source_document_id, reviewer_display_name, property_id,
         source_listing_name, arrival, departure, nights, published_on,
-        overall_rating, public_text, private_feedback, captured_on)
+        overall_rating, public_text, private_feedback, captured_on, stay_year_source)
      VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9::date,
-             $10, $11, $12, $13::date)
+             $10, $11, $12, $13::date, $14)
      RETURNING id::text`,
     [
       review.source.reviewId,
@@ -87,6 +87,7 @@ async function insertReviewGraph(
       review.publicReview.text,
       review.privateFeedback?.text ?? null,
       review.source.capturedAt,
+      review.stay.yearSource ?? null,
     ],
   );
   const reviewDatabaseId = inserted.rows[0].id;
