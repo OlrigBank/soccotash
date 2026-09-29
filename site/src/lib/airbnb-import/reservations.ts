@@ -28,6 +28,7 @@ function canonicalPayload(booking: ParsedAirbnbBooking): unknown {
     heading: booking.heading,
     reservation,
     conversationEntries: booking.conversationEntries,
+    ...(booking.conversationCompleteness ? { conversationCompleteness: booking.conversationCompleteness } : {}),
   };
 }
 
@@ -193,6 +194,12 @@ export async function importAirbnbReservations(
     await client.query('BEGIN');
     for (const document of input.documents) {
       const conversationId = document.booking.source.conversationId;
+      if (document.booking.conversationCompleteness && (document.booking.conversationEntries.length
+        || document.booking.conversationCompleteness.status !== 'incomplete'
+        || document.booking.financialSummaries.length !== 2
+        || document.booking.financialSummaries.some(item => item.arithmeticStatus !== 'verified'))) {
+        throw new AirbnbReservationImportConflict(conversationId, 'incomplete conversation requires no message entries and verified finances');
+      }
       const hashMatch = await client.query<{ id: string; document_type: string; source_external_id: string }>(
         `SELECT id::text, document_type, source_external_id
            FROM airbnb_source_documents WHERE sha256 = $1`,

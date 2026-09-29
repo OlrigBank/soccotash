@@ -48,10 +48,11 @@
           "type": "object", "additionalProperties": false, "required": ["checkIn", "checkOut", "nights"],
           "properties": {
             "checkIn": { "$ref": "#/$defs/date" }, "checkOut": { "$ref": "#/$defs/date" },
-            "nights": { "type": "integer", "minimum": 1 }
+            "nights": { "type": "integer", "minimum": 1 },
+            "yearSource": { "enum": ["displayed", "verified-review", "reservation", "current-year-assumption"] }
           }
         },
-        "publishedAt": { "$ref": "#/$defs/date" },
+        "publishedAt": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
         "publicReview": {
           "type": "object", "additionalProperties": false, "required": ["rating", "text"],
           "properties": { "rating": { "$ref": "#/$defs/rating" }, "text": { "$ref": "#/$defs/nonEmptyText" } }

@@ -1,5 +1,9 @@
 # Airbnb review capture and PDF workflow
 
+For repository scripts runnable without Codex, see
+[Airbnb capture from a terminal](airbnb-terminal-capture.md). The historical
+workflow below records the original browser-assisted capture.
+
 This document records the working process used on 31 August 2026 to inspect an
 already-open Chrome session, capture Airbnb host reviews as verified PDFs, and
 reproduce the privacy-limited public review JSON from those PDFs. It is intended

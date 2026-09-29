@@ -59,3 +59,5 @@ airbnb-*.ics
 /output/pdf/airbnb-reviews/
 /docs/source-material/airbnb/messages/
 /output/pdf/airbnb-message-bookings*/
+/.airbnb-capture/
+/output/pdf/airbnb-terminal/

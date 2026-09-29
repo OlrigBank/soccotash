@@ -44,11 +44,12 @@ function dateParts(value, fallbackMonth) {
 export function parseStayLine(line) {
   const match = clean(line).match(/^(.+?)\s+[–-]\s+(.+?)\s+-\s+(\d+) nights\s+·\s+Published\s+(.+)$/u);
   if (!match) throw new Error(`Cannot parse stay line: ${line}`);
-  const published = dateParts(match[4]);
-  if (!published.year) throw new Error(`Published date has no year: ${line}`);
+  const published = match[4] === 'unknown' ? null : dateParts(match[4]);
+  if (published && !published.year) throw new Error(`Published date has no year: ${line}`);
   const start = dateParts(match[1]);
   const end = dateParts(match[2], start.month);
-  end.year ??= published.year;
+  end.year ??= published?.year ?? (start.year ? start.year + Number(months.indexOf(start.month) > months.indexOf(end.month)) : null);
+  if (!end.year) throw new Error('PDF stay dates require an explicit year when publication is unknown.');
   start.year ??= start.month === 'December' && end.month === 'January' ? end.year - 1 : end.year;
   const checkIn = isoDate(start.month, start.day, start.year);
   const checkOut = isoDate(end.month, end.day, end.year);
@@ -59,7 +60,7 @@ export function parseStayLine(line) {
     checkIn,
     checkOut,
     nights,
-    publishedAt: isoDate(published.month, published.day, published.year),
+    publishedAt: published ? isoDate(published.month, published.day, published.year) : null,
   };
 }
 
@@ -137,6 +138,9 @@ export function parseReviewPdfText(layoutText, filename) {
   const captured = dateParts(footerMatch[2]);
   if (!captured.year) throw new Error(`${filename}: capture date has no year`);
   const detailedRatings = parseDetailedRatings(lines, detailedIndex, footerIndex);
+  const yearSourceLine = lines.find((line) => /^\s*Stay year source:/u.test(line));
+  const yearSource = yearSourceLine?.trim().replace(/^Stay year source:\s*/u, '');
+  if (yearSource && !['displayed', 'verified-review', 'reservation', 'current-year-assumption'].includes(yearSource)) throw new Error('Unsupported stay year source.');
   if (detailedRatings.length !== categories.length || detailedRatings.some((rating, index) => rating.category !== categories[index])) {
     throw new Error(`${filename}: expected the six ordered detailed-rating categories`);
   }
@@ -146,7 +150,7 @@ export function parseReviewPdfText(layoutText, filename) {
     source: { platform: 'airbnb', reviewId: footerMatch[1], pdfFilename: filename, capturedAt: isoDate(captured.month, captured.day, captured.year) },
     reviewer: { displayName: reviewer },
     listing,
-    stay: { checkIn: stay.checkIn, checkOut: stay.checkOut, nights: stay.nights },
+    stay: { checkIn: stay.checkIn, checkOut: stay.checkOut, nights: stay.nights, ...(yearSource ? { yearSource } : {}) },
     publishedAt: stay.publishedAt,
     publicReview: { rating: Number(overallMatch[1]), text: publicText },
     privateFeedback: privateText ? { text: privateText } : null,
@@ -253,7 +257,7 @@ function parseArguments(args) {
   return values;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await generateReviewDatasets(parseArguments(process.argv.slice(2)));
   console.log(`Generated ${result.privateData.reviews.length} private records, ${result.publicReviews.length} public records, and one public ratings summary.`);
 }

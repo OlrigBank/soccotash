@@ -3,7 +3,7 @@ import type { PublicReview, PublicReviewSummary } from '../lib/public-reviews';
 
 interface Props {
   reviews: PublicReview[];
-  summary: PublicReviewSummary;
+  summary: PublicReviewSummary | null;
 }
 
 const { reviews, summary } = Astro.props;
@@ -115,7 +115,7 @@ function excerpt(quote: string, maximum = 150) {
     )
   }
 
-    <aside class="review-summary" aria-labelledby="review-summary-heading">
+    {summary && <aside class="review-summary" aria-labelledby="review-summary-heading">
       <div class="review-summary__intro">
         <p class="review-summary__eyebrow">At a glance</p>
         <h3 id="review-summary-heading">Rating by Airbnb category</h3>
@@ -139,7 +139,7 @@ function excerpt(quote: string, maximum = 150) {
         ))}
       </dl>
       <p class="review-summary__source">{summary.source.displayName}</p>
-    </aside>
+    </aside>}
   </div>
 </section>
 

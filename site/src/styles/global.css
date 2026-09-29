@@ -1105,6 +1105,8 @@ main {
 .airbnb-review-table td small { display: block; margin-top: 0.25rem; color: var(--muted); }
 .airbnb-reservation-cards,
 .airbnb-review-cards { display: none; }
+.airbnb-review-table { position: relative; }
+.airbnb-review-header p { color: var(--ink); }
 .airbnb-pagination { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center; margin-top: 1rem; text-align: center; }
 .airbnb-pagination > :last-child { justify-self: end; }
 .airbnb-detail-section { margin-bottom: 1rem; }
