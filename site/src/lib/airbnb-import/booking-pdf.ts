@@ -1,5 +1,5 @@
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTH_PATTERN = MONTHS.join('|');
+const MONTH_PATTERN = [...MONTHS, 'Sept'].join('|');
 
 export interface ParsedConversationEntry {
   position: number;
@@ -64,6 +64,7 @@ export interface ParsedAirbnbBooking {
     guestProfileText: string | null;
     accessCode: string | null;
   };
+  conversationCompleteness?: { status: 'incomplete'; capturedMessageCount: number; captureContentSha256: string };
   conversationEntries: ParsedConversationEntry[];
   financialRaw: string;
   financialSummaries: ParsedFinancialSummary[];
@@ -82,7 +83,10 @@ function isoDate(year: number, month: number, day: number): string {
 }
 
 function datePart(value: string, fallbackMonth?: number): { month: number; day: number; year: number | null } {
-  const match = value.trim().match(new RegExp(`^(?:(${MONTH_PATTERN})\\s+)?(\\d{1,2})(?:,\\s*(\\d{4}))?$`, 'u'));
+  const normalised = value.trim().replace(/\bSept\b/u, 'Sep');
+  const dayFirst = normalised.match(new RegExp(`^(\\d{1,2})\\s+(${MONTH_PATTERN})(?:,?\\s+(\\d{4}))?$`, 'u'));
+  if (dayFirst) return { month: MONTHS.indexOf(dayFirst[2]), day: Number(dayFirst[1]), year: dayFirst[3] ? Number(dayFirst[3]) : null };
+  const match = normalised.match(new RegExp(`^(?:(${MONTH_PATTERN})\\s+)?(\\d{1,2})(?:,\\s*(\\d{4}))?$`, 'u'));
   if (!match) throw new Error(`Cannot parse displayed date: ${value}`);
   const month = match[1] ? MONTHS.indexOf(match[1]) : fallbackMonth;
   if (month === undefined) throw new Error(`Displayed date has no month: ${value}`);
@@ -90,9 +94,10 @@ function datePart(value: string, fallbackMonth?: number): { month: number; day: 
 }
 
 function parseStayRange(value: string, capturedAt: string): { arrival: string; departure: string; nights: number } {
-  const match = value.match(/^(.+?)\s+[–-]\s+(.+?)\s+·\s+(\d+) nights$/u);
+  const match = value.match(/^(.+?)\s*[–-]\s*(.+?)\s*·\s*(\d+) nights?$/u);
   if (!match) throw new Error(`Cannot parse stay range: ${value}`);
-  const start = datePart(match[1]);
+  const endMonth = match[2].match(new RegExp(`(${MONTH_PATTERN})`, 'u'))?.[1];
+  const start = datePart(match[1], endMonth ? MONTHS.indexOf(endMonth.replace('Sept', 'Sep')) : undefined);
   const end = datePart(match[2], start.month);
   const capturedYear = Number(capturedAt.slice(0, 4));
   if (start.year === null && end.year === null) {
@@ -123,10 +128,11 @@ function propertyIdForListing(value: string): string {
 }
 
 function time24(value: string): string {
-  const match = value.match(/^(\d{1,2}):(\d{2})\s+([AP]M)$/u);
+  const match = value.match(/^(\d{1,2}):(\d{2})(?:\s+([AP]M))?$/u);
   if (!match) throw new Error(`Cannot parse displayed time: ${value}`);
   let hour = Number(match[1]);
-  if (hour === 12) hour = 0;
+  if (Number(match[2]) > 59 || (match[3] ? hour < 1 || hour > 12 : hour > 23)) throw new Error(`Invalid displayed time: ${value}`);
+  if (match[3] && hour === 12) hour = 0;
   if (match[3] === 'PM') hour += 12;
   return `${String(hour).padStart(2, '0')}:${match[2]}:00`;
 }
@@ -151,7 +157,7 @@ function parseEnglishDate(value: string): string {
 
 function parseReservation(value: string, capturedAt: string, heading: string): ParsedAirbnbBooking['reservation'] {
   const lines = nonEmptyLines(value);
-  const stayIndex = lines.findIndex((line) => /\s+[–-]\s+.+\s+·\s+\d+ nights$/u.test(line));
+  const stayIndex = lines.findIndex((line) => /[–-]\s*.+\s*·\s*\d+ nights?$/u.test(line));
   if (stayIndex < 1 || !lines[stayIndex + 1]) throw new Error('Reservation has no stay range or listing');
   const stay = parseStayRange(lines[stayIndex], capturedAt);
   const cancellationIndex = lines.indexOf('Cancellation policy');
@@ -197,28 +203,30 @@ function parseReservation(value: string, capturedAt: string, heading: string): P
   };
 }
 
-function resolveMessageTimestamp(displayedDate: string, displayedTime: string): Pick<ParsedConversationEntry, 'sentAt' | 'timestampPrecision'> {
+function resolveMessageTimestamp(displayedDate: string, displayedTime: string, capturedAt: string): Pick<ParsedConversationEntry, 'sentAt' | 'timestampPrecision'> {
   const part = (() => { try { return datePart(displayedDate); } catch { return null; } })();
   if (!part) return { sentAt: null, timestampPrecision: 'unresolved' };
-  if (!part.year) return { sentAt: null, timestampPrecision: 'year_unknown' };
-  const date = isoDate(part.year, part.month, part.day);
-  return { sentAt: `${date} ${time24(displayedTime)} Europe/London`, timestampPrecision: 'exact' };
+  // A missing year uses the year at capture, keeping offline reprocessing stable.
+  const captureYear = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric' }).format(new Date(capturedAt)));
+  const date = isoDate(part.year ?? captureYear, part.month, part.day);
+  return { sentAt: `${date} ${time24(displayedTime)} Europe/London`, timestampPrecision: part.year ? 'exact' : 'date_inferred' };
 }
 
-function parseConversation(value: string, heading: string): ParsedConversationEntry[] {
+function parseConversation(value: string, heading: string, capturedAt: string): ParsedConversationEntry[] {
   const lines = value.replaceAll('\f', '\n').replaceAll('\r', '').split('\n');
-  const displayedDatePattern = `(?:(${MONTH_PATTERN})\\s+\\d{1,2}(?:,\\s*\\d{4})?|Today|Yesterday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)`;
-  const headerPattern = new RegExp(`^\\s*(\\S.*?)\\s{2,}(${displayedDatePattern}) at (\\d{1,2}:\\d{2} [AP]M)\\s*$`, 'u');
-  const dateOnlyPattern = new RegExp(`^\\s*(${displayedDatePattern}) at (\\d{1,2}:\\d{2} [AP]M)\\s*$`, 'u');
+  const displayedDatePattern = `(?:(?:${MONTH_PATTERN})\\s+\\d{1,2}(?:,\\s*\\d{4})?|\\d{1,2}\\s+(?:${MONTH_PATTERN})(?:,?\\s+\\d{4})?|Today|Yesterday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)`;
+  const displayedTimePattern = `\\d{1,2}:\\d{2}(?: [AP]M)?`;
+  const headerPattern = new RegExp(`^\\s*(\\S.*?)\\s{2,}(${displayedDatePattern}) at (${displayedTimePattern})\\s*$`, 'u');
+  const dateOnlyPattern = new RegExp(`^\\s*(${displayedDatePattern}) at (${displayedTimePattern})\\s*$`, 'u');
   const headers = lines.flatMap((line, index) => {
     const match = line.match(headerPattern);
-    if (match) return [{ index, sender: match[1], displayedDate: match[2], displayedTime: match[4] }];
+    if (match) return [{ index, sender: match[1], displayedDate: match[2], displayedTime: match[3] }];
     const dateOnly = line.match(dateOnlyPattern);
     if (!dateOnly) return [];
     let start = index - 1;
     while (start >= 0 && lines[start].trim()) start -= 1;
     const sender = lines.slice(start + 1, index).map((item) => item.trim()).find(Boolean);
-    return sender ? [{ index, sender, displayedDate: dateOnly[1], displayedTime: dateOnly[3] }] : [];
+    return sender ? [{ index, sender, displayedDate: dateOnly[1], displayedTime: dateOnly[2] }] : [];
   });
   if (!headers.length) throw new Error('Conversation has no parseable entries');
   return headers.map((header, position) => {
@@ -239,7 +247,7 @@ function parseConversation(value: string, heading: string): ParsedConversationEn
       body,
       displayedDate: header.displayedDate,
       displayedTime: header.displayedTime,
-      ...resolveMessageTimestamp(header.displayedDate, header.displayedTime),
+      ...resolveMessageTimestamp(header.displayedDate, header.displayedTime, capturedAt),
       reactions: [],
     };
   });
@@ -359,11 +367,23 @@ export function parseAirbnbBookingPdfText(layoutText: string): ParsedAirbnbBooki
     || normaliseHeading(layoutText.slice(0, layoutText.indexOf('PRIVATE AIRBNB BOOKING RECORD')));
   if (!heading) throw new Error('PDF has no booking heading');
   const reservation = layoutText.match(/Reservation details\s+([\s\S]*?)\s+Private record\./u);
-  const finance = layoutText.match(/Price totals and breakdowns\s+([\s\S]*?)\s+Complete conversation/u);
-  const conversation = layoutText.match(/Complete conversation\s+([\s\S]*)$/u);
+  const finance = layoutText.match(/Price totals and breakdowns\s+([\s\S]*?)\s+(?:Complete conversation|Conversation unavailable)/u);
+  const conversation = layoutText.match(/(Complete conversation|Conversation unavailable)\s+([\s\S]*)$/u);
   if (!reservation || !finance || !conversation) throw new Error('PDF is missing a required booking section');
   const parsedReservation = parseReservation(reservation[1], identity[3], heading);
-  const conversationEntries = parseConversation(conversation[1], heading);
+  const financialSummaries = parseFinancials(finance[1], parsedReservation);
+  let conversationEntries: ParsedConversationEntry[];
+  let conversationCompleteness: ParsedAirbnbBooking['conversationCompleteness'];
+  if (conversation[1] === 'Conversation unavailable') {
+    const marker = conversation[2].replace(/\s+/gu, ' ').trim().match(/^Messages omitted: ([1-9]\d*) Capture content SHA-256: ([a-f0-9]{64}) Messages could not be validated\. Original messages remain in the private capture JSON for repair\. No conversation entries are included in this PDF\.$/u);
+    if (!marker || !Number.isSafeInteger(Number(marker[1]))) throw new Error('Invalid incomplete-conversation evidence');
+    if (financialSummaries.length !== 2 || financialSummaries.some(item => item.arithmeticStatus !== 'verified')) throw new Error('Incomplete conversation requires verified financial totals');
+    conversationCompleteness = { status: 'incomplete', capturedMessageCount: Number(marker[1]), captureContentSha256: marker[2] };
+    conversationEntries = [];
+  } else {
+    try { conversationEntries = parseConversation(conversation[2], heading, identity[3]); }
+    catch (cause) { throw Object.assign(new Error('Conversation PDF parsing failed.', { cause }), { code: 'AIRBNB_MESSAGES_INVALID' }); }
+  }
   const conversationText = conversationEntries.map((entry) => entry.body).join('\n');
   parsedReservation.sourceStatusText = /(?:reservation[^\n.]*canc(?:eled|elled)|canc(?:eled|elled)[^\n.]*reservation)/iu.test(conversationText)
     ? 'Cancelled'
@@ -372,8 +392,9 @@ export function parseAirbnbBookingPdfText(layoutText: string): ParsedAirbnbBooki
     source: { conversationId: identity[2], capturedAt: identity[3] },
     heading,
     reservation: parsedReservation,
+    ...(conversationCompleteness ? { conversationCompleteness } : {}),
     conversationEntries,
     financialRaw: finance[1].trim(),
-    financialSummaries: parseFinancials(finance[1], parsedReservation),
+    financialSummaries,
   };
 }

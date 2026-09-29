@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { parseReviewPdfText } from '../generate-airbnb-review-datasets.mjs';
 import { isStayLine, parseReviewDates } from './review-dates.mjs';
 import { renderBookingHtml, parseMessageGroup } from '../generate-airbnb-message-booking-html.mjs';
@@ -29,9 +30,21 @@ export function sourceIdentity(kind, value) {
 function rating(value) {
   const text = clean(value);
   const match = text.match(/^(?:Rating[,:]?\s*)?([1-5])(?:\.0)?(?:\s*(?:out of 5|of 5))?\s*stars?[.,]?$/iu)
-    ?? text.match(/^★+\s*([1-5])$/u) ?? text.match(/^([1-5])$/u);
+    ?? text.match(/^[★*]+\s*([1-5])$/u) ?? text.match(/^([1-5])$/u);
   if (!match) throw new Error('Unrecognised displayed rating.');
   return Number(match[1]);
+}
+
+// Airbnb exposes an accessible star label followed by the same visible score.
+// Consume that second token only beside a star label, never strip digits from prose.
+function displayedRating(lines, cursor, inline = '') {
+  const label = inline || lines[cursor++];
+  const score = rating(label);
+  if (/[★*]|stars?/iu.test(label) && /^[1-5]$/u.test(lines[cursor] ?? '')) {
+    if (Number(lines[cursor]) !== score) throw new Error('Displayed rating and accessible star label disagree.');
+    cursor += 1;
+  }
+  return { score, cursor };
 }
 
 /** Read text from the displayed dialog; fail closed if Airbnb changes section boundaries. */
@@ -59,8 +72,9 @@ export function parseReviewDialog({ text, reviewId, capturedAt, knownReview, res
     capturedAt, reviewerName: reviewer, propertyId: /cottage/iu.test(listing[0]) ? 'cottage' : 'main-house', reservations,
   });
   const publicLabelRating = lines[publicIndex].replace(/^Public review\s*[·:]?\s*/u, '');
-  const overall = rating(publicLabelRating || lines[publicIndex + 1]);
-  const publicStart = publicIndex + (publicLabelRating ? 1 : 2);
+  const publicRating = displayedRating(lines, publicIndex + 1, publicLabelRating);
+  const overall = publicRating.score;
+  const publicStart = publicRating.cursor;
   const noteIndex = lines.findIndex((line, index) => index >= publicStart && index < detailedIndex && /^Note from\b/u.test(line));
   const replyIndex = lines.findIndex((line, index) => index >= publicStart && index < detailedIndex && /^Write a public reply$/u.test(line));
   const publicEnd = Math.min(...[noteIndex, replyIndex, detailedIndex].filter((index) => index >= 0));
@@ -78,7 +92,9 @@ export function parseReviewDialog({ text, reviewId, capturedAt, knownReview, res
     const label = lines[cursor++];
     if (!label?.startsWith(category)) throw new Error('Missing or reordered detailed-rating category.');
     const inlineRating = label.slice(category.length).trim();
-    const score = rating(inlineRating || lines[cursor++]);
+    const categoryRating = displayedRating(lines, cursor, inlineRating);
+    const score = categoryRating.score;
+    cursor = categoryRating.cursor;
     const feedback = [];
     while (cursor < lines.length && !categories.some((name) => lines[cursor] === name || lines[cursor].startsWith(`${name} `))) {
       const line = lines[cursor++];
@@ -129,8 +145,8 @@ ${review.privateFeedback ? `<section class="private"><h2>Note from ${e(review.re
 <footer>Airbnb review ID ${e(review.source.reviewId)} · Captured ${longDate(review.source.capturedAt)}</footer></html>`;
 }
 
-export function renderCapture(kind, capture) {
-  return kind === 'reviews' ? renderReviewHtml(capture.review) : renderBookingHtml(capture);
+export function renderCapture(kind, capture, options = {}) {
+  return kind === 'reviews' ? renderReviewHtml(capture.review) : renderBookingHtml(capture, options);
 }
 
 export function verifyPdfText(kind, capture, text) {
@@ -145,18 +161,27 @@ export function verifyPdfText(kind, capture, text) {
     return { pagesVerified: true, reviewId: actual.source.reviewId };
   }
   const parsed = parseAirbnbBookingPdfText(text);
-  if (parsed.source.conversationId !== capture.source.conversationId
-    || parsed.conversationEntries.length !== capture.conversation.groups.length) throw new Error('Booking PDF identity or message count differs.');
-  for (const [index, group] of capture.conversation.groups.entries()) {
-    const message = parseMessageGroup(group);
-    contains(message.body);
-    contains(message.sender);
-    const actual = parsed.conversationEntries[index];
-    if (normalise(actual.body) !== normalise(message.body)
-      || normalise(actual.senderDisplayName) !== normalise(message.sender)
-      || actual.displayedDate !== message.sentDate || actual.displayedTime !== message.sentTime) {
-      throw new Error('PDF conversation order or message metadata differs.');
-    }
+  if (parsed.source.conversationId !== capture.source.conversationId) throw new Error('Booking PDF identity differs.');
+  if (parsed.conversationCompleteness) {
+    const metadata = parsed.conversationCompleteness;
+    if (metadata.capturedMessageCount !== capture.conversation.groups.length
+      || metadata.captureContentSha256 !== createHash('sha256').update(JSON.stringify(capture)).digest('hex')
+      || parsed.conversationEntries.length !== 0) throw new Error('Incomplete conversation evidence differs from saved JSON.');
+  } else {
+    try {
+      if (parsed.conversationEntries.length !== capture.conversation.groups.length) throw new Error('Booking PDF message count differs.');
+      for (const [index, group] of capture.conversation.groups.entries()) {
+        const message = parseMessageGroup(group);
+        contains(message.body);
+        contains(message.sender);
+        const actual = parsed.conversationEntries[index];
+        if (normalise(actual.body) !== normalise(message.body)
+          || normalise(actual.senderDisplayName) !== normalise(message.sender)
+          || actual.displayedDate !== message.sentDate || actual.displayedTime !== message.sentTime) {
+          throw new Error('PDF conversation order or message metadata differs.');
+        }
+      }
+    } catch (cause) { throw Object.assign(new Error('Conversation PDF verification failed.', { cause }), { code: 'AIRBNB_MESSAGES_INVALID' }); }
   }
   for (const line of capture.reservation.visibleText.split(/\r?\n/u).filter((value) => value.trim())) contains(line);
   for (const [index, tab] of capture.earnings.tabs.entries()) {
@@ -168,7 +193,7 @@ export function verifyPdfText(kind, capture, text) {
   if (parsed.financialSummaries.some((summary) => summary.arithmeticStatus !== 'verified')) {
     throw new Error('Booking financial totals could not be verified.');
   }
-  return { pagesVerified: true, conversationId: parsed.source.conversationId, messages: parsed.conversationEntries.length };
+  return { pagesVerified: true, conversationId: parsed.source.conversationId, messages: parsed.conversationEntries.length, conversationStatus: parsed.conversationCompleteness ? 'incomplete' : 'complete' };
 }
 
 /** Merge overlapping windows without collapsing two genuinely identical consecutive messages. */

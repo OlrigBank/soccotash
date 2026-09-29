@@ -7,6 +7,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { verifyPdfText } from './airbnb-capture/records.mjs';
 import { parseAirbnbBookingPdfText } from '../src/lib/airbnb-import/booking-pdf.ts';
 import { importAirbnbReservations, type AirbnbBookingImportDocument } from '../src/lib/airbnb-import/reservations.ts';
 
@@ -63,6 +64,16 @@ for (const directory of directories) {
       booking = parseAirbnbBookingPdfText(extracted.stdout);
     } catch (error) {
       throw new Error(`${filename}: ${error instanceof Error ? error.message : error}`, { cause: error });
+    }
+    if (booking.conversationCompleteness) {
+      const terminalRoot = path.join(repositoryDirectory, 'output/pdf/airbnb-terminal');
+      const parts = path.relative(terminalRoot, pdfPath).split(path.sep);
+      if (parts.length !== 3 || parts[0] === '..' || parts[1] !== 'bookings' || parts[2] !== `${booking.source.conversationId}.pdf`) {
+        throw new Error('Incomplete booking PDF must retain its terminal capture run and JSON sidecar.');
+      }
+      const rawPath = path.join(repositoryDirectory, '.airbnb-capture/runs', parts[0], 'bookings', `${booking.source.conversationId}.json`);
+      const capture = JSON.parse(await readFile(rawPath, 'utf8'));
+      verifyPdfText('bookings', capture, extracted.stdout);
     }
     documents.push({
       relativePath: path.relative(repositoryDirectory, pdfPath),

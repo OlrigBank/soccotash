@@ -179,9 +179,14 @@ access instructions. Terminal progress prints aggregate counts, not guest data.
 
 Every PDF passes `pdfinfo`, `pdftotext`, and the same parsers used by the existing
 database importers before being marked complete. Reviews are compared with their
-captured structured record. Booking PDFs must retain their identity, every
-captured message, and arithmetically verified financial totals. Incomplete or
-unparseable PDFs never appear as completed output.
+captured structured record. Booking PDFs must retain their identity, reservation details and arithmetically
+verified financial totals. Conversation parsing or text-verification failures
+alone may produce a reservation-and-finance-only PDF, explicitly marked
+**Conversation unavailable**. Such PDFs have no imported message entries, carry
+the captured message count and a SHA-256 fingerprint of the captured JSON
+content, and record `conversationStatus: incomplete` in the run manifest.
+Reservation, financial, identity and PDF-integrity failures still fail that item.
+The original JSON is never trimmed or rewritten by this fallback.
 
 Rerun the exact command to resume. Completed items are hash-checked and verified,
 then skipped. Captured raw JSON is reused when PDF generation was interrupted.
@@ -196,7 +201,10 @@ npm run airbnb:capture -- render --kind bookings --run september-2026
 ```
 
 Offline rendering uses a fresh headless browser and does not load the signed-in
-profile. A run stops on the first failed item and exits non-zero. Its private
+profile. A local PDF generation or validation failure retains the raw JSON and error,
+marks that item failed and continues with the remaining items. Failed PDFs are
+not accepted as completed output. Any failure makes the command exit non-zero.
+Capture, authentication and evidence-integrity failures still stop the run. Its private
 `ID.error.txt` explains the failure; do not copy that file into public issues.
 Review captures also save `ID.dialog.json` **before parsing**, with the exact
 parser input (`dialogText`), the browser's rendered text (`renderedText`), source
@@ -221,14 +229,14 @@ pdftoppm -scale-to 1600 -png output/pdf/airbnb-terminal/september-2026/reviews/1
 ## Adapting to Airbnb interface changes
 
 The selectors are isolated in `site/scripts/airbnb-capture/browser.mjs`. The
-defaults target an accessible review dialog, complementary reservation panel,
+defaults target an accessible review dialog, reservation panel (`#thread_details_panel` or `data-testid="orbital-panel-details"`),
 conversation heading, and labelled message groups. If the current Airbnb page
 uses different elements, inspect it and supply a private JSON selector file:
 
 ```json
 {
   "reviewDialog": "[role=\"dialog\"]",
-  "reservation": "[role=\"complementary\"]",
+  "reservation": "#thread_details_panel",
   "conversationHeading": "h1",
   "messageGroups": "[role=\"group\"][aria-label*=\". Sent \"]",
   "messageScroller": null
@@ -342,3 +350,193 @@ use one review and one booking first.
 - Migration 066 was exercised only in disposable local schemas. No production
   migration or deployment was performed. The existing 155-document verifier
   baseline has not been expanded to include new captures.
+
+
+### Booking PDF follow-up — 29 September 2026
+
+- Booking PDF generation and ingestion accept British day-first dates, including
+  `Sept`, compact stay ranges such as `4–6 Sept`, and 24-hour times. Earlier
+  month-first dates and AM/PM times remain supported.
+- When a message displays a date without its year, use the current year at
+  capture time in Europe/London, as agreed with the owner. Store
+  `timestampPrecision: date_inferred`; explicitly supplied years remain exact.
+  Reprocessing saved evidence does not substitute the later processing year.
+- The private booking PDF embeds the SIL OFL-licensed Noto Emoji outline font
+  so emoji survive both visual rendering and PDF text extraction. Raw captured
+  JSON and displayed date labels are unchanged.
+- Verification: 19 capture/render tests pass, including British formats,
+  midnight, invalid times, month/year boundaries, inferred years and searchable
+  emoji. Astro check reports 0 errors, 0 warnings and 2 existing unrelated hints.
+  One saved September booking produced a verified three-page PDF; all pages
+  were visually inspected. No database import had been performed at that stage;
+  see the later primary-local completion record below.
+- Corrected the page-heading issue: when the configured heading yields a generic
+  label such as `Messages`, capture resolves the name from the reservation's
+  `Guests` or `Who’s coming` section. Missing or ambiguous guest sections stop
+  capture; PDF generation also rejects generic headings in older saved captures.
+- Repaired the first September booking using its saved guest section, preserved
+  the original JSON/PDF/manifest and a correction record under the ignored
+  `.airbnb-capture/repairs/` directory, regenerated the PDF and updated its hashes.
+  Removed the obsolete error file after retaining a backup. Offline resumption
+  verified the corrected record successfully. All 21 capture/render tests pass,
+  including a browser fixture with a `Messages` heading; all three corrected
+  PDF pages were visually inspected. This repair did not revisit Airbnb or
+  import anything into a database.
+
+- The verified reservation-panel selector is now the default, so the normal
+  booking capture command no longer needs `--selectors` for this Airbnb layout.
+  The browser regression covers the default selector with both observed panel
+  attributes on one element and the generic `Messages` page heading.
+
+- PDF batches now continue past local generation/validation failures while preserving failed evidence for retry. Successful retries clear obsolete error files. Service-event labels using `Sent at` are accepted.
+
+
+### Importing bookings with incomplete messages
+
+The owner authorised importing valid reservation and financial information even
+when messages cannot be represented faithfully in the PDF. This is automatic
+only for message parsing, rendering or text-verification errors. PDF printing,
+identity, reservation and financial errors never enable an unchecked import.
+
+- Full conversations keep their existing format. A fallback PDF instead has a
+  **Conversation unavailable** page with the omitted count and JSON fingerprint.
+  All captured messages remain in the private JSON; none are silently imported
+  as a complete conversation. Message-derived reservation status remains unknown.
+- Keep the PDF in `output/pdf/airbnb-terminal/<run>/bookings/` and its original
+  JSON in `.airbnb-capture/runs/<run>/bookings/`. The booking importer requires
+  the matching JSON for a flagged PDF and verifies its fingerprint, identity,
+  reservation text and financial rows before connecting to PostgreSQL.
+- Completeness metadata is retained in the source document's existing
+  `raw_extraction` JSONB. No database migration is needed. Existing conflict and
+  idempotency checks apply; an incomplete capture cannot silently replace a
+  complete one, or vice versa. Later message recovery requires a separately
+  reviewed update procedure; rerunning does not overwrite canonical evidence.
+- **Messages incomplete notice** is a custom admin status pattern, reusing the
+  existing information-alert presentation. It appears in the reservation's
+  Conversation section after import. The remaining booking and financial
+  sections remain usable.
+- Validation: 24 capture/render tests and one responsive admin browser test pass.
+  Disposable PostgreSQL checks verify import, retained completeness, zero message
+  entries, two financial summaries, idempotency, conflict rejection and rejection
+  of invalid finances. Type checking reports zero errors/warnings and two
+  pre-existing unrelated hints; the production build passes.
+- Chrome DevTools and Playwright checked 390×844, 768×1024 and 1440×900, the warning,
+  empty message list, financial panels, keyboard focus and overflow. The document
+  and stylesheet returned 200 with no console errors. Lighthouse exposed and
+  prompted a correction to warning contrast. After correction: accessibility 96,
+  best practices 100 and agentic browsing 100. The remaining contrast finding is
+  the pre-existing reservation subtitle; SEO 80 reflects its existing missing
+  meta description. The warning itself passes contrast.
+- All four saved September bookings now have verified PDFs: two full and two
+  with incomplete messages. All six pages of the two newly generated PDFs were
+  visually inspected. No real booking data had been imported at that stage;
+  the subsequent primary-local import is recorded below.
+
+### Publishing imported reviews on the website
+
+Imports do not automatically publish reviews. After applying migration 067 and
+seeding the existing approved review set, open an imported review in Admin → Airbnb
+reviews and use **Website publication** → **Publish on website**. **Unpublish from
+website** removes it from both the carousel and aggregate ratings on the next
+homepage visit. No rebuild is needed for publication decisions.
+
+The seed command is `node --experimental-strip-types site/scripts/seed-approved-airbnb-reviews.mjs`
+from the repository root with DATABASE_URL configured. It needs the original private
+review PDFs and manifest; run it from a trusted checkout, not the deployed runtime
+image. It verifies all existing approvals and ratings before importing missing
+historical reviews. It preserves existing publication decisions on rerun.
+See `docs/acceptance/2026-09-29-database-public-reviews.md` for local verification,
+rollout order and the review-only preview.
+
+
+### Primary-local completion — 29 September 2026
+
+The owner selected the primary local database, `soccotash`, schema `public`.
+After backup, the September import added five review captures and four bookings;
+two bookings retain complete messages and two explicitly record incomplete messages.
+A repeated import added no duplicate records. Migration 066 permits an unknown
+Airbnb publication date. See the [primary-local import record](acceptance/2026-09-29-primary-local-airbnb-import.md).
+
+Migration 067 and the approved-review seed subsequently preserved all 52 existing
+public reviews, adding 51 missing historical reviews to the database. The database
+therefore contains 56 distinct reviews: one September capture overlaps the historical
+set. The four new reviews were initially unpublished and were subsequently published
+by the owner. The last verified local website displayed all 56 reviews.
+
+The database-backed review preview runs at `http://localhost:8081/#guest-reviews`,
+with publication controls under `http://localhost:8081/admin/airbnb/reviews/`.
+It uses the primary local database; publication choices persist. Port 8080 remains
+the older Docker website for comparison. The preview blocks unrelated mutations
+and removes notification credentials. Its process must be running for port 8081
+to respond. With the local DATABASE_URL supplied securely in the environment,
+restart it from the repository root using:
+
+```bash
+npm run build
+node site/scripts/preview-airbnb-publication.mjs
+```
+
+Development and production have not been updated. The initial code deployment and
+database preparation are still required there; later publication changes need no
+rebuild. Follow the rollout order in the [database-backed reviews acceptance record](acceptance/2026-09-29-database-public-reviews.md).
+
+### Current Airbnb rating format and correction
+
+Airbnb may display `Public review · ★4`: the star is an icon and the number is the
+overall score. Category scores are separate. The captured text can contain an
+accessible `4 stars` label followed by a duplicate visible `4`. The parser now
+consumes both together for overall and category ratings, rejects conflicting
+scores, and preserves genuine review prose beginning with a number. Numeric-only
+and older rating formats remain supported.
+
+Previously, the duplicated score leaked into review text and category feedback.
+The primary-local repair removed the stray prefix from five imported records,
+corrected four published snapshots and removed 30 spurious numeric feedback tags.
+Ratings and publication decisions were unchanged. The original captured JSON,
+PDFs, hashes and imported source evidence remain intact; corrections are audited
+in `admin_audit_log` as `airbnb_review.repair_rating_tokens`.
+
+For another affected database, back it up first and supply its DATABASE_URL securely.
+The following command verifies the saved captures against imported evidence and
+reports proposed corrections inside a transaction that is rolled back:
+
+```bash
+node site/scripts/repair-airbnb-review-ratings.mjs .airbnb-capture/runs/september-2026/reviews
+```
+
+Only after reviewing that result, append `--apply` to commit the corrections.
+Rerunning is safe and reports zero changes once repaired. This is a targeted
+correction for existing imported records, not a general text-cleaning operation.
+Do not edit original captured evidence to remove the duplicated tokens.
+
+Verification included 21 capture tests, a disposable-database repair regression
+covering four-star scores, evidence preservation, rollback, tampered-input rejection
+and repeatability, plus Chrome DevTools checks at phone, tablet and desktop widths.
+The local website showed no stray numeric prefixes; four-star reviews displayed
+four filled stars and one empty star.
+
+### Development PR rollout order
+
+Before activating the database-backed homepage in an environment, back up its
+DB, apply the migrations, then prepare the data using the feature-branch scripts
+from the trusted local checkout. Do not rely on deployment to run the private
+imports or publication seed. If merging automatically deploys the homepage,
+complete data preparation before that merge/deployment or arrange a coordinated
+release window; otherwise the new homepage will temporarily show no reviews.
+
+For an empty Airbnb dataset use this order:
+
+1. Import the September reviews and bookings from their run directories.
+2. Run the rating-token repair (inspect its default rollback report, then apply).
+3. Seed the existing approved historical reviews. This skips historical source
+   imports for review IDs already present and preserves their approved snapshots.
+4. Reconcile reviews and bookings, verify counts, and explicitly publish the four
+   new reviews only after checking them in the target environment.
+5. Activate and verify the updated website; repeat the verified procedure for
+   production after development acceptance.
+
+Import September before the historical seed: Fred's September recapture overlaps
+an older historical review, and the importer intentionally rejects different
+canonical evidence for an existing review ID. If the target already has historical
+imports, inspect that overlap before import rather than overwriting evidence or
+assuming the whole batch will succeed. No automatic conflict resolution is provided.

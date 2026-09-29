@@ -86,6 +86,7 @@ export interface AirbnbReservationDetail extends AirbnbReservationSummary {
   hostNotes: string | null;
   guestProfileText: string | null;
   accessCodeRetained: boolean;
+  conversationIncomplete: boolean;
   conversation: AirbnbConversationEntry[];
   financialSummaries: AirbnbFinancialSummary[];
   provenance: AirbnbReservationProvenance[];
@@ -423,7 +424,8 @@ export async function getAirbnbReservationDetail(
     ),
     database.query(
       `SELECT source.document_type, source.relative_path, left(source.sha256,12) AS abbreviated_hash,
-              source.captured_at, link.is_preferred
+              source.captured_at, link.is_preferred,
+              source.raw_extraction->'conversationCompleteness'->>'status' AS conversation_status
          FROM airbnb_reservation_documents link
          JOIN airbnb_source_documents source ON source.id=link.source_document_id
         WHERE link.reservation_id=$1 ORDER BY link.is_preferred DESC, source.captured_at DESC, source.id DESC`,
@@ -482,6 +484,7 @@ export async function getAirbnbReservationDetail(
     reviewLinkStatus: reservation.review_link_status,
     hostNotes: reservation.host_notes, guestProfileText: reservation.guest_profile_text,
     accessCodeRetained: reservation.access_code_retained,
+    conversationIncomplete: provenanceResult.rows.some(row => row.is_preferred && row.conversation_status === 'incomplete'),
     conversation: conversationResult.rows.map((row) => ({
       position: Number(row.position), entryType: row.entry_type, senderType: row.sender_type,
       senderDisplayName: row.sender_display_name, body: redactAirbnbAccessCodes(row.body),

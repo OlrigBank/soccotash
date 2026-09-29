@@ -4,14 +4,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import HomeGallery from '../components/HomeGallery.astro';
 import PublicReviewCarousel from '../components/PublicReviewCarousel.astro';
-import publicReviewData from '../data/public-reviews.json';
-import publicReviewSummaryData from '../data/public-review-summary.json';
-import { validatePublicReviewData, validatePublicReviewSummary } from '../lib/public-reviews';
+import { getPublishedReviews } from '../lib/airbnb-admin/publication';
 import { formatBaseNightlyPrice, getPublishedBaseNightlyPrices } from '../lib/pricing/public-base-prices';
 
 const page = await getEntry('pages', 'home');
-const publicReviews = validatePublicReviewData(publicReviewData).reviews;
-const publicReviewSummary = validatePublicReviewSummary(publicReviewSummaryData);
+Astro.response.headers.set('Cache-Control', 'no-store');
+const { reviews: publicReviews, summary: publicReviewSummary } = await getPublishedReviews().catch(() => {
+  console.error('Published guest reviews could not be loaded.');
+  return { reviews: [], summary: null };
+});
 const comparedPropertyIds = ['main-house', 'whole-property', 'cottage'];
 const baseNightlyPrices = await getPublishedBaseNightlyPrices(comparedPropertyIds).catch(() =>
   Object.fromEntries(comparedPropertyIds.map((propertyId) => [propertyId, null])),

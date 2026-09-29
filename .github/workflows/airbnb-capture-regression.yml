@@ -1,0 +1,45 @@
+name: Airbnb capture and publication regression
+
+on:
+  pull_request:
+    branches: [development]
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture-and-publication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: soccotash
+          POSTGRES_PASSWORD: airbnb-regression
+          POSTGRES_DB: soccotash_airbnb_regression
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U soccotash -d soccotash_airbnb_regression"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://soccotash:airbnb-regression@127.0.0.1:5432/soccotash_airbnb_regression
+      DATABASE_SSL: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm --prefix site ci
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check && npm run build
+      - run: node --test tests/airbnb-capture/*.test.mjs tests/airbnb-review-dates/*.test.mjs
+      - run: npm run test:airbnb-date-integration

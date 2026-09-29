@@ -137,12 +137,20 @@ async function openBrowser(options, offline = false) {
 }
 
 export async function writeVerifiedPdf(context, kind, capture, filename) {
+  try { return await writePdfAttempt(context, kind, capture, filename, false); }
+  catch (error) {
+    if (kind !== 'bookings' || error.code !== 'AIRBNB_MESSAGES_INVALID') throw error;
+    return writePdfAttempt(context, kind, capture, filename, true);
+  }
+}
+
+async function writePdfAttempt(context, kind, capture, filename, omitMessages) {
   const page = await context.newPage();
   const temporary = `${filename}.${crypto.randomUUID()}.tmp.pdf`;
   try {
     // Print only locally generated, escaped HTML. It has no remote dependencies.
     await page.route('**/*', (route) => route.abort());
-    await page.setContent(renderCapture(kind, capture), { waitUntil: 'load' });
+    await page.setContent(renderCapture(kind, capture, { omitMessages }), { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
     const cdp = await context.newCDPSession(page);
     let printed;
@@ -265,7 +273,9 @@ export async function run(options) {
         stage = 'pdf';
         const pdf = await writeVerifiedPdf(browser.context, kind, capture, pdfPath);
         manifest.items[source.id] = { status: 'complete', rawSha256, pdf };
+        await fs.rm(path.join(directory, `${source.id}.error.txt`), { force: true });
         completed += 1;
+        if (pdf.conversationStatus === 'incomplete') console.warn('Booking and finances verified; messages omitted from PDF and retained in JSON for repair.');
         console.log(`Captured and verified ${kind} item ${completed}/${sources.length}.`);
       } catch (error) {
         failures += 1;
@@ -274,9 +284,10 @@ export async function run(options) {
         await atomicWrite(path.join(directory, `${source.id}.error.txt`), `${stage}\n${error.stack ?? error}\n`);
         // Preserve completed hashes on corruption, so reruns cannot silently accept edits.
         if (manifest.items[source.id]?.status !== 'complete') manifest.items[source.id] = { ...manifest.items[source.id], status: 'failed', stage };
-        console.error(`Item failed during ${stage}; inspect the private run directory. Remaining items can resume on rerun.`);
-        // Authentication/markup failures should not hammer the remainder of Airbnb.
-        break;
+        console.error(`Item failed during ${stage}; inspect the private run directory. ${stage === 'pdf' ? 'Continuing with remaining items; failed JSON is retained for retry.' : 'Stopping; remaining items can resume on rerun.'}`);
+        // Local PDF failures must not block independent records. Stop on capture
+        // or integrity failures rather than repeatedly visiting a broken session.
+        if (stage !== 'pdf') break;
       } finally {
         if (page) await page.close();
         await atomicWrite(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

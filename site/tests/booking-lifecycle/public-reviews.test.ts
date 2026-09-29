@@ -69,7 +69,8 @@ test('the homepage renders an item-based responsive review carousel immediately 
     read('src/components/PublicReviewCarousel.astro'),
     read('src/components/SideMenu.astro'),
   ]);
-  assert.match(homepage, /validatePublicReviewData\(publicReviewData\)/u);
+  assert.match(homepage, /await getPublishedReviews\(\)/u);
+  assert.doesNotMatch(homepage, /import .*public-reviews\.json/u);
   assert.match(homepage, /<PublicReviewCarousel reviews=\{publicReviews\} summary=\{publicReviewSummary\}/u);
   assert.match(component, /data-review-carousel/u);
   assert.match(component, />What our guests say<\/h2>/u);

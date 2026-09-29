@@ -38,7 +38,7 @@ const precisionLabel = { exact: 'Exact date', date_inferred: 'Date inferred', ye
     {reservation.accessCodeRetained && <p><span class="status-badge">Encrypted access code retained</span> The value is deliberately unavailable.</p>}
   </section>
 
-  <section class="admin-panel airbnb-detail-section" aria-labelledby="conversation-heading"><div class="admin-panel-heading"><div><h2 id="conversation-heading">Conversation</h2><p>{reservation.conversation.length} ordered entries from the captured Airbnb record.</p></div></div>
+  <section class="admin-panel airbnb-detail-section" aria-labelledby="conversation-heading"><div class="admin-panel-heading"><div><h2 id="conversation-heading">Conversation</h2>{reservation.conversationIncomplete ? <p class="admin-alert admin-alert--info airbnb-conversation-warning" role="note"><strong>Messages incomplete.</strong> Reservation and financial data were imported. Messages could not be validated and remain in the private capture JSON for repair.</p> : <p>{reservation.conversation.length} ordered entries from the captured Airbnb record.</p>}</div></div>
     <ol class="airbnb-conversation-list">{reservation.conversation.map((entry) => <li class:list={['airbnb-conversation-entry', `is-${entry.senderType}`]}><header><strong>{entry.senderDisplayName}</strong><span>{entry.displayedDate} at {entry.displayedTime}</span><small>{precisionLabel[entry.timestampPrecision]}{entry.sentAt ? ` · ${dateTimeFormatter.format(new Date(entry.sentAt))}` : ''}</small></header><p class="airbnb-preserved-text">{entry.body}</p>{entry.reactions.length > 0 && <ul class="airbnb-reactions">{entry.reactions.map((reaction) => <li>{reaction.reaction}{reaction.reactorDisplayName ? ` · ${reaction.reactorDisplayName}` : ''}</li>)}</ul>}</li>)}</ol>
   </section>
 
@@ -50,3 +50,7 @@ const precisionLabel = { exact: 'Exact date', date_inferred: 'Date inferred', ye
 
   <section class="admin-panel airbnb-detail-section" aria-labelledby="provenance-heading"><h2 id="provenance-heading">Source provenance</h2><div class="admin-table-wrap"><table><thead><tr><th>Capture</th><th>Private source path</th><th>SHA-256</th><th>Role</th></tr></thead><tbody>{reservation.provenance.map((source) => <tr><td>{dateTimeFormatter.format(new Date(source.capturedAt))}</td><td><code>{source.relativePath}</code></td><td><code>{source.abbreviatedHash}…</code></td><td>{source.isPreferred ? 'Preferred capture' : 'Additional capture'}</td></tr>)}</tbody></table></div></section>
 </AdminLayout>
+
+<style>
+  .airbnb-conversation-warning { color: #243a2e; }
+</style>

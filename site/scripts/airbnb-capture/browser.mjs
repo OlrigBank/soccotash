@@ -1,10 +1,11 @@
+import { resolveBookingHeading } from '../generate-airbnb-message-booking-html.mjs';
 import { appendMessageWindow, parseReviewDialog, sourceIdentity } from './records.mjs';
 
 // Airbnb's host interface is not a stable API. These are deliberately bounded,
 // readable selectors; --selectors permits adjustments without changing a run's data.
 export const defaultSelectors = {
   reviewDialog: '[role="dialog"]',
-  reservation: '[role="complementary"]',
+  reservation: '#thread_details_panel, [data-testid="orbital-panel-details"]',
   conversationHeading: 'h1',
   messageGroups: '[role="group"][aria-label*=". Sent "]',
   messageScroller: null,
@@ -144,10 +145,15 @@ export async function capturePage(page, kind, source, selectors = defaultSelecto
   });
   const earnings = page.getByRole('button', { name: 'Earnings', exact: true });
   await earnings.waitFor({ state: 'visible' });
-  const heading = await populated(page.locator(selectors.conversationHeading));
+  const displayedHeading = await populated(page.locator(selectors.conversationHeading));
   const groups = await collectMessages(page, selectors);
   const reservation = { visibleText: await populated(panel) };
-  await earnings.click();
+  const heading = resolveBookingHeading(displayedHeading, reservation.visibleText);
+  // Airbnb's amount card can cover the labelled Earnings button. Click the
+  // visible card, as a person would, while retaining the older button layout.
+  const paymentCard = panel.locator('[data-testid="hosting-details-payment-info"]');
+  if (await paymentCard.isVisible()) await paymentCard.click();
+  else await earnings.click();
   const dialog = page.getByRole('dialog').filter({ has: page.getByRole('tab', { name: 'You earn', exact: true }) });
   await dialog.waitFor({ state: 'visible' });
   const tabs = [];

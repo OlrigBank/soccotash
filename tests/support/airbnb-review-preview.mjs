@@ -22,7 +22,7 @@ export async function startAirbnbReviewPreview(port = 8087) {
         reviewer: { displayName: publishedAt ? 'Dated fixture guest' : 'Undated fixture guest' },
         listing: { key: 'main-house', displayName: 'Olrig Bank', sourceDisplayName: 'Olrig Bank' },
         stay: { checkIn: '2026-08-27', checkOut: '2026-08-30', nights: 3, yearSource: publishedAt ? 'displayed' : 'current-year-assumption' },
-        publishedAt, publicReview: { rating: 5, text: 'Disposable review content for local verification.' }, privateFeedback: null,
+        publishedAt, publicReview: { rating: 5, text: 'Disposable review content for local verification.' }, privateFeedback: { text: 'PRIVATE_FIXTURE_FEEDBACK' },
         detailedRatings: ['Check-in', 'Cleanliness', 'Accuracy', 'Communication', 'Location', 'Value'].map(category => ({ category, rating: 5, feedback: [] })),
       };
       await importAirbnbReviews({ sourceSnapshotOn: '2026-09-28', documents: [{
@@ -37,7 +37,7 @@ export async function startAirbnbReviewPreview(port = 8087) {
       } else handler(request, response);
     });
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-    return { close: async () => { await new Promise(resolve => server.close(resolve)); await fixture.close(); } };
+    return { origin: `http://127.0.0.1:${server.address().port}`, close: async () => { await new Promise(resolve => server.close(resolve)); await fixture.close(); } };
   } catch (error) { if (server) server.close(); await fixture.close(); throw error; }
 }
 
