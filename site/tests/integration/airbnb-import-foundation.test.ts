@@ -48,6 +48,7 @@ test('Airbnb import foundation stores a private normalized evidence graph and en
       'airbnb_reservations',
       'airbnb_review_category_ratings',
       'airbnb_review_feedback_tags',
+      'airbnb_review_publications',
       'airbnb_review_reservation_links',
       'airbnb_reviews',
       'airbnb_source_documents',
