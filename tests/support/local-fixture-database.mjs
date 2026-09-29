@@ -13,6 +13,22 @@ export async function createLocalFixtureDatabase(prefix) {
   if (!/^[a-z_]+$/.test(prefix)) throw new Error('Invalid fixture prefix.');
   const schema = `${prefix}_${randomBytes(8).toString('hex')}`;
   const control = new pg.Pool({ connectionString });
+  // Extensions are database-wide. Installing them in a disposable schema makes
+  // parallel fixtures unable to find their functions and drops them on cleanup.
+  const bootstrap = await control.connect();
+  try {
+    await bootstrap.query('BEGIN');
+    await bootstrap.query("SELECT pg_advisory_xact_lock(hashtext('local-fixture-extensions'))");
+    await bootstrap.query('CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public');
+    await bootstrap.query('CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public');
+    await bootstrap.query('COMMIT');
+  } catch (error) {
+    await bootstrap.query('ROLLBACK');
+    bootstrap.release();
+    await control.end();
+    throw error;
+  }
+  bootstrap.release();
   await control.query(`CREATE SCHEMA ${schema}`);
   const url = new URL(connectionString);
   url.searchParams.set('options', `-c search_path=${schema},public`);

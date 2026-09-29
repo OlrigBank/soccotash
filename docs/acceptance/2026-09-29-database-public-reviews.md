@@ -62,8 +62,8 @@ node site/scripts/preview-airbnb-publication.mjs
 For another environment, first back up its DB and apply migration 067. From a trusted
 checkout with the original private PDFs and manifest available, run
 `node --experimental-strip-types site/scripts/seed-approved-airbnb-reviews.mjs`
-with that environment's DATABASE_URL. Verify the public count and summary before
-releasing the homepage code. The seed is an explicit preparation step, not a
+with that environment's DATABASE_URL. Verify the public count and summary after
+the post-deployment import. Reviews may be temporarily absent until seeding finishes. The seed is an explicit preparation step, not a
 startup hook; the private evidence is not shipped in the runtime image. The JSON
 files remain as historical seed inputs and are no longer imported by the homepage.
 Do not approve newly imported reviews implicitly during deployment.
@@ -140,12 +140,29 @@ passed. Prior DevTools/Lighthouse evidence above covers the unchanged applicatio
 UI. Development currently differs only by its merge commit; branch synchronisation
 must preserve unrelated owner document edits.
 
-The merge/deployment requires coordinated data preparation: imports are not a
-migration hook. For a fresh target import September first, repair rating tokens,
-then seed historical approvals to avoid conflicting with the overlapping Fred
-recapture. Existing target imports require overlap inspection. See the runbook's
-Development PR rollout order before enabling the database-backed homepage.
+The owner confirmed migrations are applied only by deployment: merge into
+development, wait for deployment/migrations, then import September, repair rating
+tokens, seed historical approvals, reconcile and verify. The homepage can show an
+empty review section until seeding finishes. Existing target imports require
+overlap inspection. Repeat via main only after development acceptance.
 
 The updated homepage browser regression passed 29 tests at 320×800, 390×844,
 768×1024 and 1440×900; three desktop-only cases were appropriately skipped on
 smaller viewports. CI used the rebuilt app and synthetic database fixture.
+
+
+## CI correction
+
+The first fresh-runner check exposed database-wide extensions being installed in
+one disposable schema. The fixture helper now serialises extension setup and
+installs pgcrypto and btree_gist in public before creating test schemas. Existing
+migrations remain unchanged. The homepage now imports its allowlisted read-only
+query from public-review-repository; admin mutation functions remain separate and
+the existing public/admin security-boundary test is retained.
+
+Validation of the CI correction: all 273 lifecycle unit tests passed; Astro check
+and build passed with the same two existing hints. The previously failing browser
+and repair tests and three import/reconciliation integration tests passed against
+a newly created local database with no preinstalled extensions. A permanent
+regression verifies simultaneous schema creation and extension availability after
+one fixture is dropped. No application schema migration or customer data changed.

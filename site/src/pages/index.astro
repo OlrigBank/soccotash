@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import CompactBookingPanel from '../components/CompactBookingPanel.astro';
 import HomeGallery from '../components/HomeGallery.astro';
 import PublicReviewCarousel from '../components/PublicReviewCarousel.astro';
-import { getPublishedReviews } from '../lib/airbnb-admin/publication';
+import { getPublishedReviews } from '../lib/public-review-repository';
 import { formatBaseNightlyPrice, getPublishedBaseNightlyPrices } from '../lib/pricing/public-base-prices';
 
 const page = await getEntry('pages', 'home');

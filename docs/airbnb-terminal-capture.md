@@ -517,14 +517,12 @@ four filled stars and one empty star.
 
 ### Development PR rollout order
 
-Before activating the database-backed homepage in an environment, back up its
-DB, apply the migrations, then prepare the data using the feature-branch scripts
-from the trusted local checkout. Do not rely on deployment to run the private
-imports or publication seed. If merging automatically deploys the homepage,
-complete data preparation before that merge/deployment or arrange a coordinated
-release window; otherwise the new homepage will temporarily show no reviews.
+The owner deploys migrations through the development branch. After backing up the
+target database, merge this PR into development and let the deployment apply the
+migrations. Importing starts only after that deployment succeeds. The homepage may
+temporarily show no reviews between deployment and historical approval seeding.
 
-For an empty Airbnb dataset use this order:
+For an empty Airbnb dataset, the post-deployment sequence is:
 
 1. Import the September reviews and bookings from their run directories.
 2. Run the rating-token repair (inspect its default rollback report, then apply).
@@ -532,8 +530,9 @@ For an empty Airbnb dataset use this order:
    imports for review IDs already present and preserves their approved snapshots.
 4. Reconcile reviews and bookings, verify counts, and explicitly publish the four
    new reviews only after checking them in the target environment.
-5. Activate and verify the updated website; repeat the verified procedure for
-   production after development acceptance.
+5. Verify the deployed development website. After development acceptance, repeat
+   backup, merge/deployment from main, import, repair, seed and verification for
+   production.
 
 Import September before the historical seed: Fred's September recapture overlaps
 an older historical review, and the importer intentionally rejects different
