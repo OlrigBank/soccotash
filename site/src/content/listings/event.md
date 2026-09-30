@@ -23,6 +23,7 @@ spaces:
   - house-bathroom-2
   - cottage-wc-1
   - garden
+sortOrder: 20
 featured: false
 ---
 ## Extra Spacious group accommodation in Kendal

@@ -53,6 +53,7 @@ const listings = defineCollection({
     bedrooms: z.string().optional(),
     bathrooms: z.string().optional(),
     spaces: z.array(z.string()).optional().default([]),
+    sortOrder: z.number().int().optional().default(100),
     featured: z.boolean().optional().default(false),
   }),
 });
