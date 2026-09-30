@@ -41,7 +41,6 @@ Guests have access to Olrig Bank's large garden, providing outdoor space for rel
 
 The driveway requires some care with larger vehicles. Olrig Bank provides arrival and parking guidance before each stay.
 
-
 ## Frequently asked questions
 
 ### How many guests can stay at the Cottage?
