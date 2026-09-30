@@ -4,6 +4,7 @@ slug: bespoke
 summary: For stays, events or group arrangements outside our standard options,
   contact Jenna to discuss a bespoke stay at Olrig Bank.
 image: /media/images/listings/olrig-bank-house-bespoke.jpeg
+sortOrder: 40
 featured: false
 ---
 Not every stay fits neatly into Olrig Bank, Olrig Bank++ or Cottage at Olrig Bank. If

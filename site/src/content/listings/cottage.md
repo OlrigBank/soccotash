@@ -18,7 +18,8 @@ spaces:
   - cottage-landing-1
   - cottage-mezzanine-1
   - garden
-featured: false
+sortOrder: 30
+featured: true
 ---
 ## Cosy Cottage accommodation in Kendal
 

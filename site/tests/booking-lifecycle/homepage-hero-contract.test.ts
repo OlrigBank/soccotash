@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import test from 'node:test';
+import { parse } from 'yaml';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 const heroAssetUrl = new URL('../../public/media/images/listings/house.jpeg', import.meta.url);
@@ -25,13 +26,16 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.match(homepage, /heading=""/);
   assert.match(homepage, /submitLabel="Quick Check"/);
   assert.match(homepage, /id="ways-to-stay"/);
-  assert.match(content, /heroTitle: "Olrig Bank"/);
-  assert.match(content, /heroFacts: "Secluded Victorian Home \| Ideal for medium to large groups \| Dog friendly \| Large garden \| Ample parking"/);
-  assert.match(content, /heroText: "Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills\. Today, this spacious yet cosy house provides guests a comfortable base from which to explore Kendal on foot and easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer\."/);
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
+  assert.ok(frontmatter, 'the homepage must contain YAML frontmatter');
+  const pageContent = parse(frontmatter);
+  assert.equal(pageContent.heroTitle, 'Olrig Bank');
+  assert.equal(pageContent.heroText, 'Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills. Today, this spacious yet cosy house provides guests a comfortable base from which to explore Kendal on foot and easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer.');
+  assert.equal(pageContent.heroFacts, undefined, 'the simplified homepage omits the optional facts strapline');
+  assert.equal(pageContent.waysToStayGroupFit, undefined, 'the simplified homepage omits the optional group-fit introduction');
   assert.match(homepage, /class="home-hero__facts">\{page\.data\.heroFacts\}<\/p>/);
   assert.doesNotMatch(content, /Choose your dates and tell us who is coming/);
   assert.doesNotMatch(content, /waysToStayIntro:/);
-  assert.match(content, /waysToStayGroupFit: "Olrig Bank offers medium to large parties of guests, who wish to have leisurely quality time together\./);
   assert.doesNotMatch(content, /availibil|availble|accomodation|suites you/i);
 });
 
