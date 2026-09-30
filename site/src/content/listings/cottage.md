@@ -18,7 +18,7 @@ spaces:
   - cottage-landing-1
   - cottage-mezzanine-1
   - garden
-featured: true
+featured: false
 ---
 ## Cosy Cottage accommodation in Kendal
 
@@ -39,7 +39,6 @@ Windermere and the wider Lake District are within easy reach, making Olrig Bank 
 Guests have access to Olrig Bank's large garden, providing outdoor space for relaxing and for children to play. Off-road parking is available at the property, which is particularly useful for families and groups arriving in more than one vehicle.
 
 The driveway requires some care with larger vehicles. Olrig Bank provides arrival and parking guidance before each stay.
-
 
 ## Frequently asked questions
 
