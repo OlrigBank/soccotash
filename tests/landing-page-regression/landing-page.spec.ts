@@ -182,9 +182,9 @@ test('shows the approved introduction with an accessible, visually hidden page h
   const heading = page.getByRole('heading', { level: 1, name: 'Olrig Bank' });
   await expect(heading).toHaveClass('visually-hidden');
   expect(await heading.evaluate(element => element.getBoundingClientRect().height)).toBe(1);
-  await expect(page.locator('.home-hero__facts')).toHaveText('Secluded Victorian Home | Ideal for medium to large groups | Dog friendly | Large garden | Ample parking');
+  await expect(page.locator('.home-hero__facts')).toHaveCount(0);
   await expect(page.locator('.home-hero__copy p').last()).toHaveText('Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills. Today, this spacious yet cosy house provides guests a comfortable base from which to explore Kendal on foot and easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer.');
-  await expect(page.locator('.ways-to-stay__group-fit')).toHaveText('Olrig Bank offers medium to large parties of guests, who wish to have leisurely quality time together.');
+  await expect(page.locator('.ways-to-stay__group-fit')).toHaveCount(0);
 });
 
 test('curates one image per room and keeps both photo viewers keyboard accessible', async ({ page }) => {
