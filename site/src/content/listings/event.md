@@ -23,10 +23,9 @@ spaces:
   - house-bathroom-2
   - cottage-wc-1
   - garden
-featured: false
+featured: true
 ---
 ## Extra Spacious group accommodation in Kendal
-
 
 Olrig Bank++ sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and, of course, access to the large garden.
 
