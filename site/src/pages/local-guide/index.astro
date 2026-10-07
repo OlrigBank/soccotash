@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import LocalGuideTree from '../../components/LocalGuideTree.astro';
-import { getLocalGuideEntries } from '../../lib/content';
+import { getLocalGuideEntries, entrySummary } from '../../lib/content';
 import { buildLocalGuideTree } from '../../lib/local-guide/tree.ts';
 import { categoriesAsNavigation,listPublishedLocalGuideCategories } from '../../lib/local-guide/workspace.ts';
 import { listPublishedExamplePlans } from '../../lib/planner/repository.ts';
@@ -9,7 +9,7 @@ import { listPublishedExamplePlans } from '../../lib/planner/repository.ts';
 const [entries,categories] = await Promise.all([getLocalGuideEntries(),listPublishedLocalGuideCategories()]);
 const examplePlans = await listPublishedExamplePlans();
 Astro.response.headers.set('Cache-Control', 'no-store');
-const tree = buildLocalGuideTree(categoriesAsNavigation(categories), entries);
+const tree = buildLocalGuideTree(categoriesAsNavigation(categories), entries.map(entry => ({ ...entry, summary: entrySummary(entry) })));
 
 ---
 
@@ -20,8 +20,8 @@ const tree = buildLocalGuideTree(categoriesAsNavigation(categories), entries);
   </section>
 
   <section class="section-block local-guide-browser" aria-labelledby="local-guide-browser-heading">
-    <div class="section-heading"><h2 id="local-guide-browser-heading">Browse the guide</h2><p>Open any folders that interest you. They stay open until you close them.</p></div>
-    {tree.length > 0 ? <LocalGuideTree nodes={tree} /> : <div class="prose"><p>No recommendations are currently published.</p></div>}
+    <div class="section-heading"><h2 id="local-guide-browser-heading">Browse the guide</h2><p>Open any folders that interest you. Preview their images, then open folders to explore recommendations. More entries appear as you scroll.</p></div>
+    {tree.length > 0 ? <LocalGuideTree nodes={tree} galleryMode /> : <div class="prose"><p>No recommendations are currently published.</p></div>}
   </section>
 
   {examplePlans.length > 0 && <section class="section-block" aria-labelledby="example-plans-heading">

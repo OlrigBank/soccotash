@@ -43,13 +43,29 @@ function optionalUrl(value: string | null | undefined): string | null {
   return clean;
 }
 
+export function isLocalGuideImagePath(value: string): boolean {
+  if (!value.startsWith('/media/images/')) return false;
+  try {
+    const decoded = decodeURIComponent(value);
+    return !decoded.includes('\\') && !/[?#\u0000-\u001f]/.test(decoded)
+      && !decoded.split('/').some(part => part === '.' || part === '..')
+      && new URL(decoded, 'https://local.invalid').pathname === decoded;
+  } catch { return false; }
+}
+
+export function isLocalGuideImage(value: string): boolean {
+  if (isLocalGuideImagePath(value)) return true;
+  try { const url = new URL(value); return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password; }
+  catch { return false; }
+}
+
 export function validateContent(input: LocalGuideContentInput): Required<Omit<LocalGuideContentInput, 'categoryLabel' | 'imagePath' | 'externalLink' | 'legacyText'>> & {
   categoryLabel: string | null; imagePath: string | null; externalLink: string | null; legacyText: string | null;
 } {
   const categoryId = text(input.categoryId, 'Category', 200, true);
   const imagePath = text(input.imagePath, 'Image path', 1000) || null;
-  if (imagePath && !(imagePath.startsWith('/') || /^https:\/\//i.test(imagePath))) {
-    throw new LocalGuideError('VALIDATION_ERROR', 'Image path must be root-relative or use HTTPS.');
+  if (imagePath && !isLocalGuideImage(imagePath)) {
+    throw new LocalGuideError('VALIDATION_ERROR', 'Image must use HTTPS or a bundled /media/images/ path.');
   }
   return {
     title: text(input.title, 'Title', 200, true),

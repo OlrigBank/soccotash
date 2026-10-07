@@ -3960,3 +3960,29 @@ button.planner-drag-handle:hover,button.planner-drag-handle:focus-visible { back
   .customer-booking-date-proposal__actions .customer-booking-date-change-form { grid-template-columns: 1fr; }
   .customer-booking-date-proposal__actions button { width: 100%; }
 }
+
+/* Category image preview and progressive entry gallery. */
+.local-guide-tree__previews { grid-column:2 / -1; display:flex; gap:.4rem; overflow:hidden; }
+.local-guide-tree__previews img { width:64px; height:48px; object-fit:cover; border-radius:.3rem; }
+.local-guide-tree details[open] > summary .local-guide-tree__previews { display:none; }
+.local-guide-tree .local-guide-tree__gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:1rem; padding:1rem; }
+.local-guide-tree__gallery > li { min-width:0; }
+.local-guide-tree__gallery > li[hidden] { display:none; }
+.local-guide-tree__gallery .local-guide-tree__card { display:block; padding:0; border:1px solid var(--line); border-radius:.6rem; overflow:hidden; background:var(--panel-bg); color:inherit; text-decoration:none; height:100%; }
+.local-guide-tree__card > img { display:block; width:100%; height:auto; aspect-ratio:3 / 2; object-fit:cover; }
+.local-guide-tree__card > div { padding:1rem; }
+.local-guide-tree__card h3 { margin:0 0 .5rem; font-size:1.1rem; }
+.local-guide-tree__card p { margin:0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.local-guide-tree__card:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+.local-guide-tree__continuation { padding:0 1rem 1rem; }
+.local-guide-tree__continuation button { min-height:44px; padding:.7rem 1rem; border:1px solid var(--line); border-radius:.4rem; background:var(--panel-bg); color:inherit; cursor:pointer; }
+.local-guide-tree__continuation button:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+@media(max-width:430px) { .local-guide-tree--gallery summary { grid-template-columns:1rem minmax(0,1fr); } .local-guide-tree--gallery summary > .local-guide-tree__count { grid-column:2; } }
+.local-guide-tree__gallery .local-guide-tree__card::before { content:none; }
+
+/* Keep the working-draft clipboard controls usable on narrow screens. */
+[data-entry-dialog] header { flex-wrap:wrap; }
+[data-entry-dialog] header > div { min-width:0; }
+[data-entry-dialog] header > div:first-child { flex:1 1 12rem; overflow-wrap:anywhere; }
+[data-entry-dialog] header > div:last-child { flex-wrap:wrap; }
+[data-image-preview][hidden] { display:none; }
