@@ -3979,3 +3979,10 @@ button.planner-drag-handle:hover,button.planner-drag-handle:focus-visible { back
 .local-guide-tree__continuation button:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
 @media(max-width:430px) { .local-guide-tree--gallery summary { grid-template-columns:1rem minmax(0,1fr); } .local-guide-tree--gallery summary > .local-guide-tree__count { grid-column:2; } }
 .local-guide-tree__gallery .local-guide-tree__card::before { content:none; }
+
+/* Keep the working-draft clipboard controls usable on narrow screens. */
+[data-entry-dialog] header { flex-wrap:wrap; }
+[data-entry-dialog] header > div { min-width:0; }
+[data-entry-dialog] header > div:first-child { flex:1 1 12rem; overflow-wrap:anywhere; }
+[data-entry-dialog] header > div:last-child { flex-wrap:wrap; }
+[data-image-preview][hidden] { display:none; }

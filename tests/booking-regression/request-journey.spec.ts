@@ -238,3 +238,90 @@ test('administrator can edit and publish Ruskins with its bundled image', async 
   await expect(page.getByRole('heading', { level: 1, name: 'Ruskins Bar' })).toBeVisible();
   await expect(page.locator('img[src="/media/images/local-guide/ruskins.png"]').first()).toBeVisible();
 });
+
+test('working draft clipboard transfers content into a new entry across origins', async ({ page, context, baseURL }) => {
+  // Use a shared OS clipboard stub with origin-independent data. Clipboard
+  // permissions differ between browsers; denial is covered separately below.
+  let clipboard = '';
+  await context.exposeBinding('readGuideClipboard', () => clipboard);
+  await context.exposeBinding('writeGuideClipboard', (_source, text: string) => { clipboard = text; });
+  await context.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: {
+    readText: () => (window as any).readGuideClipboard(), writeText: (text: string) => (window as any).writeGuideClipboard(text),
+  } }));
+  await page.goto('/__admin-preview/');
+  await page.goto('/admin/local-guide/');
+  await page.getByRole('button', { name: 'Edit Ruskins Bar', exact: true }).first().click();
+  const editor = page.locator('[data-entry-dialog]');
+  await editor.locator('[name="slug"]').fill('ruskins');
+  await editor.locator('[name="title"]').fill('Copied Ruskins Bar');
+  await editor.locator('[name="summary"]').fill('Unsaved copied summary.');
+  await editor.getByRole('button', { name: 'Copy entry', exact: true }).click();
+  await expect(editor.locator('[data-clipboard-message]')).toContainText('Entry copied');
+  expect(JSON.parse(clipboard).entry).not.toHaveProperty('entryId');
+  await editor.getByRole('button', { name: 'Close', exact: true }).click();
+  const otherOrigin = baseURL!.replace('127.0.0.1', 'localhost');
+  const destination = await context.newPage();
+  await destination.goto(`${otherOrigin}/__admin-preview/`);
+  await destination.goto(`${otherOrigin}/admin/local-guide/`);
+  await destination.locator('[data-new-entry]').click();
+  const copied = destination.locator('[data-entry-dialog]');
+  await expect(copied.locator('[name="title"]')).toHaveValue('Copied Ruskins Bar');
+  await expect(copied.locator('[name="summary"]')).toHaveValue('Unsaved copied summary.');
+  await expect(copied.locator('[name="slug"]')).toHaveValue('ruskins');
+  await expect(copied.locator('[name="entryId"]')).toHaveValue('');
+  await expect(copied.locator('[name="expectedVersion"]')).toHaveValue('');
+  await copied.locator('[name="slug"]').fill(`copied-ruskins-${Date.now()}`);
+  const saved = destination.waitForResponse(response => response.url().endsWith('/api/admin/local-guide/action/') && response.request().method() === 'POST');
+  await copied.getByRole('button', { name: 'Save', exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await destination.close();
+});
+
+test('clipboard denial supports manual paste and unknown categories require selection', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: { readText: () => Promise.reject(new Error('denied')), writeText: () => Promise.reject(new Error('denied')) } }));
+  await page.goto('/__admin-preview/');
+  await page.goto('/admin/local-guide/');
+  await page.getByRole('button', { name: 'Edit Ruskins Bar', exact: true }).first().click();
+  await page.locator('[data-entry-dialog]').getByRole('button', { name: 'Copy entry', exact: true }).click();
+  await expect(page.locator('[data-clipboard-text]')).toBeFocused();
+  expect(JSON.parse(await page.locator('[data-clipboard-text]').inputValue()).kind).toBe('olrig-bank-local-guide-entry');
+  await page.locator('[data-entry-dialog]').getByRole('button', { name: 'Close', exact: true }).click();
+  await page.locator('[data-new-entry]').click();
+  const editor = page.locator('[data-entry-dialog]');
+  await expect(editor.locator('[data-clipboard-message]')).toContainText('Clipboard access is unavailable');
+  await editor.locator('[data-clipboard-text]').fill('ordinary clipboard text');
+  await editor.getByRole('button', { name: 'Use copied entry' }).click();
+  await expect(editor.locator('[data-clipboard-message]')).toContainText('not a valid copied');
+  await editor.locator('[data-clipboard-text]').fill(JSON.stringify({kind:'olrig-bank-local-guide-entry',version:1,entry:{title:'Transferred entry',slug:'transferred-entry',categoryId:'missing-category',imagePath:'/media/images/local-guide/ruskins.png'}}));
+  await editor.getByRole('button', { name: 'Use copied entry' }).click();
+  await expect(editor.locator('[name="title"]')).toHaveValue('Transferred entry');
+  await expect(editor.locator('[name="categoryId"]')).toHaveValue('');
+  await expect(editor.locator('[data-clipboard-message]')).toContainText('Choose a category');
+});
+
+
+test('Create entry ignores unrelated clipboard content', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: { readText: () => Promise.resolve('unrelated clipboard text') } }));
+  await page.goto('/__admin-preview/');
+  await page.goto('/admin/local-guide/');
+  await page.locator('[data-new-entry]').click();
+  await expect(page.locator('[data-entry-dialog]')).toBeVisible();
+  await expect(page.locator('[data-entry-dialog] [name="title"]')).toHaveValue('');
+  await expect(page.locator('[data-entry-dialog] [name="entryId"]')).toHaveValue('');
+});
+
+test('native browser clipboard copies and pre-fills a new guide entry', async ({ page, context, baseURL }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL! });
+  await page.goto('/__admin-preview/');
+  await page.goto('/admin/local-guide/');
+  await page.getByRole('button', { name: 'Edit Ruskins Bar', exact: true }).first().click();
+  const editor = page.locator('[data-entry-dialog]');
+  await editor.getByRole('button', { name: 'Copy entry', exact: true }).click();
+  await expect(editor.locator('[data-clipboard-message]')).toContainText('Entry copied');
+  const copiedTitle = await editor.locator('[name="title"]').inputValue();
+  await editor.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.locator('[data-new-entry]').click();
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('[name="title"]')).toHaveValue(copiedTitle);
+  await expect(editor.locator('[name="entryId"]')).toHaveValue('');
+});
