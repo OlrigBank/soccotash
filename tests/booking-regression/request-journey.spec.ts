@@ -213,3 +213,28 @@ for (const method of ['bank', 'card']) test(`accept the summary and terms when s
   await page.reload();
   await expect(page.getByRole('checkbox', { name: /I have reviewed/ })).toHaveCount(0);
 });
+
+test('administrator can edit and publish Ruskins with its bundled image', async ({ page }) => {
+  await page.goto('/__admin-preview/');
+  await page.goto('/admin/local-guide/');
+  await page.getByRole('button', { name: 'Edit Ruskins Bar', exact: true }).click();
+  const editor = page.locator('[data-entry-dialog]');
+  const image = editor.locator('[name="imagePath"]');
+  await expect(image).toHaveValue('/media/images/local-guide/ruskins.png');
+  expect(await image.evaluate(element => (element as HTMLInputElement).checkValidity())).toBe(true);
+  await editor.locator('[name="summary"]').fill('A local bar with its existing bundled image.');
+  const saved = page.waitForResponse(response => response.url().endsWith('/api/admin/local-guide/action/') && response.request().method() === 'POST');
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await expect(editor).not.toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  const published = page.waitForResponse(response => response.url().endsWith('/api/admin/local-guide/workspace/') && response.request().method() === 'POST');
+  const publishedReload = page.waitForEvent('framenavigated', { predicate: frame => frame === page.mainFrame() });
+  await page.getByRole('button', { name: 'Publish Local Guide', exact: true }).click();
+  expect((await published).status()).toBe(200);
+  await publishedReload;
+  await page.waitForLoadState('domcontentloaded');
+  await page.goto('/local-guide/ruskins/');
+  await expect(page.getByRole('heading', { level: 1, name: 'Ruskins Bar' })).toBeVisible();
+  await expect(page.locator('img[src="/media/images/local-guide/ruskins.png"]').first()).toBeVisible();
+});

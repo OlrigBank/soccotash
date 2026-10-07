@@ -3,8 +3,8 @@ import crypto from 'node:crypto';
 import { readdir,readFile } from 'node:fs/promises';
 import test from 'node:test';
 import pg from 'pg';
-import { createLocalGuideDraft,listPublishedLocalGuideEntries } from '../../src/lib/local-guide/repository.ts';
-import { deleteLocalGuideCategory,getLocalGuideWorkspace,listPublishedLocalGuideCategories,
+import { createLocalGuideDraft,editLocalGuideDraft,listLocalGuideEntries,listPublishedLocalGuideEntries } from '../../src/lib/local-guide/repository.ts';
+import { checkAllLocalGuideUrls,deleteLocalGuideCategory,getLocalGuideWorkspace,listPublishedLocalGuideCategories,
   listWorkingLocalGuideCategories,moveLocalGuideCategory,publishLocalGuideWorkspace,saveLocalGuideCategory } from '../../src/lib/local-guide/workspace.ts';
 import { LocalGuideError } from '../../src/lib/local-guide/types.ts';
 
@@ -70,6 +70,18 @@ test('maintains and atomically publishes a database-backed Local Guide draft',as
   const replaced=await listPublishedLocalGuideCategories(database);
   assert.equal(replaced.some(category=>category.id==='published-empty'),false);
   assert.equal(replaced.find(category=>category.id==='replacement')?.position,freedPosition);
+  const ruskins=(await listLocalGuideEntries(database)).find(entry=>entry.slug==='ruskins')!;
+  assert.ok(ruskins.workingRevision?.imagePath?.startsWith('/media/images/'));
+  const edited=await editLocalGuideDraft({entryId:ruskins.id,expectedVersion:ruskins.lockVersion,content:{...ruskins.workingRevision!,summary:'Edited while retaining the bundled image.'},actor},database);
+  assert.equal(edited.workingRevision?.imagePath,ruskins.workingRevision?.imagePath);
+  assert.equal(await publishLocalGuideWorkspace({expectedWorkspaceVersion:12,acknowledgeWarnings:false,actor},database),7);
+  assert.equal((await listPublishedLocalGuideEntries(database)).find(entry=>entry.id===ruskins.id)?.summary,'Edited while retaining the bundled image.');
+  const imageOnlyDatabase={connect:database.connect.bind(database),query:(async(text:string,...args:any[])=>{
+    if(text.startsWith('SELECT e.id,e.public_id::text entry_id')) return database.query(text+" AND e.canonical_slug='ruskins'").then(result=>({...result,rows:result.rows.map(row=>({...row,external_link:null}))}));
+    return (database.query as any)(text,...args);
+  }) as typeof database.query};
+  assert.deepEqual(await checkAllLocalGuideUrls({actor},imageOnlyDatabase),{checked:1,passed:1,warnings:0});
+
 
 
 
