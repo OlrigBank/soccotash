@@ -1,9 +1,10 @@
 ---
 import LocalGuideTreeBranch from './LocalGuideTreeBranch.astro';
-import type { LocalGuideTreeNode } from '../lib/local-guide/tree.ts';
+import { categoryPreviewImages, type LocalGuideTreeNode } from '../lib/local-guide/tree.ts';
 
-interface Props { node: LocalGuideTreeNode; depth: number; plannerMode?: boolean; }
-const { node, depth, plannerMode = false } = Astro.props;
+interface Props { node: LocalGuideTreeNode; depth: number; plannerMode?: boolean; galleryMode?: boolean; }
+const { node, depth, plannerMode = false, galleryMode = false } = Astro.props;
+const previews = galleryMode ? categoryPreviewImages(node) : [];
 const countLabel = `${node.recommendationCount} ${node.recommendationCount === 1 ? 'recommendation' : 'recommendations'}`;
 ---
 
@@ -14,15 +15,21 @@ const countLabel = `${node.recommendationCount} ${node.recommendationCount === 1
       {plannerMode && <span class="local-guide-tree__category-grip" aria-hidden="true" title="Drag category to candidates">⠿</span>}
       <span class="local-guide-tree__category"><strong>{node.label}</strong>{depth === 0 && node.description ? <small>{node.description}</small> : null}</span>
       <small class="local-guide-tree__count">{countLabel}</small>
+      {previews.length > 0 && <span class="local-guide-tree__previews" aria-hidden="true">{previews.map(image => <img src={image} alt="" loading="lazy" width="64" height="48" />)}</span>}
     </summary>
     <div class="local-guide-tree__children">
       {plannerMode && <button type="button" class="local-guide-tree__add-category" data-add-guide-category={node.id}>Add all {countLabel} to candidates</button>}
-      {node.children.length > 0 && <ul>{node.children.map((child) => <LocalGuideTreeBranch node={child} depth={depth + 1} plannerMode={plannerMode} />)}</ul>}
-      {node.entries.length > 0 && <ul class="local-guide-tree__entries">
+      {node.children.length > 0 && <ul>{node.children.map((child) => <LocalGuideTreeBranch node={child} depth={depth + 1} plannerMode={plannerMode} galleryMode={galleryMode} />)}</ul>}
+      {node.entries.length > 0 && <ul class:list={["local-guide-tree__entries", galleryMode && "local-guide-tree__gallery"]} data-guide-gallery={galleryMode ? '' : undefined}>
         {node.entries.map((entry) => plannerMode
           ? <li draggable="true" data-guide-drag={entry.id}><button class="planner-drag-handle" type="button" data-add-guide={entry.id} aria-label={`Drag ${entry.title} to candidates, or select to add it`} title="Drag to candidates or select to add">⠿</button><a href={`/local-guide/${entry.slug}/`} target="_blank" rel="noopener noreferrer">{entry.title}</a></li>
+           : galleryMode ? <li data-guide-card><a class="local-guide-tree__card" href={`/local-guide/${entry.slug}/`} target="_blank" rel="noopener noreferrer">
+              {entry.imagePath && <img src={entry.imagePath} alt="" loading="lazy" width="480" height="320" />}
+              <div><h3>{entry.title}<span class="visually-hidden"> (opens in a new tab)</span></h3><p>{entry.summary || 'Local information for guests staying at Olrig Bank.'}</p></div>
+            </a></li>
           : <li><a href={`/local-guide/${entry.slug}/`}>{entry.title}</a></li>)}
       </ul>}
+      {galleryMode && node.entries.length > 12 && <div class="local-guide-tree__continuation" data-guide-continuation hidden><button type="button">Show more recommendations<span class="visually-hidden"> in {node.label}</span></button><span class="visually-hidden" role="status" data-guide-progress></span></div>}
     </div>
   </details>
 </li>

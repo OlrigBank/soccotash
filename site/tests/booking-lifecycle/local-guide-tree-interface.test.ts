@@ -47,3 +47,14 @@ test('public Local Guide uses native nested disclosures and retains stable leaf 
   assert.match(styles,/@media\(max-width:430px\)/);
   assert.match(styles,/min-height:46px/);
 });
+
+test('category previews include descendants, omit missing images and keep four distinct images', async () => {
+  const { categoryPreviewImages } = await import('../../src/lib/local-guide/tree.ts');
+  const illustrated = buildLocalGuideTree(categories, [
+    { ...entries[1], imagePath: '/two.jpg' },
+    ...Array.from({ length: 6 }, (_, index) => ({ ...entries[0], id: String(index), imagePath: index === 0 ? null : `/image-${index}.jpg` })),
+    { ...entries[2], imagePath: '/two.jpg' },
+  ]);
+  assert.deepEqual(categoryPreviewImages(illustrated[0]), ['/two.jpg', '/image-1.jpg', '/image-2.jpg', '/image-3.jpg']);
+  assert.deepEqual(categoryPreviewImages(buildLocalGuideTree(categories, entries)[0]), []);
+});
