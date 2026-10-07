@@ -5,6 +5,8 @@ export type LocalGuideTreeEntry = {
   slug: string;
   title: string;
   categoryId: string;
+  imagePath?: string | null;
+  summary?: string;
 };
 
 export type LocalGuideTreeNode = {
@@ -56,4 +58,11 @@ export function buildLocalGuideTree(
   }
 
   return visit(rootId, new Set([rootId]));
+}
+
+// Select distinct images across a category and its descendants in entry order.
+export function categoryPreviewImages(node: LocalGuideTreeNode): string[] {
+  const collect = (branch: LocalGuideTreeNode): LocalGuideTreeEntry[] =>
+    [...branch.entries, ...branch.children.flatMap(collect)];
+  return [...new Set(collect(node).map(entry => entry.imagePath).filter((path): path is string => Boolean(path)))].slice(0, 4);
 }

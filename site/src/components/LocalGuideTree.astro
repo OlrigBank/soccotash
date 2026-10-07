@@ -2,12 +2,12 @@
 import LocalGuideTreeBranch from './LocalGuideTreeBranch.astro';
 import type { LocalGuideTreeNode } from '../lib/local-guide/tree.ts';
 
-interface Props { nodes: LocalGuideTreeNode[]; plannerMode?: boolean; storageKey?: string; }
-const { nodes, plannerMode = false, storageKey = 'olrig-bank:local-guide:disclosures:v1' } = Astro.props;
+interface Props { nodes: LocalGuideTreeNode[]; plannerMode?: boolean; galleryMode?: boolean; storageKey?: string; }
+const { nodes, plannerMode = false, galleryMode = false, storageKey = 'olrig-bank:local-guide:disclosures:v1' } = Astro.props;
 ---
 
-<div class:list={['local-guide-tree', plannerMode && 'local-guide-tree--planner']} data-local-guide-tree data-local-guide-storage-key={storageKey}>
-  <ul>{nodes.map((node) => <LocalGuideTreeBranch node={node} depth={0} plannerMode={plannerMode} />)}</ul>
+<div class:list={['local-guide-tree', plannerMode && 'local-guide-tree--planner', galleryMode && 'local-guide-tree--gallery']} data-local-guide-tree data-local-guide-storage-key={storageKey}>
+  <ul>{nodes.map((node) => <LocalGuideTreeBranch node={node} depth={0} plannerMode={plannerMode} galleryMode={galleryMode} />)}</ul>
 </div>
 
 <script>
@@ -21,7 +21,36 @@ const { nodes, plannerMode = false, storageKey = 'olrig-bank:local-guide:disclos
         for (const disclosure of disclosures) disclosure.open = openIds.has(disclosure.dataset.localGuideCategory ?? '');
       }
     } catch {
-      sessionStorage.removeItem(storageKey);
+      try { sessionStorage.removeItem(storageKey); } catch { /* Storage may be unavailable. */ }
+    }
+    for (const gallery of tree.querySelectorAll<HTMLElement>('[data-guide-gallery]')) {
+      const cards = [...gallery.querySelectorAll<HTMLElement>(':scope > [data-guide-card]')];
+      const continuation = gallery.nextElementSibling;
+      if (!(continuation instanceof HTMLElement) || !continuation.matches('[data-guide-continuation]')) continue;
+      const button = continuation.querySelector('button');
+      const progress = continuation.querySelector('[data-guide-progress]');
+      let visible = 12;
+      cards.forEach((card, index) => { card.hidden = index >= visible; });
+      continuation.hidden = false;
+      const reveal = () => {
+        if (visible === cards.length) return;
+        visible = Math.min(visible + 12, cards.length);
+        cards.forEach((card, index) => { card.hidden = index >= visible; });
+        if (progress) progress.textContent = `${visible} of ${cards.length} recommendations shown`;
+        if (visible === cards.length) {
+          observer?.disconnect();
+          // Retain keyboard focus after the final manual reveal.
+          if (button && document.activeElement === button) {
+            button.setAttribute('aria-disabled', 'true');
+            button.textContent = 'All recommendations shown';
+          } else continuation.hidden = true;
+        }
+      };
+      const observer = 'IntersectionObserver' in window ? new IntersectionObserver(records => {
+        if (records.some(record => record.isIntersecting) && document.activeElement !== button) reveal();
+      }) : null;
+      button?.addEventListener('click', reveal);
+      observer?.observe(continuation);
     }
     const remember = () => {
       const openIds = disclosures.filter((disclosure) => disclosure.open).map((disclosure) => disclosure.dataset.localGuideCategory);
