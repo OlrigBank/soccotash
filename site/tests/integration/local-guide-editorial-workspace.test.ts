@@ -5,7 +5,7 @@ import test from 'node:test';
 import pg from 'pg';
 import { createLocalGuideDraft,listPublishedLocalGuideEntries } from '../../src/lib/local-guide/repository.ts';
 import { deleteLocalGuideCategory,getLocalGuideWorkspace,listPublishedLocalGuideCategories,
-  listWorkingLocalGuideCategories,publishLocalGuideWorkspace,saveLocalGuideCategory } from '../../src/lib/local-guide/workspace.ts';
+  listWorkingLocalGuideCategories,moveLocalGuideCategory,publishLocalGuideWorkspace,saveLocalGuideCategory } from '../../src/lib/local-guide/workspace.ts';
 import { LocalGuideError } from '../../src/lib/local-guide/types.ts';
 
 const{Pool}=pg;const databaseUrl=process.env.TEST_DATABASE_URL||process.env.DATABASE_URL;
@@ -32,5 +32,46 @@ test('maintains and atomically publishes a database-backed Local Guide draft',as
   assert.equal(await saveLocalGuideCategory({id:'empty-category',label:'Empty category',parentId:'home',expectedWorkspaceVersion:4,actor},database),5);
   assert.equal(await deleteLocalGuideCategory({id:'empty-category',expectedWorkspaceVersion:5,actor},database),6);
   assert.equal((await listWorkingLocalGuideCategories(database)).some(category=>category.id==='empty-category'),false);
+  const oldCategories = await listPublishedLocalGuideCategories(database);
+  assert.equal(await moveLocalGuideCategory({id:'outdoor-pursuits',direction:'up',expectedWorkspaceVersion:6,actor},database),7);
+  assert.deepEqual(await listPublishedLocalGuideCategories(database),oldCategories,'draft reordering must not change the public guide');
+  assert.equal(await publishLocalGuideWorkspace({expectedWorkspaceVersion:7,acknowledgeWarnings:false,actor},database),3);
+  const reordered = await listPublishedLocalGuideCategories(database);
+  assert.equal(reordered.find(category=>category.id==='outdoor-pursuits')?.position,10);
+  assert.equal(reordered.find(category=>category.id==='whats-on')?.position,20);
+  assert.equal(await moveLocalGuideCategory({id:'outdoor-pursuits',direction:'down',expectedWorkspaceVersion:7,actor},database),8);
+  const publications = await database.query('SELECT count(*)::int count FROM local_guide_publications');
+  const failingDatabase = {
+   query: database.query.bind(database),
+   connect: async () => {
+    const client = await database.connect();
+    const originalQuery = client.query;
+    client.query = (async (...args: any[]) => {
+     if (String(args[0]).startsWith('UPDATE local_guide_entries SET status=')) throw new Error('simulated publication failure');
+     return (originalQuery as any).apply(client,args);
+    }) as typeof client.query;
+    const originalRelease = client.release.bind(client);
+    client.release = () => { client.query = originalQuery; originalRelease(); };
+    return client;
+   },
+  };
+  await assert.rejects(publishLocalGuideWorkspace({expectedWorkspaceVersion:8,acknowledgeWarnings:false,actor},failingDatabase),/simulated publication failure/);
+  assert.deepEqual(await listPublishedLocalGuideCategories(database),reordered,'failed publication must restore published categories');
+  assert.equal((await getLocalGuideWorkspace(database)).publishedVersion,3);
+  assert.deepEqual((await database.query('SELECT count(*)::int count FROM local_guide_publications')).rows,publications.rows);
+  assert.equal(await publishLocalGuideWorkspace({expectedWorkspaceVersion:8,acknowledgeWarnings:false,actor},database),4);
+  assert.deepEqual(await listPublishedLocalGuideCategories(database),oldCategories.map(category=>category.id==='day-trips'?{...category,label:'Days out',description:'Revised draft label.'}:category));
+  assert.equal(await saveLocalGuideCategory({id:'published-empty',label:'Empty',parentId:'home',expectedWorkspaceVersion:8,actor},database),9);
+  assert.equal(await publishLocalGuideWorkspace({expectedWorkspaceVersion:9,acknowledgeWarnings:false,actor},database),5);
+  const freedPosition=(await listPublishedLocalGuideCategories(database)).find(category=>category.id==='published-empty')!.position;
+  assert.equal(await deleteLocalGuideCategory({id:'published-empty',expectedWorkspaceVersion:9,actor},database),10);
+  assert.equal(await saveLocalGuideCategory({id:'replacement',label:'Replacement',parentId:'home',expectedWorkspaceVersion:10,actor},database),11);
+  assert.equal(await publishLocalGuideWorkspace({expectedWorkspaceVersion:11,acknowledgeWarnings:false,actor},database),6);
+  const replaced=await listPublishedLocalGuideCategories(database);
+  assert.equal(replaced.some(category=>category.id==='published-empty'),false);
+  assert.equal(replaced.find(category=>category.id==='replacement')?.position,freedPosition);
+
+
+
  }finally{await database.end();await control.query(`DROP SCHEMA IF EXISTS ${quote(schema)} CASCADE`);await control.end()}
 });
