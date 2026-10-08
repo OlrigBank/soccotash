@@ -1,8 +1,9 @@
 export const PAGES_CMS_REPOSITORY_URL =
   'https://app.pagescms.org/olrigbank/soccotash';
-export const PAGES_CMS_BRANCH = 'main';
+export const PAGES_CMS_BRANCH = 'development';
 
-const branchUrl = `${PAGES_CMS_REPOSITORY_URL}/${encodeURIComponent(PAGES_CMS_BRANCH)}`;
+export const PAGES_CMS_BRANCH_URL = `${PAGES_CMS_REPOSITORY_URL}/${encodeURIComponent(PAGES_CMS_BRANCH)}`;
+const branchUrl = PAGES_CMS_BRANCH_URL;
 
 export type PagesCmsSection = {
   title: string;
@@ -12,6 +13,12 @@ export type PagesCmsSection = {
 };
 
 export const PAGES_CMS_SECTIONS: PagesCmsSection[] = [
+  {
+    title: 'Welcome page and poster',
+    description: 'Edit the guest welcome topics, logo and shared printable poster. Retire old topics to preserve printed QR codes.',
+    buttonLabel: 'Open Welcome page and poster',
+    href: `${branchUrl}/file/welcome`,
+  },
   {
     title: 'General pages',
     description:

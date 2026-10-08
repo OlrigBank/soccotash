@@ -11,6 +11,105 @@ media:
   - svg
   rename: safe
 content:
+- name: welcome
+  label: Welcome page and poster
+  type: file
+  path: site/src/data/welcome.yml
+  format: yaml
+  fields:
+  - name: title
+    label: Welcome title
+    type: string
+    required: true
+  - name: description
+    label: Meta description
+    type: text
+    required: true
+  - name: introduction
+    label: Opening copy
+    type: text
+    required: true
+  - name: supportingText
+    label: Supporting copy
+    type: text
+    required: true
+  - name: logo
+    label: Welcome logo
+    type: image
+    required: true
+  - name: logoAlt
+    label: Logo alternative text
+    type: string
+    required: true
+  - name: closingMessage
+    label: Closing message
+    type: text
+    required: true
+  - name: printFooter
+    label: Print footer
+    type: text
+    required: true
+  - name: emergencyMessage
+    label: Emergency message
+    type: text
+    required: true
+  - name: topics
+    label: Welcome topics
+    type: object
+    description: Reorder topics using the list controls. To remove a printed topic, set its status to Retired rather than deleting it. Never reuse an ID for a different topic. Preview the rebuilt page and poster before publication.
+    list:
+      collapsible:
+        collapsed: true
+        summary: '{fields.title} ({fields.status})'
+    fields:
+    - name: id
+      label: Permanent QR topic ID
+      type: string
+      required: true
+      description: Set a unique ID when adding a topic. Once saved, leave it unchanged. Build checks preserve historical IDs. The editor cannot lock only existing IDs while allowing new ones.
+      pattern:
+        regex: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        message: Use lowercase letters, numbers and single hyphens.
+    - name: title
+      label: Heading
+      type: string
+      required: true
+    - name: summary
+      label: Short page and poster summary
+      type: text
+      required: true
+      description: Keep private Wi-Fi passwords, door codes and booking-specific instructions out of this public content.
+    - name: detailsUrl
+      label: Further-information URL
+      type: string
+      required: true
+      pattern:
+        regex: '^(?:/(?!/)[^\s\\]*|https://[^\s\\]+)$'
+        message: Use a same-site /path/ or safe https:// URL. Full validation runs during the build.
+    - name: detailsLabel
+      label: Link label
+      type: string
+      required: true
+    - name: status
+      label: Status
+      type: select
+      required: true
+      options:
+        values:
+        - name: active
+          label: Active
+        - name: retired
+          label: Retired (preserve old printed QR code)
+    - name: aliases
+      label: Previous topic IDs
+      type: string
+      list: true
+      description: Only for an exceptional ID correction. Keep every previous ID here so printed codes remain useful. Never reuse retired IDs.
+      pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+    - name: includeContactDetails
+      label: Include current public contact details
+      type: boolean
+      description: Adds the phone and email from Contact details to this summary on both the page and poster. Do not copy those details into the summary.
 - name: local-guide
   label: Local guide
   type: collection
@@ -368,9 +467,11 @@ content:
     - name: email
       label: Email
       type: string
+      required: true
     - name: phone
       label: Phone
       type: string
+      required: true
     - name: whatsapp
       label: WhatsApp
       type: string

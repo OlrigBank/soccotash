@@ -18,6 +18,7 @@ const {
   socialType = 'website',
   pageClass = '',
   hasBookingPanel = false,
+  showQuickCheck = true,
 } = Astro.props;
 
 const pageTitle = title.includes('Olrig Bank') ? title : `${title} | Olrig Bank`;
@@ -102,7 +103,7 @@ function isCurrent(href: string) {
         ) : null}
 
         <main id="main-content" tabindex="-1">
-          {activePath !== '/' && activePath !== '/book/' && !hasBookingPanel && !activePath.startsWith('/admin/') ? (
+          {showQuickCheck && activePath !== '/' && activePath !== '/book/' && !hasBookingPanel && !activePath.startsWith('/admin/') ? (
             <div class="quick-check-band quick-check-band--mobile-only">
               <CompactBookingPanel source="public" heading="" idPrefix="public-booking" autoSelectProperty={true} mobileDock={true} />
             </div>

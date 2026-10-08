@@ -1,0 +1,90 @@
+.welcome {
+  --welcome-green: #304733;
+  --welcome-gold: #e5bd64;
+  color: #243a2a;
+  background: #faf8f1;
+  border: 1px solid #d4d9cf;
+  border-radius: 1rem;
+  overflow-wrap: anywhere;
+}
+.welcome__heading { display: flex; align-items: center; gap: clamp(1rem, 3vw, 2.5rem); padding: clamp(1.25rem, 4vw, 3rem); background: var(--welcome-green); color: white; border-bottom: 3px solid var(--welcome-gold); border-radius: 1rem 1rem 0 0; }
+.welcome__logo { width: clamp(5rem, 16vw, 10rem); height: auto; flex-shrink: 0; border-radius: 0; }
+.welcome h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.15; color: inherit; }
+.welcome__introduction { margin: 0.75rem 0 0; font-size: 1.15rem; }
+.welcome__body { padding: clamp(1rem, 3vw, 2.5rem); }
+.welcome__supporting { margin: 0 0 1rem; }
+.welcome__navigation ul { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0 0 1rem; padding: 0; }
+.welcome__navigation a { display: inline-flex; align-items: center; min-height: 44px; }
+.welcome a { color: #304733; text-decoration: underline; text-underline-offset: 0.18em; }
+.welcome__topics { margin: 0; padding: 0; list-style: none; }
+.welcome__topic { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; padding: 1.5rem 0; border-top: 1px solid #d4d9cf; scroll-margin-top: 1rem; position: relative; }
+.welcome__topic:target, .welcome__retired-topic:target { outline: 3px solid #8c681c; outline-offset: 5px; }
+.welcome__number { font-size: 1.1rem; font-weight: 800; color: #79601f; padding-top: 0.2rem; }
+.welcome h2 { margin: 0 0 0.5rem; font-size: clamp(1.2rem, 2vw, 1.65rem); line-height: 1.25; }
+.welcome__copy p { margin: 0 0 0.6rem; max-width: 68ch; }
+.welcome__details { display: inline-flex; align-items: center; min-height: 44px; font-weight: 650; }
+.welcome__contact { display: flex; flex-wrap: wrap; gap: 1rem; }
+.welcome__contact a { display: inline-flex; align-items: center; min-height: 44px; }
+.welcome__alias { position: absolute; top: 0; }
+.welcome__qr { display: none; margin: 0; text-align: center; }
+.welcome__print-backing { display: none; }
+.welcome__qr img { background: white; border-radius: 0; width: 100%; height: auto; }
+.welcome__qr figcaption { font-size: 0.75rem; line-height: 1.35; margin-top: 0.25rem; }
+.welcome__footer { text-align: center; background: var(--welcome-green); color: white; padding: 1.5rem; border-radius: 0 0 1rem 1rem; }
+.welcome__footer p { margin: 0; }
+.welcome__closing { font-size: 1.3rem; font-weight: 750; }
+.welcome__emergency { margin-top: 0.5rem !important; font-size: 0.9rem; }
+.welcome__print-footer { display: none; }
+.welcome__actions { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.welcome__print-link, .welcome__print-controls button { display: inline-flex; align-items: center; min-height: 44px; padding: 0.6rem 1rem; color: white; background: #304733; border: 1px solid #304733; border-radius: 0.65rem; text-decoration: none; font: inherit; cursor: pointer; }
+.welcome__retired { border-top: 1px solid #d4d9cf; }
+.welcome__retired-topic { position: relative; padding: 1rem 0; }
+.welcome-print-page { margin: 0; padding: 1rem; font-family: Arial, sans-serif; line-height: 1.5; background: #eee; color: #243a2a; }
+.welcome-print-page main { max-width: 1000px; margin: auto; }
+.welcome__print-controls { max-width: 1000px; margin: 0 auto 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+.welcome__print-controls a { color: #304733; min-height: 44px; display: inline-flex; align-items: center; }
+.welcome__print-controls select { min-height: 44px; font: inherit; }
+.welcome__print-controls p { flex-basis: 100%; margin: 0; }
+.welcome__print-controls [hidden] { display: none !important; }
+.welcome-print-page :is(a, button, select):focus-visible { outline: 3px solid #8c681c; outline-offset: 3px; }
+.welcome--poster .welcome__topic { grid-template-columns: 2.5rem minmax(0, 1fr) 8rem; }
+.welcome--poster .welcome__qr { display: block; }
+.welcome--poster .welcome__print-footer { display: block; margin-top: 0.5rem; font-size: 0.85rem; }
+@media (max-width: 480px) {
+  .welcome__heading { flex-direction: column; align-items: flex-start; }
+  .welcome__logo { width: 5rem; }
+  .welcome__topic { gap: 0.5rem; }
+  .welcome--poster .welcome__topic { grid-template-columns: 1.75rem minmax(0, 1fr); }
+  .welcome--poster .welcome__qr { grid-column: 2; width: 8rem; }
+}
+@media print {
+  .welcome-print-page { padding: 0; margin: 0; background: white; font-size: 14pt; }
+  .welcome-print-page main { max-width: none; width: var(--welcome-print-width, 273mm); zoom: var(--welcome-print-scale, 1); }
+  .welcome-page { display: block !important; padding: 0 !important; }
+  body:has(.welcome-page) { padding: 0 !important; }
+  body:has(.welcome-page) :is(.site-header, .site-footer, .mobile-contact-bar, .quick-check-band, .skip-link),
+  .welcome__actions, .welcome__print-controls, .welcome__navigation, .welcome__contact, .welcome__retired { display: none !important; }
+  body:has(.welcome-page) .site-shell { max-width: none; padding: 0; }
+  .welcome { border: 0; border-radius: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; font-family: Arial, sans-serif; font-size: 14pt; }
+  .welcome__heading { padding: 8mm; gap: 10mm; border-radius: 0; break-inside: avoid; flex-direction: row; align-items: center; }
+  .welcome__logo { width: 44mm; height: 44mm; }
+  .welcome h1 { font-size: 30pt; }
+  .welcome__introduction { font-size: 16pt; }
+  .welcome__body { padding: 5mm 8mm; }
+  .welcome__supporting { margin: 0 0 5mm; }
+  .welcome__topic { grid-template-columns: minmax(0, 1fr) 33mm; gap: 4mm; padding: 2mm 0; break-inside: avoid; page-break-inside: avoid; }
+  .welcome--poster .welcome__topic { grid-template-columns: 10mm minmax(0, 1fr) 33mm; }
+  .welcome__number { font-size: 16pt; }
+  .welcome h2 { font-size: 20pt; }
+  .welcome__qr, .welcome--poster .welcome__qr { display: block; grid-column: auto; width: 33mm; }
+  .welcome__qr figcaption { font-size: 8pt; }
+  .welcome__details { min-height: 0; font-size: 11pt; }
+  .welcome__footer { padding: 6mm; border-radius: 0; break-inside: avoid; }
+  .welcome__closing { font-size: 19pt; }
+  .welcome__print-footer { display: block; margin-top: 2mm !important; font-size: 10pt; }
+  .welcome__emergency { font-size: 10pt; }
+  /* SVG is printed content, keeping the green backing when backgrounds are omitted. */
+  .welcome__heading, .welcome__footer { position: relative; background: transparent; color: white; }
+  .welcome__print-backing { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+  .welcome__heading > :not(.welcome__print-backing), .welcome__footer > p { position: relative; }
+}
