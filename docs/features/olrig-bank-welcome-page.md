@@ -166,10 +166,11 @@ Durable evidence: [phone](evidence/olrig-bank-welcome-page/phone.png),
 Full session audit reports are under `/tmp/welcome-final-audit/`,
 `/tmp/welcome-print-final-audit/` and `/tmp/welcome-admin-final-audit/`.
 The final A3 poster SHA-256 is
-`5227fa48e85a57b0f49fb8bcadc734977042b5548f056c3d2062b1d56245871e`.
+`0d95bbce44e657e86eeb4fec3a8981b2694608a8522fb8d7e21e477905a9d9a7`.
 
-Unrelated/untracked source files are preserved. The feature branch is pushed
-and PR #173 targets `development`; it has not been merged or deployed.
+Unrelated/untracked source files are preserved. The initial implementation was
+merged into `development` through PR #173. Follow-up changes are on PR #174;
+this task does not merge or deploy them.
 
 ### Welcome topic rows without numbers
 
@@ -203,8 +204,33 @@ and no console errors. Lighthouse accessibility, best practices and agentic
 browsing scored 100; SEO remains 69 because the print route is deliberately
 `noindex` (reports in `/tmp/welcome-fit-audit`). Poppler visual review and pypdf
 checks confirmed complete one-page A3/A4 PDFs with backgrounds on/off. All six
-QR codes decoded again from the final A3 PDF. Current A3 scale is 100%; A4 is
-about 67%. Physical print/browser settings remain a release check.
+QR codes decoded again from that A3 PDF. For the original six-topic content,
+A3 scale was 100%; A4 was about 67%. Physical print/browser settings remain
+a release check.
+
+### CMS-edit validation correction
+
+Development's Pages CMS commit `095a5aa` added a seventh topic, exposing fixed
+six-topic and last-topic assumptions in CI. Mutation/build scenarios now use
+`tests/fixtures/welcome.yml`, an isolated stable fixture; they still restore the
+actual CMS content after every run. Public browser checks derive topic counts,
+titles and navigation destinations from the checked-out CMS content, including
+the empty state, and continue checking actual link responses and fragments.
+Three CMS destinations that referenced nonexistent `/welcome/` subpages now
+point to the existing house essentials, garden guidance and booking routes.
+The existing report-upload step warns when an earlier build failure means no
+Playwright report exists, avoiding a misleading secondary validation failure.
+
+The content-build regression and historical-content validation pass with the
+current CMS edits. Chrome DevTools checked seven-topic web guidance at all four
+recorded viewports with no overflow or console errors. Refreshed A3/A4 PDFs
+both contain one complete page; current fit is about 90%/57% respectively.
+All seven final A3 QR payloads decode from the rasterised PDF, with the seventh
+verified from a resized crop. The A3 poster was rendered and visually inspected.
+The full local public regression run passed 215 cases before its preview process
+stopped; the 38 remaining connection failures passed after restarting the
+preview. Together, all 253 applicable cases passed, with three intentional
+viewport skips. No application assertion failed on the rerun.
 
 ### Remaining release checks
 
