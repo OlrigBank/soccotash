@@ -1,0 +1,10 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import WelcomeContent from '../../components/WelcomeContent.astro';
+import { welcomeContent, welcomeContact } from '../../lib/welcome-content';
+export const prerender = true;
+---
+<BaseLayout title={welcomeContent.title} description={welcomeContent.description} showSidebar={false} showQuickCheck={false} pageClass="public-content-page welcome-page" socialImage={welcomeContent.logo} socialImageAlt={welcomeContent.logoAlt}>
+  <div class="welcome__actions"><a class="welcome__print-link" href="/welcome/print/">Print welcome poster</a></div>
+  <WelcomeContent content={welcomeContent} contact={welcomeContact} />
+</BaseLayout>

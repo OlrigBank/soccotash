@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "check:welcome-history": "node --experimental-strip-types ./scripts/check-welcome-history.ts",
     "start": "node ./dist/server/entry.mjs",
     "db:migrate": "node ./scripts/migrate.mjs",
     "sync:calendars": "node ./scripts/sync-calendars.mjs",

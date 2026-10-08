@@ -1,0 +1,71 @@
+---
+import QRCode from 'qrcode';
+import { topicSummary, welcomeQrUrl, type WelcomeContent, type WelcomeContact } from '../lib/welcome';
+import '../styles/welcome.css';
+
+interface Props { content: WelcomeContent; contact: WelcomeContact; poster?: boolean }
+const { content, contact, poster = false } = Astro.props;
+const active = content.topics.filter(topic => topic.status === 'active');
+const retired = content.topics.filter(topic => topic.status === 'retired');
+const codes = await Promise.all(active.map(async topic => {
+  const svg = await QRCode.toString(welcomeQrUrl(topic.id), { type: 'svg', errorCorrectionLevel: 'M', margin: 4 });
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}));
+---
+<article class:list={['welcome', { 'welcome--poster': poster }]} aria-labelledby="welcome-title">
+  <header class="welcome__heading">
+    <svg class="welcome__print-backing" aria-hidden="true" focusable="false" viewBox="0 0 100 100" preserveAspectRatio="none"><rect width="100" height="100" fill="#304733" /></svg>
+    <img class="welcome__logo" src={content.logo} alt={content.logoAlt} width="526" height="526" />
+    <div>
+      <h1 id="welcome-title">{content.title}</h1>
+      <p class="welcome__introduction">{content.introduction}</p>
+    </div>
+  </header>
+  <div class="welcome__body">
+    <p class="welcome__supporting">{content.supportingText}</p>
+    {!poster && active.length > 0 && (
+      <nav class="welcome__navigation" aria-label="Welcome topics">
+        <ul>{active.map(topic => <li><a href={`#${topic.id}`}>{topic.title}</a></li>)}</ul>
+      </nav>
+    )}
+    {active.length === 0 && <p class="welcome__empty">Guest guidance is being updated. Please <a href="/contact/#contact-jenna">contact Jenna</a> for help with your stay.</p>}
+    <ol id="welcome-topics" class="welcome__topics">
+      {active.map((topic, index) => (
+        <li id={topic.id} class="welcome__topic" tabindex="-1" data-welcome-topic>
+          {topic.aliases.map(alias => <span id={alias} class="welcome__alias" aria-hidden="true" />)}
+          <span class="welcome__number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <div class="welcome__copy">
+            <h2>{topic.title}</h2>
+            <p>{topicSummary(topic, contact)}</p>
+            {!poster && topic.includeContactDetails && (
+              <p class="welcome__contact"><a href={`tel:${contact.phone.replace(/[ ()-]/g, '')}`}>Call Jenna</a><a href={`mailto:${contact.email}`}>Email Jenna</a></p>
+            )}
+            <a class="welcome__details" href={topic.detailsUrl}>{topic.detailsLabel}<span aria-hidden="true"> →</span></a>
+          </div>
+          <figure class="welcome__qr">
+            <img src={codes[index]} alt={`QR code for ${topic.title} on the welcome page`} width="164" height="164" />
+            <figcaption>Scan for current guidance</figcaption>
+          </figure>
+        </li>
+      ))}
+    </ol>
+    {!poster && retired.length > 0 && (
+      <section id="welcome-retired" class="welcome__retired" aria-label="Updated guest guidance">
+        {retired.map(topic => (
+          <div id={topic.id} class="welcome__retired-topic" tabindex="-1">
+            {topic.aliases.map(alias => <span id={alias} class="welcome__alias" aria-hidden="true" />)}
+            <h2>{topic.title}</h2>
+            <p>This topic has been retired. Please use the current guidance for your stay.</p>
+            <a href={topic.detailsUrl}>{topic.detailsLabel}</a> · <a href="#welcome-topics">All current welcome topics</a>
+          </div>
+        ))}
+      </section>
+    )}
+  </div>
+  <footer class="welcome__footer">
+    <svg class="welcome__print-backing" aria-hidden="true" focusable="false" viewBox="0 0 100 100" preserveAspectRatio="none"><rect width="100" height="100" fill="#304733" /></svg>
+    <p class="welcome__closing">{content.closingMessage}</p>
+    <p class="welcome__print-footer">{content.printFooter}</p>
+    <p class="welcome__emergency">{content.emergencyMessage}</p>
+  </footer>
+</article>

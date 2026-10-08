@@ -8,6 +8,9 @@ heroText: "Practical information to help you prepare for and enjoy your stay at 
 
 ## Before you arrive
 
+Already at the property? Visit our [Welcome page](/welcome/) for useful pointers
+and a printable welcome poster.
+
 Jenna will confirm the access arrangements, check-in and departure times for your booking. Please keep those instructions available while travelling, as door or key information is not published on this public page.
 
 ## Parking and arrival

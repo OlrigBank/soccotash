@@ -1,0 +1,12 @@
+{
+  "source": "output/pdf/olrig-bank-welcome-poster.pdf",
+  "renderDpi": 200,
+  "decoded": [
+    "https://olrig-bank.com/welcome/#departure",
+    "https://olrig-bank.com/welcome/#garden",
+    "https://olrig-bank.com/welcome/#help",
+    "https://olrig-bank.com/welcome/#local-guide",
+    "https://olrig-bank.com/welcome/#parking-access",
+    "https://olrig-bank.com/welcome/#wifi-heating-appliances"
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { PAGES_CMS_REPOSITORY_URL, PAGES_CMS_SECTIONS } from '../../../lib/admin/pages-cms';
+import { PAGES_CMS_BRANCH, PAGES_CMS_BRANCH_URL, PAGES_CMS_SECTIONS } from '../../../lib/admin/pages-cms';
 
 export const prerender = false;
 ---
@@ -16,7 +16,7 @@ export const prerender = false;
     </div>
     <a
       class="admin-secondary-button"
-      href={PAGES_CMS_REPOSITORY_URL}
+      href={PAGES_CMS_BRANCH_URL}
       target="_blank"
       rel="noopener noreferrer"
     >
@@ -28,10 +28,26 @@ export const prerender = false;
   <section class="admin-notice" aria-labelledby="pages-cms-access-heading">
     <h2 id="pages-cms-access-heading">Pages CMS access</h2>
     <p>
+      These editors save content and images to the <strong>{PAGES_CMS_BRANCH}</strong> branch.
+      Saving does not publish your changes. Review the rebuilt web and print previews, then arrange
+      an approved merge to main and deployment to update the public website.
+    </p>
+    <p>
       On the first visit, Pages CMS may ask you to sign in and authorise access to the Soccotash
       GitHub repository. During later visits, an active Pages CMS session should take you directly to
       the selected section. You may be asked to sign in again after the session expires or browser
       cookies are cleared.
+    </p>
+  </section>
+
+  <section class="admin-notice" aria-labelledby="welcome-preview-heading">
+    <h2 id="welcome-preview-heading">Welcome page previews</h2>
+    <p>
+      <a href="/welcome/" target="_blank" rel="noopener noreferrer">View welcome page (opens in a new tab)</a>
+      {' · '}
+      <a href="/welcome/print/" target="_blank" rel="noopener noreferrer">View printable poster (opens in a new tab)</a>.
+      These views show the content built into this version of the website. Newly saved CMS edits
+      appear after the corresponding branch has been rebuilt in a preview or approved deployment.
     </p>
   </section>
 
@@ -56,3 +72,7 @@ export const prerender = false;
     ))}
   </section>
 </AdminLayout>
+
+<style>
+  .admin-page-header p { color: var(--ink); }
+</style>
