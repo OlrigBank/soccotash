@@ -1,44 +1,47 @@
 title: Welcome to Olrig Bank
-description: Useful information for guests staying at Olrig Bank in Kendal, including arrival, house essentials, the garden and departure.
+description: Useful information for guests staying at Olrig Bank in Kendal,
+  including arrival, house essentials, the garden and departure.
 introduction: Your Kendal stay starts here.
 supportingText: A few useful pointers for a comfortable stay.
 logo: /media/images/olrig-bank-welcome-logo.jpg
 logoAlt: Olrig Bank, Kendal — circular gold lettering on green
 closingMessage: We hope you have a wonderful stay.
 printFooter: olrig-bank.com | Point your phone camera at a QR code, then tap the link.
-emergencyMessage: For an emergency involving immediate danger, contact the emergency services first.
+emergencyMessage: For an emergency involving immediate danger, contact the
+  emergency services first.
 topics:
   - id: parking-access
     title: Parking & access
-    summary: Please park considerately and keep access clear. Follow the key and access instructions supplied for your booking.
+    summary: Please park considerately and keep access clear. Follow the key and
+      access instructions supplied for your booking.
     detailsUrl: /guest-information/#parking-and-arrival
     detailsLabel: Arrival guidance
     status: active
-    aliases: []
     includeContactDetails: false
   - id: wifi-heating-appliances
-    title: Wi-Fi, heating & appliances
-    summary: Your booking information contains the current Wi-Fi details and equipment instructions. Contact Jenna if something is not working.
-    detailsUrl: /guest-information/#wi-fi-heating-and-appliances
+    title: Wi-Fi, heating & general appliances
+    summary: Your booking information contains the current Wi-Fi details. This
+      section contains information about the use of heating and the general
+      appliances in the house. Contact Jenna if something is not working.
+    detailsUrl: /welcome/house-essntials
     detailsLabel: House essentials
     status: active
-    aliases: []
     includeContactDetails: false
   - id: garden
     title: Enjoy the garden
-    summary: The garden is shared when the house and Cottage have separate bookings. Please be considerate of other guests and supervise children.
-    detailsUrl: /guest-information/#olrig-bank-the-cottage-and-garden
-    detailsLabel: Garden & stay options
+    summary: The garden is available for your use, but please read and observe the
+      rules given in the Use of the Garden page
+    detailsUrl: /welcome/use-of-the-garden
+    detailsLabel: Use of the Garden
     status: active
-    aliases: []
     includeContactDetails: false
   - id: local-guide
     title: Explore Kendal & beyond
-    summary: Discover walks, places to eat, activities and days out in our local guide. There is plenty to enjoy close to home and across the Lakes.
+    summary: Discover walks, places to eat, activities and days out in our local
+      guide. There is plenty to enjoy close to home and across the Lakes.
     detailsUrl: /local-guide/
     detailsLabel: Explore the local guide
     status: active
-    aliases: []
     includeContactDetails: false
   - id: help
     title: Need a hand?
@@ -46,13 +49,22 @@ topics:
     detailsUrl: /contact/#contact-jenna
     detailsLabel: Contact Jenna
     status: active
-    aliases: []
     includeContactDetails: true
   - id: departure
     title: Before you leave
-    summary: Follow your booking-specific departure time and instructions. Secure the property, return keys as directed and report any damage or issues.
+    summary: Follow your booking-specific departure time and instructions. Secure
+      the property, return keys as directed and report any damage or issues.
     detailsUrl: /guest-information/#departure
     detailsLabel: Departure guidance
     status: active
-    aliases: []
+    includeContactDetails: false
+  - id: direct-booking
+    title: Direct Booking
+    summary: "The best way way to stay at Olrig Bank is by making a direct booking.
+      It will always be the cheapest way to get a reservation and we can provide
+      a more flexible and personal service that we can ever offer through
+      intermediaries "
+    detailsUrl: /welcome/direct-booking
+    detailsLabel: Direct Booking
+    status: active
     includeContactDetails: false
