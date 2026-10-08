@@ -60,3 +60,19 @@ test('welcome and print guidance remain useful without JavaScript', async ({ bro
   await expect(page.locator('.welcome__qr img')).toHaveCount(6);
   await context.close();
 });
+
+test('poster fits one page for both paper sizes, including longer CMS summaries', async ({ page }, testInfo) => {
+  await page.goto('/welcome/print/');
+  await expect(page.getByRole('status')).toContainText('Single-page fit:');
+  for (const longer of [false, true]) {
+    if (longer) await page.locator('.welcome__copy > p:first-of-type').evaluateAll(elements => {
+      elements.forEach(element => { element.textContent = `${element.textContent} ${'Additional guest guidance for this stay. '.repeat(30)}`; });
+    });
+    for (const paper of ['A3', 'A4']) {
+      await page.getByLabel('Paper size').selectOption(paper);
+      const pdf = await page.pdf({ path: testInfo.outputPath(`${paper}-${longer ? 'long' : 'current'}.pdf`), preferCSSPageSize: true, printBackground: true });
+      expect(pdf.toString('latin1').match(/\/Type \/Page\b/g)).toHaveLength(1);
+      if (longer) await expect(page.getByRole('status')).toContainText('shorten the CMS summaries');
+    }
+  }
+});

@@ -20,7 +20,9 @@ export const prerender = true;
       <label for="welcome-paper">Paper size</label>
       <select id="welcome-paper" disabled><option value="A3">A3 portrait</option><option value="A4">A4 portrait</option></select>
       <button type="button" id="welcome-print" hidden>Print welcome poster</button>
-      <p>Use the print button or your browser’s Print command. Choose the matching paper size in the print dialog. Longer content continues onto further pages.</p>
+      <p>Use the print button or your browser’s Print command. Choose the matching paper size, disable headers and footers, and keep the print scale at 100%. The poster automatically shrinks to fit one page.</p>
+      <p id="welcome-fit-status" role="status"></p>
+      <noscript><p>Enable JavaScript for automatic single-page fitting. Otherwise, use your browser’s print scaling to fit the poster.</p></noscript>
     </div>
     <main><WelcomeContent content={welcomeContent} contact={welcomeContact} poster /></main>
     <script>
@@ -28,11 +30,41 @@ export const prerender = true;
       if (paperSelect) paperSelect.disabled = false;
       const printButton = document.querySelector<HTMLButtonElement>('#welcome-print');
       if (printButton) printButton.hidden = false;
+      function fitPoster() {
+        const main = document.querySelector<HTMLElement>('main');
+        const article = main?.querySelector<HTMLElement>('.welcome');
+        if (!main || !article) return;
+        const paper = paperSelect?.value === 'A4' ? 'A4' : 'A3';
+        const width = paper === 'A4' ? 186 : 273;
+        const height = paper === 'A4' ? 271 : 394;
+        // Measure with the real print rules, even when the browser is showing
+        // screen media. Remove the temporary rules synchronously afterwards.
+        const measurement = document.createElement('style');
+        measurement.textContent = [...document.styleSheets].flatMap(sheet => {
+          try { return [...sheet.cssRules].filter(rule => rule instanceof CSSMediaRule && rule.conditionText === 'print').map(rule => (rule as CSSMediaRule).cssRules).flatMap(rules => [...rules].map(rule => rule.cssText)); }
+          catch { return []; }
+        }).join('\n');
+        document.head.append(measurement);
+        main.style.width = `${width}mm`;
+        main.style.zoom = '1';
+        const pixelsPerMm = main.getBoundingClientRect().width / width;
+        const scale = Math.min(1, height * pixelsPerMm / article.getBoundingClientRect().height);
+        document.documentElement.style.setProperty('--welcome-print-width', `${width}mm`);
+        document.documentElement.style.setProperty('--welcome-print-scale', String(scale));
+        main.style.removeProperty('width');
+        main.style.removeProperty('zoom');
+        measurement.remove();
+        const status = document.querySelector('#welcome-fit-status');
+        if (status) status.textContent = `Single-page fit: ${Math.floor(scale * 100)}%.${scale < 0.7 ? ' Text and QR codes may be too small. Use A3 or shorten the CMS summaries before printing.' : ''}`;
+      }
       document.querySelector<HTMLSelectElement>('#welcome-paper')?.addEventListener('change', event => {
         const paper = (event.currentTarget as HTMLSelectElement).value === 'A4' ? 'A4' : 'A3';
         const style = document.querySelector('#welcome-paper-size');
         if (style) style.textContent = `@page { size: ${paper} portrait; margin: 12mm; }`;
+        fitPoster();
       });
+      window.addEventListener('beforeprint', fitPoster);
+      Promise.all([document.fonts.ready, ...[...document.images].map(image => image.decode().catch(() => {}))]).then(fitPoster);
       document.querySelector('#welcome-print')?.addEventListener('click', () => window.print());
     </script>
   </body>

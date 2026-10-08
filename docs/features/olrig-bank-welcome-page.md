@@ -103,6 +103,8 @@ point directly to the original guidance routes and anchors.
 - **Welcome guidance rows**: custom ordered information rows with native links.
 - **Welcome poster layout**: custom print layout using a native print button and
   the browser Print / Save as PDF dialog.
+- **Single-page poster fit**: custom automatic proportional scaling with a
+  native paper selector and accessible fit-status message.
 - **Pages CMS welcome editor**: existing library editor and media picker, with
   structured repeated topic fields.
 - **CMS publication notice**: custom informational notice with native preview
@@ -128,12 +130,13 @@ in a non-notifying static presentation server. No customer was contacted.
 
 Print QA uses Chromium PDF export, Poppler rasterisation, pypdf text/page checks
 and OpenCV QR decoding from the rasterised final PDF. The initial content fits
-one A3 sheet; A4 intentionally continues onto two sheets. All six topic/QR pairs
+one A3 sheet; automatic fitting now also keeps A4 on one sheet. All six topic/QR pairs
 stay intact, and all six codes decode to `https://olrig-bank.com/welcome/#<id>`.
-Codes occupy a 33 mm square including quiet zones, with visible code widths
+At full scale, codes occupy a 33 mm square including quiet zones, with visible code widths
 approximately 26–27 mm. Layout remains readable with backgrounds enabled or
 disabled; solid SVG print backings preserve the green heading/footer. Long or
-additional topics may add pages; editors must inspect the print preview.
+additional topics reduce the print scale; editors must inspect legibility in
+the print preview and shorten CMS summaries if necessary.
 
 Final verification, 8 October 2026:
 
@@ -163,7 +166,7 @@ Durable evidence: [phone](evidence/olrig-bank-welcome-page/phone.png),
 Full session audit reports are under `/tmp/welcome-final-audit/`,
 `/tmp/welcome-print-final-audit/` and `/tmp/welcome-admin-final-audit/`.
 The final A3 poster SHA-256 is
-`9a4b3d0e6edf3c732a5560365c33738ac4ea7979fe5a5fa933e5659a8d070f61`.
+`5227fa48e85a57b0f49fb8bcadc734977042b5548f056c3d2062b1d56245871e`.
 
 Unrelated/untracked source files are preserved. The feature branch is pushed
 and PR #173 targets `development`; it has not been merged or deployed.
@@ -179,6 +182,29 @@ no horizontal overflow or numerical labels on the web page; accessible topic
 headings remained intact, assets returned successfully and no console errors
 were observed. This small row-layout adjustment did not require a new
 Lighthouse audit; the earlier page audit remains recorded above.
+
+### Single-page poster fitting
+
+Automatic fitting is enabled in the print template, with no CMS toggle needed.
+It measures the actual print layout for the selected paper and proportionally
+scales the complete poster to the available height, reserving space for rounding.
+It recalculates after fonts/images load, on paper changes and before browser
+printing. Nothing is truncated. Below 70%, an accessible status recommends A3
+or shorter CMS summaries. Unlimited content cannot remain legible on one sheet.
+Use matching paper, 100% browser scale and disabled browser headers/footers.
+Without JavaScript, the page explains how to use browser scaling instead.
+
+Verification after this change: production build and Astro check passed;
+all 16 welcome Playwright cases passed across the four recorded viewports.
+PDF regression checks cover A3/A4 with current and substantially longer copy.
+Chrome DevTools checked the same viewports, keyboard paper selection, visible
+focus, accessible status, long-content warning, no overflow, loaded resources
+and no console errors. Lighthouse accessibility, best practices and agentic
+browsing scored 100; SEO remains 69 because the print route is deliberately
+`noindex` (reports in `/tmp/welcome-fit-audit`). Poppler visual review and pypdf
+checks confirmed complete one-page A3/A4 PDFs with backgrounds on/off. All six
+QR codes decoded again from the final A3 PDF. Current A3 scale is 100%; A4 is
+about 67%. Physical print/browser settings remain a release check.
 
 ### Remaining release checks
 
