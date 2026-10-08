@@ -165,8 +165,20 @@ Full session audit reports are under `/tmp/welcome-final-audit/`,
 The final A3 poster SHA-256 is
 `9a4b3d0e6edf3c732a5560365c33738ac4ea7979fe5a5fa933e5659a8d070f61`.
 
-Unrelated/untracked source files are preserved. The feature has not been merged,
-pushed or deployed.
+Unrelated/untracked source files are preserved. The feature branch is pushed
+and PR #173 targets `development`; it has not been merged or deployed.
+
+### Welcome topic rows without numbers
+
+The custom **Welcome topic rows** pattern uses unnumbered, full-width guidance
+on the web page. The printable poster retains its numbered rows. Following
+this adjustment, the production build and all 12 welcome Playwright cases
+passed, including keyboard navigation and visible focus. Chrome DevTools
+inspection covered 320 × 800, 390 × 844, 768 × 1024 and 1440 × 900 viewports:
+no horizontal overflow or numerical labels on the web page; accessible topic
+headings remained intact, assets returned successfully and no console errors
+were observed. This small row-layout adjustment did not require a new
+Lighthouse audit; the earlier page audit remains recorded above.
 
 ### Remaining release checks
 

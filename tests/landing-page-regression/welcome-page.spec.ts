@@ -7,6 +7,7 @@ test('welcome page offers stable topic links, guidance and a shared print view',
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to Olrig Bank');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://olrig-bank.com/welcome/');
   await expect(page.locator('[data-welcome-topic]')).toHaveCount(6);
+  await expect(page.locator('.welcome__number')).toHaveCount(0);
   await expect(page.locator('.quick-check-band')).toHaveCount(0);
   const jump = page.getByRole('navigation', { name: 'Welcome topics' }).getByRole('link', { name: 'Before you leave' });
   await jump.focus();
@@ -20,6 +21,7 @@ test('welcome page offers stable topic links, guidance and a shared print view',
   await expect(page).toHaveURL(/\/welcome\/print\/$/);
   expect(await page.locator('.welcome__copy > p:first-of-type').allTextContents()).toEqual(summaries);
   await expect(page.locator('.welcome__qr img')).toHaveCount(6);
+  await expect(page.locator('.welcome__number')).toHaveCount(6);
   expect(await page.locator('.welcome__qr img').evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.getByLabel('Paper size').selectOption('A4');

@@ -17,7 +17,7 @@
 .welcome__navigation a { display: inline-flex; align-items: center; min-height: 44px; }
 .welcome a { color: #304733; text-decoration: underline; text-underline-offset: 0.18em; }
 .welcome__topics { margin: 0; padding: 0; list-style: none; }
-.welcome__topic { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: 0.75rem; padding: 1.5rem 0; border-top: 1px solid #d4d9cf; scroll-margin-top: 1rem; position: relative; }
+.welcome__topic { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; padding: 1.5rem 0; border-top: 1px solid #d4d9cf; scroll-margin-top: 1rem; position: relative; }
 .welcome__topic:target, .welcome__retired-topic:target { outline: 3px solid #8c681c; outline-offset: 5px; }
 .welcome__number { font-size: 1.1rem; font-weight: 800; color: #79601f; padding-top: 0.2rem; }
 .welcome h2 { margin: 0 0 0.5rem; font-size: clamp(1.2rem, 2vw, 1.65rem); line-height: 1.25; }
@@ -53,7 +53,7 @@
 @media (max-width: 480px) {
   .welcome__heading { flex-direction: column; align-items: flex-start; }
   .welcome__logo { width: 5rem; }
-  .welcome__topic { grid-template-columns: 1.75rem minmax(0, 1fr); gap: 0.5rem; }
+  .welcome__topic { gap: 0.5rem; }
   .welcome--poster .welcome__topic { grid-template-columns: 1.75rem minmax(0, 1fr); }
   .welcome--poster .welcome__qr { grid-column: 2; width: 8rem; }
 }
@@ -72,7 +72,8 @@
   .welcome__introduction { font-size: 16pt; }
   .welcome__body { padding: 5mm 8mm; }
   .welcome__supporting { margin: 0 0 5mm; }
-  .welcome__topic, .welcome--poster .welcome__topic { grid-template-columns: 10mm minmax(0, 1fr) 33mm; gap: 4mm; padding: 2mm 0; break-inside: avoid; page-break-inside: avoid; }
+  .welcome__topic { grid-template-columns: minmax(0, 1fr) 33mm; gap: 4mm; padding: 2mm 0; break-inside: avoid; page-break-inside: avoid; }
+  .welcome--poster .welcome__topic { grid-template-columns: 10mm minmax(0, 1fr) 33mm; }
   .welcome__number { font-size: 16pt; }
   .welcome h2 { font-size: 20pt; }
   .welcome__qr, .welcome--poster .welcome__qr { display: block; grid-column: auto; width: 33mm; }
