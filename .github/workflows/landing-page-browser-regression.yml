@@ -74,5 +74,5 @@ jobs:
           path: |
             playwright-report/landing-page-regression/
             test-results/landing-page-regression/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14

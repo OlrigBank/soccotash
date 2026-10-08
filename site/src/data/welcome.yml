@@ -23,7 +23,7 @@ topics:
     summary: Your booking information contains the current Wi-Fi details. This
       section contains information about the use of heating and the general
       appliances in the house. Contact Jenna if something is not working.
-    detailsUrl: /welcome/house-essntials
+    detailsUrl: /guest-information/#wi-fi-heating-and-appliances
     detailsLabel: House essentials
     status: active
     includeContactDetails: false
@@ -31,7 +31,7 @@ topics:
     title: Enjoy the garden
     summary: The garden is available for your use, but please read and observe the
       rules given in the Use of the Garden page
-    detailsUrl: /welcome/use-of-the-garden
+    detailsUrl: /guest-information/#olrig-bank-the-cottage-and-garden
     detailsLabel: Use of the Garden
     status: active
     includeContactDetails: false
@@ -64,7 +64,7 @@ topics:
       It will always be the cheapest way to get a reservation and we can provide
       a more flexible and personal service that we can ever offer through
       intermediaries "
-    detailsUrl: /welcome/direct-booking
+    detailsUrl: /book/
     detailsLabel: Direct Booking
     status: active
     includeContactDetails: false

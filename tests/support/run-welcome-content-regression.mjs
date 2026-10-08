@@ -16,7 +16,8 @@ const lock = openSync(lockPath, 'wx');
 const contentPath = new URL('../../site/src/data/welcome.yml', import.meta.url);
 const contactPath = new URL('../../site/src/data/settings/contact.yml', import.meta.url);
 const [original, originalContact] = await Promise.all([readFile(contentPath, 'utf8'), readFile(contactPath, 'utf8')]);
-const content = parse(original);
+// Keep mutation scenarios independent of editorial changes in Pages CMS.
+const content = parse(await readFile(new URL('../fixtures/welcome.yml', import.meta.url), 'utf8'));
 const build = () => execFileSync('npm', ['--prefix', 'site', 'run', 'build'], { stdio: 'pipe' });
 const inspect = () => new Promise(resolve => setTimeout(resolve, Math.min(Number(process.env.WELCOME_VARIANT_INSPECTION_MS) || 0, 45000)));
 const root = resolve('site/dist/client');

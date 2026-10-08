@@ -33,7 +33,7 @@ const codes = await Promise.all(active.map(async topic => {
       {active.map((topic, index) => (
         <li id={topic.id} class="welcome__topic" tabindex="-1" data-welcome-topic>
           {topic.aliases.map(alias => <span id={alias} class="welcome__alias" aria-hidden="true" />)}
-          <span class="welcome__number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          {poster && <span class="welcome__number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>}
           <div class="welcome__copy">
             <h2>{topic.title}</h2>
             <p>{topicSummary(topic, contact)}</p>

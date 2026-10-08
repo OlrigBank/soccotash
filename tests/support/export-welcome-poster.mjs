@@ -12,6 +12,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1123, height: 1587 } });
   await page.goto(new URL('/welcome/print/', origin).href);
   await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
+  await page.getByRole('status').filter({ hasText: 'Single-page fit:' }).waitFor();
   await page.pdf({ path: output, preferCSSPageSize: true, printBackground: true, tagged: true });
   await page.pdf({ path: 'test-results/welcome-print/a3-without-backgrounds.pdf', preferCSSPageSize: true, printBackground: false });
   await page.getByLabel('Paper size').selectOption('A4');
