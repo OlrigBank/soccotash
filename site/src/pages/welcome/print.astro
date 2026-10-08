@@ -1,0 +1,39 @@
+---
+import WelcomeContent from '../../components/WelcomeContent.astro';
+import { welcomeContent, welcomeContact } from '../../lib/welcome-content';
+export const prerender = true;
+---
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, follow" />
+    <meta name="description" content={welcomeContent.description} />
+    <title>Print welcome poster | Olrig Bank</title>
+    <link rel="canonical" href="https://olrig-bank.com/welcome/" />
+    <style id="welcome-paper-size" is:inline>@page { size: A3 portrait; margin: 12mm; }</style>
+  </head>
+  <body class="welcome-print-page">
+    <div class="welcome__print-controls">
+      <a href="/welcome/">Back to welcome page</a>
+      <label for="welcome-paper">Paper size</label>
+      <select id="welcome-paper" disabled><option value="A3">A3 portrait</option><option value="A4">A4 portrait</option></select>
+      <button type="button" id="welcome-print" hidden>Print welcome poster</button>
+      <p>Use the print button or your browser’s Print command. Choose the matching paper size in the print dialog. Longer content continues onto further pages.</p>
+    </div>
+    <main><WelcomeContent content={welcomeContent} contact={welcomeContact} poster /></main>
+    <script>
+      const paperSelect = document.querySelector<HTMLSelectElement>('#welcome-paper');
+      if (paperSelect) paperSelect.disabled = false;
+      const printButton = document.querySelector<HTMLButtonElement>('#welcome-print');
+      if (printButton) printButton.hidden = false;
+      document.querySelector<HTMLSelectElement>('#welcome-paper')?.addEventListener('change', event => {
+        const paper = (event.currentTarget as HTMLSelectElement).value === 'A4' ? 'A4' : 'A3';
+        const style = document.querySelector('#welcome-paper-size');
+        if (style) style.textContent = `@page { size: ${paper} portrait; margin: 12mm; }`;
+      });
+      document.querySelector('#welcome-print')?.addEventListener('click', () => window.print());
+    </script>
+  </body>
+</html>

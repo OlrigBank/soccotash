@@ -1,0 +1,45 @@
+{
+  "welcome": {
+    "url": "http://127.0.0.1:8098/welcome/",
+    "mode": "navigation",
+    "categories": {
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 100,
+      "agentic-browsing": 100
+    },
+    "failedAudits": []
+  },
+  "print": {
+    "url": "http://127.0.0.1:8098/welcome/print/",
+    "mode": "navigation",
+    "categories": {
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 69,
+      "agentic-browsing": 100
+    },
+    "failedAudits": [
+      {
+        "id": "is-crawlable",
+        "title": "Page is blocked from indexing"
+      }
+    ]
+  },
+  "admin": {
+    "url": "http://127.0.0.1:8099/admin/content/",
+    "mode": "snapshot",
+    "categories": {
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 80,
+      "agentic-browsing": 100
+    },
+    "failedAudits": [
+      {
+        "id": "meta-description",
+        "title": "Document does not have a meta description"
+      }
+    ]
+  }
+}
