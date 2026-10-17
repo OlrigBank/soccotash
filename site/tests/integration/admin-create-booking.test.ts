@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test from 'node:test';
-import { createLocalFixtureDatabase } from '../../../tests/support/local-fixture-database.mjs';
+import { randomBytes } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import pg from 'pg';
 
 test('offline booking creation records the administrator and preserves verified contact ownership', async () => {
-  const fixture = await createLocalFixtureDatabase('admin_booking_test');
+  const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+  assert.ok(databaseUrl, 'Set TEST_DATABASE_URL or DATABASE_URL to run the PostgreSQL integration test.');
+  const schema = `admin_booking_${process.pid}_${randomBytes(8).toString('hex')}`;
+  const control = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  let application: pg.Pool | undefined;
   const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
     try { return nextResolve(specifier, context); }
     catch (error) {
@@ -12,9 +19,20 @@ test('offline booking creation records the administrator and preserves verified 
       return nextResolve(`${specifier}.ts`, context);
     }
   } });
-  const { getPool } = await import('../../src/lib/booking/db.ts');
   try {
-    const db = fixture.database;
+    await control.query(`CREATE SCHEMA ${schema}`);
+    const url = new URL(databaseUrl);
+    url.searchParams.set('options', `-c search_path=${schema},public`);
+    process.env.DATABASE_URL = url.toString();
+    const migrations = new pg.Pool({ connectionString: url.toString(), max: 1 });
+    try {
+      const directory = new URL('../../db/', import.meta.url);
+      for (const filename of (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()) {
+        await migrations.query(await readFile(new URL(filename, directory), 'utf8'));
+      }
+    } finally { await migrations.end(); }
+    const { getPool } = await import('../../src/lib/booking/db.ts');
+    const db = application = getPool();
     const administrator = (await db.query("INSERT INTO admin_users(email,display_name,password_hash) VALUES('admin@example.test','Fixture administrator','no-login') RETURNING id")).rows[0].id;
     const { createAdminBooking } = await import('../../src/lib/admin/create-booking.ts');
     const { accountForIdentity, claimBookings } = await import('../../src/lib/booker/accounts.ts');
@@ -53,8 +71,10 @@ test('offline booking creation records the administrator and preserves verified 
     input.set('email', '');
     await assert.rejects(createAdminBooking(input, administrator), /email address|telephone/);
   } finally {
-    await getPool().end();
+    if (application) await application.end();
     hooks.deregister();
-    await fixture.close();
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = originalDatabaseUrl;
+    await control.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await control.end();
   }
 });

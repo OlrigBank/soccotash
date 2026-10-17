@@ -60,8 +60,13 @@ Run browser coverage with:
 npx playwright test --config=playwright.admin-booking.config.ts
 ```
 
-Run the focused local database test with:
+Set `TEST_DATABASE_URL` or `DATABASE_URL` to a disposable local test database,
+then run the focused database test with:
 
 ```sh
 node --experimental-strip-types --test site/tests/integration/admin-create-booking.test.ts
 ```
+
+The integration test keeps its database setup within the `site` package, using
+its installed `pg` dependency. It runs from CI’s `site` working directory
+without requiring root browser-test dependencies.
