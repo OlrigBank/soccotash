@@ -70,3 +70,8 @@ node --experimental-strip-types --test site/tests/integration/admin-create-booki
 The integration test keeps its database setup within the `site` package, using
 its installed `pg` dependency. It runs from CI’s `site` working directory
 without requiring root browser-test dependencies.
+
+Admin browser cases live in `tests/admin-booking/` so the general booking
+regression configuration cannot collect them against its development server.
+The bespoke booking workflow runs `npm run test:admin-booking` explicitly with
+the isolated production preview before the existing account journeys.

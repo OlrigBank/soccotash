@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/booking-regression', testMatch: 'admin-create-booking.spec.ts',
+  testDir: './tests/admin-booking', testMatch: 'admin-create-booking.spec.ts',
   workers: 1, timeout: 60_000, reporter: [['list']], outputDir: './test-results/admin-booking',
   use: { baseURL: 'http://127.0.0.1:8085', locale: 'en-GB', reducedMotion: 'reduce' },
   webServer: { command: 'npm run build && node tests/support/request-journey-preview.mjs',
