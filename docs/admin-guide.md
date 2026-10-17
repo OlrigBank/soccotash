@@ -18,6 +18,21 @@ The `whole-property` option is a derived calendar. It uses `availabilityProperty
 
 ## Booking operations
 
+For a request received by email or telephone, open **Bookings → Create booking**.
+Enter the booker’s name, email address and/or mobile number, accommodation, dates
+and party counts. Choose **Ready to review and pay** for a standard stay at the
+current published price, or **Save for review** to prepare a tailored offer in
+the booking workspace. Requests including pets should be saved for review so
+their pet details can be added before an offer is prepared.
+
+Creation saves the contact as the booking’s claim contact and opens its admin
+workspace. It does not send a notification, issue a verification code, accept
+terms, record payment or confirm the stay. Review the booking and use the
+existing email controls when ready to contact the booker. The booker signs in
+by verifying the saved email address or mobile number, then reviews the offer
+and accepts the terms before paying. An existing account can claim the booking
+by verifying the matching contact. Administration records who created it.
+
 From the protected administration dashboard, use **Refresh Airbnb calendars** in the **Calendar status** panel. This downloads the currently configured Airbnb iCal exports, replaces the existing imported Airbnb blocks and refreshes the dashboard status when the operation succeeds.
 
 The button uses the signed-in administrator session. `CALENDAR_SYNC_TOKEN` remains available for scheduled jobs and trusted command-line requests.

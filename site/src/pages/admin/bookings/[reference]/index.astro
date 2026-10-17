@@ -499,6 +499,7 @@ if (arrangementAssigned) {
 }
 ---
 <AdminLayout title={`${workspaceTitle} · ${booking.name}`}>
+  {Astro.url.searchParams.get('created') === '1' && <p class="pricing-message is-success" role="status">Booking created. No message has been sent. The booker can verify their contact to access this booking and review any offer before paying.</p>}
   {markedForDeletion&&<div class="admin-alert"><strong>Marked for deletion.</strong> This record is hidden from ordinary views. Status and calendar effects are unchanged. Restore it before making other changes.</div>}
   <header class="admin-page-header booking-messaging-page-header">
     <div>

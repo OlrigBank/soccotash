@@ -1,0 +1,63 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { isSameOrigin } from '../../../../lib/admin/auth';
+import { createAdminBooking } from '../../../../lib/admin/create-booking';
+import { BookerError } from '../../../../lib/booker/accounts';
+import { getProperties } from '../../../../lib/booking/config';
+export const prerender = false;
+let error = '';
+let form = new FormData();
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) return new Response('Cross-origin request rejected.', { status: 403 });
+  if (!Astro.locals.adminUser) return new Response('Sign in required.', { status: 401 });
+  form = await Astro.request.formData();
+  try {
+    const booking = await createAdminBooking(form, Astro.locals.adminUser.id);
+    return Astro.redirect(`/admin/bookings/${booking.reference}/?created=1`, 303);
+  } catch (failure) {
+    error = failure instanceof BookerError ? failure.message : failure instanceof Error && failure.message === 'DATES_UNAVAILABLE'
+      ? 'Those dates are no longer available. Choose different dates.' : 'The booking could not be saved. Please try again.';
+    if (!(failure instanceof BookerError) && !(failure instanceof Error && failure.message === 'DATES_UNAVAILABLE')) console.error('Administrator booking creation failed.', failure);
+    Astro.response.status = failure instanceof BookerError ? failure.status : 409;
+  }
+}
+const value = (key: string, fallback = '') => String(form.get(key) ?? fallback);
+---
+<AdminLayout title="Create booking">
+  <header class="admin-page-header"><div><p class="eyebrow">Bookings</p><h1>Create booking from a request</h1><p>Register the booker’s contact details and prepare their stay from an email or telephone request.</p></div></header>
+  <p><a href="/admin/bookings/">Back to bookings</a></p>
+  {error && <p class="pricing-message" role="alert">{error}</p>}
+  <form method="post" class="admin-panel offline-booking">
+    <fieldset><legend>Booker contact details</legend>
+      <label>Name <input name="name" autocomplete="name" required minlength="2" maxlength="120" value={value('name')} /></label>
+      <label>Email address <input name="email" type="email" autocomplete="email" maxlength="254" value={value('email')} /></label>
+      <label>Mobile number <input name="telephone" type="tel" autocomplete="tel" maxlength="80" value={value('telephone')} /></label>
+      <p>Provide an email address or mobile number, including its country code. The booker must verify this contact to access the booking. An existing account can claim it using the same contact.</p>
+    </fieldset>
+    <fieldset><legend>Requested stay</legend>
+      <label>Accommodation <select name="propertyId" required><option value="">Choose accommodation</option>{getProperties().map(property => <option value={property.id} selected={value('propertyId') === property.id}>{property.name}</option>)}</select></label>
+      <div class="offline-booking__row"><label>Arrival <input type="date" name="arrival" required value={value('arrival')} /></label><label>Departure <input type="date" name="departure" required value={value('departure')} /></label></div>
+      <div class="offline-booking__row">{[['adults', 'Adults', '1'], ['children', 'Children', '0'], ['infants', 'Infants', '0']].map(([key, label, initial]) => <label>{label}<input type="number" name={key} required min={key === 'adults' ? '1' : '0'} step="1" value={value(key, initial)} /></label>)}</div>
+      <p>For requests including pets, save for review and add the pet details in the booking workspace before preparing the offer.</p>
+      <label>Request notes <textarea name="message" maxlength="2000" rows="4">{value('message')}</textarea></label>
+    </fieldset>
+    <fieldset><legend>Booking stage</legend>
+      <label><input type="radio" name="stage" value="payment" checked={value('stage', 'payment') === 'payment'} /> Ready to review and pay — use the current published price</label>
+      <label><input type="radio" name="stage" value="review" checked={value('stage') === 'review'} /> Save for review — prepare a tailored offer in the booking workspace</label>
+      <p>Ready to pay creates an offer for an eligible standard stay. The booker reviews the price and accepts the booking and cancellation terms before paying. Payment is not recorded and the stay is not confirmed.</p>
+    </fieldset>
+    <p>No email, text message or verification code is sent when you create this booking. Review it before using the existing email controls to contact the booker.</p>
+    <button class="admin-button" type="submit">Create booking</button>
+  </form>
+</AdminLayout>
+<style>
+  .admin-page-header p { color: #46594e; }
+  .offline-booking { max-width: 52rem; display: grid; gap: 1.5rem; }
+  fieldset { min-width: 0; display: grid; gap: 1rem; border: 1px solid #bbc9bf; border-radius: .5rem; padding: 1rem; }
+  legend { font-weight: 700; padding: 0 .4rem; }
+  label { display: block; min-width: 0; }
+  input:not([type=radio]), select, textarea { display: block; width: 100%; max-width: 100%; box-sizing: border-box; margin-top: .35rem; padding: .65rem; border: 1px solid #677b6c; border-radius: .3rem; background: white; color: #183b2c; font: inherit; }
+  .offline-booking__row { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .offline-booking__row > label { flex: 1 1 10rem; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #23654b; outline-offset: 3px; }
+</style>

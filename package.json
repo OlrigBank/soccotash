@@ -22,6 +22,7 @@
     "test:live-smoke": "playwright test --config=playwright.live-smoke.config.ts",
     "test:live-smoke:headed": "playwright test --config=playwright.live-smoke.config.ts --headed",
     "show:live-smoke-report": "playwright show-report playwright-report/live-smoke",
+    "test:admin-booking": "playwright test --config=playwright.admin-booking.config.ts",
     "test:booking-regression": "playwright test --config=playwright.booking-regression.config.ts",
     "test:payment-layout": "playwright test --config=playwright.payment-layout.config.ts",
     "test:request-journey": "playwright test --config=playwright.request-journey.config.ts",
