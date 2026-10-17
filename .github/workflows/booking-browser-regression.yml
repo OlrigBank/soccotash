@@ -60,6 +60,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Record controlled booking regression
         run: npm run test:booking-regression
+      - name: Verify administrator booking creation with isolated local fixtures
+        run: npm run test:admin-booking
       - name: Verify booker account journeys without external delivery
         run: npx playwright test --config=playwright.booker-accounts.config.ts
       - name: Upload regression playback
@@ -70,5 +72,6 @@ jobs:
           path: |
             playwright-report/booking-regression/
             test-results/booking-regression/
+            test-results/admin-booking/
           if-no-files-found: error
           retention-days: 7
