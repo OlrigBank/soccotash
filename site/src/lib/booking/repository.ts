@@ -245,6 +245,8 @@ export async function isCalendarStale(propertyId: string, minutes = 30): Promise
 
 export async function createProvisionalBooking(input: {
   authorisation?: BookingAuthorisation;
+  /** Trusted server-side administrator creating a request received offline. */
+  administratorId?: string;
   propertyId: string;
   arrival: string;
   departure: string;
@@ -371,8 +373,8 @@ export async function createProvisionalBooking(input: {
     }
     await client.query(
       `INSERT INTO booking_activity (provisional_booking_id, actor, event_type)
-       VALUES ($1, 'customer', $2)`,
-      [result.rows[0].id, edited ? 'booking_journey_updated' : 'booking_requested'],
+       VALUES ($1, $2, $3)`,
+      [result.rows[0].id, input.administratorId ? 'administrator' : 'customer', edited ? 'booking_journey_updated' : 'booking_requested'],
     );
     for (const [position, pet] of occupancyDetails.pets.entries()) {
       await client.query(`INSERT INTO booking_pets(provisional_booking_id,species,other_species,breed,size,service_animal,position) VALUES($1,$2,$3,$4,$5,$6,$7)`, [result.rows[0].id, pet.species, pet.otherSpecies, pet.breed, pet.size, pet.serviceAnimal, position]);
@@ -418,6 +420,10 @@ export async function createProvisionalBooking(input: {
         defaultOfferSubject(input, property.name),
       ]);
       await publishBookingOfferInTransaction(client, { offerId: offer.rows[0].id, reference: result.rows[0].reference }, 'system');
+    }
+    if (input.administratorId) {
+      await client.query(`INSERT INTO admin_audit_log(admin_user_id,action,details) VALUES($1,'booking.created_from_request',$2::jsonb)`,
+        [input.administratorId, JSON.stringify({ bookingReference: result.rows[0].reference, automaticOffer })]);
     }
     await client.query('COMMIT');
     return { reference: result.rows[0].reference, accessToken: result.rows[0].reference, sessionToken };

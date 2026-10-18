@@ -34,7 +34,7 @@ const statusLabel = (status: string) => status === 'payment_pending' ? 'deposit 
       </form>
     </details>
   </header>
-  <p><a class="admin-button admin-button--secondary" href={deletionQueue?'/admin/bookings/':'/admin/bookings/?deletion=marked'}>{deletionQueue?'Back to visible bookings':'Marked for deletion'}</a></p>
+  <p><a class="admin-button" href="/admin/bookings/new/">Create booking</a> <a class="admin-button admin-button--secondary" href={deletionQueue?'/admin/bookings/':'/admin/bookings/?deletion=marked'}>{deletionQueue?'Back to visible bookings':'Marked for deletion'}</a></p>
   {marked && <div class="pricing-message is-success" role="status">The booking and its holiday plans were marked for deletion.</div>}
   {restored && <div class="pricing-message is-success" role="status">The booking and its holiday plans were restored to visible administration.</div>}
   {!deletionQueue&&selectedStatuses.size === 0 && <p class="admin-filter-note">Declined and expired bookings are hidden. Use Booking statuses to change the list.</p>}
