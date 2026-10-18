@@ -84,7 +84,7 @@ test('CMS destinations target development and the welcome singleton matches conf
 });
 
 test('sitemap indexes the welcome page once and leaves the print route out', () => {
-  const paths = sitemapPaths({ pageIds: ['home'], listingSlugs: [], localGuideCategoryIds: [], localGuideEntrySlugs: [], holidayPlanSlugs: [] });
+  const paths = sitemapPaths({ pageIds: ['home'], listingSlugs: [], holidayPlanSlugs: [] });
   assert.equal(paths.filter(path => path === '/welcome/').length, 1);
   assert.ok(!paths.includes('/welcome/print/'));
 });
