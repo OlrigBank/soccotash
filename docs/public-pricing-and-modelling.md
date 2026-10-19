@@ -25,6 +25,7 @@ The untouched migration-004 plan named **Olrig Bank — example baseline** is ar
 - Rule builder: `/admin/pricing/`
 - Reusable cards: `/admin/pricing/rule-cards/`
 - Month/season models: `/admin/pricing/models/`
+- Historical accommodation rates: `/admin/pricing/history/` — [method, evidence and verification](features/historical-pricing-report.md)
 - Provisional requests and recorded quotes: `/admin/bookings/`
 
 ## Scenario exports
