@@ -1,0 +1,88 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getProperties } from '../../../../lib/booking/config';
+import { defaultHistoryInput } from '../../../../lib/pricing/history';
+export const prerender = false;
+const properties = getProperties();
+const propertyId = properties.find(p => p.id === Astro.url.searchParams.get('property'))?.id ?? properties[0]?.id ?? '';
+const defaults = defaultHistoryInput(propertyId);
+---
+<AdminLayout title="Historical pricing">
+  <div class="history-page">
+    <header class="admin-page-header pricing-page-header">
+      <div><p class="eyebrow">Pricing evidence</p><h1>Historical pricing</h1><p>Turn recorded Airbnb accommodation prices into a seasonal baseline for each listing.</p></div>
+      <a class="admin-button admin-button--secondary admin-button-link" href={`/admin/pricing/?property=${propertyId}`}>Back to pricing</a>
+    </header>
+    <div class="admin-alert admin-alert--info">
+      Accommodation only, after identifiable discounts and before fees or taxes. These are historical baselines, not revenue forecasts. Generating a report does not change live prices.
+    </div>
+    <section class="admin-panel" aria-labelledby="history-settings-heading">
+      <h2 id="history-settings-heading">Report settings</h2>
+      <form id="history-form">
+        <div class="history-fields">
+          <label>Listing<select name="propertyId">{properties.map(p => <option value={p.id} selected={p.id === propertyId}>{p.name}</option>)}</select></label>
+          <label>Historical start<input type="date" name="startDate" value={defaults.startDate} required /></label>
+          <label>Historical end (inclusive)<input type="date" name="endDate" value={defaults.endDate} max={new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)} required /></label>
+          <label>Target year<input type="number" name="targetYear" value={defaults.targetYear} min={new Date().getUTCFullYear()} max={new Date().getUTCFullYear() + 10} required /></label>
+          <label>Owner uplift (%)<input type="number" name="upliftPercent" value="0" min="-100" max="500" step="0.1" required /></label>
+        </div>
+        <details class="history-exceptions">
+          <summary>Holiday and event exceptions</summary>
+          <p>Give each exception target dates and comparable historical periods. End dates are inclusive. Historical exception nights are removed from ordinary monthly samples.</p>
+          <div id="history-exceptions"></div>
+          <button class="admin-button admin-button--secondary" id="history-add-exception" type="button">Add exception</button>
+        </details>
+        <button class="admin-button" id="history-generate" type="submit">Generate report</button>
+      </form>
+      <p id="history-message" role="status" aria-live="polite">Choose settings to analyse the stored reservation evidence.</p>
+    </section>
+    <section id="history-results" aria-label="Historical pricing results" aria-busy="false">
+      <div class="admin-panel"><h2>Your annual pricing table</h2><p>Generate a report to see monthly rates, evidence gaps and any holiday exceptions.</p></div>
+    </section>
+    <details class="admin-panel history-method">
+      <summary>How to read the report</summary>
+      <p>Every eligible night has equal weight. Baselines use the median, with the 25th–75th percentile range shown alongside. Friday and Saturday are weekend nights. Suggested prices apply your uplift and round to the nearest pound; no inflation adjustment is automatic.</p>
+      <p>A recommendation needs at least five distinct reservations, twenty nights and two represented years. This is an evidence threshold, not statistical confidence. Estimated nightly allocations cannot establish a weekday/weekend premium. A monthly fallback uses the pooled monthly evidence; its counts and statistics are repeated for both day types where needed.</p>
+      <p>Only past stays recorded as confirmed qualify. This does not prove a stay took place. The rates reflect the historical mix of party sizes, stay lengths and discounts. Unbooked nights and lost demand are not measured.</p>
+      <p>Unknown charges, conflicting accommodation figures and unreconciled financial records are excluded. Source coverage reflects the imported archive, which may be incomplete. Fee and source-profile summaries describe whole reservations overlapping your selected range.</p>
+    </details>
+  </div>
+</AdminLayout>
+
+<script>
+  import { initialiseHistoryPage } from '../../../../lib/pricing/history-client';
+  initialiseHistoryPage();
+</script>
+
+<style>
+  .history-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; min-width: 0; }
+  .history-page :global(.admin-panel) { min-width: 0; }
+  .history-page :global(.admin-page-header) { margin-bottom: 0; }
+  .history-page :global(.admin-page-header p) { color: #455541; }
+  .history-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 1rem; }
+  .history-page :global(label) { display: grid; gap: .4rem; font-weight: 700; min-width: 0; }
+  .history-page :global(input), .history-page :global(select) { width: 100%; min-width: 0; min-height: 44px; padding: .6rem; border: 1px solid #6e766b; border-radius: .4rem; background: #fff; color: #222b23; font: inherit; }
+  .history-exceptions { margin: 1.2rem 0; }
+  .history-page :global(summary) { cursor: pointer; font-weight: 700; padding: .65rem 0; }
+  .history-page :global(fieldset) { border: 1px solid #b9c4b5; border-radius: .5rem; margin: 1rem 0; padding: 1rem; min-width: 0; }
+  .history-page :global(legend) { font-weight: 700; }
+  .history-page :global(.history-date-fields) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: .75rem; margin-bottom: .8rem; }
+  .history-page :global(.history-actions) { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+  .history-page :global(.history-actions h2) { margin-right: auto; }
+  .history-page :global(#history-results) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; min-width: 0; }
+  .history-page :global(#history-results[hidden]) { display: none; }
+  .history-page :global(.history-table) { overflow-x: auto; max-width: 100%; border: 1px solid #ccd4c8; border-radius: .5rem; }
+  .history-page :global(.history-table table) { min-width: 1050px; }
+  .history-page :global(.history-table caption) { text-align: left; padding: .75rem; font-weight: 700; color: #344735; }
+  .history-page :global(.history-table th), .history-page :global(.history-table td) { vertical-align: top; }
+  .history-page :global(.history-table td strong) { white-space: nowrap; }
+  .history-page :global(.history-table small) { display: block; font-size: .8rem; color: #455541; }
+  .history-page :global(.history-evidence) { display: inline-block; padding: .25rem .5rem; border-radius: .4rem; background: #e9eee5; color: #2c432b; font-size: .8rem; font-weight: 700; }
+  .history-page :global(.history-evidence.is-limited) { background: #fff0d2; color: #68420d; }
+  .history-page :global(.history-error) { color: #9e1a14; font-weight: 700; }
+  .history-page :global(:focus-visible) { outline: 3px solid #1764a2; outline-offset: 3px; }
+  .history-page :global(.history-summary) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: .8rem; }
+  .history-page :global(.history-summary p) { padding: .8rem; margin: 0; background: #eef2e9; border-radius: .5rem; }
+  .history-page :global(.history-summary strong) { display: block; font-size: 1.5rem; }
+  @media(max-width: 600px) { .history-page :global(.pricing-page-header) { display: grid; gap: .8rem; } }
+</style>
