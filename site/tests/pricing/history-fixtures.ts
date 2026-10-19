@@ -22,6 +22,14 @@ export function reservationFixture(id = '1', arrival = '2024-07-01', nights = 7,
 export function historyFixtures(): HistoryReservation[] {
   const fixtures: HistoryReservation[] = [];
   for (const year of [2023, 2024, 2025]) for (const day of [1, 8, 15, 22]) fixtures.push(reservationFixture(String(fixtures.length + 1), `${year}-07-${String(day).padStart(2, '0')}`));
+  // Match the production importer: dated discount children have type adjustment.
+  const discounted = fixtures[0];
+  const guest = discounted.financials[0], host = discounted.financials[1];
+  guest.lines[0].amountPence -= 700; guest.totalPence -= 700;
+  guest.lines.find(l => l.type === 'total')!.amountPence -= 700;
+  host.totalPence -= 700; host.lines.find(l => l.type === 'total')!.amountPence -= 700;
+  host.lines.push({ id: 'discount', type: 'adjustment', amountPence: -700, description: 'Nightly rate adjustment', parentId: null, serviceDate: null });
+  for (let i = 0; i < 7; i++) host.lines.push({ id: `discount-${i}`, type: 'adjustment', amountPence: -100, description: 'Non-refundable option', parentId: 'discount', serviceDate: `2023-07-0${i + 1}` });
   for (const year of [2024, 2025]) for (const day of [1, 10, 20]) fixtures.push(reservationFixture(String(fixtures.length + 1), `${year}-08-${String(day).padStart(2, '0')}`, 4, false));
   fixtures.push({ ...reservationFixture('19'), status: 'Cancelled' });
   fixtures.push({ ...reservationFixture('20'), status: null });

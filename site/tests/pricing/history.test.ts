@@ -55,13 +55,64 @@ test('dated discount children reconcile with net nightly prices', () => {
   const r = reservationFixture(); r.financials = [r.financials[1]];
   const f = r.financials[0];
   f.lines.push({ id: 'discount', parentId: null, type: 'adjustment', description: 'Nightly rate adjustment', serviceDate: null, amountPence: -700 });
-  for (let i = 0; i < 7; i++) f.lines.push({ id: `discount-${i}`, parentId: 'discount', type: 'nightly_charge', description: 'Non-refundable option', serviceDate: `2024-07-0${i + 1}`, amountPence: -100 });
+  for (let i = 0; i < 7; i++) f.lines.push({ id: `discount-${i}`, parentId: 'discount', type: 'adjustment', description: 'Non-refundable option', serviceDate: `2024-07-0${i + 1}`, amountPence: -100 });
   f.totalPence -= 700; f.lines.find(l => l.type === 'total')!.amountPence -= 700;
   const result = normaliseHistoryReservation(r);
   assert.notEqual(typeof result, 'string');
   if (typeof result === 'string') return;
   assert.equal(result.nights[0].amountPence, 9900);
   assert.ok(result.nights.every(n => !n.estimated));
+});
+
+test('recognised guest-quality and early-booking discounts reconcile without changing stored lines', () => {
+  for (const description of ['Top-rated guests discount', 'Early bird discount']) {
+    const r = reservationFixture(); r.financials = [r.financials[1]];
+    const f = r.financials[0];
+    f.lines.push({ id: 'discount', parentId: null, type: 'adjustment', description, serviceDate: null, amountPence: -700 });
+    for (let i = 0; i < 7; i++) f.lines.push({ id: `discount-${i}`, parentId: 'discount', type: 'adjustment', description: description.replace('guests', 'guest'), serviceDate: `2024-07-0${i + 1}`, amountPence: -100 });
+    f.totalPence -= 700; f.lines.find(l => l.type === 'total')!.amountPence -= 700;
+    const before = JSON.stringify(r);
+    const result = normaliseHistoryReservation(r);
+    assert.notEqual(typeof result, 'string');
+    if (typeof result === 'string') continue;
+    assert.equal(result.nights[0].amountPence, 9900);
+    assert.ok(result.nights.every(n => !n.estimated));
+    assert.equal(JSON.stringify(r), before);
+    f.lines.find(l => l.parentId === 'discount')!.description = 'Unspecified adjustment';
+    assert.equal(normaliseHistoryReservation(r), 'Nightly breakdown discrepancy');
+  }
+});
+
+test('explicit accommodation labels support a verified aggregate; generic stay totals remain ambiguous', () => {
+  const r = reservationFixture();
+  r.financials[0].lines[0].type = 'other'; r.financials[0].lines[0].description = 'Accommodation';
+  r.financials[1].lines = r.financials[1].lines.filter(l => l.parentId === null);
+  r.financials[1].lines[0].type = 'other'; r.financials[1].lines[0].description = 'Total Stay Price';
+  const result = normaliseHistoryReservation(r);
+  assert.notEqual(typeof result, 'string');
+  if (typeof result === 'string') return;
+  assert.equal(result.nights.reduce((sum, n) => sum + n.amountPence, 0), 80000);
+  assert.ok(result.nights.every(n => n.estimated));
+  r.financials = [r.financials[1]];
+  assert.equal(normaliseHistoryReservation(r), 'Missing accommodation charges');
+});
+
+test('different discounts on the same night stack, while duplicated discount evidence is rejected', () => {
+  const r = reservationFixture(); r.financials = [r.financials[1]];
+  const f = r.financials[0];
+  f.lines.push({ id: 'discount', type: 'adjustment', amountPence: -2100, description: 'Nightly rate adjustment', parentId: null, serviceDate: null });
+  for (let i = 0; i < 7; i++) {
+    f.lines.push({ id: `non-refundable-${i}`, type: 'adjustment', amountPence: -100, description: 'Non-refundable option', parentId: 'discount', serviceDate: `2024-07-0${i + 1}` });
+    f.lines.push({ id: `weekly-${i}`, type: 'adjustment', amountPence: -200, description: 'Weekly discount', parentId: 'discount', serviceDate: `2024-07-0${i + 1}` });
+  }
+  f.totalPence -= 2100; f.lines.find(l => l.type === 'total')!.amountPence -= 2100;
+  const result = normaliseHistoryReservation(r);
+  assert.notEqual(typeof result, 'string');
+  if (typeof result === 'string') return;
+  assert.equal(result.nights[0].amountPence, 9700);
+  assert.equal(result.nights[4].amountPence, 14700);
+  f.lines.find(l => l.id === 'weekly-0')!.description = 'Non-refundable option';
+  assert.equal(normaliseHistoryReservation(r), 'Nightly breakdown discrepancy');
 });
 
 test('conflicting perspectives, incomplete children and ambiguous adjustments cannot recommend rates', () => {

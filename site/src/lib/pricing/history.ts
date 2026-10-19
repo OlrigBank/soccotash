@@ -1,5 +1,5 @@
 /** Pure, deterministic analysis of imported Airbnb financial evidence. */
-export const HISTORY_METHOD_VERSION = '1.0';
+export const HISTORY_METHOD_VERSION = '1.1';
 export const HISTORY_THRESHOLD = { reservations: 5, nights: 20, years: 2 } as const;
 export interface HistoryRange { start: string; end: string }
 export interface HistoryException {
@@ -192,10 +192,13 @@ function feeType(line: HistoryLine): string | null {
   return null;
 }
 function accommodationAdjustment(line: HistoryLine): boolean {
-  return line.type === 'adjustment' && /nightly|room|accommodation|non-refundable|(?:length.of.stay|weekly|monthly|weekly stay|monthly stay) discount/i.test(line.description);
+  return line.type === 'adjustment' && /nightly|room|accommodation|non-refundable|(?:length.of.stay|weekly|monthly|weekly stay|monthly stay|early[ -]bird|top-rated guests?) discount/i.test(line.description);
 }
 interface NormalisedFinancial { totalPence: number; amounts: number[]; estimated: boolean; fees: Array<{ type: string; amountPence: number }> }
-function normaliseFinancial(summary: HistoryFinancial, dates: string[]): NormalisedFinancial | string {
+function normaliseFinancial(source: HistoryFinancial, dates: string[]): NormalisedFinancial | string {
+  // Older imports classified the explicit standalone "Accommodation" label as other.
+  // A generic "Total Stay Price" remains ambiguous and cannot establish accommodation.
+  const summary = { ...source, lines: source.lines.map(line => line.type === 'other' && /^accommodation$/i.test(line.description.trim()) ? { ...line, type: 'accommodation' } : line) };
   if (summary.arithmeticStatus === 'discrepancy') return 'Financial reconciliation discrepancy';
   if (summary.currency !== 'GBP' || summary.arithmeticStatus !== 'verified') return 'Unverified financial summary';
   if (![summary.totalPence, ...summary.lines.map(l => l.amountPence)].every(Number.isSafeInteger)) return 'Invalid monetary amount';
@@ -220,8 +223,8 @@ function normaliseFinancial(summary: HistoryFinancial, dates: string[]): Normali
     const children = summary.lines.filter(l => l.parentId === root.id);
     if (children.length) {
       if (children.reduce((sum, l) => sum + l.amountPence, 0) !== root.amountPence
-        || children.some(l => l.type !== 'nightly_charge' || !l.serviceDate || !dates.includes(l.serviceDate))
-        || new Set(children.map(l => l.serviceDate)).size !== children.length) return 'Nightly breakdown discrepancy';
+        || children.some(l => (l.type !== 'nightly_charge' && !(root.type === 'adjustment' && accommodationAdjustment(l))) || !l.serviceDate || !dates.includes(l.serviceDate))
+        || new Set(children.map(l => root.type === 'adjustment' ? `${l.serviceDate}:${l.description.trim().toLowerCase()}` : l.serviceDate)).size !== children.length) return 'Nightly breakdown discrepancy';
       if (root.type === 'accommodation' && children.length !== dates.length) return 'Incomplete accommodation nightly breakdown';
       for (const child of children) dated[dates.indexOf(child.serviceDate!)] += child.amountPence;
     } else if (root.type === 'nightly_charge' && root.serviceDate && dates.includes(root.serviceDate)) {

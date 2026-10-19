@@ -93,12 +93,10 @@ or `--format csv` for an export; `--year` and `--uplift` override defaults.
 The command deliberately does not load a local environment file automatically.
 Never paste the connection string into a feature record or shell transcript.
 
-Production profiling and manual financial-line reconciliation remain pending:
-the Render connector repeatedly returned an authentication request instead of
-database access during this implementation. No production connection, data
-change, migration, deployment or live-price change was performed. Before
-release, run the profile and reconcile representative eligible and excluded
-bookings, including a discounted stay and a stay crossing a month boundary.
+Production profiling and financial-line reconciliation were completed on
+19 October 2026 after access to **My Workspace** was confirmed. See the
+production verification below. No production data change, migration, deployment
+or live-price change was performed.
 
 ## UI pattern names
 
@@ -111,10 +109,11 @@ bookings, including a discounted stay and a stay crossing a month boundary.
 
 ## Verification record
 
-- `npm run test:pricing-history`: 12 passing calculation/render/export tests,
+- `npm run test:pricing-history`: 15 passing calculation/render/export tests,
   including discounts, fees, hierarchy deduplication, leap days, range clipping,
   penny allocation, evidence thresholds, exceptions, uplift rounding and safe
-  owner text.
+  owner text. Production-format regressions cover dated adjustment children,
+  stacked discounts on a night and explicit accommodation labels.
 - `npm run test:pricing-history-integration`: disposable local PostgreSQL
   schema; verifies read-only repeatable-read transactions, deterministic output,
   listing separation, private-field exclusion, CLI profiling and unchanged
@@ -159,3 +158,82 @@ npm run test:pricing-history-ui
 on port 8096. Visit `/__pricing-history-preview/` to establish its disposable
 admin session. Stop with SIGINT/SIGTERM to remove the fixture schema. The
 fixture helper rejects non-local database hosts and disables notifying services.
+
+## Production verification — 19 October 2026
+
+Confirmed workspace: **My Workspace**. The production Blueprint identifies
+`soccotash-bookings` (`soccotash_9awm`) as the database for `olrigbankweb`.
+The Render query connector confirmed `transaction_read_only = on`. Only
+read-only queries were used, with no credentials, guest names, messages,
+contact details or access material selected.
+
+The archive contains 89 reservations: 86 Main House and three Cottage. There
+are 55 confirmed, five cancelled and 29 unknown-status records. Both financial
+perspectives are present for every reservation: 178 summaries, all marked
+verified. There are no dated financial lines outside their reservation dates
+and no duplicate non-null confirmation codes. One shared listing/date group
+contains unknown-status records; these are excluded by the existing policy.
+
+### Method correction
+
+Verification exposed a mismatch between the synthetic fixtures and the real
+importer: dated discount children are often typed `adjustment`, and multiple
+distinct discounts can apply to one night under a shared parent. Method **1.1**
+now handles these while checking parent arithmetic, recognising the discount
+type and rejecting duplicate discount evidence. It also recognises an explicit
+standalone `Accommodation` label previously classified as `other`. A generic
+`Total Stay Price` still cannot establish accommodation on its own. The source
+records were not edited.
+
+Recognised discount descriptions include non-refundable, weekly, monthly,
+early-bird and top-rated-guest accommodation discounts. A stay-level adjustment
+without dated detail still forces an estimated allocation. The disposable
+database/browser fixture now contains the production-style adjustment hierarchy.
+
+### Coverage and limits
+
+| Main House range | Considered reservations | Eligible reservations | Eligible nights | Rate rows meeting the threshold |
+| --- | ---: | ---: | ---: | ---: |
+| Default: 2023–2025 | 46 | 41 | 116 | 0 |
+| Extended: 2023–18 October 2026 | 80 | 52 | 150 | 2 |
+
+The default range excludes four cancelled/unknown-status records and one
+zero-accommodation record. The extended range excludes 26 cancelled/unknown
+records and two zero-accommodation records. The eligible history is concentrated
+in 2025–2026; 2024 contributes only one confirmed reservation. The two supported
+extended-range rows are August's weekday/weekend rows, both using the same
+pooled monthly baseline, with eleven reservations and forty nights across two
+years. This does not establish a weekend premium. Other months do not meet the
+agreed thresholds. The three Cottage reservations have unknown status, so
+there is no supported Cottage recommendation. Thresholds and default dates
+were left unchanged rather than weakened to fill the table.
+
+### Independent checks and private outputs
+
+A single minimised source query supplied the local method run. Independent SQL
+confirmed that the financial panels for all 54 ended, confirmed Main House
+reservations reconcile.
+Of these, 52 have positive guest accommodation; 53 have matching comparable
+host/guest accommodation totals, while one host panel has only a generic stay
+total. The latter has an explicitly labelled, verified guest accommodation
+panel and is allocated as an estimate.
+
+Independent per-date SQL allocations matched the application exactly for a
+month-crossing stay, a seven-night stay with both weekly and non-refundable
+discounts, and a year-crossing stay. A verified aggregate with no usable dated
+breakdown was also checked to the penny, as were both excluded zero-charge
+confirmed records.
+
+CSV/JSON reports for the default and extended ranges, plus the reconciliation
+record, are owner-readable files under the ignored directory
+`.airbnb-capture/historical-pricing-2026-10-19/`. Monetary results and individual
+financial records are not committed to the repository. No holidays/events or
+owner uplift were added to these verification reports.
+
+After the correction, all fifteen calculation tests, the disposable PostgreSQL
+integration/CLI test and all fifteen Playwright checks passed. The rebuilt
+fixture report was also rechecked in Chrome DevTools at 1440×1000, 768×1024
+and 390×844: expected rates and discounted revenue per night, no document
+overflow, intentional local table scrolling and no console errors/warnings.
+The repeated mobile Lighthouse snapshot retained accessibility/best-practice
+scores of 100; the existing private-page SEO limitation remains unchanged.
