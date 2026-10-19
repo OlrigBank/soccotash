@@ -7,8 +7,6 @@ const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.u
 const inventory = {
   pageIds: ['home', 'contact', 'guest-information'],
   listingSlugs: ['olrig-bank', 'event', 'cottage'],
-  localGuideCategoryIds: ['home', 'walks'],
-  localGuideEntrySlugs: ['kendal-castle'],
   holidayPlanSlugs: ['kendal-weekend'],
 };
 
@@ -16,7 +14,7 @@ test('sitemap inventory includes canonical public pages once', () => {
   const paths = sitemapPaths(inventory);
   for (const path of [
     '/', '/book/', '/listings/', '/listings/olrig-bank/', '/listings/event/', '/listings/cottage/',
-    '/local-guide/', '/local-guide/walks/', '/local-guide/kendal-castle/', '/holiday-plans/kendal-weekend/',
+    '/local-guide/', '/holiday-plans/kendal-weekend/',
   ]) assert.equal(paths.filter((candidate) => candidate === path).length, 1, path);
 });
 
@@ -25,9 +23,9 @@ test('sitemap inventory rejects unsafe or private-looking dynamic values', () =>
     ...inventory,
     pageIds: [...inventory.pageIds, 'admin/login', '../api'],
     listingSlugs: [...inventory.listingSlugs, 'main-house', 'booking/manage/token'],
-    localGuideEntrySlugs: [...inventory.localGuideEntrySlugs, '<script>'],
   });
   assert.doesNotMatch(paths.join('\n'), /main-house|admin|api|booking|planner|script/);
+  assert.deepEqual(paths.filter(path => path.startsWith('/local-guide/')), ['/local-guide/']);
 });
 
 test('sitemap XML contains absolute preferred HTTPS URLs and no duplicates', () => {
@@ -46,8 +44,7 @@ test('runtime endpoints declare correct formats, policies and dynamic sources', 
     source('src/pages/robots.txt.ts'),
   ]);
   assert.match(sitemap, /'Content-Type': 'application\/xml; charset=utf-8'/);
-  assert.match(sitemap, /listPublishedLocalGuideCategories\(\)/);
-  assert.match(sitemap, /getLocalGuideEntries\(\)/);
+  assert.doesNotMatch(sitemap, /listPublishedLocalGuideCategories|getLocalGuideEntries/);
   assert.match(sitemap, /listPublishedExamplePlans\(\)/);
   assert.match(robots, /'Content-Type': 'text\/plain; charset=utf-8'/);
   assert.match(robots, /Disallow: \/admin\//);

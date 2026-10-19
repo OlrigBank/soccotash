@@ -3,8 +3,6 @@ import { productionUrl } from './public-metadata.ts';
 type SitemapInventory = {
   pageIds: string[];
   listingSlugs: string[];
-  localGuideCategoryIds: string[];
-  localGuideEntrySlugs: string[];
   holidayPlanSlugs: string[];
 };
 
@@ -26,8 +24,6 @@ export function sitemapPaths(inventory: SitemapInventory): string[] {
     '/listings/',
     ...dynamicPaths('/listings/', inventory.listingSlugs),
     '/local-guide/',
-    ...dynamicPaths('/local-guide/', inventory.localGuideCategoryIds.filter((id) => id !== 'home')),
-    ...dynamicPaths('/local-guide/', inventory.localGuideEntrySlugs),
     ...dynamicPaths('/holiday-plans/', inventory.holidayPlanSlugs),
   ])].filter((path) => path !== '/listings/main-house/').sort();
 }
