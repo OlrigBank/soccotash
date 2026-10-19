@@ -43,3 +43,7 @@ jobs:
       - run: npm run check && npm run build
       - run: node --test tests/airbnb-capture/*.test.mjs tests/airbnb-review-dates/*.test.mjs
       - run: npm run test:airbnb-date-integration
+      - name: Check reservation evidence exports
+        run: npm run test:reservation-export && npm run test:reservation-export-integration
+      - name: Check historical pricing and reservation export browser workflows
+        run: npm run test:pricing-history-ui
