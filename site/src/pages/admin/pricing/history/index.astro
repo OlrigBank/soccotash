@@ -16,6 +16,17 @@ const defaults = defaultHistoryInput(propertyId);
     <div class="admin-alert admin-alert--info">
       Accommodation only, after identifiable discounts and before fees or taxes. These are historical baselines, not revenue forecasts. Generating a report does not change live prices.
     </div>
+    <section class="admin-panel" aria-labelledby="reservation-export-heading">
+      <p class="eyebrow">Spreadsheet analysis</p>
+      <h2 id="reservation-export-heading">Export imported reservation data</h2>
+      <p>Download a ZIP with a CSV for every imported Airbnb reservation, combined financial data, a reservation index and a column guide.</p>
+      <p>Includes all listings and dates, including future, cancelled, unknown-status and zero-price records. Original charges, discounts, fees, taxes and financial totals are retained. Guest-paid and host-earnings figures are separate views; use the guide to avoid counting subtotals and their detail twice.</p>
+      <p>This export is independent of the report settings below. Guest names, contact details, conversations and access information are excluded.</p>
+      <form id="reservation-export-form" method="post" action="/api/admin/pricing/history/reservations/export/" aria-busy="false">
+        <button class="admin-button" type="submit">Download reservation CSVs (ZIP)</button>
+      </form>
+      <p id="reservation-export-message" role="status" aria-live="polite">Ready to export the imported source evidence. No nightly prices are estimated.</p>
+    </section>
     <section class="admin-panel" aria-labelledby="history-settings-heading">
       <h2 id="history-settings-heading">Report settings</h2>
       <form id="history-form">
@@ -51,7 +62,9 @@ const defaults = defaultHistoryInput(propertyId);
 
 <script>
   import { initialiseHistoryPage } from '../../../../lib/pricing/history-client';
+  import { initialiseReservationExport } from '../../../../lib/pricing/reservation-export-client';
   initialiseHistoryPage();
+  initialiseReservationExport();
 </script>
 
 <style>

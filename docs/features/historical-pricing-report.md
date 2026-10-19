@@ -4,6 +4,9 @@ Implemented on `feature/historical-pricing-report`, 19 October 2026.
 
 ## Using the report
 
+For the independent per-reservation source CSV download, see
+[Detailed reservation evidence export](reservation-evidence-export.md).
+
 Open **Pricing → Historical pricing** at `/admin/pricing/history/`. Choose a
 listing, historical dates, target year and optional percentage uplift, then
 generate the report. The default range is the three completed calendar years;
