@@ -4,6 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "pricing:history-report": "node --experimental-strip-types site/scripts/pricing-history-report.ts",
+    "test:pricing-history": "node --experimental-strip-types site/tests/pricing/history.test.ts",
+    "test:pricing-history-integration": "node --experimental-strip-types tests/pricing-history/history-integration.test.mjs",
+    "test:pricing-history-ui": "playwright test --config=playwright.pricing-history.config.ts",
+    "preview:pricing-history": "node --experimental-strip-types tests/support/pricing-history-preview.mjs",
     "dev": "npm --prefix site run dev",
     "build": "npm --prefix site run build",
     "preview": "npm --prefix site run preview",
