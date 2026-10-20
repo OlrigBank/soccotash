@@ -1,0 +1,464 @@
+{
+  "headers": {
+    "Price guide": [
+      "Comparable product",
+      "Month",
+      "Day type",
+      "Reservations",
+      "Nights",
+      "Years",
+      "Lower quartile",
+      "Median",
+      "Upper quartile",
+      "Mean / night",
+      "Estimated nights",
+      "Evidence basis",
+      "Baseline",
+      "Suggested / night",
+      "Basis reservations",
+      "Basis nights",
+      "Basis years"
+    ],
+    "Monthly history": [
+      "Comparable product",
+      "Stayed month",
+      "Reservations",
+      "Nights",
+      "Net accommodation",
+      "Mean / night",
+      "Median / night",
+      "Lower quartile",
+      "Upper quartile",
+      "Estimated nights"
+    ],
+    "Stay patterns": [
+      "Characteristic",
+      "Band",
+      "Reservations",
+      "Nights",
+      "Net accommodation",
+      "Mean net / night",
+      "Mean stay (nights)",
+      "Known booking leads",
+      "Mean lead (days)"
+    ],
+    "Stay analysis": [
+      "Reservation ID",
+      "Comparable product",
+      "Source listing name",
+      "Effective status",
+      "Arrival",
+      "Departure",
+      "Nights",
+      "Pricing eligibility",
+      "Exclusion reason",
+      "Night allocation",
+      "Net accommodation",
+      "Host panel total",
+      "Guest panel total",
+      "Panel difference",
+      "Booking lead days",
+      "Party size",
+      "Adults",
+      "Children",
+      "Infants",
+      "Pets",
+      "Cancellation policy",
+      "Booking date",
+      "Confirmation code",
+      "Source quality flags",
+      "Source review",
+      "Same product and dates",
+      "Chosen panel ID",
+      "Chosen perspective",
+      "Gross accommodation",
+      "Accommodation adjustments",
+      "Host service fee",
+      "Guest service fee",
+      "Net accommodation / night",
+      "Source stays row",
+      "Lead-time band",
+      "Length-of-stay band",
+      "Party-size band",
+      "Pets band",
+      "Original ZIP status",
+      "Status basis",
+      "Evidence positions",
+      "Evidence displayed dates"
+    ],
+    "Night evidence": [
+      "Reservation ID",
+      "Comparable product",
+      "Stayed night",
+      "Year",
+      "Month",
+      "Day type",
+      "Gross accommodation",
+      "Accommodation adjustment",
+      "Net accommodation",
+      "Allocation",
+      "Estimated flag",
+      "Financial panel ID",
+      "Gross source line IDs",
+      "Discount source line IDs",
+      "Stay analysis row",
+      "First reservation in month",
+      "First year in month",
+      "First reservation in day type",
+      "First year in day type"
+    ],
+    "Source stays": [
+      "reservation_id",
+      "confirmation_code",
+      "property_id",
+      "source_listing_name",
+      "source_status_text",
+      "arrival",
+      "departure",
+      "nights",
+      "normalised_status",
+      "stay_phase",
+      "check_in_time",
+      "check_out_time",
+      "booking_date",
+      "booking_lead_days",
+      "arrival_year",
+      "arrival_month",
+      "arrival_weekday",
+      "departure_weekday",
+      "party_size",
+      "adults",
+      "children",
+      "infants",
+      "pets",
+      "cancellation_policy",
+      "reservation_currency",
+      "reservation_minor_unit_scale",
+      "headline_host_total_minor",
+      "headline_host_total_decimal",
+      "host_currency",
+      "host_minor_unit_scale",
+      "host_total_minor",
+      "host_total_decimal",
+      "host_arithmetic_status",
+      "host_arithmetic_difference_minor",
+      "host_arithmetic_difference_decimal",
+      "guest_currency",
+      "guest_minor_unit_scale",
+      "guest_total_minor",
+      "guest_total_decimal",
+      "guest_arithmetic_status",
+      "guest_arithmetic_difference_minor",
+      "guest_arithmetic_difference_decimal",
+      "financial_summary_count",
+      "financial_line_count",
+      "quality_flags",
+      "source_captured_at",
+      "reservation_updated_at",
+      "exported_at",
+      "export_schema_version",
+      "escaped_text_columns"
+    ],
+    "Source lines": [
+      "reservation_id",
+      "confirmation_code",
+      "property_id",
+      "source_listing_name",
+      "source_status_text",
+      "arrival",
+      "departure",
+      "nights",
+      "row_kind",
+      "financial_summary_id",
+      "perspective",
+      "currency",
+      "currency_minor_unit_scale",
+      "financial_line_id",
+      "parent_line_id",
+      "line_position",
+      "source_item_type",
+      "description",
+      "service_date",
+      "quantity",
+      "unit_amount_minor",
+      "unit_amount_decimal",
+      "amount_minor",
+      "amount_decimal",
+      "hierarchy_depth",
+      "has_children",
+      "financial_role",
+      "contributes_to_panel_total",
+      "panel_total_minor",
+      "panel_total_decimal",
+      "calculated_panel_total_minor",
+      "source_arithmetic_status",
+      "source_arithmetic_difference_minor",
+      "calculated_arithmetic_difference_minor",
+      "line_raw_display_text",
+      "panel_raw_display_text",
+      "quality_flags",
+      "reservation_captured_at",
+      "panel_captured_at",
+      "line_created_at",
+      "exported_at",
+      "export_schema_version",
+      "escaped_text_columns"
+    ],
+    "Columns": [
+      "dataset",
+      "column",
+      "data_type",
+      "meaning",
+      "aggregation_rule"
+    ],
+    "Panel audit": [
+      "Reservation ID",
+      "Comparable product",
+      "Panel ID",
+      "Perspective",
+      "Currency",
+      "Stored total",
+      "Root component sum",
+      "Difference",
+      "Source arithmetic",
+      "Calculated result",
+      "Financial lines",
+      "Root components",
+      "Semantic review",
+      "Expected line count",
+      "Actual reservation lines",
+      "Line count difference"
+    ],
+    "Status adjustments": [
+      "Reservation ID",
+      "Confirmation code",
+      "Original ZIP status",
+      "Effective workbook status",
+      "Evidence basis",
+      "Conversation positions",
+      "Evidence displayed dates",
+      "Audit evidence reference",
+      "Adjustment scope",
+      "Pricing eligibility",
+      "Exclusion reason"
+    ]
+  },
+  "notes": {
+    "Overview": {
+      "A2": "Reservation evidence and seasonal pricing",
+      "A3": "Original export retained; {adjustments} workbook-only status corrections evidenced on {audit_long}. Analysis as-of remains {as_of_short}."
+    },
+    "Price guide": {
+      "A2": "Price guide",
+      "A3": "Reconciled status evidence applied. Day-type samples use dated nights only; pooled months can include estimates."
+    },
+    "Monthly history": {
+      "A2": "Monthly history",
+      "A3": "Effective status evidence applied; accommodation allocated by stayed month, not arrival month."
+    },
+    "Stay patterns": {
+      "A2": "Stay patterns",
+      "A3": "Selected product and reconciled status eligibility; associations are not causal price effects."
+    },
+    "Stay analysis": {
+      "A2": "Stay analysis",
+      "A3": "Effective status includes {adjustments} source-evidenced corrections. Original ZIP status and source sheets remain unchanged."
+    },
+    "Night evidence": {
+      "A2": "Night evidence",
+      "A3": "Recalculated from eligible effective statuses; original signed price and discount evidence is unchanged."
+    },
+    "Source stays": {
+      "A2": "reservations.csv",
+      "A3": "Original export data; schema 1.0. Source: {archive}"
+    },
+    "Source lines": {
+      "A2": "financial-lines.csv",
+      "A3": "Original export data; schema 1.0. Source: {archive}"
+    },
+    "Columns": {
+      "A2": "Original export dictionary",
+      "A3": "The definitions and aggregation rules supplied with the source archive."
+    },
+    "Panel audit": {
+      "A2": "Financial panel reconciliation",
+      "A3": "One row per panel. An arithmetic match does not establish a correct financial perspective."
+    },
+    "Read me": {
+      "A2": "Method and source notes",
+      "A3": "Read the accompanying Markdown guide before refreshing or editing generated data."
+    },
+    "Unknown status review": {
+      "A2": "Originally unknown: status reconciliation and financial evidence",
+      "A3": "All {unknown_count} original unknown records retained; {adjustments} now have evidence-backed effective status. Current eligibility appears in the first table."
+    },
+    "Status adjustments": {
+      "A2": "Status adjustments",
+      "A3": "Source statuses are preserved. These workbook-only interpretations use the {audit_short} admin reconciliation."
+    }
+  },
+  "read_me": {
+    "6": [
+      "Purpose",
+      "Explore imported stays and obtain evidence-qualified seasonal accommodation baselines."
+    ],
+    "7": [
+      "Source archive",
+      "{archive}"
+    ],
+    "8": [
+      "Source SHA-256",
+      "{sha256}"
+    ],
+    "9": [
+      "Exported at",
+      "{exported}"
+    ],
+    "10": [
+      "Schema version",
+      "1.0"
+    ],
+    "11": [
+      "Normalisation method",
+      "1.1"
+    ],
+    "12": [
+      "Source coverage",
+      "{reservation_count} reservations; {line_count} original financial lines; {panel_count} panels. All individual files matched combined financial-lines.csv."
+    ],
+    "13": [
+      "Controls",
+      "Overview B5 selects a comparable accommodation product; B6 applies an explicit uplift to supported suggestions only."
+    ],
+    "14": [
+      "Snapshot contract",
+      "Source tabs and ZIP are unchanged. Status adjustments adds {adjustments} workbook-only corrections from the {audit_short} audit. Regenerate all derived sheets together for a new export."
+    ],
+    "15": [
+      "Accommodation products",
+      "Exact listing names distinguish whole house, cottage, double bedroom and large bedroom. This is a reviewable interpretation of the listing names, not a separate product ID in the source."
+    ],
+    "16": [
+      "Pricing eligibility",
+      "GBP; original or evidence-backed confirmed status; departure on/before {as_of_long}; positive reconcilable accommodation; no unresolved financial anomaly."
+    ],
+    "17": [
+      "Recorded status",
+      "Original source status remains on Source stays and Status adjustments. Effective workbook status can be confirmed from captured cards or Airbnb accepted-request events."
+    ],
+    "18": [
+      "Net accommodation",
+      "Identifiable accommodation plus signed accommodation discounts/adjustments, before host/guest platform fees, cleaning, pet charges or tax."
+    ],
+    "19": [
+      "Panel selection",
+      "Prefer validated guest accommodation; use matching complete host-side dated evidence to enrich it. Conflicts and ambiguous financial components are excluded."
+    ],
+    "20": [
+      "Dated allocation",
+      "Gross and signed discounts are joined by stayed date. Multiple discount children on a night are retained once each. Gross/discount source line IDs trace to Source lines."
+    ],
+    "21": [
+      "Estimated allocation",
+      "If any accommodation component lacks dated detail, split the net stay amount equally in pennies. Allocate residual pennies to the earliest nights; leave nightly gross and discount amounts unavailable."
+    ],
+    "22": [
+      "Seasonality",
+      "Month comes from each stayed night; departure is exclusive. Friday and Saturday are weekend nights. Weekday/weekend samples use dated evidence only; pooled months can include estimates."
+    ],
+    "23": [
+      "Statistics",
+      "Every eligible night has equal weight. Median and linear-interpolated 25th/75th percentiles. Means use total accommodation divided by nights."
+    ],
+    "24": [
+      "Evidence threshold",
+      "5 distinct reservations, 20 nights and 2 represented years. This is a reporting rule, not a statistical confidence guarantee."
+    ],
+    "25": [
+      "Fallback",
+      "If a weekday/weekend sample is sparse but its pooled month is supported, use that month median. Basis counts show the actual sample used."
+    ],
+    "26": [
+      "Suggestions",
+      "Supported baseline × (1 + uplift), rounded half up to the nearest pound. No automatic price changes or report re-import."
+    ],
+    "27": [
+      "Audit",
+      "Panel audit independently sums only root components. Host and guest views are never added as revenue. Panel difference on Stay analysis is not asserted to be platform commission."
+    ],
+    "28": [
+      "Known anomaly",
+      "One guest panel contains a host service fee and mirrors the host view. It reconciles arithmetically but requires source review; retained and excluded from pricing."
+    ],
+    "29": [
+      "Missing data",
+      "Source blanks remain missing. Unknown party composition, missing booking dates and absent amounts are not invented as zero."
+    ],
+    "30": [
+      "Source timestamps",
+      "Timestamp cells use literal text formulas to preserve the original UTC string and microseconds. Source date-only values retain ISO text; analysis dates are typed dates."
+    ],
+    "31": [
+      "Filtering and sorting",
+      "Use table filters on analysis/source sheets to inspect records. Filters do not change pricing statistics. Keep generated row order intact; Overview B5 is the price-view selector."
+    ],
+    "32": [
+      "Validation",
+      "Status overlay and all prices recalculated; original source datasets retained and separately verified. See the Markdown guide for current counts and native-engine checks."
+    ],
+    "33": [
+      "Sharing",
+      "Contains private reservation identifiers and financial text. Share only with authorised recipients."
+    ],
+    "34": [
+      "Usage guide",
+      "reservation-analysis-guide.md accompanies this workbook."
+    ],
+    "40": [
+      "Status reconciliation",
+      "{adjustments} workbook-only corrections: {card_count} Confirmed cards and {accepted_count_word} Airbnb Request accepted service events."
+    ],
+    "41": [
+      "Source integrity",
+      "The original ZIP and its {reservation_count} source reservations / {line_count} financial lines are retained. Production statuses have not changed."
+    ],
+    "42": [
+      "Remaining unknown",
+      "One original unknown has neither explicit marker and remains excluded from pricing."
+    ]
+  },
+  "overview_labels": {
+    "A2": "Reservation evidence and seasonal pricing",
+    "A3": "Original export retained; {adjustments} workbook-only status corrections evidenced on {audit_long}. Analysis as-of remains {as_of_short}.",
+    "A4": "Controls",
+    "D4": "Source and pricing sample",
+    "A5": "Comparable product",
+    "D5": "Imported reservations",
+    "A6": "Suggested-price uplift",
+    "D6": "Original financial lines",
+    "A7": "As-of date",
+    "D7": "Eligible reservations",
+    "A8": "Minimum reservations",
+    "D8": "Eligible stayed nights",
+    "A9": "Minimum nights",
+    "D9": "Estimated share of nights",
+    "A10": "Minimum years",
+    "D10": "Net accommodation",
+    "A12": "Yellow cells are editable. See Status adjustments for every original/effective status and its evidence.",
+    "A14": "Month",
+    "D14": "Median",
+    "A28": "Quartiles describe the observed sample. A blank suggestion means the evidence threshold has not been met.",
+    "A29": "Monthly fallback uses the pooled month; it does not demonstrate a weekend premium.",
+    "A30": "Historical observations do not establish occupancy, market demand or an optimal future price.",
+    "A32": "Source issue",
+    "A33": "Originally unknown status",
+    "A34": "Missing booking date",
+    "A35": "Zero host panel total",
+    "A36": "Guest perspective anomaly",
+    "A37": "Unclassified product",
+    "A39": "Status reconciliation",
+    "A40": "Evidence-backed status corrections",
+    "A41": "Effective unknown status",
+    "A42": "Additional eligible reservations"
+  }
+}
