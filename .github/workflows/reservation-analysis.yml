@@ -1,0 +1,33 @@
+name: Standalone reservation analysis
+on:
+  push:
+    branches: [development, main]
+    paths:
+      - 'scripts/reservation_analysis/**'
+      - 'scripts/reservation_analysis.py'
+      - 'scripts/compare_reservation_analysis.py'
+      - 'scripts/requirements-reservation-analysis.txt'
+      - 'tests/reservation-analysis/**'
+      - '.github/workflows/reservation-analysis.yml'
+  pull_request:
+    branches: [development, main]
+    paths:
+      - 'scripts/reservation_analysis/**'
+      - 'scripts/reservation_analysis.py'
+      - 'scripts/compare_reservation_analysis.py'
+      - 'scripts/requirements-reservation-analysis.txt'
+      - 'tests/reservation-analysis/**'
+      - '.github/workflows/reservation-analysis.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the standalone dependency
+        run: |
+          python3 -m venv .venv-reservation-analysis
+          .venv-reservation-analysis/bin/python -m pip install -r scripts/requirements-reservation-analysis.txt
+      - name: Verify public synthetic fixtures
+        run: .venv-reservation-analysis/bin/python -m unittest discover -s tests/reservation-analysis -v
