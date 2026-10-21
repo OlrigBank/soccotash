@@ -6,6 +6,41 @@ AI service, database connection, Node.js, existing workbook or spreadsheet
 application. Python 3.10 or later and the pinned XlsxWriter and timezone-data dependencies are required.
 Pricing normalisation is deliberately pinned to method **1.1** for reproducibility.
 
+## Guided command (recommended for new exports)
+
+From the repository root, run:
+
+```bash
+npm run airbnb:analyse
+```
+
+This provides prompts similar to `airbnb:import`, but works entirely from local
+export files and never connects to a database. No database URL or encryption key
+is required. Choose the ZIP exported from your desired environment.
+
+The prompts ask for the ZIP path, optional matching status-evidence JSON,
+optional cutoff date and output workbook path. Paths may be absolute or relative
+to the repository root, may contain spaces and may be pasted with surrounding
+quotes. Leave status evidence blank unless you have reviewed evidence for that
+exact ZIP. Leave the cutoff blank to use the export date, not today's date.
+
+A fresh timestamped output directory is suggested. Existing workbooks and guides
+are never overwritten by this command. Confirm the displayed choices to generate
+both files. On first use it offers to create the local Python environment and
+install the pinned dependencies; this requires Python 3.10+ with venv support and
+may require internet access. Later runs reuse that environment. Ctrl+C cancels.
+
+The export can stay in Downloads or be placed under
+`docs/source-material/airbnb/`. ZIPs in that repository directory, `outputs/` and
+the local Python environment are ignored by Git. Keep other private paths out of
+commits too. The direct commands below remain available for reproducibility and
+private diagnosis. The wrapper reports a failed generation without printing
+potentially private validation details.
+
+On a system without npm, run `python3 scripts/run_reservation_analysis.py`.
+On Windows, use `py -3 scripts/run_reservation_analysis.py` if `python3` is not
+available.
+
 ## Install and reproduce the current analysis
 
 Run these commands from the repository root. The virtual environment can instead

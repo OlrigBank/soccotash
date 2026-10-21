@@ -50,7 +50,8 @@ export async function startAirbnbPartialPreview(port = 8091) {
     const conflicting = structuredClone(document);
     delete conflicting.booking.conversationCompleteness;
     conflicting.sha256 = crypto.createHash('sha256').update('conflicting-completeness').digest('hex');
-    await assert.rejects(importAirbnbReservations({ ...input, documents: [conflicting] }, fixture.database), /conflicts/);
+    conflicting.relativePath = 'output/pdf/disposable-other-evidence.pdf';
+    assert.equal((await importAirbnbReservations({ ...input, documents: [conflicting] }, fixture.database)).reservationsUpdated, 0);
     const invalid = structuredClone(document);
     invalid.booking.financialSummaries[0].arithmeticStatus = 'discrepancy';
     await assert.rejects(importAirbnbReservations({ ...input, documents: [invalid] }, fixture.database), /verified finances/);

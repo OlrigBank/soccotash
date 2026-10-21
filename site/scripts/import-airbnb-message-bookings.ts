@@ -42,57 +42,64 @@ function pageCount(pdfInfo: string, filename: string): number {
   return pages;
 }
 
-const directories = process.argv.length > 2 ? process.argv.slice(2).map((value) => path.resolve(value)) : defaultDirectories;
-const key = encryptionKey();
-const documents: AirbnbBookingImportDocument[] = [];
-for (const directory of directories) {
-  const relativeDirectory = path.relative(repositoryDirectory, directory);
-  if (!relativeDirectory || relativeDirectory.startsWith('..') || path.isAbsolute(relativeDirectory)) {
-    throw new Error('Booking directories must be private paths inside the repository.');
-  }
-  const filenames = (await readdir(directory)).filter((name) => name.endsWith('.pdf'))
-    .sort((left, right) => left.localeCompare(right, 'en-GB', { numeric: true }));
-  for (const filename of filenames) {
-    const pdfPath = path.join(directory, filename);
-    const [buffer, extracted, metadata] = await Promise.all([
-      readFile(pdfPath),
-      execFile('pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 8 * 1024 * 1024 }),
-      execFile('pdfinfo', [pdfPath], { maxBuffer: 1024 * 1024 }),
-    ]);
-    let booking;
-    try {
-      booking = parseAirbnbBookingPdfText(extracted.stdout);
-    } catch (error) {
-      throw new Error(`${filename}: ${error instanceof Error ? error.message : error}`, { cause: error });
+export async function loadBookingDocuments(directories: string[], key: Buffer, keyVersion = 1): Promise<AirbnbBookingImportDocument[]> {
+  const documents: AirbnbBookingImportDocument[] = [];
+  for (const directory of directories) {
+    const relativeDirectory = path.relative(repositoryDirectory, directory);
+    if (!relativeDirectory || relativeDirectory.startsWith('..') || path.isAbsolute(relativeDirectory)) {
+      throw new Error('Booking directories must be private paths inside the repository.');
     }
-    if (booking.conversationCompleteness) {
-      const terminalRoot = path.join(repositoryDirectory, 'output/pdf/airbnb-terminal');
-      const parts = path.relative(terminalRoot, pdfPath).split(path.sep);
-      if (parts.length !== 3 || parts[0] === '..' || parts[1] !== 'bookings' || parts[2] !== `${booking.source.conversationId}.pdf`) {
-        throw new Error('Incomplete booking PDF must retain its terminal capture run and JSON sidecar.');
+    const filenames = (await readdir(directory)).filter((name) => name.endsWith('.pdf'))
+      .sort((left, right) => left.localeCompare(right, 'en-GB', { numeric: true }));
+    for (const filename of filenames) {
+      const pdfPath = path.join(directory, filename);
+      const [buffer, extracted, metadata] = await Promise.all([
+        readFile(pdfPath),
+        execFile('pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 8 * 1024 * 1024 }),
+        execFile('pdfinfo', [pdfPath], { maxBuffer: 1024 * 1024 }),
+      ]);
+      let booking;
+      try {
+        booking = parseAirbnbBookingPdfText(extracted.stdout);
+      } catch (error) {
+        throw new Error(`${filename}: ${error instanceof Error ? error.message : error}`, { cause: error });
       }
-      const rawPath = path.join(repositoryDirectory, '.airbnb-capture/runs', parts[0], 'bookings', `${booking.source.conversationId}.json`);
-      const capture = JSON.parse(await readFile(rawPath, 'utf8'));
-      verifyPdfText('bookings', capture, extracted.stdout);
+      if (booking.conversationCompleteness) {
+        const terminalRoot = path.join(repositoryDirectory, 'output/pdf/airbnb-terminal');
+        const parts = path.relative(terminalRoot, pdfPath).split(path.sep);
+        if (parts.length !== 3 || parts[0] === '..' || parts[1] !== 'bookings' || parts[2] !== `${booking.source.conversationId}.pdf`) {
+          throw new Error('Incomplete booking PDF must retain its terminal capture run and JSON sidecar.');
+        }
+        const rawPath = path.join(repositoryDirectory, '.airbnb-capture/runs', parts[0], 'bookings', `${booking.source.conversationId}.json`);
+        const capture = JSON.parse(await readFile(rawPath, 'utf8'));
+        verifyPdfText('bookings', capture, extracted.stdout);
+      }
+      documents.push({
+        relativePath: path.relative(repositoryDirectory, pdfPath),
+        sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+        pageCount: pageCount(metadata.stdout, filename),
+        booking,
+        accessCodeCiphertext: booking.reservation.accessCode ? encryptAccessCode(booking.reservation.accessCode, key) : null,
+        accessCodeKeyVersion: booking.reservation.accessCode ? keyVersion : null,
+      });
     }
-    documents.push({
-      relativePath: path.relative(repositoryDirectory, pdfPath),
-      sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
-      pageCount: pageCount(metadata.stdout, filename),
-      booking,
-      accessCodeCiphertext: booking.reservation.accessCode ? encryptAccessCode(booking.reservation.accessCode, key) : null,
-      accessCodeKeyVersion: booking.reservation.accessCode ? Number(process.env.AIRBNB_IMPORT_ENCRYPTION_KEY_VERSION || 1) : null,
-    });
   }
+  if (!documents.length) throw new Error('No Airbnb booking PDFs found.');
+  return documents;
 }
-if (!documents.length) throw new Error('No Airbnb booking PDFs found.');
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('DATABASE_URL is required.');
-const database = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined, max: 2 });
-try {
-  const snapshot = documents.map((item) => item.booking.source.capturedAt.slice(0, 10)).sort().at(-1)!;
-  const result = await importAirbnbReservations({ sourceSnapshotOn: snapshot, documents }, database);
-  console.log(`Airbnb booking import batch ${result.batchId} completed: ${result.documentsProcessed} documents processed, ${result.documentsAdded} documents added, ${result.reservationsAdded} reservations added, ${result.reservationsUnchanged} reservation captures matched.`);
-} finally {
-  await database.end();
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const directories = process.argv.length > 2 ? process.argv.slice(2).map((value) => path.resolve(value)) : defaultDirectories;
+  const documents = await loadBookingDocuments(directories, encryptionKey(), Number(process.env.AIRBNB_IMPORT_ENCRYPTION_KEY_VERSION || 1));
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is required.');
+  const database = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined, max: 2 });
+  try {
+    const snapshot = documents.map((item) => item.booking.source.capturedAt.slice(0, 10)).sort().at(-1)!;
+    const result = await importAirbnbReservations({ sourceSnapshotOn: snapshot, documents }, database);
+    console.log(`Airbnb booking import batch ${result.batchId} completed: ${result.documentsProcessed} documents processed, ${result.documentsAdded} documents added, ${result.reservationsAdded} reservations added, ${result.reservationsUpdated} reservations updated, ${result.reservationsUnchanged} reservation captures unchanged.`);
+  } finally {
+    await database.end();
+  }
+
 }

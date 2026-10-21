@@ -22,7 +22,7 @@ export class AirbnbReservationImportConflict extends Error {
   }
 }
 
-function canonicalPayload(booking: ParsedAirbnbBooking): unknown {
+export function canonicalPayload(booking: ParsedAirbnbBooking): unknown {
   const reservation = { ...booking.reservation, accessCode: booking.reservation.accessCode ? '[encrypted]' : null };
   return {
     heading: booking.heading,
@@ -30,10 +30,6 @@ function canonicalPayload(booking: ParsedAirbnbBooking): unknown {
     conversationEntries: booking.conversationEntries,
     ...(booking.conversationCompleteness ? { conversationCompleteness: booking.conversationCompleteness } : {}),
   };
-}
-
-function storedPayload(value: ParsedAirbnbBooking): unknown {
-  return canonicalPayload(value);
 }
 
 async function insertConversation(client: PoolClient, reservationId: string, booking: ParsedAirbnbBooking): Promise<void> {
@@ -169,6 +165,74 @@ async function insertReservation(
   await syncFinancialSummaries(client, reservationId, booking);
 }
 
+// A newer capture updates the statistical record, not the immutable source evidence.
+async function updateReservation(client: PoolClient, id: string, document: AirbnbBookingImportDocument): Promise<void> {
+  const { booking } = document;
+  const value = booking.reservation;
+  const fields: Record<string, keyof ParsedAirbnbBooking['reservation']> = {
+    confirmation_code: 'confirmationCode', property_id: 'propertyId', source_listing_name: 'sourceListingName',
+    booker_display_name: 'bookerDisplayName', party_display_name: 'partyDisplayName',
+    arrival: 'arrival', departure: 'departure', nights: 'nights', check_in_time: 'checkInTime', check_out_time: 'checkOutTime',
+    party_size: 'partySize', adults: 'adults', children: 'children', infants: 'infants', pets: 'pets',
+    booking_date: 'bookingDate', source_status_text: 'sourceStatusText', cancellation_policy: 'cancellationPolicy',
+  };
+  const validFinances = booking.financialSummaries.length === 2
+    && new Set(booking.financialSummaries.map(s => s.perspective)).size === 2
+    && booking.financialSummaries.every(s => s.arithmeticStatus === 'verified');
+  if (validFinances) {
+    fields.currency = 'currency';
+    fields.headline_host_total_minor = 'headlineHostTotalMinor';
+  }
+  const parameters: unknown[] = [id];
+  const assignments = Object.entries(fields).flatMap(([column, key]) => {
+    const incoming = value[key];
+    if (incoming === null || incoming === undefined || (typeof incoming === 'string' && !incoming.trim())) return [];
+    parameters.push(incoming);
+    return [`${column}=$${parameters.length}`];
+  });
+  parameters.push(booking.source.capturedAt);
+  await client.query(`UPDATE airbnb_reservations SET ${assignments.join(',')}, source_captured_at=$${parameters.length}::timestamptz, updated_at=NOW() WHERE id=$1`, parameters);
+  await client.query(`INSERT INTO airbnb_reservation_private_details
+    (reservation_id,host_notes,guest_profile_text,access_code_ciphertext,access_code_key_version,access_code_expires_at)
+    VALUES($1,$2,$3,$4,$5,CASE WHEN $4::bytea IS NOT NULL THEN $6::date + TIME '12:00' ELSE NULL END)
+    ON CONFLICT(reservation_id) DO UPDATE SET
+      host_notes=COALESCE(EXCLUDED.host_notes,airbnb_reservation_private_details.host_notes),
+      guest_profile_text=COALESCE(EXCLUDED.guest_profile_text,airbnb_reservation_private_details.guest_profile_text),
+      access_code_ciphertext=COALESCE(EXCLUDED.access_code_ciphertext,airbnb_reservation_private_details.access_code_ciphertext),
+      access_code_key_version=COALESCE(EXCLUDED.access_code_key_version,airbnb_reservation_private_details.access_code_key_version),
+      access_code_expires_at=CASE WHEN COALESCE(EXCLUDED.access_code_ciphertext,airbnb_reservation_private_details.access_code_ciphertext) IS NOT NULL THEN $6::date + TIME '12:00' ELSE NULL END,
+      updated_at=NOW()`, [id, value.hostNotes?.trim() || null, value.guestProfileText?.trim() || null,
+    document.accessCodeCiphertext, document.accessCodeCiphertext ? document.accessCodeKeyVersion : null, value.departure]);
+  if (validFinances) {
+    // Totals and their dependent lines are replaced together within this transaction.
+    await client.query('DELETE FROM airbnb_financial_summaries WHERE reservation_id=$1', [id]);
+    await syncFinancialSummaries(client, id, booking);
+  }
+  if (!booking.conversationCompleteness) await appendNewMessages(client, id, booking);
+}
+
+async function appendNewMessages(client: PoolClient, id: string, booking: ParsedAirbnbBooking): Promise<void> {
+  const stored = (await client.query<{ position: number; raw_entry: ParsedAirbnbBooking['conversationEntries'][number] }>(
+    'SELECT position, raw_entry FROM airbnb_conversation_entries WHERE reservation_id=$1 ORDER BY position', [id])).rows;
+  const known = stored.map(row => row.raw_entry);
+  const normalise = (text: string) => text.replace(/\s+/gu, ' ').trim();
+  let position = stored.reduce((max, row) => Math.max(max, row.position), -1) + 1;
+  // Without stable Airbnb message IDs, only append unambiguous dated entries
+  // after the stored timeline. Edited/undated/overlapping entries remain in evidence.
+  let latest = known.reduce((max, entry) => Math.max(max, entry.sentAt ? Date.parse(entry.sentAt) : 0), 0);
+  const additions: ParsedAirbnbBooking['conversationEntries'] = [];
+  for (const entry of booking.conversationEntries) {
+    if (known.some(old => old.senderType === entry.senderType && normalise(old.body) === normalise(entry.body)
+      && (!old.sentAt || !entry.sentAt || old.sentAt === entry.sentAt))) continue;
+    const time = entry.sentAt ? Date.parse(entry.sentAt) : NaN;
+    if (!Number.isFinite(time) || (known.length && (!latest || time <= latest))) continue;
+    additions.push({ ...entry, position: position++ });
+    known.push(entry);
+    latest = Math.max(latest, time);
+  }
+  await insertConversation(client, id, { ...booking, conversationEntries: additions });
+}
+
 export async function importAirbnbReservations(
   input: { sourceSnapshotOn: string; documents: AirbnbBookingImportDocument[] },
   database: Pool,
@@ -178,6 +242,7 @@ export async function importAirbnbReservations(
   documentsAdded: number;
   reservationsAdded: number;
   reservationsUnchanged: number;
+  reservationsUpdated: number;
 }> {
   const batch = await database.query<{ id: string }>(
     `INSERT INTO airbnb_import_batches
@@ -190,8 +255,10 @@ export async function importAirbnbReservations(
   let documentsAdded = 0;
   let reservationsAdded = 0;
   let reservationsUnchanged = 0;
+  let reservationsUpdated = 0;
   try {
     await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('airbnb-booking-import'))");
     for (const document of input.documents) {
       const conversationId = document.booking.source.conversationId;
       if (document.booking.conversationCompleteness && (document.booking.conversationEntries.length
@@ -200,8 +267,8 @@ export async function importAirbnbReservations(
         || document.booking.financialSummaries.some(item => item.arithmeticStatus !== 'verified'))) {
         throw new AirbnbReservationImportConflict(conversationId, 'incomplete conversation requires no message entries and verified finances');
       }
-      const hashMatch = await client.query<{ id: string; document_type: string; source_external_id: string }>(
-        `SELECT id::text, document_type, source_external_id
+      const hashMatch = await client.query<{ id: string; document_type: string; source_external_id: string; raw_extraction: ParsedAirbnbBooking }>(
+        `SELECT id::text, document_type, source_external_id, raw_extraction
            FROM airbnb_source_documents WHERE sha256 = $1`,
         [document.sha256],
       );
@@ -209,20 +276,18 @@ export async function importAirbnbReservations(
         || hashMatch.rows[0].source_external_id !== conversationId)) {
         throw new AirbnbReservationImportConflict(conversationId, 'document hash belongs to different source evidence');
       }
-      const existing = await client.query<{ id: string; raw_extraction: ParsedAirbnbBooking }>(
-        `SELECT reservation.id::text, source.raw_extraction
+      if (hashMatch.rowCount && (!isDeepStrictEqual(canonicalPayload(hashMatch.rows[0].raw_extraction), canonicalPayload(document.booking))
+        || !isDeepStrictEqual(hashMatch.rows[0].raw_extraction.financialSummaries, document.booking.financialSummaries))) {
+        throw new AirbnbReservationImportConflict(conversationId, 'same source hash has different parsed content');
+      }
+      const existing = await client.query<{ id: string; source_captured_at: Date; raw_extraction: ParsedAirbnbBooking }>(
+        `SELECT reservation.id::text, reservation.source_captured_at, source.raw_extraction
            FROM airbnb_reservations reservation
            JOIN airbnb_reservation_documents link ON link.reservation_id = reservation.id AND link.is_preferred
            JOIN airbnb_source_documents source ON source.id = link.source_document_id
           WHERE reservation.conversation_id = $1`,
         [conversationId],
       );
-      if (existing.rowCount && !isDeepStrictEqual(
-        storedPayload(existing.rows[0].raw_extraction),
-        canonicalPayload(document.booking),
-      )) {
-        throw new AirbnbReservationImportConflict(conversationId, 'canonical content conflicts with stored evidence');
-      }
       let sourceDocumentId = hashMatch.rows[0]?.id;
       if (!sourceDocumentId) {
         const rawExtraction = structuredClone(document.booking);
@@ -240,27 +305,34 @@ export async function importAirbnbReservations(
         documentsAdded += 1;
       }
       if (existing.rowCount) {
-        await syncFinancialSummaries(client, existing.rows[0].id, document.booking);
+
         await client.query(
           `INSERT INTO airbnb_reservation_documents (reservation_id, source_document_id, is_preferred)
            VALUES ($1, $2, FALSE) ON CONFLICT (source_document_id) DO NOTHING`,
           [existing.rows[0].id, sourceDocumentId],
         );
-        reservationsUnchanged += 1;
+        if (new Date(document.booking.source.capturedAt).getTime() > new Date(existing.rows[0].source_captured_at).getTime()) {
+          await updateReservation(client, existing.rows[0].id, document);
+          await client.query('UPDATE airbnb_reservation_documents SET is_preferred=FALSE WHERE reservation_id=$1', [existing.rows[0].id]);
+          await client.query('UPDATE airbnb_reservation_documents SET is_preferred=TRUE WHERE reservation_id=$1 AND source_document_id=$2', [existing.rows[0].id, sourceDocumentId]);
+          reservationsUpdated += 1;
+        } else {
+          reservationsUnchanged += 1;
+        }
       } else {
         await insertReservation(client, document, sourceDocumentId);
         reservationsAdded += 1;
       }
     }
     await client.query(
-      `UPDATE airbnb_import_batches SET status='completed', imported_count=$2, completed_at=NOW() WHERE id=$1`,
-      [batchId, input.documents.length],
+      `UPDATE airbnb_import_batches SET status='completed', imported_count=$2, completed_at=NOW(), diagnostics=jsonb_build_object('reservationsUpdated',$3::int) WHERE id=$1`,
+      [batchId, input.documents.length, reservationsUpdated],
     );
     await client.query('COMMIT');
-    return { batchId, documentsProcessed: input.documents.length, documentsAdded, reservationsAdded, reservationsUnchanged };
+    return { batchId, documentsProcessed: input.documents.length, documentsAdded, reservationsAdded, reservationsUnchanged, reservationsUpdated };
   } catch (error) {
     await client.query('ROLLBACK');
-    await database.query(
+    await client.query(
       `UPDATE airbnb_import_batches
           SET status='failed', completed_at=NOW(), diagnostics=jsonb_build_object('errorCode',$2::text)
         WHERE id=$1`,
