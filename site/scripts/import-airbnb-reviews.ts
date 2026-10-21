@@ -40,49 +40,57 @@ function databaseSsl(): { rejectUnauthorized: false } | undefined {
   return process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined;
 }
 
-const { directory } = parseArguments(process.argv.slice(2));
-const relativeDirectory = path.relative(repositoryDirectory, directory);
-if (!relativeDirectory || relativeDirectory.startsWith('..') || path.isAbsolute(relativeDirectory)) {
-  throw new Error('Review directory must be a private path inside the repository.');
+export async function loadReviewDocuments(directory: string): Promise<AirbnbReviewImportDocument[]> {
+  const relativeDirectory = path.relative(repositoryDirectory, directory);
+  if (!relativeDirectory || relativeDirectory.startsWith('..') || path.isAbsolute(relativeDirectory)) {
+    throw new Error('Review directory must be a private path inside the repository.');
+  }
+
+  const filenames = (await readdir(directory))
+    .filter((filename) => filename.toLocaleLowerCase('en-GB').endsWith('.pdf'))
+    .sort((left, right) => left.localeCompare(right, 'en-GB', { numeric: true }));
+  if (!filenames.length) throw new Error('No Airbnb review PDFs found.');
+
+  const documents: AirbnbReviewImportDocument[] = [];
+  for (const filename of filenames) {
+    const pdfPath = path.join(directory, filename);
+    const [buffer, extracted, metadata] = await Promise.all([
+      readFile(pdfPath),
+      execFile('pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 4 * 1024 * 1024 }),
+      execFile('pdfinfo', [pdfPath], { maxBuffer: 1024 * 1024 }),
+    ]);
+    const review = parseReviewPdfText(extracted.stdout, filename) as ParsedAirbnbReview;
+    documents.push({
+      relativePath: path.relative(repositoryDirectory, pdfPath),
+      sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+      pageCount: pageCount(metadata.stdout, filename),
+      capturedAt: `${review.source.capturedAt}T00:00:00.000Z`,
+      review,
+    });
+  }
+
+  return documents;
 }
 
-const filenames = (await readdir(directory))
-  .filter((filename) => filename.toLocaleLowerCase('en-GB').endsWith('.pdf'))
-  .sort((left, right) => left.localeCompare(right, 'en-GB', { numeric: true }));
-if (!filenames.length) throw new Error('No Airbnb review PDFs found.');
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const { directory } = parseArguments(process.argv.slice(2));
+  const documents = await loadReviewDocuments(directory);
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is required.');
+  const database = new Pool({ connectionString: databaseUrl, ssl: databaseSsl(), max: 2 });
+  try {
+    const sourceSnapshotOn = documents
+      .map((document) => document.review.source.capturedAt)
+      .sort()
+      .at(-1)!;
+    const result = await importAirbnbReviews({ sourceSnapshotOn, documents }, database);
+    console.log(
+      `Airbnb review import batch ${result.batchId} completed: `
+      + `${result.documentsProcessed} documents processed, ${result.documentsAdded} documents added, `
+      + `${result.reviewsAdded} reviews added, ${result.reviewsUnchanged} reviews unchanged.`,
+    );
+  } finally {
+    await database.end();
+  }
 
-const documents: AirbnbReviewImportDocument[] = [];
-for (const filename of filenames) {
-  const pdfPath = path.join(directory, filename);
-  const [buffer, extracted, metadata] = await Promise.all([
-    readFile(pdfPath),
-    execFile('pdftotext', ['-layout', pdfPath, '-'], { maxBuffer: 4 * 1024 * 1024 }),
-    execFile('pdfinfo', [pdfPath], { maxBuffer: 1024 * 1024 }),
-  ]);
-  const review = parseReviewPdfText(extracted.stdout, filename) as ParsedAirbnbReview;
-  documents.push({
-    relativePath: path.relative(repositoryDirectory, pdfPath),
-    sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
-    pageCount: pageCount(metadata.stdout, filename),
-    capturedAt: `${review.source.capturedAt}T00:00:00.000Z`,
-    review,
-  });
-}
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('DATABASE_URL is required.');
-const database = new Pool({ connectionString: databaseUrl, ssl: databaseSsl(), max: 2 });
-try {
-  const sourceSnapshotOn = documents
-    .map((document) => document.review.source.capturedAt)
-    .sort()
-    .at(-1)!;
-  const result = await importAirbnbReviews({ sourceSnapshotOn, documents }, database);
-  console.log(
-    `Airbnb review import batch ${result.batchId} completed: `
-    + `${result.documentsProcessed} documents processed, ${result.documentsAdded} documents added, `
-    + `${result.reviewsAdded} reviews added, ${result.reviewsUnchanged} reviews unchanged.`,
-  );
-} finally {
-  await database.end();
 }

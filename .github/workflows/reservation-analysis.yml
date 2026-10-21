@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/reservation_analysis/**'
       - 'scripts/reservation_analysis.py'
+      - 'scripts/run_reservation_analysis.py'
       - 'scripts/compare_reservation_analysis.py'
       - 'scripts/requirements-reservation-analysis.txt'
       - 'tests/reservation-analysis/**'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'scripts/reservation_analysis/**'
       - 'scripts/reservation_analysis.py'
+      - 'scripts/run_reservation_analysis.py'
       - 'scripts/compare_reservation_analysis.py'
       - 'scripts/requirements-reservation-analysis.txt'
       - 'tests/reservation-analysis/**'
