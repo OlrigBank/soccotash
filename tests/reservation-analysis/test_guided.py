@@ -5,17 +5,24 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'scripts'))
 spec = importlib.util.spec_from_file_location('guided', ROOT / 'scripts/run_reservation_analysis.py')
 guided = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guided)
 
 
 class GuidedTests(unittest.TestCase):
+    def setUp(self):
+        discovery = patch.object(guided, 'discover_csv_files', return_value=[])
+        discovery.start()
+        self.addCleanup(discovery.stop)
+
     def test_paths_defaults_and_optional_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'export with spaces.zip'
@@ -44,6 +51,17 @@ class GuidedTests(unittest.TestCase):
             self.assertEqual(guided.main([], run=lambda *a, **kw: self.fail('must not execute')), 0)
         with patch.object(guided, 'collect_options', side_effect=KeyboardInterrupt), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(guided.main([]), 130)
+
+    def test_detected_csv_files_are_displayed_and_passed_to_generator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'export.zip'; source.touch()
+            answers = iter([str(source), '', '', str(Path(tmp) / 'new.xlsx'), 'yes'])
+            capture = io.StringIO()
+            with patch.object(guided, 'discover_csv_files', return_value=[Path(tmp) / 'reservations-1.csv']), contextlib.redirect_stdout(capture):
+                args = guided.collect_options(lambda _: next(answers))
+            self.assertEqual(args[-2:], ['--reservation-csv-dir', str(guided.DEFAULT_CSV_DIRECTORY)])
+            self.assertIn('reservations-1.csv', capture.getvalue())
+            self.assertIn('Pricing calculations remain unchanged', capture.getvalue())
 
     def test_setup_requires_confirmation_and_uses_argument_arrays(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(guided, 'VENV', Path(tmp) / 'venv'), contextlib.redirect_stdout(io.StringIO()):

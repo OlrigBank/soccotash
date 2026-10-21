@@ -13,6 +13,7 @@ from pathlib import Path
 
 from reservation_analysis.model import analyse, load_evidence, load_source, PRODUCTS
 from reservation_analysis.workbook import Workbook
+from reservation_analysis.reconciliation import DEFAULT_CSV_DIRECTORY, discover_csv_files, reconcile, guide_section
 
 
 def usage_guide(analysis, workbook, filename):
@@ -127,7 +128,7 @@ with authorised recipients: reservation identifiers and financial text are priva
 """
 
 
-def generate(source_path, evidence_path, output, as_of=None, force=False):
+def generate(source_path, evidence_path, output, as_of=None, force=False, *, reservation_csv_dir=DEFAULT_CSV_DIRECTORY):
     output = Path(output).resolve()
     if output.suffix.lower() != '.xlsx':
         raise ValueError('Output must have an .xlsx extension.')
@@ -139,22 +140,28 @@ def generate(source_path, evidence_path, output, as_of=None, force=False):
     source = load_source(source_path)
     evidence = load_evidence(evidence_path, source)
     analysis = analyse(source, evidence, as_of)
+    csv_files = discover_csv_files(reservation_csv_dir)
+    reconciliation = reconcile(source, csv_files) if csv_files else None
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.reservation-analysis-', dir=output.parent) as temp:
         draft = Path(temp) / output.name
-        workbook = Workbook(draft, analysis)
+        workbook = Workbook(draft, analysis, reconciliation=reconciliation)
         workbook.build(guide.name)
         guide_draft = Path(temp) / guide.name
-        guide_draft.write_text(usage_guide(analysis, workbook, output.name), encoding='utf-8')
+        guide_draft.write_text(usage_guide(analysis, workbook, output.name) + guide_section(reconciliation), encoding='utf-8')
         for src, dest in [(draft, output), (guide_draft, guide)]:
             os.chmod(src, 0o600)
             if force:
                 os.replace(src, dest)
             else:
                 os.link(src, dest)  # Atomic, and never replaces a concurrently created file.
-    return dict(output=str(output), guide=str(guide), source_sha256=source['sha256'], reservations=len(analysis['states']),
+    result = dict(output=str(output), guide=str(guide), source_sha256=source['sha256'], reservations=len(analysis['states']),
                 financial_lines=len(workbook.line_rows), panels=len(analysis['panel_rows']), status_adjustments=analysis['adjustments'],
                 eligible_reservations=sum(s['eligible'] for s in analysis['states']), eligible_nights=len(analysis['nights']))
+    if reconciliation is not None:
+        result['reconciliation'] = reconciliation['summary']
+        result['reservation_csv_sources'] = reconciliation['provenance']
+    return result
 
 
 def main():
@@ -164,9 +171,14 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='New XLSX path; also writes a companion -guide.md.')
     parser.add_argument('--as-of', help='Eligibility cutoff YYYY-MM-DD; defaults to the export date in Europe/London.')
     parser.add_argument('--force', action='store_true', help='Replace an existing output and guide.')
+    csv_options = parser.add_mutually_exclusive_group()
+    csv_options.add_argument('--reservation-csv-dir', type=Path, default=DEFAULT_CSV_DIRECTORY,
+                             help='Reservation-page CSV directory; defaults to the repository source-material directory.')
+    csv_options.add_argument('--no-reservation-csvs', action='store_true', help='Disable CSV reconciliation and reproduce the original 13 tabs.')
     args = parser.parse_args()
     try:
-        print(json.dumps(generate(args.source, args.status_evidence, args.output, args.as_of, args.force)))
+        print(json.dumps(generate(args.source, args.status_evidence, args.output, args.as_of, args.force,
+                                  reservation_csv_dir=None if args.no_reservation_csvs else args.reservation_csv_dir)))
         return 0
     except (ValueError, KeyError, OSError, zipfile.BadZipFile, csv.Error) as error:
         # Errors intentionally identify structure, never print reservation rows or financial text.

@@ -40,8 +40,9 @@ def bands(r):
 
 
 class Workbook:
-    def __init__(self, path, analysis):
+    def __init__(self, path, analysis, reconciliation=None):
         self.a = analysis
+        self.reconciliation = reconciliation
         self.source = analysis['source']
         self.layout = json.loads(Path(__file__).with_name('layout.json').read_text(encoding='utf-8'))
         self.book = xlsxwriter.Workbook(path, {'strings_to_formulas': False, 'strings_to_urls': False})
@@ -472,5 +473,8 @@ class Workbook:
     def build(self, guide_name):
         self.sources(); self.stays(); self.statuses(); self.nightly(); self.prices(); self.monthly()
         self.patterns(); self.audit(); self.overview(); self.unknown(); self.read_me(guide_name)
+        if self.reconciliation is not None:
+            from .reconciliation_workbook import ReconciliationWorkbook
+            ReconciliationWorkbook(self, self.reconciliation).build()
         self.sheets['Overview'].activate()
         self.book.close()

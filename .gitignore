@@ -64,6 +64,8 @@ airbnb-*.ics
 
 # Private reservation analysis exports, generated workbooks and Python environment.
 /docs/source-material/airbnb/*.zip
+/docs/source-material/airbnb/airbnb-reservations-csv-exports/*
+!/docs/source-material/airbnb/airbnb-reservations-csv-exports/README.md
 /outputs/
 /scripts/.venv-reservation-analysis/
 /scripts/__pycache__/
