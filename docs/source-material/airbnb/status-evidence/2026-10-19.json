@@ -1,0 +1,372 @@
+{
+  "schema_version": "1.0",
+  "archive_sha256": "6b7fac33df0446a9a02f3182bad73fa477d60c25eec5c2e8e8fd0cd655914a8c",
+  "audited_on": "2026-10-20",
+  "audit_reference": "reservation-admin-reconciliation.xlsx / Status evidence",
+  "adjustments": [
+    {
+      "reservation_id": "3570058f-9de0-41a9-bde0-6cf77b3017a2",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Airbnb Request accepted service event",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Nov 9, 2024"
+        }
+      ]
+    },
+    {
+      "reservation_id": "b5221f3c-caa9-4b69-afc8-d863bc1ca130",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Airbnb Request accepted service event",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 6,
+          "displayed_date": "Nov 9, 2024"
+        }
+      ]
+    },
+    {
+      "reservation_id": "d7325156-52f2-44e0-90b7-510d208c09f3",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Dec 15, 2025"
+        }
+      ]
+    },
+    {
+      "reservation_id": "6eae75fa-09a1-496f-8869-80e170e47b56",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Nov 19, 2025"
+        }
+      ]
+    },
+    {
+      "reservation_id": "62d93788-01a0-4b0f-b399-92dcb148a0e0",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 3,
+          "displayed_date": "Feb 27"
+        }
+      ]
+    },
+    {
+      "reservation_id": "aa63784a-b9ba-41dc-a927-5f57efd48e94",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Mar 6"
+        }
+      ]
+    },
+    {
+      "reservation_id": "af06e16e-e2b3-4970-ab0d-5357c92c6366",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Mar 9"
+        }
+      ]
+    },
+    {
+      "reservation_id": "e6421066-a722-496c-a25c-16a1ad2c1c43",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Mar 18"
+        }
+      ]
+    },
+    {
+      "reservation_id": "b4cc1f40-5847-4f43-a0f3-9695a7c0db45",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 4,
+          "displayed_date": "Feb 24"
+        }
+      ]
+    },
+    {
+      "reservation_id": "a49f02d3-1755-434a-b69a-de1519ae5afc",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Mar 5"
+        }
+      ]
+    },
+    {
+      "reservation_id": "a49f6098-2f9a-4638-aab0-2ce7f9de6417",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Dec 11, 2025"
+        }
+      ]
+    },
+    {
+      "reservation_id": "f082a0e8-df18-41f2-822d-b53a14b0903a",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Mar 6"
+        }
+      ]
+    },
+    {
+      "reservation_id": "83594347-5c20-4566-83be-86e84aaeba95",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jan 4"
+        }
+      ]
+    },
+    {
+      "reservation_id": "012b3bda-5a73-48f5-8a40-c4a413740cb1",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Apr 3"
+        }
+      ]
+    },
+    {
+      "reservation_id": "fdb33141-e626-4d88-8d57-0d8620013fa5",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jun 15"
+        }
+      ]
+    },
+    {
+      "reservation_id": "829e1916-fd1d-4c7c-9904-f3a32950586b",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Nov 6, 2025"
+        }
+      ]
+    },
+    {
+      "reservation_id": "1c6a616e-5452-40cc-b46c-2e38b5cc8d9d",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jun 22"
+        }
+      ]
+    },
+    {
+      "reservation_id": "78939779-03c7-4731-8102-fd7823470f60",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jun 25"
+        }
+      ]
+    },
+    {
+      "reservation_id": "9b836861-4a1e-41fc-9a2b-107ae27be263",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "May 2"
+        }
+      ]
+    },
+    {
+      "reservation_id": "c7281255-6c04-4a37-a7c8-d8531392cdf4",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 3,
+          "displayed_date": "Jun 28"
+        }
+      ]
+    },
+    {
+      "reservation_id": "5431602b-6f4d-4c7f-b76f-04901629719e",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Apr 17"
+        }
+      ]
+    },
+    {
+      "reservation_id": "2a567fc5-ad6d-4f0b-be8b-b83b8cd03842",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "May 1"
+        }
+      ]
+    },
+    {
+      "reservation_id": "a097de69-3e74-40c1-97d6-1e306f2dd490",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jun 29"
+        }
+      ]
+    },
+    {
+      "reservation_id": "ab3495be-e42a-4ed7-ab9e-46d0cd004aad",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Apr 30"
+        }
+      ]
+    },
+    {
+      "reservation_id": "7622550a-775d-40ff-8ef8-4a2d1dc5c029",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jul 20"
+        }
+      ]
+    },
+    {
+      "reservation_id": "e89f10f8-6e0b-4f59-bd38-96193bc6c7c2",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Apr 4"
+        }
+      ]
+    },
+    {
+      "reservation_id": "f8baaee9-251f-41b7-9ff3-35c65a509914",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Jan 14"
+        }
+      ]
+    },
+    {
+      "reservation_id": "2663d0fe-37e7-4e80-acb0-5799b5b836d1",
+      "original_status": "unknown",
+      "effective_status": "confirmed",
+      "evidence_type": "Confirmed booking card",
+      "cancellation_phrase_count": 0,
+      "entries": [
+        {
+          "position": 2,
+          "displayed_date": "Apr 12"
+        }
+      ]
+    }
+  ]
+}

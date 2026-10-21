@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:reservation-export": "node --experimental-strip-types site/tests/pricing/reservation-export.test.ts",
+    "test:reservation-export-integration": "node --experimental-strip-types tests/pricing-history/reservation-export-integration.test.mjs",
     "pricing:history-report": "node --experimental-strip-types site/scripts/pricing-history-report.ts",
     "test:pricing-history": "node --experimental-strip-types site/tests/pricing/history.test.ts",
     "test:pricing-history-integration": "node --experimental-strip-types tests/pricing-history/history-integration.test.mjs",
