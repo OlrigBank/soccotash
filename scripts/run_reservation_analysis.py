@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from reservation_analysis.reconciliation import DEFAULT_CSV_DIRECTORY, discover_csv_files
+
 ROOT = Path(__file__).resolve().parents[1]
 VENV = ROOT / 'scripts/.venv-reservation-analysis'
 
@@ -68,6 +70,11 @@ def collect_options(ask=input):
         args += ['--status-evidence', str(evidence)]
     if cutoff:
         args += ['--as-of', cutoff]
+    csv_files = discover_csv_files(DEFAULT_CSV_DIRECTORY)
+    print('\nReservation CSV reconciliation: ' + (', '.join(p.name for p in csv_files) if csv_files else 'none (13-tab workbook)'))
+    if csv_files:
+        print('Adds Review, Comparisons, CSV reservations and Extract reservations. Pricing calculations remain unchanged.')
+        args += ['--reservation-csv-dir', str(DEFAULT_CSV_DIRECTORY)]
     print(f'\nSource: {source}\nStatus evidence: {evidence or "none"}\nCutoff: {cutoff or "export date (Europe/London)"}\nWorkbook: {output}\nGuide: {guide}')
     return args if ask('Generate these files? Type yes to continue: ').strip().lower() == 'yes' else None
 
@@ -106,6 +113,9 @@ def main(argv=None, ask=input, run=subprocess.run):
             return result.returncode
         summary = json.loads(result.stdout)
         print(f'\nAnalysis completed.\nWorkbook: {summary["output"]}\nGuide: {summary["guide"]}')
+        if 'reconciliation' in summary:
+            reconciled = summary['reconciliation']
+            print(f'Reconciliation: {reconciled["confirmed_matches"]} confirmed, {reconciled["provisional_matches"]} provisional, {reconciled["unmatched_csv"]} without an extract counterpart, {reconciled["ambiguous_csv"]} ambiguous.')
         return 0
     except (EOFError, KeyboardInterrupt):
         print('\nCancelled.')
