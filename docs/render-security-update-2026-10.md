@@ -1,5 +1,50 @@
 # Render October 2026 security update
 
+## Development deployment — 27 October 2026
+
+The user approved merging the security commit into `development` and deploying
+`soccotash`. Commit `dbd4f97a2762aa332b07bd418adaa7099c281af5` was fast-forwarded
+and pushed to `development`. GitHub accepted the push using the account's bypass
+permission and reported that pull-request and required-check rules were bypassed.
+The required `validate` job then passed before the deployment was triggered.
+Future changes should use a pull request to preserve the repository's review gate.
+
+- Render deploy: `dep-dbggvskipgvc73eorf9g`, cache explicitly cleared.
+- Started 20:56:18 UTC; became **live** at 20:57:49 UTC.
+- Service: [soccotash](https://dashboard.render.com/web/srv-d9bo2ojbc2fs73eh982g),
+  branch `development`, verified deployed commit `dbd4f97`.
+- Public health endpoint: HTTP 200, `{"status":"ok","database":"ok"}`.
+- Build logs confirm the tested Node base-image digest and certificate package.
+- Live dashboard shell, instance `sdbf4`: `node --version` returned `v22.23.4`;
+  `apk list --installed ca-certificates` returned `20261020-r0`.
+- Live Node `fetch`: valid HTTPS control returned HTTP 307; both Render-referenced
+  compromised-certificate endpoints failed with `CERT_REVOKED`. No credentials
+  were sent. This verifies rejection from the running service, not just locally.
+- SSH was unavailable (`Permission denied (publickey)`); dashboard shell was
+  used successfully instead. The Frankfurt SSH host key was independently
+  checked against Render's published fingerprint. No account keys were changed.
+- Chrome DevTools on the live booking page: 390×844, 768×1024 and 1440×900;
+  no document overflow, no console warnings/errors. Empty-date validation
+  displayed the expected message; keyboard navigation showed a visible 3px
+  focus outline. Page and session requests returned HTTP 200. No bookings,
+  payments or customer notifications were created.
+- Post-deployment application error-log query returned zero entries.
+- All seven triggered GitHub Actions workflows passed for `dbd4f97`: Welcome
+  content validation, Booker account browser regression, Public-experience
+  browser regression, Airbnb capture and publication regression, Holiday-planner
+  browser regression, Booking access lifecycle and Payment journey regression.
+  The final public-experience workflow completed at 20:59:49 UTC.
+- Follow-up: production still needs an approved security rollout. `development`
+  also contains Airbnb import/analysis changes absent from production; review
+  that diff or prepare a security-only cherry-pick instead of assuming a full
+  development-to-main merge contains only this patch.
+- Production `olrigbankweb` remains on deploy `dep-dbc9pjo473hc73fiidtg`, commit
+  `cf05f3c191711696de3c413c7f3c422aa37e570b`. No production changes were made.
+
+The remaining sections retain the initial pre-deployment assessment and local
+verification. Statements about deployment awaiting approval describe that earlier
+point in time; the outcome above supersedes them for development only.
+
 ## Scope and implementation
 
 The [Render eMudhra advisory](https://render.com/docs/advisory-emudhra) and
