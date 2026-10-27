@@ -1,4 +1,8 @@
-FROM node:22-alpine AS build
+# Keep build tools and the server on the patched runtime (October 2026 advisory).
+FROM node:22.23.4-alpine AS certificates
+RUN apk add --no-cache --upgrade ca-certificates && update-ca-certificates
+
+FROM certificates AS build
 
 # Render exposes service environment variables to Docker builds as build
 # arguments. Declare and export the public hostname so Astro can include the
@@ -13,7 +17,7 @@ RUN npm ci
 COPY . .
 RUN npm run check && npm run build
 
-FROM node:22-alpine AS runtime
+FROM certificates AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
