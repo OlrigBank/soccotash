@@ -1,5 +1,120 @@
 # Render October 2026 security update
 
+## Production security-only rollout — 27 October 2026
+
+The owner explicitly approved the production rollout after development
+verification. A branch based on production commit
+`cf05f3c191711696de3c413c7f3c422aa37e570b` cherry-picked only the security patch
+and the development verification record. [PR #188](https://github.com/OlrigBank/soccotash/pull/188)
+contains 14 changed files and no application-source or database-migration changes.
+It excludes the unrelated Airbnb import/analysis work on development.
+
+Production's pre-deployment health endpoint returned HTTP 200 with application
+and database healthy. The dashboard shell confirmed its previous runtime was
+Node `v22.23.3`, below the patched minimum. Pre-deployment Lighthouse mobile
+navigation on `/book/` scored accessibility 96, best practices 100, SEO 100 and
+agentic browsing 100. Its sole failure was the already recorded footer paragraph
+contrast (2.4:1). Report: `/tmp/soccotash-production-security-lighthouse-before/`.
+
+The production branch's Node version, Dockerfile and application manifest/lockfile
+are identical to the verified development security release. Existing regression
+workflows run against exact PR head `4c07d3f0ced4857606e0bde4f95913fce5cdb4e8`.
+
+All seven production-branch workflows passed before merging: welcome-content
+validation, booking access lifecycle, booker accounts, Airbnb capture/publication,
+holiday planner, payment journey and public experience. Both required `validate`
+checks were green. The PR merged normally, without a rule bypass, as commit
+`0e5a4bc5766b6c9340051dbbabf27f0049f52ef2`. Remote main's tree was verified
+identical to the tested PR head, with no source or migration changes from the
+previous production version.
+
+The cache-cleared production deployment is `dep-dbgh4s67bikc73biftvg`, started
+at 21:06:56 UTC. Post-merge main checks are monitored separately.
+
+Production became **live** at 21:08:39 UTC on the intended merge commit.
+All three post-merge main workflows also passed (welcome-content validation,
+booking access lifecycle and booker accounts).
+
+Live verification:
+
+- `https://olrig-bank.com/api/health/` returned HTTP 200 with
+  `{"status":"ok","database":"ok"}`.
+- Dashboard shell connected to new instance `4kjmf`, replacing `mh978`.
+  Node returned `v22.23.4`; installed `ca-certificates` is `20261020-r0`.
+  Live package metadata confirms Astro `7.4.2` and `@astrojs/node` `11.1.9`.
+- The production Node HTTP client accepted the valid `https://nodejs.org/`
+  control (HTTP 307), and rejected both Render-referenced compromised-certificate
+  endpoints with `CERT_REVOKED`. These requests originated from the running
+  production instance and sent no credentials.
+- Fresh build logs confirm the tested Node base-image digest
+  `sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914`,
+  the refreshed certificate package and zero reported npm vulnerabilities for
+  both build and production dependency installation.
+- Chrome DevTools on the rebuilt production `/book/`: 390×844, 768×1024 and
+  1440×900; no document or unintended local overflow, no console warnings/errors.
+  Accessible names and headings retained. Empty-date validation displayed the
+  expected message and keyboard navigation showed a visible 3px focus outline.
+  Page and session requests returned HTTP 200.
+- Post-deployment Lighthouse mobile navigation matched the pre-deployment
+  baseline: accessibility 96, best practices 100, SEO 100 and agentic browsing
+  100. The same footer contrast failure remains a separate follow-up; no audit
+  regression was introduced. Report:
+  `/tmp/soccotash-production-security-lighthouse-after/`. These audits exclude
+  performance.
+- Post-deployment application error-log query returned zero entries.
+- No real customer booking, payment or notification was created. Success and
+  continuation journeys were tested through disposable CI fixtures.
+
+Both application services identified in the Render workspace have now received
+the security update. PHP remediation was not applicable to this repository.
+The historical assessments below are retained for context; this completed
+production outcome supersedes their statements that production awaits rollout.
+
+## Development deployment — 27 October 2026
+
+The user approved merging the security commit into `development` and deploying
+`soccotash`. Commit `dbd4f97a2762aa332b07bd418adaa7099c281af5` was fast-forwarded
+and pushed to `development`. GitHub accepted the push using the account's bypass
+permission and reported that pull-request and required-check rules were bypassed.
+The required `validate` job then passed before the deployment was triggered.
+Future changes should use a pull request to preserve the repository's review gate.
+
+- Render deploy: `dep-dbggvskipgvc73eorf9g`, cache explicitly cleared.
+- Started 20:56:18 UTC; became **live** at 20:57:49 UTC.
+- Service: [soccotash](https://dashboard.render.com/web/srv-d9bo2ojbc2fs73eh982g),
+  branch `development`, verified deployed commit `dbd4f97`.
+- Public health endpoint: HTTP 200, `{"status":"ok","database":"ok"}`.
+- Build logs confirm the tested Node base-image digest and certificate package.
+- Live dashboard shell, instance `sdbf4`: `node --version` returned `v22.23.4`;
+  `apk list --installed ca-certificates` returned `20261020-r0`.
+- Live Node `fetch`: valid HTTPS control returned HTTP 307; both Render-referenced
+  compromised-certificate endpoints failed with `CERT_REVOKED`. No credentials
+  were sent. This verifies rejection from the running service, not just locally.
+- SSH was unavailable (`Permission denied (publickey)`); dashboard shell was
+  used successfully instead. The Frankfurt SSH host key was independently
+  checked against Render's published fingerprint. No account keys were changed.
+- Chrome DevTools on the live booking page: 390×844, 768×1024 and 1440×900;
+  no document overflow, no console warnings/errors. Empty-date validation
+  displayed the expected message; keyboard navigation showed a visible 3px
+  focus outline. Page and session requests returned HTTP 200. No bookings,
+  payments or customer notifications were created.
+- Post-deployment application error-log query returned zero entries.
+- All seven triggered GitHub Actions workflows passed for `dbd4f97`: Welcome
+  content validation, Booker account browser regression, Public-experience
+  browser regression, Airbnb capture and publication regression, Holiday-planner
+  browser regression, Booking access lifecycle and Payment journey regression.
+  The final public-experience workflow completed at 20:59:49 UTC.
+- Follow-up: production still needs an approved security rollout. `development`
+  also contains Airbnb import/analysis changes absent from production; review
+  that diff or prepare a security-only cherry-pick instead of assuming a full
+  development-to-main merge contains only this patch.
+- Production `olrigbankweb` remains on deploy `dep-dbc9pjo473hc73fiidtg`, commit
+  `cf05f3c191711696de3c413c7f3c422aa37e570b`. No production changes were made.
+
+The remaining sections retain the initial pre-deployment assessment and local
+verification. Statements about deployment awaiting approval describe that earlier
+point in time; the outcome above supersedes them for development only.
+
 ## Scope and implementation
 
 The [Render eMudhra advisory](https://render.com/docs/advisory-emudhra) and
