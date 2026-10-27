@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
 
 export interface ParsedAirbnbReview {
@@ -54,10 +53,6 @@ function categoryKey(value: string): string {
 
 function feedbackKey(value: string): string {
   return value.normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('en-GB');
-}
-
-function sameJson(left: unknown, right: unknown): boolean {
-  return isDeepStrictEqual(left, right);
 }
 
 async function insertReviewGraph(
@@ -134,6 +129,7 @@ export async function importAirbnbReviews(
 
   try {
     await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('airbnb-review-import'))");
     for (const document of input.documents) {
       const reviewId = document.review.source.reviewId;
       if (document.review.source.platform !== 'airbnb' || !/^\d+$/u.test(reviewId)) {
@@ -163,8 +159,10 @@ export async function importAirbnbReviews(
           WHERE review.review_id = $1`,
         [reviewId],
       );
-      if (existingReview.rowCount && !sameJson(existingReview.rows[0].raw_extraction, document.review)) {
-        throw new AirbnbReviewImportConflict(reviewId, 'canonical content conflicts with stored evidence');
+      // Once present, a review and its original evidence/publication remain immutable.
+      if (existingReview.rowCount) {
+        reviewsUnchanged += 1;
+        continue;
       }
 
       let sourceDocumentId = hashMatch.rows[0]?.id;
@@ -189,12 +187,8 @@ export async function importAirbnbReviews(
         documentsAdded += 1;
       }
 
-      if (existingReview.rowCount) {
-        reviewsUnchanged += 1;
-      } else {
-        await insertReviewGraph(client, sourceDocumentId, document.review);
-        reviewsAdded += 1;
-      }
+      await insertReviewGraph(client, sourceDocumentId, document.review);
+      reviewsAdded += 1;
     }
 
     await client.query(
@@ -213,7 +207,7 @@ export async function importAirbnbReviews(
     };
   } catch (error) {
     await client.query('ROLLBACK');
-    await database.query(
+    await client.query(
       `UPDATE airbnb_import_batches
           SET status = 'failed', completed_at = NOW(),
               diagnostics = jsonb_build_object('errorCode', $2::text)
