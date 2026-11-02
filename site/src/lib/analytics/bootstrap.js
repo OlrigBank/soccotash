@@ -15,7 +15,7 @@
     source: ['homepage', 'public', 'booking', 'listing', 'unknown'],
     result: ['available', 'unavailable', 'host_priced', 'bespoke', 'error'],
     method: ['bank_transfer', 'card'],
-    destination: ['stays', 'availability', 'main-house', 'whole-property', 'cottage', 'bespoke', 'contact', 'reviews', 'local-guide', 'welcome'],
+    destination: ['home', 'stays', 'availability', 'main-house', 'whole-property', 'cottage', 'bespoke', 'contact', 'reviews', 'local-guide', 'welcome'],
     placement: ['opening', 'reviews', 'stays', 'closing'],
   };
   // Only known public routes may reach the collector; never forward arbitrary paths.

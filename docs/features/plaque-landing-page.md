@@ -5,29 +5,44 @@ Implemented on `feature/plaque-landing`, branched from `development`, 2 November
 ## Experience
 
 The permanent QR destination `/plaque/` is a server-rendered public page in the
-existing BaseLayout, without its sidebar or floating booking form. It uses the
-shared theme, navigation, canonical/social metadata and house photograph. It is
-included in the sitemap. The initial HTML remains useful without JavaScript.
+existing BaseLayout, without its sidebar or floating booking form. It is included
+in the sitemap and remains useful without JavaScript.
 
-Opening links lead to `/listings/` and `/book/`. Listing choices use the existing
-content collection's titles, capacities and bedroom labels, linking to
-`/listings/olrig-bank/`, `/listings/event/` and `/listings/cottage/`. Further links
-lead to the approved reviews on the homepage, bespoke stays, contact, the local
-guide and `/welcome/`. Guest arrival guidance remains separate from marketing.
+Revised at the owner's request to follow the supplied Claude example more closely:
+no photograph, a green-and-gold title badge, a prominent live rating strip, the
+original house introduction, four guest highlights and three short endorsements.
+The retained **Read more guest reviews** link leads to `/#guest-reviews`.
 
-Ratings and the two latest endorsements come only from the existing published
-review repository. Unpublished reviews are excluded. The average is explicitly
-labelled as an average of Airbnb reviews published on this website. Empty or
-unavailable review data omits the section without breaking the page. There are
-no copied fixed prices or claims that direct booking is always cheaper.
+The rating and review count are calculated from the source database's currently
+published review records on every request using `getPublishedReviews()`, exactly
+as on the homepage. Neither 4.97 nor 59 is fixed in the page. The strip reads
+**[rating] out of 5 from [count] Airbnb guest reviews**. Publishing or unpublishing
+reviews changes both figures without a rebuild. Failed or empty review retrieval
+omits the strip and quotations rather than showing a stale fixed score.
+
+Claude's Andrew, Howard and Monica excerpts are shown only when their exact text
+matches a currently approved public review; attribution and stay month/year come
+from that record. The supplied Location, Space, Character and garden, and Your host
+summaries are retained.
+
+A compact accommodation table follows Claude's order: Cottage, Olrig Bank and
+Olrig Bank++. Names and capacities come from the existing listing collection;
+nightly prices come from the existing published pricing service. Missing prices
+say **Ask for price**. Prices are labelled as base nightly prices, with an invitation
+to check dates. No copied fixed prices or unconditional cheaper-booking claim.
+
+The table links to the individual listings; closing actions lead to `/book/`,
+`/` for photos and `/local-guide/`. Existing header/footer navigation remains.
 
 UI pattern names:
 
-- **Plaque introduction** — custom opening panel with history, photograph and early actions.
-- **Guest endorsement strip** — custom panel using approved public reviews.
-- **Stay choice links** — custom stacked linked cards using shared listing data.
-- All navigation actions use native HTML anchors; the existing mobile menu uses
-  the browser's details/summary control.
+- **Plaque introduction** — custom green-and-gold title badge and short introduction.
+- **Live guest rating strip** — custom score panel immediately below the introduction.
+- **Guest highlights** — custom four-item summary list.
+- **Guest endorsement strip** — custom short quotations from approved public reviews.
+- **Stay comparison table** — native HTML table with custom styling and native links.
+- Navigation uses native HTML anchors; the existing mobile menu uses the browser's
+  details/summary control.
 
 ## Tracking
 
@@ -41,23 +56,24 @@ Existing booking events inherit plaque attribution; the tracker never blocks lin
 
 - Production build and Astro check pass (zero errors and warnings; three existing hints).
 - 32 plaque Playwright checks pass, covering 320×800, 390×844, 768×1024 and 1440×900: main-content keyboard
-  access, document overflow, onward attribution, safe nested private routes and
+  access, absence of a content image, database-derived rating/count, document overflow, onward attribution, safe nested private routes and
   referrers, delayed readiness, repeated readiness, reloads, fast onward navigation,
   expired attribution, blocked storage/tracker, unavailable reviews, disabled analytics,
   every content destination and navigation without JavaScript.
 - Existing sitemap and welcome test files pass; sitemap coverage includes `/plaque/`.
   A further 24 existing welcome and search-indexing Playwright checks pass.
 - Chrome DevTools inspected the rebuilt disposable preview at 320×800, 390×844,
-  768×1024 and 1440×900. No document or local content overflow; skip-link focus is
+  768×1024 and 1440×900. No document or visible local content overflow (the
+  screen-reader-only table caption is intentionally clipped); skip-link focus is
   visible with a 3px outline; link names and heading hierarchy checked. The document,
-  photograph, shared logo and analytics bootstrap return 200. No console errors or
+  shared logo and analytics bootstrap return 200. No console errors or
   warnings with analytics disabled for the quality audit.
 - Lighthouse mobile and desktop: accessibility, best practices, SEO and agentic
   browsing all 100, no failing audits. Initial contrast failures were corrected:
-  the plaque kicker avoids the global eyebrow override, and shared footer supporting
-  copy now has an explicit accessible colour. The DevTools audit excludes performance.
-  Reports are in `/tmp/plaque-lighthouse-mobile-final/` and
-  `/tmp/plaque-lighthouse-desktop-final/` for this session.
+  the revised title badge and score meet contrast requirements, and shared footer
+  supporting copy has an explicit accessible colour. The DevTools audit excludes performance.
+  Revised-page reports are in `/tmp/plaque-revision-lighthouse-mobile/` and
+  `/tmp/plaque-revision-lighthouse-desktop/` for this session.
 
 ## Limits and release
 
