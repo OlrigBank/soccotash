@@ -1,8 +1,6 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getPublishedReviews } from '../../lib/public-review-repository';
-import { formatBaseNightlyPrice, getPublishedBaseNightlyPrices } from '../../lib/pricing/public-base-prices';
 
 export const prerender = false;
 Astro.response.headers.set('Cache-Control', 'no-store');
@@ -20,17 +18,7 @@ const endorsements = selections.flatMap(selection => {
   const review = reviews.find(review => review.reviewer.displayName === selection.name && review.quote.includes(selection.quote));
   return review ? [{ ...review, quote: selection.quote }] : [];
 });
-const listings = await getCollection('listings');
-const propertyIds = ['cottage', 'main-house', 'whole-property'];
-const prices = await getPublishedBaseNightlyPrices(propertyIds).catch(() => Object.fromEntries(propertyIds.map(id => [id, null])));
-const stays = [
-  { slug: 'cottage', property: 'cottage' },
-  { slug: 'olrig-bank', property: 'main-house' },
-  { slug: 'event', property: 'whole-property' },
-].flatMap(({ slug, property }) => {
-  const listing = listings.find(entry => entry.data.slug === slug);
-  return listing ? [{ name: listing.data.title, sleeps: listing.data.sleeps?.replace(/^Sleeps\s+/i, ''), href: `/listings/${slug}/`, property }] : [];
-});
+
 ---
 <BaseLayout title="Welcome to Olrig Bank, Kendal" description="Welcome to Olrig Bank, a Victorian family home in Kendal, now a holiday house for groups." showSidebar={false} showHeader={false} showFooter={false} showQuickCheck={false} pageClass="plaque-page">
   <article class="plaque">
@@ -59,20 +47,23 @@ const stays = [
       </div>}
       <a href="/#guest-reviews" data-plaque-destination="reviews" data-plaque-placement="reviews">Read more guest reviews</a>
     </section>
-    <section aria-labelledby="plaque-stays">
-      <h2 id="plaque-stays">Ways to stay</h2>
-      <table class="stay-choice-links">
-        <caption class="visually-hidden">Compare stays at Olrig Bank</caption>
-        <thead><tr><th scope="col">Stay</th><th scope="col">Sleeps</th><th scope="col">Price/night</th></tr></thead>
-        <tbody>{stays.map(stay => <tr><th scope="row"><a href={stay.href} data-plaque-destination={stay.property} data-plaque-placement="stays">{stay.name}</a></th><td>{stay.sleeps}</td><td>{formatBaseNightlyPrice(prices[stay.property])}</td></tr>)}</tbody>
-      </table>
-      <p class="price-note">Base nightly prices. Check your dates for the latest availability and price.</p>
+    {summary && <section class="category-ratings" aria-labelledby="plaque-category-heading">
+      <p class="category-ratings__eyebrow">At a glance</p>
+      <h2 id="plaque-category-heading">Rating by Airbnb category</h2>
+      <p>Average category scores from {summary.reviewCount} Airbnb guest reviews.</p>
+      <p class="category-ratings__overall" aria-label={`${summary.overallScore.toFixed(2)} out of ${summary.scale} overall`}>
+        <strong>{summary.overallScore.toFixed(2)}</strong>
+        <span><span aria-hidden="true">★</span> Overall rating</span>
+      </p>
+      <dl class="category-ratings__scores">
+        {summary.categories.map(category => <div><dt>{category.displayName}</dt><dd>{category.score.toFixed(2)}</dd></div>)}
+      </dl>
+    </section>}
       <nav class="plaque-actions" aria-label="Explore Olrig Bank">
         <a class="button" href="/book/" data-plaque-destination="availability" data-plaque-placement="closing">Check availability and request a stay</a>
         <a class="button plaque-secondary" href="/" data-plaque-destination="home" data-plaque-placement="closing">See photos and more on our website</a>
         <a class="button plaque-secondary" href="/local-guide/" data-plaque-destination="local-guide" data-plaque-placement="closing">Browse our Kendal local guide</a>
       </nav>
-    </section>
     <p class="plaque-note">Book directly with us for a personal welcome and help choosing your stay.</p>
   </article>
 </BaseLayout>
@@ -95,17 +86,20 @@ const stays = [
   blockquote { margin: 0 0 1rem; padding-left: .9rem; border-left: 3px solid #a17e32; }
   blockquote p { margin: 0; }
   cite { display: block; margin-top: .2rem; font-style: normal; font-size: .85rem; color: var(--muted); }
-  .stay-choice-links { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid var(--line); border-radius: .75rem; background: var(--panel-bg); }
-  .stay-choice-links :is(th, td) { padding: .65rem .5rem; text-align: left; border-bottom: 1px solid var(--line); font-size: .95rem; }
-  .stay-choice-links th:first-child { width: 43%; }
-  .stay-choice-links th:nth-child(2) { width: 22%; }
-  .stay-choice-links thead th { font-size: .8rem; font-weight: normal; color: var(--muted); }
-  .stay-choice-links tbody th { font-weight: normal; }
-  .stay-choice-links tbody tr:last-child :is(th, td) { border-bottom: 0; }
+  .category-ratings { padding: clamp(1rem, 3vw, 1.5rem); border-radius: 1rem; background: #1d3a2c; color: #fff; }
+  .category-ratings .category-ratings__eyebrow { margin: 0; color: #e2c77c; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .category-ratings h2 { margin-top: .3rem; color: #fff; }
+  .category-ratings > p { color: #fff; }
+  .category-ratings__overall { display: flex; align-items: baseline; flex-wrap: wrap; gap: .65rem; }
+  .category-ratings__overall strong { font-size: 2.2rem; line-height: 1; color: #e2c77c; }
+  .category-ratings__scores { display: grid; gap: .75rem; margin: 1.25rem 0 0; }
+  .category-ratings__scores > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .category-ratings__scores dt { font-weight: 600; }
+  .category-ratings__scores dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
   .plaque-actions { display: grid; gap: .75rem; margin-top: 1rem; }
   .plaque-actions .button { display: flex; align-items: center; justify-content: center; text-align: center; border-radius: .9rem; padding: .9rem 1rem; }
   .plaque-actions .plaque-secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-  .price-note, .plaque-note { font-size: .9rem; color: var(--muted); }
+  .plaque-note { font-size: .9rem; color: var(--muted); }
   .plaque-note { margin-top: 1.5rem; text-align: center; }
   .plaque a:focus-visible { outline: 3px solid #80601b; outline-offset: 4px; }
   .plaque :is(p, a, td, th, blockquote) { overflow-wrap: anywhere; }
