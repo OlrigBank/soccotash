@@ -19,6 +19,7 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
 from reservation_analysis.comparison import compare, read_workbook
 from reservation_analysis.model import SHEETS
+from reservation_analysis.reconciliation import RECONCILIATION_SHEETS
 
 
 def main():
@@ -31,7 +32,7 @@ def main():
     args = parser.parse_args()
     original = args.workbook.resolve()
     saved = read_workbook(original)
-    assert list(saved) == SHEETS
+    assert list(saved) in (SHEETS, SHEETS + RECONCILIATION_SHEETS)
     assert not any(c['error'] for s in saved.values() for c in s.values())
     products = ['Whole house', 'Cottage', 'Double bedroom', 'Large bedroom']
     expected = {p: dict(stays=0, nights=0, pennies=0) for p in products}
@@ -83,6 +84,43 @@ def main():
             if args.reference:
                 reference = compare(args.reference, recalculated)
                 assert reference['matched'], reference
+            reconciliation_checks = []
+            if 'Comparisons' in saved:
+                comparison_sheet = document.Sheets.getByName('Comparisons')
+                review_sheet = document.Sheets.getByName('Review')
+                comparison_rows = sorted(int(address[1:]) for address, cell in saved['Comparisons'].items()
+                                         if address.startswith('D') and address[1:].isdigit() and int(address[1:]) >= 8)
+                for r in comparison_rows:
+                    original_cells = saved['Comparisons']
+                    if (original_cells.get(f'D{r}', {}).get('value') == 'Host-panel total'
+                            and original_cells.get(f'E{r}', {}).get('value') == 'Equal'):
+                        input_cell = comparison_sheet.getCellRangeByName(f'F{r}')
+                        original_formula = input_cell.getFormula()
+                        original_value = input_cell.getValue()
+                        count = review_sheet.getCellRangeByName('B16').getValue()
+                        input_cell.setValue(original_value + .01); document.calculateAll()
+                        assert comparison_sheet.getCellRangeByName(f'E{r}').getString() == 'Different'
+                        assert round(comparison_sheet.getCellRangeByName(f'I{r}').getValue()*100) == 1
+                        assert review_sheet.getCellRangeByName('B16').getValue() == count+1
+                        input_cell.setFormula(original_formula); document.calculateAll()
+                        reconciliation_checks.append('1p earnings change and summary refresh')
+                        break
+                for r in comparison_rows:
+                    if (saved['Comparisons'].get(f'D{r}', {}).get('value') in ('Adults','Children','Infants')
+                            and saved['Comparisons'].get(f'F{r}', {}).get('value') == 0
+                            and saved['Comparisons'].get(f'E{r}', {}).get('value') == 'Missing in extract'):
+                        input_cell = comparison_sheet.getCellRangeByName(f'G{r}')
+                        original_formula = input_cell.getFormula()
+                        count = review_sheet.getCellRangeByName('B17').getValue()
+                        input_cell.setValue(0); document.calculateAll()
+                        assert comparison_sheet.getCellRangeByName(f'E{r}').getString() == 'Equal'
+                        assert review_sheet.getCellRangeByName('B17').getValue() == count-1
+                        input_cell.setFormula(original_formula); document.calculateAll()
+                        assert comparison_sheet.getCellRangeByName(f'E{r}').getString() == 'Missing in extract'
+                        reconciliation_checks.append('blank versus zero and summary refresh')
+                        break
+                save(recalculated)
+                assert compare(original,recalculated)['matched'], 'Reconciliation controls were not restored.'
             for p in products:
                 overview.getCellRangeByName('B5').setString(p); document.calculateAll()
                 assert value('E7') == expected[p]['stays'], ('product stays', p)
@@ -127,7 +165,7 @@ def main():
             assert restored['matched'], restored
             assert overview.Charts.Count == 1
             assert document.Sheets.getByName('Read me').getCellRangeByName('B9').getString() == saved['Read me']['B9']['value']
-            print(json.dumps(dict(matched=True, cells_checked=initial['cells_checked'], controls='all four products, +10%, -100%, +100%, invalid uplift, restored defaults', chart='all four products refreshed', source_unchanged=True)))
+            print(json.dumps(dict(matched=True, cells_checked=initial['cells_checked'], controls='all four products, +10%, -100%, +100%, invalid uplift, restored defaults', reconciliation=reconciliation_checks, chart='all four products refreshed', source_unchanged=True)))
         finally:
             if document is not None:
                 document.close(True)

@@ -79,7 +79,9 @@ export async function reconcileAirbnbReviews(database: Pool): Promise<Reconcilia
       const reviewCandidates = byReview.get(candidate.reviewId)!;
       const compatible = identityCompatible(candidate);
       const compatibleForReview = reviewCandidates.filter(identityCompatible);
-      const autoConfirm = compatible && compatibleForReview.length === 1
+      const occupied = await client.query(`SELECT id FROM airbnb_review_reservation_links WHERE link_status='confirmed'
+        AND (review_id=$1 OR reservation_id=$2) AND NOT (review_id=$1 AND reservation_id=$2)`, [candidate.reviewId, candidate.reservationId]);
+      const autoConfirm = !occupied.rowCount && compatible && compatibleForReview.length === 1
         && compatibleReservationCounts.get(candidate.reservationId) === 1;
       const evidence = {
         propertyExact: true,

@@ -20,6 +20,7 @@ export function sitemapPaths(inventory: SitemapInventory): string[] {
   return [...new Set([
     ...contentPages,
     '/book/',
+    '/plaque/',
     '/welcome/',
     '/listings/',
     ...dynamicPaths('/listings/', inventory.listingSlugs),

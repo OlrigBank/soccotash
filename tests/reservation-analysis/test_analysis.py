@@ -145,7 +145,7 @@ class GeneratorTests(unittest.TestCase):
         for count, status in [(1, 'confirmed'), (32, 'unknown'), (2, 'cancelled')]:
             self.make(count, status)
             output = self.base / f'analysis-{count}.xlsx'
-            result = cli.generate(self.source, None, output)
+            result = cli.generate(self.source, None, output, reservation_csv_dir=None)
             self.assertEqual(result['eligible_reservations'], count if status == 'confirmed' else 0)
             w = read_workbook(output)
             self.assertEqual(len(w), 13)
@@ -160,7 +160,7 @@ class GeneratorTests(unittest.TestCase):
         rows[0]['pets'] = '0'; rows[0]['source_listing_name'] = "'=private-looking formula"; rows[0]['escaped_text_columns'] = 'source_listing_name'
         lines[0]['source_listing_name'] = rows[0]['source_listing_name']
         write_fixture(self.source, rows, lines)
-        output = self.base / 'analysis.xlsx'; cli.generate(self.source, None, output)
+        output = self.base / 'analysis.xlsx'; cli.generate(self.source, None, output, reservation_csv_dir=None)
         w = read_workbook(output)
         self.assertEqual(w['Source stays']['W6']['value'], 0)
         self.assertIsNone(w['Source stays']['S6']['value'])
@@ -178,7 +178,7 @@ class GeneratorTests(unittest.TestCase):
             write_fixture(self.source, rows, lines, mutate_individual=issue == 'individual mismatch')
             output = self.base / 'bad.xlsx'
             with self.subTest(issue=issue), self.assertRaises((ValueError, KeyError)):
-                cli.generate(self.source, None, output)
+                cli.generate(self.source, None, output, reservation_csv_dir=None)
             self.assertFalse(output.exists())
 
     def test_cancellation_and_evidence_archive_binding(self):
@@ -209,7 +209,7 @@ class GeneratorTests(unittest.TestCase):
                     lines[0][key] = ''
             write_fixture(self.source, rows, lines)
             output = self.base / (kind + '.xlsx')
-            result = cli.generate(self.source, None, output)
+            result = cli.generate(self.source, None, output, reservation_csv_dir=None)
             self.assertEqual(result['financial_lines'], 0)
             self.assertEqual(result['eligible_reservations'], 0)
             workbook = read_workbook(output)
@@ -229,9 +229,9 @@ class GeneratorTests(unittest.TestCase):
 
     def test_no_overwrite_and_comparator_detects_changed_cell(self):
         self.make(); a = self.base / 'one.xlsx'; b = self.base / 'two.xlsx'
-        cli.generate(self.source, None, a)
-        with self.assertRaises(ValueError): cli.generate(self.source, None, a)
-        cli.generate(self.source, None, b)
+        cli.generate(self.source, None, a, reservation_csv_dir=None)
+        with self.assertRaises(ValueError): cli.generate(self.source, None, a, reservation_csv_dir=None)
+        cli.generate(self.source, None, b, reservation_csv_dir=None)
         # Different guide filenames are content, so must not be silently ignored.
         self.assertFalse(compare(a, b)['matched'])
         self.assertTrue(compare(a, a)['matched'])
@@ -244,7 +244,7 @@ class GeneratorTests(unittest.TestCase):
         if not source.exists() or not reference.exists():
             self.skipTest('Private archive and reference are not included in a clean checkout; pass local inputs to the documented comparison command.')
         output = self.base / 'reservation-analysis.xlsx'
-        result = cli.generate(source, ROOT / 'docs/source-material/airbnb/status-evidence/2026-10-19.json', output)
+        result = cli.generate(source, ROOT / 'docs/source-material/airbnb/status-evidence/2026-10-19.json', output, reservation_csv_dir=None)
         self.assertEqual((result['eligible_reservations'], result['eligible_nights']), (74, 208))
         comparison = compare(reference, output)
         self.assertTrue(comparison['matched'], comparison)

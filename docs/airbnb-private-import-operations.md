@@ -1,5 +1,10 @@
 # Private Airbnb import operations
 
+For Render **soccotash development** or **OlrigBank production**, use the
+[guided capture-run importer](airbnb-terminal-capture.md#guided-import-into-development-or-production).
+The procedure below is the older isolated Agent 2 baseline workflow, not the
+Render deployment procedure.
+
 This procedure operates only on the isolated Agent 2 development database. It
 must not be run against production or the primary local database. The private
 PDFs beneath `output/pdf/` and `.env.agent2` remain ignored and must never be
@@ -54,7 +59,9 @@ reservation, provenance, category, conversation and financial invariants.
 ## Conflicts and restart
 
 Importers use transactions and record a failed batch with a non-sensitive error
-code. They never overwrite conflicting canonical evidence.
+code. Original source evidence remains immutable. Existing reviews are skipped; newer
+booking captures follow the [automatic update rules](airbnb-terminal-capture.md#automatic-updates-on-subsequent-imports).
+Source-integrity conflicts still stop the import.
 
 When a conflict occurs:
 

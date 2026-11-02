@@ -15,6 +15,7 @@ interface Window {
     track(
       event:
         | string
+        | Record<string, unknown>
         | ((properties: Record<string, unknown>) => Record<string, unknown>),
       data?: Record<string, string | number | boolean>,
     ): void;

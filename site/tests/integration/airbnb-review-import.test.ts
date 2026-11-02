@@ -5,7 +5,6 @@ import test from 'node:test';
 import pg from 'pg';
 import { listAirbnbReviews, getAirbnbReviewDetail, parseAirbnbReviewListQuery } from '../../src/lib/airbnb-admin/repository.ts';
 import {
-  AirbnbReviewImportConflict,
   importAirbnbReviews,
   type AirbnbReviewImportDocument,
   type ParsedAirbnbReview,
@@ -107,31 +106,17 @@ test('Airbnb review import is normalized, idempotent and conflict-safe', async (
       { sourceSnapshotOn: '2026-09-01', documents: [documentFor(review, 'two')] },
       database,
     );
-    assert.equal(additionalEvidence.documentsAdded, 1);
+    assert.equal(additionalEvidence.documentsAdded, 0);
     assert.equal(additionalEvidence.reviewsUnchanged, 1);
-    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_source_documents')).rows[0].count, 2);
+    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_source_documents')).rows[0].count, 1);
     assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_reviews')).rows[0].count, 1);
 
-    await assert.rejects(
-      importAirbnbReviews(
-        {
-          sourceSnapshotOn: '2026-09-02',
-          documents: [documentFor(syntheticReview('Conflicting public review.'), 'conflict')],
-        },
-        database,
-      ),
-      (error: unknown) => error instanceof AirbnbReviewImportConflict
-        && error.code === 'AIRBNB_REVIEW_IMPORT_CONFLICT',
-    );
-    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_source_documents')).rows[0].count, 2);
-    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_reviews')).rows[0].count, 1);
-    assert.deepEqual(
-      (await database.query(
-        `SELECT status, diagnostics->>'errorCode' AS error_code
-           FROM airbnb_import_batches ORDER BY id DESC LIMIT 1`,
-      )).rows[0],
-      { status: 'failed', error_code: 'AIRBNB_REVIEW_IMPORT_CONFLICT' },
-    );
+    const original = (await database.query('SELECT * FROM airbnb_reviews')).rows;
+    const skipped = await importAirbnbReviews({ sourceSnapshotOn: '2026-09-02',
+      documents: [documentFor(syntheticReview('Changed public review.'), 'conflict')] }, database);
+    assert.equal(skipped.reviewsUnchanged, 1);
+    assert.equal(skipped.documentsAdded, 0);
+    assert.deepEqual((await database.query('SELECT * FROM airbnb_reviews')).rows, original);
     const unknown = syntheticReview();
     unknown.source.reviewId = '900000000000000002';
     unknown.publishedAt = null;

@@ -13,7 +13,7 @@ const inventory = {
 test('sitemap inventory includes canonical public pages once', () => {
   const paths = sitemapPaths(inventory);
   for (const path of [
-    '/', '/book/', '/listings/', '/listings/olrig-bank/', '/listings/event/', '/listings/cottage/',
+    '/', '/book/', '/plaque/', '/listings/', '/listings/olrig-bank/', '/listings/event/', '/listings/cottage/',
     '/local-guide/', '/holiday-plans/kendal-weekend/',
   ]) assert.equal(paths.filter((candidate) => candidate === path).length, 1, path);
 });

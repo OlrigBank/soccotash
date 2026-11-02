@@ -263,6 +263,109 @@ tabs and disconnects afterwards; it does not navigate or close existing user
 tabs. An ordinary Chrome session or Codex extension connection is not itself a
 CDP endpoint. Keep any debugging endpoint local and use a dedicated profile.
 
+## Guided import into development or production
+
+After a successful capture, run this command from the repository root:
+
+```bash
+npm run airbnb:import
+```
+
+This defaults to a **read-only database preflight**. Choose `development` or
+`production`, an existing capture run (for example `october-2026`), then
+`reviews`, `bookings` or `both`. It parses the selected PDFs and required booking
+JSON, checks migration checksums and compares the evidence with existing records.
+It prints aggregate counts and saves a private report under
+`.airbnb-capture/import-reports/`. It does not use the old 155-document baseline.
+
+The prompts explain where to obtain each value:
+
+| Value | Where to obtain it |
+| --- | --- |
+| `DATABASE_URL` | Render dashboard → the selected environment's **PostgreSQL database** → **Connect** → **External Database URL**. Copy the full `postgresql://` URL including credentials, not the JDBC or internal URL. |
+| `AIRBNB_IMPORT_ENCRYPTION_KEY` | Render → the selected **application service** (`soccotash` for development, `olrigbankweb` for production) → **Environment** → the existing variable, or the secure store used for that environment's earlier import. Required only for bookings. |
+| `AIRBNB_IMPORT_ENCRYPTION_KEY_VERSION` | The version associated with that key, in the same service's Environment settings or secure store. Defaults to `1`, matching the existing importer. |
+
+The database URL and key are entered with hidden input. The command does not
+reuse inherited credentials or save secrets. TLS is enabled automatically.
+Do not generate a replacement key for an existing dataset; development,
+production and primary-local keys are distinct. If the key is missing, recover
+it from the previous import's secure storage before continuing.
+
+Once preflight passes and you have a current backup, import into development:
+
+```bash
+npm run airbnb:import -- --apply
+```
+
+Select `development` at the target prompt. After development acceptance, use the
+same capture run for production:
+
+```bash
+npm run airbnb:import -- --apply --allow-production
+```
+
+Select `production`. The additional flag permits production writes but does not
+select the target for you. Both modes show the hostname and database name and
+require you to type the database name. Before writing, you must confirm a current
+backup exists, no deployment is running, and type `import development` or
+`import production`. These confirmations are operator checks, not automatic
+backup verification or proof that a hostname belongs to a particular environment.
+
+Deploy the matching application revision and migrations first. The command does
+not deploy or migrate. It imports the selected records using the existing
+importers, reconciles reviews with bookings, then verifies the selected source
+hashes and records. Reconciliation considers the existing dataset, including
+previously imported records, and preserves manual decisions. New review
+publication still requires a separate **Admin → Airbnb → Website publication**
+decision. Historical approval seeding and rating-token repairs are not routine
+steps for new captures.
+
+Keep booking PDFs and original JSON in their original run directories;
+reservation-and-finance-only PDFs require the matching JSON sidecars. A selected
+folder must contain PDFs. Choose reviews-only or bookings-only when appropriate.
+
+On failure, stop and inspect the reported stage and private report. Completed
+import stages remain committed: this is not one transaction across the whole run.
+An unchanged rerun is idempotent. Conflicting evidence must be reviewed privately;
+do not delete accepted rows, regenerate secrets, or restore an entire database
+merely to make a retry succeed. The wrapper suppresses raw parser/driver errors
+because they may contain private data. Review capture diagnostics or database
+batch status privately when investigating; never paste credentials or guest
+content into public logs. The legacy importer commands below remain available
+for controlled diagnosis.
+
+### Automatic updates on subsequent imports
+
+Existing review IDs are skipped: their text, ratings, stay metadata, original
+source and website publication snapshot remain unchanged, even if a recapture
+contains different content. New review IDs are imported normally.
+
+For an existing booking conversation ID, a strictly newer source capture updates
+non-empty reservation and private fields. Missing/null/blank values preserve the
+stored values; zero is a real value. Older or equal-time captures are retained as
+additional evidence but do not change the current booking. Each original source
+record remains immutable, and the import batch records the number updated.
+
+Both financial perspectives and their line items are replaced together only
+when both are arithmetically verified. Otherwise existing finances, currency and
+headline total remain in place. Missing access codes preserve encrypted material;
+expiry follows the updated departure date. An incomplete conversation never
+removes stored messages. It remains flagged in the latest preferred evidence.
+
+Without stable Airbnb message IDs, the importer appends only dated, unambiguous
+new entries after the stored timeline, skipping matching sender/body text and
+older or ambiguous entries. Existing messages and reactions remain intact; new
+entries carry their captured reactions. Ambiguous/edited/undated material remains
+in the source evidence rather than being guessed into the conversation history.
+Publication and manual matching decisions remain unchanged. New candidates cannot
+automatically displace an existing confirmed link.
+
+Source-hash/identity inconsistencies, reused paths with different PDFs and
+invalid records still stop the batch. Do not overwrite previous capture files:
+use a new run name. Rerunning the same evidence adds no duplicate records or
+messages. No additional migration is required for these update rules.
+
 ## PostgreSQL remains a separate operation
 
 These commands capture and verify evidence only. The existing review importer
@@ -279,14 +382,13 @@ direction; publication-date filters exclude unknown dates.
 
 Important existing limitations:
 
-- Importers preserve canonical evidence and reject conflicting historical
-  content. A recaptured booking containing later messages is not automatically
-  merged into an existing reservation.
+- Importers preserve original evidence while applying the automatic update
+  rules above to booking records. Existing reviews remain unchanged.
 - The existing full-dataset verifier targets the reviewed 155-document baseline.
   It cannot certify a new capture run without its baseline being deliberately
   updated.
-- Capturing a review does not authorise publishing it. Public JSON generation
-  remains a separate reviewed operation.
+- Capturing a review does not authorise publishing it. Website publication
+  remains a separate reviewed administration decision.
 
 ## Development verification
 
@@ -407,10 +509,9 @@ identity, reservation and financial errors never enable an unchecked import.
   the matching JSON for a flagged PDF and verifies its fingerprint, identity,
   reservation text and financial rows before connecting to PostgreSQL.
 - Completeness metadata is retained in the source document's existing
-  `raw_extraction` JSONB. No database migration is needed. Existing conflict and
-  idempotency checks apply; an incomplete capture cannot silently replace a
-  complete one, or vice versa. Later message recovery requires a separately
-  reviewed update procedure; rerunning does not overwrite canonical evidence.
+  `raw_extraction` JSONB. No database migration is needed. Source-integrity and idempotency checks apply. The automatic update rules
+  above preserve earlier messages when a newer capture is incomplete; original
+  evidence is never overwritten.
 - **Messages incomplete notice** is a custom admin status pattern, reusing the
   existing information-alert presentation. It appears in the reservation's
   Conversation section after import. The remaining booking and financial
@@ -538,4 +639,5 @@ Import September before the historical seed: Fred's September recapture overlaps
 an older historical review, and the importer intentionally rejects different
 canonical evidence for an existing review ID. If the target already has historical
 imports, inspect that overlap before import rather than overwriting evidence or
-assuming the whole batch will succeed. No automatic conflict resolution is provided.
+assuming the whole batch will succeed. This describes the September rollout;
+the later automatic-update rules above now skip existing reviews unchanged.

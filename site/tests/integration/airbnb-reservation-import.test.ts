@@ -5,7 +5,6 @@ import test from 'node:test';
 import pg from 'pg';
 import { parseAirbnbBookingPdfText, type ParsedAirbnbBooking } from '../../src/lib/airbnb-import/booking-pdf.ts';
 import {
-  AirbnbReservationImportConflict,
   importAirbnbReservations,
   type AirbnbBookingImportDocument,
 } from '../../src/lib/airbnb-import/reservations.ts';
@@ -142,7 +141,7 @@ test('financial panels preserve signed hierarchy, quantities and reconciliation'
   assert.equal(guest.arithmeticStatus, 'verified');
 });
 
-test('Airbnb reservation import deduplicates captures and rolls back conflicts', async () => {
+test('Airbnb reservation import deduplicates captures and preserves records for same-time evidence', async () => {
   assert.ok(databaseUrl, 'Set TEST_DATABASE_URL or DATABASE_URL to run the PostgreSQL integration test.');
   const schema = `airbnb_reservations_${process.pid}_${crypto.randomBytes(6).toString('hex')}`;
   const control = new Pool({ connectionString: databaseUrl, max: 1 });
@@ -185,17 +184,12 @@ test('Airbnb reservation import deduplicates captures and rolls back conflicts',
 
     const conflicting = structuredClone(booking);
     conflicting.conversationEntries[0].body = 'Conflicting synthetic content.';
-    await assert.rejects(
-      importAirbnbReservations(
-        { sourceSnapshotOn: '2026-09-02', documents: [documentFor(conflicting, 'conflict')] }, database,
-      ),
-      (error: unknown) => error instanceof AirbnbReservationImportConflict,
-    );
+    const sameTime = await importAirbnbReservations(
+      { sourceSnapshotOn: '2026-09-02', documents: [documentFor(conflicting, 'conflict')] }, database);
+    assert.equal(sameTime.reservationsUpdated, 0);
     assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_reservations')).rows[0].count, 1);
-    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_source_documents')).rows[0].count, 2);
-    assert.equal((await database.query(
-      `SELECT status FROM airbnb_import_batches ORDER BY id DESC LIMIT 1`,
-    )).rows[0].status, 'failed');
+    assert.equal((await database.query('SELECT count(*)::int AS count FROM airbnb_source_documents')).rows[0].count, 3);
+    assert.equal((await database.query('SELECT body FROM airbnb_conversation_entries ORDER BY position LIMIT 1')).rows[0].body, booking.conversationEntries[0].body);
   } finally {
     await database.end();
     await control.query(`DROP SCHEMA IF EXISTS ${quoteIdentifier(schema)} CASCADE`);
