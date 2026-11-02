@@ -1,0 +1,79 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPublishedReviews } from '../../lib/public-review-repository';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'no-store');
+const { reviews, summary } = await getPublishedReviews().catch(() => {
+  console.error('Published plaque reviews could not be loaded.');
+  return { reviews: [], summary: null };
+});
+// Only approved public text is used; unpublishing a review also removes it here.
+const endorsements = reviews.slice(0, 2);
+const listings = await getCollection('listings');
+const stays = ['olrig-bank', 'event', 'cottage'].flatMap(slug => {
+  const listing = listings.find(entry => entry.data.slug === slug);
+  return listing ? [{ name: listing.data.title, guests: [listing.data.sleeps, listing.data.bedrooms].filter(Boolean).join(' · '), href: `/listings/${slug}/`, destination: slug === 'olrig-bank' ? 'main-house' : slug === 'event' ? 'whole-property' : slug }] : [];
+});
+---
+<BaseLayout title="Welcome to Olrig Bank, Kendal" description="Discover the Victorian holiday house behind the gate: explore ways to stay, guest reviews and our Kendal local guide." showSidebar={false} showQuickCheck={false} pageClass="plaque-page">
+  <article class="plaque">
+    <header class="plaque-introduction">
+      <p class="plaque-kicker">Holiday accommodation · Kendal</p>
+      <h1>Welcome to Olrig Bank</h1>
+      <p>A spacious Victorian home for time together, tucked away near the River Kent and within walking distance of Kendal town centre.</p>
+      <nav class="plaque-actions" aria-label="Explore Olrig Bank">
+        <a class="button" href="/listings/" data-plaque-destination="stays" data-plaque-placement="opening">See the house and ways to stay</a>
+        <a class="plaque-link" href="/book/" data-plaque-destination="availability" data-plaque-placement="opening">Check availability</a>
+      </nav>
+    </header>
+    <img class="plaque-photo" src="/media/images/listings/house.jpeg" alt="The stone front of Olrig Bank, viewed from Little Aynam" width="1440" height="1085" fetchpriority="high" />
+    <section aria-labelledby="plaque-house">
+      <h2 id="plaque-house">The house behind the gate</h2>
+      <p>Built in 1879 for George MacKay, a Mayor of Kendal and owner of nearby Aynam Mills, Olrig Bank still has the character of a family home. Generous rooms and a large garden make space for families and friends to spend time together.</p>
+      <p>Explore Kendal on foot, or make us your base for days out in the Lake District and the Cumbrian peninsulas.</p>
+    </section>
+    {summary && <section class="guest-endorsement-strip" aria-labelledby="plaque-reviews">
+      <h2 id="plaque-reviews">What our guests say</h2>
+      <p><strong>{summary.overallScore.toFixed(2)} out of {summary.scale}</strong> — average of {summary.reviewCount} Airbnb guest reviews published on this website.</p>
+      {endorsements.map(review => <blockquote><p>“{review.quote}”</p><cite>{review.reviewer.displayName}, Airbnb guest · {review.stay.month} {review.stay.year}</cite></blockquote>)}
+      <a href="/#guest-reviews" data-plaque-destination="reviews" data-plaque-placement="reviews">Read more guest reviews</a>
+    </section>}
+    <section aria-labelledby="plaque-stays">
+      <h2 id="plaque-stays">Find your way to stay</h2>
+      <ul class="stay-choice-links">{stays.map(stay => <li><a href={stay.href} data-plaque-destination={stay.destination} data-plaque-placement="stays"><strong>{stay.name}</strong><span>{stay.guests}</span><span class="plaque-link">See photos and details →</span></a></li>)}</ul>
+      <p>Need a different arrangement? <a href="/listings/bespoke/" data-plaque-destination="bespoke" data-plaque-placement="stays">Explore a bespoke stay</a> or <a href="/contact/" data-plaque-destination="contact" data-plaque-placement="stays">ask Jenna to help you choose</a>.</p>
+      <p>Book directly with us for a personal welcome and help choosing your stay. Check your dates for the latest availability and price.</p>
+      <a class="button" href="/book/" data-plaque-destination="availability" data-plaque-placement="closing">Check availability</a>
+    </section>
+    <nav class="plaque-further" aria-label="Useful links">
+      <a href="/local-guide/" data-plaque-destination="local-guide" data-plaque-placement="closing">Explore Kendal and the Lakes</a>
+      <a href="/welcome/" data-plaque-destination="welcome" data-plaque-placement="closing">Already staying with us? Your welcome guide</a>
+    </nav>
+  </article>
+</BaseLayout>
+<style>
+  .plaque { max-width: 48rem; margin-inline: auto; }
+  .plaque-introduction { padding: clamp(1.25rem, 5vw, 2.5rem); background: var(--accent-dark); color: #fff; border-radius: 1rem 1rem 0 0; }
+  .plaque-introduction h1 { color: #f2d58d; font-size: clamp(2rem, 7vw, 3.4rem); line-height: 1.15; }
+  .plaque-kicker { color: #f2d58d; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .plaque-introduction p { max-width: 55ch; }
+  .plaque-actions { display: grid; justify-items: start; gap: 1rem; margin-top: 1.5rem; }
+  .plaque-actions .button { background: #f2d58d; color: #19372a; text-align: center; }
+  .plaque-actions .plaque-link { color: #fff; }
+  .plaque-photo { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 0 0 1rem 1rem; }
+  section, .plaque-further { margin-top: 2rem; }
+  h2 { font-size: clamp(1.4rem, 4vw, 1.9rem); }
+  .guest-endorsement-strip { padding: 1.25rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--panel-bg); }
+  blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 3px solid var(--accent); }
+  blockquote p { margin-bottom: .5rem; }
+  cite { font-style: normal; font-size: .9rem; }
+  .stay-choice-links { display: grid; gap: .75rem; padding: 0; list-style: none; }
+  .stay-choice-links a { display: grid; gap: .35rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--panel-bg); color: var(--ink); text-decoration: none; }
+  .plaque-link { text-decoration: underline; text-underline-offset: .2em; }
+  .plaque-further { display: grid; gap: 1rem; padding-bottom: 1rem; }
+  .plaque a:focus-visible { outline: 3px solid #a66b13; outline-offset: 4px; }
+  .plaque-introduction a:focus-visible { outline-color: #fff; }
+  .plaque :is(p, a, blockquote) { overflow-wrap: anywhere; }
+</style>

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import bootstrap from '../lib/analytics/bootstrap.js?raw';
 
 export const prerender = false;
 
@@ -17,46 +18,7 @@ export const GET: APIRoute = () => {
   }
 
   const body = enabled
-    ? `(() => {
-  if (window.olrigAnalytics) return;
-
-  const queue = [];
-  const cleanPage = () => {
-    const privateBookingPage = /^\\/booking\\/manage\\/[^/]+\\/?$/.test(location.pathname);
-    return privateBookingPage
-      ? { url: '/booking/manage', title: 'Private booking page | Olrig Bank' }
-      : { url: location.pathname, title: document.title };
-  };
-  const send = (name, data) => {
-    if (!window.umami) {
-      queue.push([name, data]);
-      return;
-    }
-    if (name) window.umami.track(name, data);
-    else window.umami.track((properties) => ({ ...properties, ...cleanPage() }));
-  };
-
-  window.olrigAnalytics = {
-    track(name, data = {}) {
-      send(name, data);
-    },
-    ready() {
-      send();
-      while (queue.length) {
-        const [name, data] = queue.shift();
-        send(name, data);
-      }
-    },
-  };
-
-  const script = document.createElement('script');
-  script.defer = true;
-  script.src = ${JSON.stringify(scriptUrl)};
-  script.dataset.websiteId = ${JSON.stringify(websiteId)};
-  script.dataset.autoTrack = 'false';
-  script.onload = () => window.olrigAnalytics?.ready();
-  document.head.appendChild(script);
-})();`
+    ? bootstrap.replace('__OLRIG_ANALYTICS_CONFIGURATION__', JSON.stringify({ websiteId, scriptUrl }))
     : '';
 
   return new Response(body, {
