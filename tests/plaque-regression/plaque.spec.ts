@@ -16,6 +16,7 @@ test('plaque is usable at each viewport and links continue with attribution', as
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Olrig Bank');
   await expect(page.getByRole('heading', { name: 'What our guests say' })).toBeVisible();
   await expect(page.locator('main img')).toHaveCount(0);
+  await expect(page.locator('.site-header, .site-footer')).toHaveCount(0);
   await expect(page.getByRole('note', { name: 'Airbnb guest rating' })).toContainText('out of 5 from 52 Airbnb guest reviews');
   await expect(page.getByRole('note', { name: 'Airbnb guest rating' }).locator('strong')).toHaveText('4.96');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -27,6 +28,8 @@ test('plaque is usable at each viewport and links continue with attribution', as
   await page.getByRole('link', { name: 'Olrig Bank', exact: true }).click();
   await expect(page).toHaveURL(/\/listings\/olrig-bank\/$/);
   await expect.poll(() => page.evaluate(() => window['collected'].length)).toBeGreaterThan(0);
+  await expect(page.locator('.site-header')).toBeVisible();
+  await expect(page.locator('.site-footer')).toBeVisible();
   const views = await page.evaluate(() => window['collected']);
   expect(views[0]).toMatchObject({ url: '/listings/olrig-bank/', data: { entry_source: 'plaque' } });
   await page.goto('/book/');

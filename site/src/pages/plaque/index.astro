@@ -32,7 +32,7 @@ const stays = [
   return listing ? [{ name: listing.data.title, sleeps: listing.data.sleeps?.replace(/^Sleeps\s+/i, ''), href: `/listings/${slug}/`, property }] : [];
 });
 ---
-<BaseLayout title="Welcome to Olrig Bank, Kendal" description="Welcome to Olrig Bank, a Victorian family home in Kendal, now a holiday house for groups." showSidebar={false} showQuickCheck={false} pageClass="plaque-page">
+<BaseLayout title="Welcome to Olrig Bank, Kendal" description="Welcome to Olrig Bank, a Victorian family home in Kendal, now a holiday house for groups." showSidebar={false} showHeader={false} showFooter={false} showQuickCheck={false} pageClass="plaque-page">
   <article class="plaque">
     <header class="plaque-introduction">
       <div class="plaque-badge"><h1>Olrig Bank</h1><p>Holiday Accommodation</p></div>

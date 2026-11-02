@@ -5,7 +5,8 @@ Implemented on `feature/plaque-landing`, branched from `development`, 2 November
 ## Experience
 
 The permanent QR destination `/plaque/` is a server-rendered public page in the
-existing BaseLayout, without its sidebar or floating booking form. It is included
+existing BaseLayout, with its shared header, footer, sidebar and floating booking
+form disabled for this page. The skip link, metadata and analytics are retained. It is included
 in the sitemap and remains useful without JavaScript.
 
 Revised at the owner's request to follow the supplied Claude example more closely:
@@ -32,7 +33,9 @@ say **Ask for price**. Prices are labelled as base nightly prices, with an invit
 to check dates. No copied fixed prices or unconditional cheaper-booking claim.
 
 The table links to the individual listings; closing actions lead to `/book/`,
-`/` for photos and `/local-guide/`. Existing header/footer navigation remains.
+`/` for photos and `/local-guide/`. The plaque has no shared header or footer; other public pages retain both by
+default. Its own title badge and closing navigation provide the introduction and
+onward links. This is the **Standalone plaque page** custom layout pattern.
 
 UI pattern names:
 
@@ -41,8 +44,7 @@ UI pattern names:
 - **Guest highlights** — custom four-item summary list.
 - **Guest endorsement strip** — custom short quotations from approved public reviews.
 - **Stay comparison table** — native HTML table with custom styling and native links.
-- Navigation uses native HTML anchors; the existing mobile menu uses the browser's
-  details/summary control.
+- Navigation uses native HTML anchors.
 
 ## Tracking
 
@@ -56,7 +58,8 @@ Existing booking events inherit plaque attribution; the tracker never blocks lin
 
 - Production build and Astro check pass (zero errors and warnings; three existing hints).
 - 32 plaque Playwright checks pass, covering 320×800, 390×844, 768×1024 and 1440×900: main-content keyboard
-  access, absence of a content image, database-derived rating/count, document overflow, onward attribution, safe nested private routes and
+  access, absence of a content image and shared header/footer, default header/footer on onward
+  pages, database-derived rating/count, document overflow, onward attribution, safe nested private routes and
   referrers, delayed readiness, repeated readiness, reloads, fast onward navigation,
   expired attribution, blocked storage/tracker, unavailable reviews, disabled analytics,
   every content destination and navigation without JavaScript.
@@ -65,15 +68,15 @@ Existing booking events inherit plaque attribution; the tracker never blocks lin
 - Chrome DevTools inspected the rebuilt disposable preview at 320×800, 390×844,
   768×1024 and 1440×900. No document or visible local content overflow (the
   screen-reader-only table caption is intentionally clipped); skip-link focus is
-  visible with a 3px outline; link names and heading hierarchy checked. The document,
-  shared logo and analytics bootstrap return 200. No console errors or
+  visible with a 3px outline; link names and heading hierarchy checked. The document and
+  analytics bootstrap return 200; no shared logo or house image is requested. No console errors or
   warnings with analytics disabled for the quality audit.
 - Lighthouse mobile and desktop: accessibility, best practices, SEO and agentic
   browsing all 100, no failing audits. Initial contrast failures were corrected:
   the revised title badge and score meet contrast requirements, and shared footer
   supporting copy has an explicit accessible colour. The DevTools audit excludes performance.
-  Revised-page reports are in `/tmp/plaque-revision-lighthouse-mobile/` and
-  `/tmp/plaque-revision-lighthouse-desktop/` for this session.
+  Revised-page reports are in `/tmp/plaque-standalone-lighthouse-mobile/` and
+  `/tmp/plaque-standalone-lighthouse-desktop/` for this session.
 
 ## Limits and release
 
