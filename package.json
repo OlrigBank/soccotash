@@ -68,7 +68,8 @@
     "test:public-booking-journey": "playwright test --config=playwright.public-booking-journey.config.ts",
     "airbnb:import": "node --experimental-strip-types site/scripts/import-airbnb-run.mjs",
     "test:airbnb-import-run": "node --experimental-strip-types --test tests/airbnb-import-run/*.test.mjs",
-    "airbnb:analyse": "python3 scripts/run_reservation_analysis.py"
+    "airbnb:analyse": "python3 scripts/run_reservation_analysis.py",
+    "test:plaque": "npm run build && playwright test --config=playwright.plaque.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

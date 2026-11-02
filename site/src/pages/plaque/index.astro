@@ -1,0 +1,106 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPublishedReviews } from '../../lib/public-review-repository';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'no-store');
+const { reviews, summary } = await getPublishedReviews().catch(() => {
+  console.error('Published plaque reviews could not be loaded.');
+  return { reviews: [], summary: null };
+});
+// Claude's short excerpts, matched against approved text rather than copied blindly.
+const selections = [
+  { name: 'Andrew', quote: 'Amazing house. So big. Massive garden.' },
+  { name: 'Howard', quote: 'Never used the car all weekend.' },
+  { name: 'Monica', quote: 'beautiful, elegant, and exceeded all of our expectations.' },
+];
+const endorsements = selections.flatMap(selection => {
+  const review = reviews.find(review => review.reviewer.displayName === selection.name && review.quote.includes(selection.quote));
+  return review ? [{ ...review, quote: selection.quote }] : [];
+});
+
+---
+<BaseLayout title="Welcome to Olrig Bank, Kendal" description="Welcome to Olrig Bank, a Victorian family home in Kendal, now a holiday house for groups." showSidebar={false} showHeader={false} showFooter={false} showQuickCheck={false} pageClass="plaque-page">
+  <article class="plaque">
+    <header class="plaque-introduction">
+      <div class="plaque-badge"><h1>Olrig Bank</h1><p>Holiday Accommodation</p></div>
+      <p class="plaque-lead">Welcome to Olrig Bank, a Victorian family home in Kendal, now a holiday house for groups.</p>
+    </header>
+    {summary && <div class="plaque-score" role="note" aria-label="Airbnb guest rating">
+      <strong>{summary.overallScore.toFixed(2)}</strong>
+      <span>out of {summary.scale} from {summary.reviewCount} Airbnb guest reviews</span>
+    </div>}
+    <section aria-labelledby="plaque-house">
+      <h2 id="plaque-house">The house you’re standing outside</h2>
+      <p>Built in 1879 for George MacKay, Mayor of Kendal and owner of the nearby Aynam Mills, Olrig Bank is a spacious yet cosy house. It sits in a green, quiet, secluded spot close to the River Kent, within walking distance of Kendal town centre and an easy drive from the Lake District.</p>
+    </section>
+    <section aria-labelledby="plaque-reviews">
+      <h2 id="plaque-reviews">What our guests say</h2>
+      <ul class="guest-highlights">
+        <li><strong>Location</strong>Guests love the 10-minute walk into town, the pubs and restaurants on the doorstep, and easy days out to the Lakes.</li>
+        <li><strong>Space</strong>Big rooms, comfortable beds and room for everyone. Perfect for family gatherings, friends’ weekends and special occasions.</li>
+        <li><strong>Character and garden</strong>Period charm with a large lawned garden, great for children, plus plenty of off-road parking.</li>
+        <li><strong>Your host</strong>Jenna is described again and again as friendly, quick to reply and very helpful.</li>
+      </ul>
+      {endorsements.length > 0 && <div class="guest-endorsement-strip">
+        {endorsements.map(review => <blockquote><p>“{review.quote}”</p><cite>{review.reviewer.displayName}, Airbnb guest, {review.stay.month} {review.stay.year}</cite></blockquote>)}
+      </div>}
+      <a href="/#guest-reviews" data-plaque-destination="reviews" data-plaque-placement="reviews">Read more guest reviews</a>
+    </section>
+    {summary && <section class="category-ratings" aria-labelledby="plaque-category-heading">
+      <p class="category-ratings__eyebrow">At a glance</p>
+      <h2 id="plaque-category-heading">Rating by Airbnb category</h2>
+      <p>Average category scores from {summary.reviewCount} Airbnb guest reviews.</p>
+      <p class="category-ratings__overall" aria-label={`${summary.overallScore.toFixed(2)} out of ${summary.scale} overall`}>
+        <strong>{summary.overallScore.toFixed(2)}</strong>
+        <span><span aria-hidden="true">★</span> Overall rating</span>
+      </p>
+      <dl class="category-ratings__scores">
+        {summary.categories.map(category => <div><dt>{category.displayName}</dt><dd>{category.score.toFixed(2)}</dd></div>)}
+      </dl>
+    </section>}
+      <nav class="plaque-actions" aria-label="Explore Olrig Bank">
+        <a class="button" href="/book/" data-plaque-destination="availability" data-plaque-placement="closing">Check availability and request a stay</a>
+        <a class="button plaque-secondary" href="/" data-plaque-destination="home" data-plaque-placement="closing">See photos and more on our website</a>
+        <a class="button plaque-secondary" href="/local-guide/" data-plaque-destination="local-guide" data-plaque-placement="closing">Browse our Kendal local guide</a>
+      </nav>
+    <p class="plaque-note">Book directly with us for a personal welcome and help choosing your stay.</p>
+  </article>
+</BaseLayout>
+<style>
+  .plaque { max-width: 40rem; margin-inline: auto; }
+  .plaque-introduction { padding: 2.25rem 1.25rem 3rem; background: #1d3a2c; color: #efe9da; border-radius: 1rem; text-align: center; }
+  .plaque-badge { display: inline-block; max-width: 100%; padding: 1.1rem 1.5rem; border: 2px solid #e2c77c; border-radius: 1.1rem; }
+  .plaque-badge h1 { margin: 0; color: #e2c77c; font: normal clamp(2rem, 7vw, 3rem)/1.15 Georgia, serif; }
+  .plaque-badge p { margin: .35rem 0 0; color: #e2c77c; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+  .plaque-lead { max-width: 34ch; margin: 1.35rem auto 0; color: #efe9da; font-size: 1.1rem; }
+  .plaque-score { display: flex; align-items: center; gap: .9rem; position: relative; margin: -1.5rem 1rem 0; padding: 1rem; background: var(--panel-bg); border: 1px solid var(--line); border-radius: .9rem; }
+  .plaque-score strong { color: #80601b; font-size: 2.2rem; line-height: 1; }
+  .plaque-score span { color: var(--muted); font-size: .95rem; }
+  section { margin-top: 2rem; }
+  h2 { font-size: 1.35rem; margin-bottom: .65rem; }
+  .guest-highlights { display: grid; gap: .65rem; list-style: none; padding: 0; }
+  .guest-highlights li { padding: .8rem .9rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--panel-bg); }
+  .guest-highlights strong { display: block; }
+  .guest-endorsement-strip { margin-top: 1.5rem; }
+  blockquote { margin: 0 0 1rem; padding-left: .9rem; border-left: 3px solid #a17e32; }
+  blockquote p { margin: 0; }
+  cite { display: block; margin-top: .2rem; font-style: normal; font-size: .85rem; color: var(--muted); }
+  .category-ratings { padding: clamp(1rem, 3vw, 1.5rem); border-radius: 1rem; background: #1d3a2c; color: #fff; }
+  .category-ratings .category-ratings__eyebrow { margin: 0; color: #e2c77c; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .category-ratings h2 { margin-top: .3rem; color: #fff; }
+  .category-ratings > p { color: #fff; }
+  .category-ratings__overall { display: flex; align-items: baseline; flex-wrap: wrap; gap: .65rem; }
+  .category-ratings__overall strong { font-size: 2.2rem; line-height: 1; color: #e2c77c; }
+  .category-ratings__scores { display: grid; gap: .75rem; margin: 1.25rem 0 0; }
+  .category-ratings__scores > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .category-ratings__scores dt { font-weight: 600; }
+  .category-ratings__scores dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .plaque-actions { display: grid; gap: .75rem; margin-top: 1rem; }
+  .plaque-actions .button { display: flex; align-items: center; justify-content: center; text-align: center; border-radius: .9rem; padding: .9rem 1rem; }
+  .plaque-actions .plaque-secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .plaque-note { font-size: .9rem; color: var(--muted); }
+  .plaque-note { margin-top: 1.5rem; text-align: center; }
+  .plaque a:focus-visible { outline: 3px solid #80601b; outline-offset: 4px; }
+  .plaque :is(p, a, td, th, blockquote) { overflow-wrap: anywhere; }
+</style>
