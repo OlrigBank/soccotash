@@ -340,6 +340,19 @@ test('default reservation selector captures the current Airbnb panel and resolve
   } finally { await browser.close(); }
 });
 
+test('booking capture selects the visible conversation heading alongside the inbox heading', { timeout: 20_000 }, async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    const html = bookingPage().replace('<h1>Example Guest</h1>', '<h1>Messages</h1><h1 hidden>Hidden Guest</h1><h1>Example Guest’s group of 4</h1>');
+    await context.route('https://www.airbnb.com/**', route => route.fulfill({ contentType: 'text/html', body: html }));
+    const capture = await capturePage(await context.newPage(), 'bookings', sourceIdentity('bookings', booking.source.url), {
+      ...defaultSelectors, reservation: 'aside', messageScroller: '#messages',
+    });
+    assert.equal(capture.conversation.heading, 'Example Guest’s group of 4');
+  } finally { await browser.close(); }
+});
+
 
 test('service message labels accept Sent at without omitting the service event', async () => {
   const { parseMessageGroup } = await import('../../site/scripts/generate-airbnb-message-booking-html.mjs');
