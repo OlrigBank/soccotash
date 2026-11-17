@@ -14,7 +14,7 @@ properties:
     maximumGuests: 4
     enabled: true
   - id: whole-property
-    name: Olrig Bank++
+    name: Olrig Bank Max
     listingSlug: event
     availabilityPropertyId: main-house
     availabilityNote: Availability is based on the Olrig Bank calendar. Additional accommodation availability requires review.

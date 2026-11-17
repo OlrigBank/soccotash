@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const source = (path: string) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('the homepage uses one responsive Quick Check booking band', async () => {
+test('the homepage uses one responsive Check availability booking band', async () => {
   const [layout, homepage, component, publicTheme] = await Promise.all([
     source('src/layouts/BaseLayout.astro'),
     source('src/pages/index.astro'),
@@ -14,7 +14,7 @@ test('the homepage uses one responsive Quick Check booking band', async () => {
 
   assert.doesNotMatch(layout, /homepage-mobile-booking|mobile-contact-bar--quick-check/);
   assert.match(layout, /!hasBookingPanel[\s\S]*quick-check-band--mobile-only[\s\S]*<CompactBookingPanel/);
-  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*idPrefix="homepage-booking"[\s\S]*mobileDock=\{true\}/);
+  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*idPrefix="homepage-booking"[\s\S]*mobileDock=\{false\}/);
   assert.match(layout, /@media \(max-width: 699px\)[\s\S]*\.quick-check-band[\s\S]*position: fixed[\s\S]*bottom: 0/);
   assert.match(component, /compact-booking-panel--mobile-dock/);
   assert.match(component, /grid-template-columns: minmax\(0, 1\.65fr\) minmax\(0, 0\.9fr\) minmax\(5\.25rem, 0\.8fr\)/);
@@ -52,7 +52,7 @@ test('date and guest sheets distinguish completed selections from cancellation',
   assert.match(component, /returnTarget\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
-test('Quick Check outcomes remain inline without opening a result sheet', async () => {
+test('Check availability outcomes remain inline without opening a result sheet', async () => {
   const component = await source('src/components/CompactBookingPanel.astro');
 
   assert.doesNotMatch(component, /openMobileSheet\('result'/);

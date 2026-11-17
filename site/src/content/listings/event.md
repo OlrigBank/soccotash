@@ -1,5 +1,5 @@
 ---
-title: Olrig Bank++
+title: Olrig Bank Max
 slug: event
 summary: Make an immediate booking for groups or family gatherings of up to 12
   adults, with six bedrooms, three bathrooms and one separate WC.
@@ -28,8 +28,9 @@ featured: false
 ---
 ## Extra Spacious group accommodation in Kendal
 
-Olrig Bank++ sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and, of course, access to the large garden.
+Olrig Bank Max sleeps 12 adults in six bedrooms. It has three bathrooms, one separate WC, a lounge, dining room, kitchen and, of course, access to the large garden.
 
-Olrig Bank++ stays can be booked immediately when your requested dates are available and your requirements fall within the scope of this type of stay.
+Olrig Bank Max stays can be booked immediately when your requested dates are available and your requirements fall within the scope of this type of stay.
 
 Extra children can sometimes be accommodated using the sofa bed, cots or blow-up beds brought by guests.  When that is the case, please submit a bespoke request so that Jenna can confirm a suitable arrangement.
+Olrig Bank Max includes the main house plus two additional bedrooms and a bathroom upstairs in the cottage, accessed internally through the main house. The cottage front entrance, kitchen and lounge are not included.

@@ -44,13 +44,13 @@ test('public listing facts and labels follow the agreed accommodation model', as
   assert.equal(olrigBankData.bathrooms, '2 bathrooms');
   assert.doesNotMatch(olrigBank, /Main House/);
 
-  assert.equal(combinedData.title, 'Olrig Bank++');
+  assert.equal(combinedData.title, 'Olrig Bank Max');
   assert.equal(combinedData.sleeps, 'Sleeps 12 adults');
   assert.equal(combinedData.bedrooms, '6 bedrooms');
   assert.equal(combinedData.bathrooms, '3 bathrooms & 1 WC');
   const combinedDescription = combined.split('---').at(-1) ?? '';
-  assert.doesNotMatch(combinedDescription, /\bCottage\b|\bcottage\b/);
-  assert.match(combined, /Olrig Bank\+\+ sleeps 12 adults in six bedrooms/);
+  assert.match(combinedDescription, /upstairs in the cottage/);
+  assert.match(combined, /Olrig Bank Max sleeps 12 adults in six bedrooms/);
 
   assert.equal(cottageData.title, 'Cottage at Olrig Bank');
   assert.equal(cottageData.bedrooms, '2 bedrooms');
@@ -59,7 +59,7 @@ test('public listing facts and labels follow the agreed accommodation model', as
 
 test('listing fact validation accepts Pages CMS YAML formatting', () => {
   const data = listingData(`---
-title: Olrig Bank++
+title: Olrig Bank Max
 sleeps: Sleeps 12 adults
 bedrooms: 6 bedrooms
 bathrooms: 3 bathrooms & 1 WC
@@ -67,7 +67,7 @@ bathrooms: 3 bathrooms & 1 WC
 Description.
 `);
   assert.deepEqual(data, {
-    title: 'Olrig Bank++',
+    title: 'Olrig Bank Max',
     sleeps: 'Sleeps 12 adults',
     bedrooms: '6 bedrooms',
     bathrooms: '3 bathrooms & 1 WC',

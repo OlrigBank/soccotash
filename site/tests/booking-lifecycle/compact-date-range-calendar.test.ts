@@ -27,7 +27,7 @@ test('compact panels select arrival and departure on one calendar', async () => 
   assert.match(component, /aria-expanded="false"/);
   assert.match(component, /compact-booking-panel--calendar-ready:not\(\.compact-booking-panel--calendar-open\)/);
   assert.match(component, /\.compact-date-calendar \{[\s\S]*position: absolute;[\s\S]*top: calc\(100% \+ 0\.4rem\)/);
-  assert.match(component, /'Quick Check'/);
+  assert.match(component, /'Check availability'/);
 });
 
 test('the range calendar preserves labelled native-date fallback and minimum stays', async () => {

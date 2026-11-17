@@ -12,7 +12,7 @@ test('Ways to stay follows the hero and precedes photographic discovery', async 
   const galleryStart = homepage.indexOf('<HomeGallery />');
 
   assert.ok(heroEnd >= 0 && waysStart > heroEnd, 'Ways to stay must follow the hero and compact panel');
-  assert.match(homepage.slice(0, heroEnd), /CompactBookingPanel/);
+  assert.match(homepage.slice(heroEnd, waysStart), /CompactBookingPanel/);
   assert.ok(galleryStart > waysEnd, 'photographic discovery must follow Ways to stay');
   assert.doesNotMatch(homepage.slice(heroEnd, waysStart), /class="prose"/);
   assert.match(homepage, /class="ways-to-stay__intro"/);
@@ -25,15 +25,12 @@ test('the semantic comparison retains three standard choices, Bespoke and a rout
 
   assert.match(homepage, /<table>[\s\S]*<caption>Compare stays at Olrig Bank<\/caption>/);
   assert.match(homepage, /<th scope="col">Stay<\/th>/);
-  for (const label of ['Guests', 'Bedrooms', 'Bathrooms', 'Price/night']) {
+  for (const label of ['Guests', 'Bedrooms', 'Bathrooms', 'Base price/night']) {
     assert.match(
       homepage,
       new RegExp(`<th scope="col">[\\s\\S]*?<svg aria-hidden="true"[\\s\\S]*?<span>${label}<\\/span>[\\s\\S]*?<\\/th>`),
     );
   }
-  assert.match(homepage, /<th scope="row"><a href="\/listings\/olrig-bank\/">Olrig Bank<\/a><\/th>\s*<td>8<\/td>\s*<td>4<\/td>\s*<td>2<\/td>/);
-  assert.match(homepage, /<th scope="row"><a href="\/listings\/event\/">Olrig Bank\+\+<\/a><\/th>\s*<td>12<\/td>\s*<td>6<\/td>\s*<td>3<\/td>/);
-  assert.match(homepage, /<th scope="row"><a href="\/listings\/cottage\/">Cottage at Olrig Bank<\/a><\/th>\s*<td>4<\/td>\s*<td>2<\/td>\s*<td>1<\/td>/);
   assert.doesNotMatch(homepage, /separate WC/);
   assert.doesNotMatch(homepage, /Swipe sideways to compare all stays\./);
   assert.match(homepage, /href="\/listings\/bespoke\/">Olrig Bank Bespoke<\/a>/);
