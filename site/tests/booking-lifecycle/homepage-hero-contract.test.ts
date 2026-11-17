@@ -24,13 +24,13 @@ test('the homepage uses the approved image-led hero without competing actions', 
   assert.doesNotMatch(hero, /Request a stay|View ways to stay|class="button/);
   assert.match(homepage, /<CompactBookingPanel[\s\S]*source="homepage"[\s\S]*\/>/);
   assert.match(homepage, /heading=""/);
-  assert.match(homepage, /submitLabel="Quick Check"/);
+  assert.match(homepage, /submitLabel="Check availability"/);
   assert.match(homepage, /id="ways-to-stay"/);
   const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
   assert.ok(frontmatter, 'the homepage must contain YAML frontmatter');
   const pageContent = parse(frontmatter);
-  assert.equal(pageContent.heroTitle, 'Olrig Bank');
-  assert.equal(pageContent.heroText, 'Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills. Today, this spacious yet cosy house provides guests a comfortable base from which to explore Kendal on foot and easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer.');
+  assert.equal(pageContent.heroTitle, 'A Victorian holiday home and cottage in Kendal');
+  assert.equal(pageContent.heroText, 'Stay in the main house for up to 8 guests, choose Olrig Bank Max for up to 12, or book the cottage for up to 4.');
   assert.equal(pageContent.heroFacts, undefined, 'the simplified homepage omits the optional facts strapline');
   assert.equal(pageContent.waysToStayGroupFit, undefined, 'the simplified homepage omits the optional group-fit introduction');
   assert.match(homepage, /class="home-hero__facts">\{page\.data\.heroFacts\}<\/p>/);
@@ -45,7 +45,7 @@ test('the compact panel sits in one shared band between the hero and Ways to sta
   const panel = homepage.indexOf('<CompactBookingPanel');
   const ways = homepage.indexOf('<section id="ways-to-stay"');
   assert.ok(panel > heroEnd && ways > panel);
-  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*mobileDock=\{true\}/);
+  assert.match(homepage, /class="home-booking-band quick-check-band"[\s\S]*mobileDock=\{false\}/);
 });
 
 test('the homepage uses the shared centred shell without the persistent sidebar', async () => {
@@ -62,7 +62,7 @@ test('the homepage uses the shared centred shell without the persistent sidebar'
   assert.match(listing, /showSidebar=\{false\}/, 'public discovery pages should now share the landing-page shell');
 });
 
-test('the homepage follows Quick Check with stay comparison then photographic discovery', async () => {
+test('the homepage follows Check availability with stay comparison then photographic discovery', async () => {
   const homepage = await source('src/pages/index.astro');
 
   assert.match(homepage, /<HomeGallery \/>/);

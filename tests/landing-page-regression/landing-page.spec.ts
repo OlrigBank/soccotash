@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const expectedVisibleReviews = (width: number) => width >= 1000 ? 3 : width >= 520 ? 2 : 1;
 
 const publicRoutes = [
-  { path: '/', heading: 'Olrig Bank', status: 200 },
+  { path: '/', heading: 'A Victorian holiday home and cottage in Kendal', status: 200 },
   { path: '/listings/', heading: 'Holiday accommodation at Olrig Bank', status: 200 },
   { path: '/listings/olrig-bank/', heading: 'Large group and family holiday house in Kendal', status: 200 },
   { path: '/local-guide/', heading: 'Local guide', status: 200 },
@@ -60,7 +60,7 @@ test('renders the shared responsive shell without overflow', async ({ page }, te
   const response = await page.goto('/');
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle('Olrig Bank');
-  await expect(page.getByRole('heading', { level: 1, name: 'Olrig Bank' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'A Victorian holiday home and cottage in Kendal' })).toBeVisible();
   await expect(page.locator('.desktop-sidebar-wrap')).toHaveCount(0);
   await expect(page.locator('[data-compact-booking-panel]')).toHaveCount(1);
   await expect(page.getByRole('contentinfo')).toContainText('Olrig Bank');
@@ -93,10 +93,11 @@ test('renders the shared responsive shell without overflow', async ({ page }, te
   expect(bandPosition).toBe(width < 700 ? 'fixed' : 'relative');
 });
 
-test('opens and closes the responsive Quick Check controls without submitting', async ({ page }, testInfo) => {
+test('opens and closes availability controls without submitting', async ({ page }, testInfo) => {
   await page.goto('/');
   const width = testInfo.project.use.viewport?.width ?? 0;
   const panel = page.locator('[data-compact-booking-panel]');
+  if (width < 700) await page.locator('.home-availability > summary').click();
   const dateTrigger = panel.locator('[data-compact-date-trigger]');
   const calendar = panel.locator('[data-compact-date-calendar]');
 
@@ -104,17 +105,9 @@ test('opens and closes the responsive Quick Check controls without submitting', 
   await expect(calendar).toBeVisible();
   await expect(dateTrigger).toHaveAttribute('aria-expanded', 'true');
 
-  if (width < 700) {
-    await expect(calendar).toHaveAttribute('role', 'dialog');
-    await expect(calendar).toHaveAttribute('aria-modal', 'true');
-    await panel.getByRole('button', { name: 'Close date selection' }).click();
-    await expect(dateTrigger).toBeFocused();
-  } else {
-    await expect(calendar).not.toHaveAttribute('role', 'dialog');
-    const nextMonth = panel.getByRole('button', { name: 'Show next month' });
-    await nextMonth.focus();
-    await nextMonth.press('Escape');
-  }
+  await expect(calendar).not.toHaveAttribute('role', 'dialog');
+  await panel.getByRole('button', { name: 'Show next month' }).focus();
+  await page.keyboard.press('Escape');
   await expect(calendar).toBeHidden();
 
   const guests = panel.locator('[data-compact-guests]');
@@ -173,17 +166,17 @@ test('keeps the desktop hero copy localised over the top-left trees', async ({ p
 
   expect(geometry.leftInset).toBeLessThanOrEqual(2);
   expect(geometry.topInset).toBeLessThanOrEqual(2);
-  expect(geometry.widthRatio).toBeLessThan(0.3);
+  expect(geometry.widthRatio).toBeLessThan(0.65);
   expect(geometry.fullImageOverlay).toBe(false);
 });
 
-test('shows the approved introduction with an accessible, visually hidden page heading', async ({ page }) => {
+test('shows the approved introduction with a visible descriptive page heading', async ({ page }) => {
   await page.goto('/');
-  const heading = page.getByRole('heading', { level: 1, name: 'Olrig Bank' });
-  await expect(heading).toHaveClass('visually-hidden');
-  expect(await heading.evaluate(element => element.getBoundingClientRect().height)).toBe(1);
+  const heading = page.getByRole('heading', { level: 1, name: 'A Victorian holiday home and cottage in Kendal' });
+  await expect(heading).toHaveClass('home-opening-heading');
+  expect(await heading.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(20);
   await expect(page.locator('.home-hero__facts')).toHaveCount(0);
-  await expect(page.locator('.home-hero__copy p').last()).toHaveText('Built in 1879 as a family home for George MacKay, a Mayor of Kendal and owner of the nearby Aynam Mills. Today, this spacious yet cosy house provides guests a comfortable base from which to explore Kendal on foot and easy access to everything the beautiful Lake District and Cumbrian peninsulas have to offer.');
+  await expect(page.locator('.home-hero__copy p').first()).toHaveText('Stay in the main house for up to 8 guests, choose Olrig Bank Max for up to 12, or book the cottage for up to 4.');
   await expect(page.locator('.ways-to-stay__group-fit')).toHaveCount(0);
 });
 

@@ -28,7 +28,7 @@ test('standard listing pages use their configured default booking arrangement', 
   assert.match(component, /<input type="hidden" name="propertyId" value=\{fixedProperty\.id\}/);
 });
 
-test('the listing puts the main image before Quick Check and the description', async () => {
+test('the listing puts the main image before Check availability and the description', async () => {
   const template = await source('src/pages/listings/[slug].astro');
   const image = template.indexOf('class="listing-hero-image"');
   const panel = template.indexOf('<CompactBookingPanel');

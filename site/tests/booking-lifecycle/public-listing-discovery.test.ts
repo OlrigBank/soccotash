@@ -12,8 +12,8 @@ test('the home page contains descriptive standard links to every accommodation',
   ]);
 
   for (const path of listingPaths) assert.match(homepage, new RegExp(`href="${path}"`));
-  assert.match(homeContent, /Built in 1879 as a family home for George MacKay/);
-  assert.match(homepage, />Olrig Bank\+\+<\/a>/);
+  assert.match(homepage, /Built in 1879 as a family home for George MacKay/);
+  assert.match(homepage, />Olrig Bank Max<\/a>/);
   assert.match(homepage, />Cottage at Olrig Bank<\/a>/);
 });
 

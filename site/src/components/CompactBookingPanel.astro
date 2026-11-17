@@ -25,7 +25,7 @@ const {
   source = propertyId ? 'listing' : 'homepage',
   heading = 'Plan your stay',
   idPrefix = `compact-booking-${source}`,
-  submitLabel = 'Quick Check',
+  submitLabel = 'Check availability',
   autoSelectProperty = false,
   mobileDock = false,
   defaultAdults = 2,
@@ -55,7 +55,7 @@ if (propertyId && !fixedProperty) {
   data-auto-select-property={autoSelectProperty ? 'true' : undefined}
   data-properties={quickCheck ? JSON.stringify(properties.map(({ id, name, listingSlug, minimumNights, maximumGuests }) => ({ id, name, listingSlug, minimumNights, maximumGuests }))) : undefined}
   aria-labelledby={heading ? `${idPrefix}-heading` : undefined}
-  aria-label={heading ? undefined : 'Quick Check'}
+  aria-label={heading ? undefined : 'Check availability'}
 >
   {heading ? <div class="compact-booking-panel__heading">
     {quickCheck ? null : <p class="eyebrow">{fixedBespoke ? 'Begin an enquiry' : 'Check a stay'}</p>}
@@ -210,7 +210,7 @@ if (propertyId && !fixedProperty) {
     class="compact-booking-response"
     role="group"
     data-compact-booking-response
-    aria-label="Quick Check result"
+    aria-label="Check availability result"
   >
     {autoSelectProperty ? (
       <div class="compact-booking-recommendation" data-compact-booking-recommendation>
@@ -224,7 +224,7 @@ if (propertyId && !fixedProperty) {
     <p id={`${idPrefix}-status`} class="compact-booking-panel__status" data-compact-booking-status role="status" aria-live="polite"></p>
     {autoSelectProperty ? null : <section class="compact-booking-result" data-compact-booking-result hidden aria-live="polite"></section>}
   </div>
-  {mobileDock ? <button class="compact-sheet-backdrop" type="button" data-compact-sheet-backdrop aria-label="Close open Quick Check panel" hidden></button> : null}
+  {mobileDock ? <button class="compact-sheet-backdrop" type="button" data-compact-sheet-backdrop aria-label="Close open Check availability panel" hidden></button> : null}
 </section>
 
 <script>
@@ -753,7 +753,7 @@ if (propertyId && !fixedProperty) {
 
       if (quickTotal) quickTotal.hidden = true;
       if (quickMessage) quickMessage.textContent = '';
-      submit.textContent = isBespoke() ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
+      submit.textContent = isBespoke() ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Check availability');
       validateCapacity();
       updateStayLinks();
       if (!initialising) rememberSelection();
@@ -781,7 +781,7 @@ if (propertyId && !fixedProperty) {
     const updateMode = (preserveDates = false) => {
       const bespoke = isBespoke();
       bespokeMessage.hidden = !bespoke;
-      submit.textContent = bespoke ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Quick Check');
+      submit.textContent = bespoke ? 'Start a bespoke request' : (panel.dataset.submitLabel || 'Check availability');
       if (!preserveDates && arrival.value && departure.value && departure.value < addDays(arrival.value, minimumNights())) {
         departure.value = '';
         updateDateLabels();
