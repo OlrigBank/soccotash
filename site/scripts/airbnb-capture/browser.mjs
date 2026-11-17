@@ -145,7 +145,12 @@ export async function capturePage(page, kind, source, selectors = defaultSelecto
   });
   const earnings = page.getByRole('button', { name: 'Earnings', exact: true });
   await earnings.waitFor({ state: 'visible' });
-  const displayedHeading = await populated(page.locator(selectors.conversationHeading));
+  const headings = page.locator(selectors.conversationHeading).filter({ visible: true });
+  await headings.first().waitFor({ state: 'visible' });
+  // The inbox title and conversation title can both be h1 elements. Ignore
+  // generic navigation headings, but retain strictness for ambiguous guest titles.
+  const conversationHeadings = headings.filter({ hasNotText: /^\s*(?:messages|inbox|reservation|airbnb)\s*$/iu });
+  const displayedHeading = await populated(await conversationHeadings.count() ? conversationHeadings : headings.first());
   const groups = await collectMessages(page, selectors);
   const reservation = { visibleText: await populated(panel) };
   const heading = resolveBookingHeading(displayedHeading, reservation.visibleText);
