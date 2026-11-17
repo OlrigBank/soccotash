@@ -16,6 +16,12 @@ for (const [index, entry] of ['/', '/listings/cottage/', '/book/'].entries()) {
     page.on('pageerror', error => errors.push(error.message));
     const email = `public-${randomUUID()}@example.test`;
     await page.goto(entry);
+    if (entry === '/' && (page.viewportSize()?.width ?? 1440) < 700) {
+      const availability = page.locator('.home-availability');
+      await expect(availability).not.toHaveAttribute('open', '');
+      await availability.locator(':scope > summary').click();
+      await expect(availability).toHaveAttribute('open', '');
+    }
     const panel = page.locator('[data-compact-booking-panel]').first();
     await panel.locator('[data-compact-date-trigger]').click();
     const monthOffset = 1 + ['phone', 'tablet', 'desktop'].indexOf(info.project.name) * 3 + index;

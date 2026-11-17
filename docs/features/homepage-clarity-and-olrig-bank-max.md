@@ -24,3 +24,7 @@ Prices are described as base nightly prices, retaining the missing-price fallbac
 ## Limitations
 
 The preview uses a disposable local database and intercepted availability/quote responses. It shows fixture review figures and missing-price fallbacks, not production rates. No customer credentials, messages, reservation creation, payments, merge or deployment were used. Final request creation and payment workflows are outside this homepage change.
+
+## PR #192 journey correction
+
+The phone public-booking regression now opens and asserts the collapsed homepage availability disclosure before selecting dates. The full isolated public booking journey suite passes all nine phone, tablet and desktop scenarios, including reservation creation, verification, payment continuation and saved-booking resumption. This extends the original homepage-only verification; all deliveries use the local fixture mailbox. No application behaviour changed in this correction.
